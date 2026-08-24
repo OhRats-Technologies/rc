@@ -8,7 +8,7 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
   return <>
     <aside id="site-sidebar" className="site-sidebar">
       <div className="sidebar-scroll">
-        <a className="site-brand" href="/devices"><img src="https://assets.ohrats.party/current/logo.svg" alt=""/><strong>Relay</strong></a>
+        <a className="site-brand" href="/devices"><img src="https://assets.ohrats.party/logo.svg" alt=""/><strong>Relay</strong></a>
         <nav aria-label="Relay navigation">
           <section className="sidebar-section">
             <h2>Navigation</h2>
