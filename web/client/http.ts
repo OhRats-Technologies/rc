@@ -19,7 +19,7 @@ export function qs<T extends Element>(selector: string, root: ParentNode = docum
 export async function copyText(value: string, button?: HTMLElement) {
   await navigator.clipboard.writeText(value);
   if (!button) return;
-  const original = button.textContent;
-  button.textContent = "COPIED";
-  setTimeout(() => { button.textContent = original; }, 1000);
+  const original = button.getAttribute("aria-label") || "Copy";
+  button.dataset.copied = "true"; button.setAttribute("aria-label", "Copied");
+  setTimeout(() => { delete button.dataset.copied; button.setAttribute("aria-label", original); }, 1000);
 }

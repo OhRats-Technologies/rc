@@ -48,10 +48,9 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
           <div><dt>RELAY</dt><dd>{relayVersion}</dd></div><div><dt>CAPABILITIES</dt><dd id="node-capabilities">{device.capabilities.length ? device.capabilities.map(v => v.toUpperCase()).join(" · ") : "NONE"}</dd></div>
         </dl>
         <div className="node-actions">
-          {supportsUpdate ? <button id="update-node" className="text-action" type="button" disabled={!device.online}>UPDATE NODE</button>
-            : <button id="copy-update" className="text-action" type="button">COPY UPDATE COMMAND</button>}
+          {supportsUpdate && <button id="update-node" className="text-action" type="button" disabled={!device.online}>UPDATE NODE</button>}
           <p id="update-state" className="meta">{supportsUpdate ? "Stops active processes while restarting." : "This node predates remote updates."}</p>
-          {!supportsUpdate && <code id="update-command" className="inline-code">{updateCommand}</code>}
+          {!supportsUpdate && <div className="or-copy-field" title={updateCommand}><span className="or-copy-prefix">$</span><code id="update-command">{updateCommand}</code><button id="copy-update" className="or-copy-button" type="button" aria-label="Copy update command"><span className="or-copy-icon" aria-hidden="true"/></button></div>}
         </div>
       </section>
       <section className="content-section process-launch-section">

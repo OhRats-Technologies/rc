@@ -113,6 +113,8 @@ export async function verifyAddedPasskey(req: Request, user: User, ceremonyId: s
 
 export async function deletePasskey(req: Request, user: User, passkeyId: string) {
   await requireHuman(req, user);
+  const count = q<{ count: number }>("SELECT count(*) count FROM passkeys WHERE user_id=?").get(user.id)?.count || 0;
+  if (count <= 1) throw new HttpError(409, "add another passkey before removing your last one");
   if (!q("DELETE FROM passkeys WHERE id=? AND user_id=?").run(passkeyId, user.id).changes) throw new HttpError(404, "passkey not found");
 }
 

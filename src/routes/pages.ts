@@ -8,7 +8,7 @@ import { HttpError } from "../errors";
 import { fail, setupCookie } from "../http-utils";
 import { pageContext } from "../page-context";
 import { getProcess, listProcesses } from "../process-api";
-import { workspaceActivity, workspaceDetail, workspaceFor } from "../workspaces";
+import { invitePreview, workspaceActivity, workspaceDetail, workspaceFor } from "../workspaces";
 import { accountPage, apiPage } from "../../web/server/pages/account";
 import { authPage, notFoundPage } from "../../web/server/pages/auth";
 import { deleteDevicePage, devicePage, devicesPage } from "../../web/server/pages/devices";
@@ -28,8 +28,12 @@ export const pageRoutes = new Elysia({ name: "relay.pages", detail: { hide: true
   .get("/", async ({ request, query }) => {
     const status = relayStatus(request), context = await pageContext(request), invite = String(query.invite || "");
     if (status.setupRequired) return authPage("setup", { authorized: status.setupAuthorized });
-    if (!context) return authPage(invite && query.signin !== "1" ? "register" : "login", { invite });
-    if (invite) return authPage("join", { invite });
+    const preview = invite ? invitePreview(invite) : null;
+    if (invite && !preview) return authPage("invalid-invite");
+    if (!context) return authPage(invite && query.signin !== "1" ? "register" : "login", {
+      invite, workspaceName: preview?.workspaceName, role: preview?.role,
+    });
+    if (invite) return authPage("join", { invite, workspaceName: preview!.workspaceName, role: preview!.role });
     return Response.redirect("/devices", 303);
   })
   .get("/devices", async ({ request }) => {

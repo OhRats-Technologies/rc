@@ -57,6 +57,14 @@ export function createInvite(user: User, workspaceId: string, role: unknown) {
   return { token, url: `${PUBLIC_URL}/?invite=${encodeURIComponent(token)}`, expiresAt: t + TOKEN_TTL };
 }
 
+export function invitePreview(value: unknown) {
+  const token = String(value || "").trim();
+  if (!token) return null;
+  return q<{ workspaceId: string; workspaceName: string; role: "member" | "viewer" }>(`SELECT i.workspace_id workspaceId,
+    w.name workspaceName,i.role FROM workspace_invites i JOIN workspaces w ON w.id=i.workspace_id
+    WHERE i.token_hash=? AND i.used_at IS NULL AND i.expires_at>?`).get(sha(token), now()) || null;
+}
+
 export function joinWorkspace(user: User, value: unknown) {
   const token = String(value || "").trim();
   const invite = q<any>("SELECT * FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?").get(sha(token), now());

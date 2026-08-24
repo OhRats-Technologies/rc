@@ -96,9 +96,7 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .simple-form .or-button { justify-self:start; }
 .inline-form { width:min(100%,720px); display:grid; grid-template-columns:minmax(180px,1fr) auto; gap:1rem; align-items:end; }
 .enrollment-command,.invite-link,.token-secret { width:min(100%,640px); display:flex; flex-direction:column; gap:.4rem; }
-.copy-value-line { min-width:0; display:flex; align-items:center; gap:1rem; }
-.copy-value-line code { min-width:0; flex:1; overflow-wrap:anywhere; }
-.enrollment-command code,.invite-link code,.token-secret code,.inline-code { color:var(--or-text-muted); font-size:.7rem; transition:color var(--or-theme-transition); }
+.inline-code { color:var(--or-text-muted); font-size:.7rem; transition:color var(--or-theme-transition); }
 .danger-section .actions { display:flex; gap:1.25rem; }
 
 .device-summary { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,340px); gap:clamp(24px,4vw,64px); padding:8px 0 28px; }
@@ -108,6 +106,7 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .facts dd { margin:.2rem 0 0; overflow-wrap:anywhere; }
 .node-actions { min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:.5rem; }
 .node-actions .meta { margin:0; }
+.node-actions .or-copy-field { width:100%; }
 .process-form { display:grid; grid-template-columns:minmax(130px,.35fr) minmax(200px,1fr) auto; gap:1rem; align-items:end; }
 .process-form label,.process-form input { min-width:0; }
 .process-row .mono { word-break:break-word; }
@@ -118,6 +117,7 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .terminal-toolbar { flex:none; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:9px 0; border-bottom:1px solid var(--or-border); }
 .terminal-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--or-text-muted); font-family:var(--or-font-mono); font-size:.62rem; transition:color var(--or-theme-transition); }
 .terminal-actions { display:flex; flex-wrap:wrap; gap:.9rem; }
+.terminal-transcript { flex:1; min-width:0; min-height:0; padding:10px 0; overflow:auto; white-space:pre-wrap; font-family:var(--or-font-mono); font-size:.78rem; }
 .terminal-host { flex:1; min-width:0; min-height:0; height:auto; padding:10px 0; overflow:hidden; }
 .terminal-host .xterm { height:100%; max-width:100%; }
 .process-message { flex:none; min-height:1.2rem; margin-top:.3rem; }

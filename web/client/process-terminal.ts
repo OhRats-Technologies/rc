@@ -28,6 +28,8 @@ async function resync() {
   status = process.status; revision = Number(process.revision || 0); terminal.reset(); terminal.write(process.output || "");
   terminal.options.cursorBlink = status === "running"; const state = qs<HTMLElement>("#process-state");
   state.textContent = stateText(process); state.classList.toggle("online", status === "running");
+  const actions = document.querySelector<HTMLElement>("#terminal-actions");
+  if (actions) actions.hidden = !["starting", "running"].includes(status);
   qs<HTMLElement>("#process-message").textContent = process.error || ""; fitTerminal();
 }
 
