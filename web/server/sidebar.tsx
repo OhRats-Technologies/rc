@@ -14,6 +14,7 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
             <h2>Navigation</h2>
             <a className={`nav-link${active(path, "/devices")}`} href="/devices"><span className="ui-icon icon-devices"/><span>Devices</span></a>
             <a className={`nav-link${active(path, "/workspaces")}`} href="/workspaces"><span className="ui-icon icon-workspaces"/><span>Workspaces</span></a>
+            <a className={`nav-link${active(path, "/actions")}`} href="/actions"><span className="ui-icon icon-actions"/><span>Actions</span></a>
             <a className={`nav-link${path === "/api" ? " active" : ""}`} href="/api"><span className="ui-icon icon-api"/><span>API</span></a>
           </section>
           <section className="sidebar-section">

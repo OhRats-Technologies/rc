@@ -1,4 +1,4 @@
-import { canWrite, deviceRole, logEvent } from "./core";
+import { deviceRole, logEvent } from "./core";
 import { subscribeEvents } from "./events";
 import { isOnline, sendNodeUpdate } from "./gateway";
 import { inputProcess, resizeRemoteProcess, signalProcess, startProcess } from "./process-api";
@@ -14,7 +14,7 @@ function send(connection: BrowserConnection, value: BrowserServerMessage) {
 
 function updateNode(userId: string, input: any) {
   const deviceId = String(input.deviceId || ""), role = deviceRole(userId, deviceId);
-  if (!canWrite(role)) throw new Error("forbidden");
+  if (role !== "owner") throw new Error("owner required");
   if (!isOnline(deviceId)) throw new Error("device is offline");
   if (!sendNodeUpdate(deviceId)) throw new Error("node does not support remote update");
   logEvent("node.update.requested", workspaceForDevice(deviceId), userId, deviceId);

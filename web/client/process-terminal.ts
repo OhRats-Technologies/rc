@@ -12,10 +12,17 @@ const terminal = new Terminal({ cursorBlink: page.dataset.processStatus === "run
   theme: { background: color("--or-bg"), foreground: color("--or-text"), cursor: color("--or-text"), selectionBackground: color("--or-surface-hover") } });
 const fit = new FitAddon(); terminal.loadAddon(fit); host.hidden = false; transcript.hidden = true; terminal.open(host); terminal.write(transcript.textContent || "");
 let status = page.dataset.processStatus || "", revision = Number(page.dataset.processRevision || 0), frame = 0;
+let ctrlNext = false, altNext = false;
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
 fitTerminal(); const observer = new ResizeObserver(fitTerminal); observer.observe(host);
 
-terminal.onData(data => { if (status === "running") fire({ type: "process.input", processId, data }); });
+function sendInput(data: string) { if (status === "running" && data) fire({ type: "process.input", processId, data }); }
+terminal.onData(data => {
+  if (ctrlNext && data.length === 1) { const code = data.toUpperCase().charCodeAt(0); if (code >= 64 && code <= 95) data = String.fromCharCode(code - 64); ctrlNext = false; }
+  if (altNext) { data = `\x1b${data}`; altNext = false; }
+  document.querySelectorAll("[data-terminal-key='CTRL'],[data-terminal-key='ALT']").forEach(button => button.classList.remove("active"));
+  sendInput(data);
+});
 terminal.onResize(size => { if (status === "running") fire({ type: "process.resize", processId, cols: size.cols, rows: size.rows }); });
 terminal.focus();
 
@@ -36,6 +43,14 @@ async function resync() {
 document.querySelectorAll<HTMLButtonElement>("[data-signal]").forEach(button => button.addEventListener("click", async () => {
   try { await request({ type: "process.signal", processId, signal: button.dataset.signal as "INT" | "TERM" | "KILL" }); }
   catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
+}));
+
+const keyValues: Record<string, string> = { ESC: "\x1b", TAB: "\t", LEFT: "\x1b[D", UP: "\x1b[A", DOWN: "\x1b[B", RIGHT: "\x1b[C" };
+document.querySelectorAll<HTMLButtonElement>("[data-terminal-key]").forEach(button => button.addEventListener("click", () => {
+  const key = button.dataset.terminalKey || "";
+  if (key === "CTRL") { ctrlNext = !ctrlNext; button.classList.toggle("active", ctrlNext); terminal.focus(); return; }
+  if (key === "ALT") { altNext = !altNext; button.classList.toggle("active", altNext); terminal.focus(); return; }
+  sendInput(keyValues[key] || ""); terminal.focus();
 }));
 
 onEvent(event => {

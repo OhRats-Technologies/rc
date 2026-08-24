@@ -8,10 +8,14 @@ import type { SocketWriter } from "./browser-socket";
 
 const agents = new Map<string, SocketWriter>();
 const agentActivity = new Map<string, number>();
+const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const RECONNECT_GRACE_MS = 45_000;
 
 export function agentsCount() { return agents.size; }
 export function isOnline(deviceId: string) { return agents.has(deviceId); }
 export function disconnectDevice(deviceId: string, remove = false) {
+  const timer = disconnectTimers.get(deviceId); if (timer) clearTimeout(timer);
+  disconnectTimers.delete(deviceId);
   const ws = agents.get(deviceId);
   if (remove && ws) {
     try { ws.send(JSON.stringify({ type: "node.remove" })); } catch {}
@@ -60,13 +64,24 @@ export async function verifyAgent(url: URL): Promise<string | null> {
   } catch { return null; }
 }
 
+function scheduleDisconnect(deviceId: string, startup = false) {
+  const old = disconnectTimers.get(deviceId); if (old) clearTimeout(old);
+  disconnectTimers.set(deviceId, setTimeout(() => {
+    disconnectTimers.delete(deviceId);
+    if (agents.has(deviceId)) return;
+    const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
+    for (const process of running) {
+      const error = startup ? "control plane restarted and device did not reconnect" : process.status === "running" ? "device disconnected beyond reconnect grace" : "device disconnected before acknowledgement";
+      markProcessLost(process.id, error);
+      publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { error } });
+    }
+    logEvent(startup ? "device.reconnect.timeout" : "device.offline", workspaceForDevice(deviceId), null, deviceId, { reconnectGraceMs: RECONNECT_GRACE_MS });
+  }, RECONNECT_GRACE_MS));
+}
+
 export function recoverInterruptedProcesses() {
-  const rows = q<any>("SELECT id,device_id FROM processes WHERE status IN ('starting','running')").all();
-  if (!rows.length) return;
-  for (const row of rows) {
-    markProcessLost(row.id, "control plane restarted during execution");
-    logEvent("process.interrupted", workspaceForDevice(row.device_id), null, row.device_id, { processId: row.id, reason: "control-plane-restart" });
-  }
+  const devices = q<{ device_id: string }>("SELECT DISTINCT device_id FROM processes WHERE status IN ('starting','running')").all();
+  for (const row of devices) scheduleDisconnect(row.device_id, true);
 }
 
 setInterval(() => {
@@ -79,12 +94,16 @@ setInterval(() => {
 
 export const agentSocketHandlers = {
   open(deviceId: string, socket: SocketWriter) {
+    const reconnecting = disconnectTimers.has(deviceId);
+    const timer = disconnectTimers.get(deviceId); if (timer) clearTimeout(timer);
+    disconnectTimers.delete(deviceId);
     const previous = agents.get(deviceId);
     if (previous && previous !== socket) previous.close(1012, "replaced");
     agents.set(deviceId, socket);
     agentActivity.set(deviceId, Date.now());
     q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
-    logEvent("device.online", workspaceForDevice(deviceId), null, deviceId);
+    if (reconnecting) publishEvent({ kind: "device.online", workspaceId: workspaceForDevice(deviceId), deviceId });
+    else logEvent("device.online", workspaceForDevice(deviceId), null, deviceId);
   },
   message(deviceId: string, msg: AgentClientMessage) {
     try {
@@ -150,13 +169,7 @@ export const agentSocketHandlers = {
     if (agents.get(deviceId) !== socket) return;
     agents.delete(deviceId);
     agentActivity.delete(deviceId);
-    const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
-    for (const process of running) {
-      const error = process.status === "running" ? "device disconnected during execution" : "device disconnected before acknowledgement";
-      markProcessLost(process.id, error);
-      publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
-        detail: { error } });
-    }
-    logEvent("device.offline", workspaceForDevice(deviceId), null, deviceId);
+    publishEvent({ kind: "device.offline", workspaceId: workspaceForDevice(deviceId), deviceId });
+    scheduleDisconnect(deviceId);
   },
 };

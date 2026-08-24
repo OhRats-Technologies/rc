@@ -1,4 +1,4 @@
-import { canWrite, deviceRole, logEvent } from "./core";
+import { canOperate, deviceRole, logEvent, type Role } from "./core";
 import { id, now, q } from "./db";
 import { dispatchProcessStart, isOnline, sendProcessControl } from "./gateway";
 import { processJSON, processRow, resizeProcess, workspaceForDevice } from "./process-store";
@@ -22,9 +22,13 @@ function processAccess(userId: string, processId: string) {
   return { process, role };
 }
 
+function canControl(role: Role, userId: string, process: any) {
+  return role === "owner" || (role === "operator" && process.created_by === userId);
+}
+
 export function startProcess(userId: string, input: StartProcessInput) {
   const deviceId = input.deviceId, role = deviceRole(userId, deviceId);
-  if (!canWrite(role)) throw new HttpError(403, "forbidden");
+  if (!canOperate(role)) throw new HttpError(403, "operator required");
   if (!isOnline(deviceId)) throw new HttpError(409, "device is offline");
   const command = input.command.trim(), cwd = String(input.cwd || "").trim().slice(0, 4096) || null;
   if (!command) throw new HttpError(400, "command required");
@@ -42,6 +46,7 @@ export function startProcess(userId: string, input: StartProcessInput) {
 
 export function inputProcess(userId: string, input: ProcessInput) {
   const processId = input.processId, allowed = processAccess(userId, processId);
+  if (!canControl(allowed.role, userId, allowed.process)) throw new HttpError(403, "process belongs to another operator");
   if (!["starting", "running"].includes(allowed.process.status)) throw new HttpError(409, "process is not running");
   if (!isOnline(allowed.process.device_id)) throw new HttpError(409, "device is offline");
   const data = input.data;
@@ -52,6 +57,7 @@ export function inputProcess(userId: string, input: ProcessInput) {
 
 export function resizeRemoteProcess(userId: string, input: ProcessResize) {
   const processId = input.processId, allowed = processAccess(userId, processId);
+  if (!canControl(allowed.role, userId, allowed.process)) throw new HttpError(403, "process belongs to another operator");
   if (!['starting','running'].includes(allowed.process.status)) return { ok: true };
   const cols = boundedSize(input.cols, Number(allowed.process.cols || 80));
   const rows = boundedSize(input.rows, Number(allowed.process.rows || 24));
@@ -62,6 +68,7 @@ export function resizeRemoteProcess(userId: string, input: ProcessResize) {
 
 export function signalProcess(userId: string, input: ProcessSignal) {
   const processId = input.processId, allowed = processAccess(userId, processId);
+  if (!canControl(allowed.role, userId, allowed.process)) throw new HttpError(403, "process belongs to another operator");
   if (!['starting','running'].includes(allowed.process.status)) return { ok: true };
   const signal = input.signal;
   if (!sendProcessControl(allowed.process.device_id, { type: "process.signal", id: processId, signal })) throw new HttpError(409, "device connection changed");
@@ -69,10 +76,14 @@ export function signalProcess(userId: string, input: ProcessSignal) {
 }
 
 export function listProcesses(userId: string, deviceId: string) {
-  if (!deviceRole(userId, deviceId)) throw new HttpError(403, "forbidden");
-  return q<any>("SELECT * FROM processes WHERE device_id=? ORDER BY created_at DESC LIMIT 100").all(deviceId).map(processJSON);
+  if (!canOperate(deviceRole(userId, deviceId))) throw new HttpError(403, "operator required");
+  return q<any>(`SELECT p.*,u.name created_by_name FROM processes p JOIN users u ON u.id=p.created_by
+    WHERE p.device_id=? ORDER BY p.created_at DESC LIMIT 100`).all(deviceId).map(processJSON);
 }
 
 export function getProcess(userId: string, processId: string) {
-  return processJSON(processAccess(userId, processId).process);
+  const allowed = processAccess(userId, processId);
+  if (!canOperate(allowed.role)) throw new HttpError(403, "operator required");
+  const row = q<any>("SELECT p.*,u.name created_by_name FROM processes p JOIN users u ON u.id=p.created_by WHERE p.id=?").get(processId);
+  return processJSON(row || allowed.process);
 }

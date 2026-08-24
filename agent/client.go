@@ -98,7 +98,7 @@ func unregister(serverURL string, value state) error {
 	return fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
 }
 
-func connect(ctx context.Context, serverURL string, value state, stateDir string) error {
+func connect(ctx context.Context, serverURL string, value state, stateDir string, manager *processManager) error {
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	u, err := signedURL(serverURL, "/api/v1/agent/ws", value)
@@ -134,8 +134,8 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 	}
 
 	readDone := make(chan error, 1)
-	manager := newProcessManager(send)
-	defer manager.shutdown()
+	manager.attach(send)
+	defer manager.detach()
 	go func() {
 		for {
 			var message wireMessage

@@ -20,8 +20,11 @@ let nextSubscriber = 1;
 
 function canReceive(userId: string, event: RelayEvent) {
   if (!event.workspaceId) return false;
-  return !!q<any>("SELECT 1 ok FROM workspace_members WHERE workspace_id=? AND user_id=?")
-    .get(event.workspaceId, userId);
+  const role = q<{ role: string }>("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?")
+    .get(event.workspaceId, userId)?.role;
+  if (!role) return false;
+  if (event.kind.startsWith("process.") && !event.audit) return role === "owner" || role === "operator";
+  return true;
 }
 
 export function publishEvent(event: RelayEvent) {

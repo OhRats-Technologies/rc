@@ -1,11 +1,11 @@
 import { PUBLIC_URL, TOKEN_TTL } from "./config";
-import { canWrite, logEvent, roleFor, User, userWorkspaces } from "./core";
+import { logEvent, roleFor, User } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
 import { disconnectDevice, isOnline } from "./gateway";
 import { HttpError } from "./errors";
 import type { DeviceView } from "./devices";
 
-export type WorkspaceView = { id: string; name: string; role: "owner" | "member" | "viewer"; created_at: number };
+export type WorkspaceView = { id: string; name: string; role: "owner" | "operator" | "viewer"; created_at: number };
 export type ActivityView = { id: number; kind: string; detail: Record<string, unknown>; device_id: string | null; created_at: number };
 
 export function workspaceFor(user: User, workspaceId: string): WorkspaceView | null {
@@ -18,7 +18,8 @@ export function workspaceFor(user: User, workspaceId: string): WorkspaceView | n
 export function workspaceDevices(workspaceId: string): DeviceView[] {
   type Row = Omit<DeviceView, "capabilities" | "online" | "role"> & { capabilities: string };
   return q<Row>(`SELECT d.id,d.workspace_id,d.name,d.hostname,d.platform,d.arch,d.agent_version,d.capabilities,
-    d.last_seen,d.created_at,w.name workspace_name FROM devices d JOIN workspaces w ON w.id=d.workspace_id
+    d.last_seen,d.created_at,w.name workspace_name,(SELECT count(*) FROM processes p WHERE p.device_id=d.id AND p.status IN ('starting','running')) active_processes
+    FROM devices d JOIN workspaces w ON w.id=d.workspace_id
     WHERE d.workspace_id=? ORDER BY d.name`).all(workspaceId)
     .map(row => ({ ...row, online: isOnline(row.id), capabilities: JSON.parse(row.capabilities || "[]") as string[] }));
 }
@@ -50,7 +51,7 @@ export function deleteWorkspace(user: User, workspaceId: string) {
 
 export function createInvite(user: User, workspaceId: string, role: unknown) {
   if (roleFor(user.id, workspaceId) !== "owner") throw new HttpError(403, "owner required");
-  const inviteRole = role === "viewer" ? "viewer" : "member";
+  const inviteRole = role === "viewer" ? "viewer" : "operator";
   const token = opaque("invite"), inviteId = id(), t = now();
   q("INSERT INTO workspace_invites VALUES(?,?,?,?,?,?,?,NULL)")
     .run(inviteId, workspaceId, sha(token), inviteRole, user.id, t, t + TOKEN_TTL);
@@ -60,7 +61,7 @@ export function createInvite(user: User, workspaceId: string, role: unknown) {
 export function invitePreview(value: unknown) {
   const token = String(value || "").trim();
   if (!token) return null;
-  return q<{ workspaceId: string; workspaceName: string; role: "member" | "viewer" }>(`SELECT i.workspace_id workspaceId,
+  return q<{ workspaceId: string; workspaceName: string; role: "operator" | "viewer" }>(`SELECT i.workspace_id workspaceId,
     w.name workspaceName,i.role FROM workspace_invites i JOIN workspaces w ON w.id=i.workspace_id
     WHERE i.token_hash=? AND i.used_at IS NULL AND i.expires_at>?`).get(sha(token), now()) || null;
 }
@@ -73,15 +74,24 @@ export function joinWorkspace(user: User, value: unknown) {
     q("INSERT OR IGNORE INTO workspace_members VALUES(?,?,?,?)").run(invite.workspace_id, user.id, invite.role, now());
     q("UPDATE workspace_invites SET used_at=? WHERE id=?").run(now(), invite.id);
   })();
-  logEvent("member.joined", invite.workspace_id, user.id, null, { role: invite.role });
+  logEvent("workspace.member.joined", invite.workspace_id, user.id, null, { role: invite.role });
   return { workspaceId: String(invite.workspace_id) };
 }
 
 export function createEnrollment(user: User, workspaceId: string) {
-  if (!canWrite(roleFor(user.id, workspaceId))) throw new HttpError(403, "forbidden");
+  if (roleFor(user.id, workspaceId) !== "owner") throw new HttpError(403, "owner required");
   const token = opaque("enroll"), enrollmentId = id(), t = now();
   q("INSERT INTO enrollment_tokens VALUES(?,?,?,?,?,?,NULL)").run(enrollmentId, workspaceId, sha(token), user.id, t, t + TOKEN_TTL);
   return { token, expiresAt: t + TOKEN_TTL, install: `curl -fsSL ${PUBLIC_URL}/install.sh | sh -s -- ${token}` };
+}
+
+export function renameWorkspace(user: User, workspaceId: string, value: unknown) {
+  if (roleFor(user.id, workspaceId) !== "owner") throw new HttpError(403, "owner required");
+  const name = String(value || "").trim().slice(0, 120);
+  if (!name) throw new HttpError(400, "workspace name required");
+  if (!q("UPDATE workspaces SET name=? WHERE id=?").run(name, workspaceId).changes) throw new HttpError(404, "workspace not found");
+  logEvent("workspace.renamed", workspaceId, user.id, null, { name });
+  return { name };
 }
 
 export function workspaceActivity(user: User, workspaceId: string): ActivityView[] {

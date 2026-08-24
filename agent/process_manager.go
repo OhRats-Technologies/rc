@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -20,13 +21,85 @@ type managedProcess struct {
 }
 
 type processManager struct {
-	mu        sync.Mutex
-	processes map[string]*managedProcess
-	send      func(wireMessage) error
+	mu           sync.Mutex
+	processes    map[string]*managedProcess
+	send         func(wireMessage) error
+	pending      []wireMessage
+	pendingBytes int
+	graceTimer   *time.Timer
 }
 
-func newProcessManager(send func(wireMessage) error) *processManager {
-	return &processManager{processes: map[string]*managedProcess{}, send: send}
+const reconnectGrace = 45 * time.Second
+const pendingOutputLimit = 8 << 20
+
+func newProcessManager() *processManager {
+	return &processManager{processes: map[string]*managedProcess{}}
+}
+
+func messageSize(message wireMessage) int {
+	return len(message.Output) + len(message.Input) + len(message.Command) + 128
+}
+
+func (manager *processManager) queue(message wireMessage) {
+	size := messageSize(message)
+	for manager.pendingBytes+size > pendingOutputLimit && len(manager.pending) > 0 {
+		manager.pendingBytes -= messageSize(manager.pending[0])
+		manager.pending = manager.pending[1:]
+	}
+	manager.pending = append(manager.pending, message)
+	manager.pendingBytes += size
+}
+
+func (manager *processManager) sendMessage(message wireMessage) {
+	manager.mu.Lock()
+	send := manager.send
+	if send == nil {
+		manager.queue(message)
+		manager.mu.Unlock()
+		return
+	}
+	manager.mu.Unlock()
+	if err := send(message); err != nil {
+		manager.mu.Lock()
+		if manager.send != nil {
+			manager.send = nil
+		}
+		manager.queue(message)
+		manager.mu.Unlock()
+	}
+}
+
+func (manager *processManager) attach(send func(wireMessage) error) {
+	manager.mu.Lock()
+	if manager.graceTimer != nil {
+		manager.graceTimer.Stop()
+		manager.graceTimer = nil
+	}
+	manager.send = send
+	active := make([]string, 0, len(manager.processes))
+	for id := range manager.processes {
+		active = append(active, id)
+	}
+	pending := append([]wireMessage(nil), manager.pending...)
+	manager.pending = nil
+	manager.pendingBytes = 0
+	manager.mu.Unlock()
+	for _, id := range active {
+		manager.sendMessage(wireMessage{Type: "process.started", ID: id})
+	}
+	for _, message := range pending {
+		manager.sendMessage(message)
+	}
+}
+
+func (manager *processManager) detach() {
+	manager.mu.Lock()
+	manager.send = nil
+	if manager.graceTimer != nil {
+		manager.graceTimer.Stop()
+	}
+	manager.graceTimer = time.AfterFunc(reconnectGrace, manager.shutdown)
+	manager.mu.Unlock()
 }
 
 func (manager *processManager) handle(message wireMessage) {
@@ -79,15 +152,15 @@ func (manager *processManager) start(message wireMessage) {
 	if err != nil {
 		_ = writeEnd.Close()
 		manager.mu.Unlock()
-		_ = manager.send(wireMessage{Type: "process.output", ID: message.ID, Output: fmt.Sprintf("process start failed: %v\r\n", err)})
+		manager.sendMessage(wireMessage{Type: "process.output", ID: message.ID, Output: fmt.Sprintf("process start failed: %v\r\n", err)})
 		code := -1
-		_ = manager.send(wireMessage{Type: "process.exit", ID: message.ID, ExitCode: &code})
+		manager.sendMessage(wireMessage{Type: "process.exit", ID: message.ID, ExitCode: &code})
 		return
 	}
 	managed := &managedProcess{cmd: cmd, terminal: terminal, lifeline: writeEnd}
 	manager.processes[message.ID] = managed
 	manager.mu.Unlock()
-	_ = manager.send(wireMessage{Type: "process.started", ID: message.ID})
+	manager.sendMessage(wireMessage{Type: "process.started", ID: message.ID})
 	go manager.capture(message.ID, managed)
 	go manager.wait(message.ID, managed)
 }
@@ -96,8 +169,8 @@ func (manager *processManager) capture(id string, managed *managedProcess) {
 	buffer := make([]byte, 16*1024)
 	for {
 		n, err := managed.terminal.Read(buffer)
-		if n > 0 && manager.send(wireMessage{Type: "process.output", ID: id, Output: string(buffer[:n])}) != nil {
-			return
+		if n > 0 {
+			manager.sendMessage(wireMessage{Type: "process.output", ID: id, Output: string(buffer[:n])})
 		}
 		if err != nil {
 			return
@@ -123,7 +196,7 @@ func (manager *processManager) wait(id string, managed *managedProcess) {
 	manager.mu.Unlock()
 	_ = managed.lifeline.Close()
 	_ = managed.terminal.Close()
-	_ = manager.send(wireMessage{Type: "process.exit", ID: id, ExitCode: &code, Signal: signal})
+	manager.sendMessage(wireMessage{Type: "process.exit", ID: id, ExitCode: &code, Signal: signal})
 }
 
 func (manager *processManager) input(id, value string) {

@@ -29,10 +29,16 @@ func printHelp() {
 	fmt.Println("Outbound device node for Relay.")
 	fmt.Printf("\n%s %s\n\n", color("1", "Usage:"), "ohrats-relay <command> [flags]")
 	fmt.Println(color("1", "Commands:"))
+	helpRow("35;1", "login", "Sign in with a passkey")
+	helpRow("35;1", "logout", "Sign out this CLI")
 	helpRow("35;1", "run", "Connect this node to Relay")
 	helpRow("35;1", "enroll TOKEN", "Enroll this machine")
 	helpRow("35;1", "status", "Show node and Relay status")
 	helpRow("35;1", "devices", "List devices in your account")
+	helpRow("35;1", "shell DEVICE", "Open a remote terminal")
+	helpRow("35;1", "run DEVICE -- CMD", "Run a remote command")
+	helpRow("35;1", "actions", "List saved actions")
+	helpRow("35;1", "action run", "Run a saved action")
 	fmt.Println()
 	helpRow("34;1", "update", "Update this Relay Node")
 	helpRow("34;1", "device delete ID", "Remove a device from Relay")
@@ -46,10 +52,28 @@ func printHelp() {
 
 func accountFlags(name string, args []string) (*flag.FlagSet, *string, *string, error) {
 	flags := flag.NewFlagSet(name, flag.ContinueOnError)
-	server := flags.String("url", defaultServer, "Relay server URL")
-	token := flags.String("token", env("RELAY_API_TOKEN", ""), "Relay API token")
+	dir := resolveStateDir("")
+	config, _ := loadConfig(dir)
+	account, _ := loadAccountSession(dir)
+	defaultURL := strings.TrimSpace(os.Getenv("RELAY_URL"))
+	if defaultURL == "" {
+		defaultURL = account.Server
+	}
+	if defaultURL == "" {
+		defaultURL = config.Server
+	}
+	if defaultURL == "" {
+		defaultURL = defaultServer
+	}
+	server := flags.String("url", defaultURL, "Relay server URL")
+	token := flags.String("token", env("RELAY_API_TOKEN", ""), "Relay API token override")
 	if err := flags.Parse(args); err != nil {
 		return flags, server, token, err
+	}
+	if *token == "" {
+		if account.Token != "" && strings.TrimRight(account.Server, "/") == strings.TrimRight(*server, "/") {
+			*token = account.Token
+		}
 	}
 	return flags, server, token, nil
 }
@@ -116,6 +140,10 @@ func printConfigHelp() {
 
 func commandHelp(command string) error {
 	switch command {
+	case "login":
+		return loginCommand([]string{"--help"})
+	case "logout":
+		return logoutCommand([]string{"--help"})
 	case "config":
 		printConfigHelp()
 		return nil
@@ -127,6 +155,13 @@ func commandHelp(command string) error {
 		return statusCommand([]string{"--help"})
 	case "devices":
 		return devicesCommand([]string{"--help"})
+	case "shell":
+		return shellCommand([]string{"--help"})
+	case "actions":
+		return actionsCommand([]string{"--help"})
+	case "action":
+		fmt.Println("Usage: ohrats-relay action run ACTION --device DEVICE [--token TOKEN]")
+		return nil
 	case "device":
 		return deviceCommand([]string{"--help"})
 	case "update":

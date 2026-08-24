@@ -2,13 +2,14 @@ import { now, q } from "./db";
 import { publishEvent } from "./events";
 
 export type User = { id: string; name: string };
-export type Role = "owner" | "member" | "viewer";
+export type Role = "owner" | "operator" | "viewer";
 
 export function roleFor(userId: string, workspaceId: string): Role | null {
   return q<any>("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?").get(workspaceId, userId)?.role || null;
 }
 
-export function canWrite(role: Role | null) { return role === "owner" || role === "member"; }
+export function canOperate(role: Role | null) { return role === "owner" || role === "operator"; }
+export function isOwner(role: Role | null) { return role === "owner"; }
 
 export function userWorkspaces(userId: string) {
   return q<any>(`SELECT w.id,w.name,wm.role,w.created_at FROM workspaces w

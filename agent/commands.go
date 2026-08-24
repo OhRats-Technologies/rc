@@ -87,9 +87,11 @@ func runNode(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	manager := newProcessManager()
+	defer manager.shutdown()
 	fmt.Printf("Connecting to %s as %s\n", server, value.DeviceID)
 	for {
-		if err := connect(ctx, server, value, dir); err != nil && ctx.Err() == nil {
+		if err := connect(ctx, server, value, dir, manager); err != nil && ctx.Err() == nil {
 			if errors.Is(err, errNodeRemoved) {
 				fmt.Println("Device removed from Relay")
 				return nil

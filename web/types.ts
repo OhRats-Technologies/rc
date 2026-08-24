@@ -1,4 +1,4 @@
-export type Role = "owner" | "member" | "viewer";
+export type Role = "owner" | "operator" | "viewer";
 export type ProcessStatus = "starting" | "running" | "exited" | "lost";
 
 export interface User { id: string; name: string }
@@ -19,6 +19,7 @@ export interface Device {
   last_seen: number | null;
   created_at: number;
   online: boolean;
+  active_processes: number;
   role?: Role;
 }
 
@@ -35,6 +36,8 @@ export interface RemoteProcess {
   exit_code: number | null;
   signal: string | null;
   error: string | null;
+  created_by: string;
+  created_by_name: string | null;
   created_at: number;
   started_at: number | null;
   completed_at: number | null;

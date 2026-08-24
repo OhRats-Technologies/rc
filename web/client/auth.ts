@@ -6,7 +6,10 @@ function message(error: unknown) {
   return error instanceof Error ? error.message : "Authentication failed.";
 }
 function errorOut(error: unknown) { qs<HTMLElement>("#auth-error").textContent = message(error); }
-function destination() { return location.search.includes("invite=") ? location.href : `${location.origin}/devices`; }
+function destination() {
+  const next = document.querySelector<HTMLElement>(".auth-content")?.dataset.authNext;
+  return next || (location.search.includes("invite=") ? location.href : `${location.origin}/devices`);
+}
 
 document.querySelector<HTMLFormElement>("#setup-form")?.addEventListener("submit", async event => {
   event.preventDefault(); const form = event.currentTarget as HTMLFormElement;

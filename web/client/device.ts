@@ -4,13 +4,21 @@ import { request } from "./socket";
 const page = document.querySelector<HTMLElement>("[data-device-page]");
 const deviceId = page?.dataset.devicePage || "";
 
+async function start(command: string, cwd = "") {
+  const result = await request<{ processId: string }>({ type: "process.start", deviceId, command, cwd, cols: 100, rows: 30 });
+  location.href = `/devices/${deviceId}/processes/${result.processId}`;
+}
+
+document.querySelector<HTMLButtonElement>("#open-terminal")?.addEventListener("click", async () => {
+  try { await start('exec "${SHELL:-sh}" -l'); }
+  catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
+});
+
 document.querySelector<HTMLFormElement>("#process-launch")?.addEventListener("submit", async event => {
   event.preventDefault(); const form = event.currentTarget as HTMLFormElement;
   const command = qs<HTMLInputElement>("#process-command").value.trim(), cwd = qs<HTMLInputElement>("#process-cwd").value.trim();
-  try {
-    const result = await request<{ processId: string }>({ type: "process.start", deviceId, command, cwd, cols: 100, rows: 30 });
-    location.href = `/devices/${deviceId}/processes/${result.processId}`;
-  } catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
+  try { await start(command, cwd); }
+  catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
 });
 
 document.querySelector<HTMLButtonElement>("#update-node")?.addEventListener("click", async event => {

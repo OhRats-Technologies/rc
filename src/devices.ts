@@ -1,4 +1,4 @@
-import { canWrite, deviceRole, logEvent, User } from "./core";
+import { deviceRole, logEvent, User } from "./core";
 import { db, id, now, q, sha } from "./db";
 import { disconnectDevice, isOnline, verifyAgent } from "./gateway";
 import { fail, json } from "./http-utils";
@@ -7,7 +7,7 @@ import { HttpError } from "./errors";
 export type DeviceView = {
   id: string; workspace_id: string; name: string; hostname: string; platform: string; arch: string;
   agent_version: string; capabilities: string[]; last_seen: number | null; created_at: number;
-  workspace_name: string; online: boolean; role?: "owner" | "member" | "viewer";
+  workspace_name: string; online: boolean; active_processes: number; role?: "owner" | "operator" | "viewer";
 };
 
 type DeviceRow = Omit<DeviceView, "capabilities" | "online"> & { capabilities: string };
@@ -57,14 +57,16 @@ export async function handleAgentUnregister(req: Request, url: URL): Promise<Res
 
 export function listDevices(user: User): DeviceView[] {
   return q<DeviceRow>(`SELECT d.id,d.workspace_id,d.name,d.hostname,d.platform,d.arch,d.agent_version,d.capabilities,
-    d.last_seen,d.created_at,w.name workspace_name FROM devices d JOIN workspaces w ON w.id=d.workspace_id
+    d.last_seen,d.created_at,w.name workspace_name,(SELECT count(*) FROM processes p WHERE p.device_id=d.id AND p.status IN ('starting','running')) active_processes
+    FROM devices d JOIN workspaces w ON w.id=d.workspace_id
     JOIN workspace_members wm ON wm.workspace_id=d.workspace_id WHERE wm.user_id=? ORDER BY d.name`).all(user.id)
     .map(row => ({ ...row, online: isOnline(row.id), capabilities: JSON.parse(row.capabilities || "[]") as string[] }));
 }
 
 export function getDevice(user: User, deviceId: string): DeviceView | null {
   const device = q<DeviceRow>(`SELECT d.id,d.workspace_id,d.name,d.hostname,d.platform,d.arch,d.agent_version,d.capabilities,
-    d.last_seen,d.created_at,w.name workspace_name,wm.role FROM devices d JOIN workspaces w ON w.id=d.workspace_id
+    d.last_seen,d.created_at,w.name workspace_name,wm.role,(SELECT count(*) FROM processes p WHERE p.device_id=d.id AND p.status IN ('starting','running')) active_processes
+    FROM devices d JOIN workspaces w ON w.id=d.workspace_id
     JOIN workspace_members wm ON wm.workspace_id=d.workspace_id WHERE d.id=? AND wm.user_id=?`).get(deviceId, user.id);
   return device ? { ...device, online: isOnline(deviceId), capabilities: JSON.parse(device.capabilities || "[]") as string[] } : null;
 }
@@ -72,10 +74,23 @@ export function getDevice(user: User, deviceId: string): DeviceView | null {
 export function removeDevice(user: User, deviceId: string) {
   const role = deviceRole(user.id, deviceId);
   if (!role) throw new HttpError(404, "device not found");
-  if (!canWrite(role)) throw new HttpError(403, "forbidden");
+  if (role !== "owner") throw new HttpError(403, "owner required");
   const device = q<{ workspace_id: string; name: string }>("SELECT workspace_id,name FROM devices WHERE id=?").get(deviceId);
   if (!device) throw new HttpError(404, "device not found");
   disconnectDevice(deviceId, true);
   q("DELETE FROM devices WHERE id=?").run(deviceId);
   logEvent("device.removed", device.workspace_id, user.id, null, { deviceId, name: device.name });
+}
+
+export function renameDevice(user: User, deviceId: string, value: unknown) {
+  const role = deviceRole(user.id, deviceId);
+  if (!role) throw new HttpError(404, "device not found");
+  if (role !== "owner") throw new HttpError(403, "owner required");
+  const name = String(value || "").trim().slice(0, 120);
+  if (!name) throw new HttpError(400, "device name required");
+  const row = q<{ workspace_id: string }>("SELECT workspace_id FROM devices WHERE id=?").get(deviceId);
+  if (!row) throw new HttpError(404, "device not found");
+  q("UPDATE devices SET name=? WHERE id=?").run(name, deviceId);
+  logEvent("device.renamed", row.workspace_id, user.id, deviceId, { name });
+  return { name };
 }

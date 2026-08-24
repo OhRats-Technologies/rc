@@ -9,6 +9,7 @@ import { db, id, now, opaque, q, sha } from "./db";
 import { base64ToBytes } from "./encoding";
 import { cookie, fail, json, sessionCookie } from "./http-utils";
 import { HttpError } from "./errors";
+import { cliTokenUser } from "./cli-auth";
 import {
   authenticationCeremony, cleanName, insertPasskey, registrationCeremony, takeCeremony, verifyNewPasskey,
 } from "./webauthn";
@@ -31,7 +32,7 @@ export function apiTokenUser(token: string): User | null {
 
 export async function auth(req: Request): Promise<User | null> {
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (bearer) return apiTokenUser(bearer);
+  if (bearer) return cliTokenUser(bearer) || apiTokenUser(bearer);
   return cookieUser(req);
 }
 
@@ -66,12 +67,6 @@ export async function setupOptions(req: Request, value: unknown) {
 export async function loginOptions() {
   if ((q<{ count: number }>("SELECT count(*) count FROM passkeys").get()?.count || 0) === 0) throw new HttpError(409, "no passkeys registered");
   return authenticationCeremony();
-}
-
-export async function tokenLogin(value: unknown) {
-  const user = apiTokenUser(String(value || "").trim());
-  if (!user) throw new HttpError(401, "invalid API token");
-  return createLogin(user.id);
 }
 
 export async function registerOptions(inviteValue: unknown, nameValue: unknown) {

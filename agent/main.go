@@ -35,8 +35,23 @@ func run(args []string) error {
 	case "version", "--version", "-version":
 		fmt.Printf("OhRats Relay Node %s\n", version)
 		return nil
+	case "login":
+		return loginCommand(args[1:])
+	case "logout":
+		return logoutCommand(args[1:])
 	case "run":
+		for _, arg := range args[1:] {
+			if arg == "--" {
+				return remoteRunCommand(args[1:])
+			}
+		}
 		return runNode(args[1:])
+	case "shell":
+		return shellCommand(args[1:])
+	case "actions":
+		return actionsCommand(args[1:])
+	case "action":
+		return actionCommand(args[1:])
 	case "enroll":
 		return enrollCommand(args[1:])
 	case "status":

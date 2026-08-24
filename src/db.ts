@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS workspaces(
 CREATE TABLE IF NOT EXISTS workspace_members(
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL CHECK(role IN ('owner','member','viewer')),joined_at INTEGER NOT NULL,
+  role TEXT NOT NULL CHECK(role IN ('owner','operator','viewer')),joined_at INTEGER NOT NULL,
   PRIMARY KEY(workspace_id,user_id)
 );
 CREATE TABLE IF NOT EXISTS devices(
@@ -51,9 +51,18 @@ CREATE TABLE IF NOT EXISTS api_tokens(
   id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL,last_used INTEGER
 );
+CREATE TABLE IF NOT EXISTS cli_authorizations(
+  id TEXT PRIMARY KEY,device_code_hash TEXT NOT NULL UNIQUE,user_code_hash TEXT NOT NULL UNIQUE,
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,
+  approved_at INTEGER,exchanged_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS cli_sessions(
+  token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_used INTEGER
+);
 CREATE TABLE IF NOT EXISTS workspace_invites(
   id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,role TEXT NOT NULL CHECK(role IN ('member','viewer')),
+  token_hash TEXT NOT NULL UNIQUE,role TEXT NOT NULL CHECK(role IN ('operator','viewer')),
   created_by TEXT NOT NULL REFERENCES users(id),created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS enrollment_tokens(
@@ -66,13 +75,47 @@ CREATE TABLE IF NOT EXISTS events(
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,
   kind TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '{}',created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS actions(
+  id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',command TEXT NOT NULL,cwd TEXT,
+  confirm INTEGER NOT NULL DEFAULT 0,created_by TEXT NOT NULL REFERENCES users(id),
+  created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_workspace ON devices(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_processes_device ON processes(device_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(device_id,status);
 CREATE INDEX IF NOT EXISTS idx_events_workspace ON events(workspace_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_actions_workspace ON actions(workspace_id,name);
+CREATE INDEX IF NOT EXISTS idx_cli_authorizations_expiry ON cli_authorizations(expires_at);
+CREATE INDEX IF NOT EXISTS idx_cli_sessions_user ON cli_sessions(user_id);
 `);
+
+function migrateRoleVocabulary() {
+  const memberSql = db.query<{ sql: string }, []>("SELECT sql FROM sqlite_master WHERE type='table' AND name='workspace_members'").get()?.sql || "";
+  if (memberSql.includes("'member'")) db.transaction(() => {
+    db.exec(`CREATE TABLE workspace_members_v2(
+      workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role TEXT NOT NULL CHECK(role IN ('owner','operator','viewer')),joined_at INTEGER NOT NULL,
+      PRIMARY KEY(workspace_id,user_id));`);
+    db.exec("INSERT INTO workspace_members_v2 SELECT workspace_id,user_id,CASE role WHEN 'member' THEN 'operator' ELSE role END,joined_at FROM workspace_members;");
+    db.exec("DROP TABLE workspace_members; ALTER TABLE workspace_members_v2 RENAME TO workspace_members;");
+  })();
+  const inviteSql = db.query<{ sql: string }, []>("SELECT sql FROM sqlite_master WHERE type='table' AND name='workspace_invites'").get()?.sql || "";
+  if (inviteSql.includes("'member'")) db.transaction(() => {
+    db.exec(`CREATE TABLE workspace_invites_v2(
+      id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+      token_hash TEXT NOT NULL UNIQUE,role TEXT NOT NULL CHECK(role IN ('operator','viewer')),
+      created_by TEXT NOT NULL REFERENCES users(id),created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER);`);
+    db.exec("INSERT INTO workspace_invites_v2 SELECT id,workspace_id,token_hash,CASE role WHEN 'member' THEN 'operator' ELSE role END,created_by,created_at,expires_at,used_at FROM workspace_invites;");
+    db.exec("DROP TABLE workspace_invites; ALTER TABLE workspace_invites_v2 RENAME TO workspace_invites;");
+  })();
+  db.exec("CREATE INDEX IF NOT EXISTS idx_members_user ON workspace_members(user_id);");
+}
+
+migrateRoleVocabulary();
 
 export const q = <T = any>(sql: string) => db.query<T, any[]>(sql);
 export const now = () => Date.now();

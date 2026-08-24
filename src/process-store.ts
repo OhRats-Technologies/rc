@@ -23,7 +23,8 @@ export function processJSON(row: any) {
     id: row.id, device_id: row.device_id, command: row.command, cwd: row.cwd, status: row.status,
     output: processOutput(row), output_truncated: Number(row.output_chars || 0) > head.length + tail.length,
     revision: row.revision, cols: row.cols, rows: row.rows, exit_code: row.exit_code, signal: row.signal,
-    error: row.error, created_at: row.created_at, started_at: row.started_at, completed_at: row.completed_at,
+    error: row.error, created_by: row.created_by, created_by_name: row.created_by_name || null,
+    created_at: row.created_at, started_at: row.started_at, completed_at: row.completed_at,
   };
 }
 
