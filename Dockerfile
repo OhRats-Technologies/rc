@@ -4,10 +4,10 @@ COPY agent/go.mod agent/go.sum ./
 RUN go mod download
 COPY agent/*.go ./
 RUN mkdir -p /out \
- && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/ohrats-relay-linux-amd64 . \
- && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/ohrats-relay-linux-arm64 . \
- && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/ohrats-relay-darwin-amd64 . \
- && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/ohrats-relay-darwin-arm64 .
+ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -trimpath -ldflags="-s -w" -o /out/ohrats-relay-linux-amd64 . \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -v -trimpath -ldflags="-s -w" -o /out/ohrats-relay-linux-arm64 . \
+ && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -v -trimpath -ldflags="-s -w" -o /out/ohrats-relay-darwin-amd64 . \
+ && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -v -trimpath -ldflags="-s -w" -o /out/ohrats-relay-darwin-arm64 .
 
 FROM oven/bun:1.4.0-alpine AS app
 WORKDIR /app
