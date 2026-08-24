@@ -2,7 +2,9 @@ import { STATIC_DIR } from "./config";
 import { fail } from "./http-utils";
 
 const downloadHashes = new Map<string, string>();
-const assetDir = Bun.env.ASSET_DIR || (Bun.env.NODE_ENV === "production" ? `${import.meta.dir}/../assets` : `${import.meta.dir}/../dist/assets`);
+const bundledAssetDir = `${import.meta.dir}/../assets`;
+const sourceAssetDir = `${import.meta.dir}/../dist/assets`;
+const assetDir = Bun.env.ASSET_DIR || (import.meta.dir.endsWith("/dist/server") ? bundledAssetDir : sourceAssetDir);
 const assetCache = new Map<string, string>();
 
 export function assetUrl(entry: string, extension = "js") {

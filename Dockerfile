@@ -24,7 +24,7 @@ COPY --from=app /app/dist ./dist
 COPY public/install.sh ./static/install.sh
 COPY --from=agent /out ./static/downloads
 RUN mkdir -p /data
-ENV PORT=3000 DATA_DIR=/data STATIC_DIR=/app/static PUBLIC_URL=https://relay.ohrats.party
+ENV PORT=3000 DATA_DIR=/data STATIC_DIR=/app/static PUBLIC_URL=https://relay.ohrats.party NODE_ENV=production ASSET_DIR=/app/dist/assets
 EXPOSE 3000
 WORKDIR /app/dist
 CMD ["bun", "server/server.js"]
