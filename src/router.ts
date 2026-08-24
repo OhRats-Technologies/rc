@@ -8,7 +8,7 @@ import { checkOrigin, fail, json } from "./http-utils";
 import { handleWorkspaces } from "./workspaces";
 
 async function authenticated(req: Request, path: string, user: User) {
-  if (path === "/api/v1/events" && req.method === "GET") return eventStream(user.id);
+  if (path === "/api/v1/events" && req.method === "GET") return eventStream(req, user.id);
   return await handleAccount(req, path, user)
     || await handleTokens(req, path, user)
     || await handleWorkspaces(req, path, user)

@@ -32,29 +32,32 @@ export function publishEvent(event: RelayEvent) {
   }
 }
 
-export function eventStream(userId: string) {
+export function eventStream(req: Request, userId: string) {
   const encoder = new TextEncoder();
-  let subscriberId = 0;
-  let keepalive: ReturnType<typeof setInterval> | null = null;
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const write = (value: string) => {
-        try { controller.enqueue(encoder.encode(value)); } catch {}
-      };
-      subscriberId = nextSubscriber++;
-      subscribers.set(subscriberId, {
-        userId,
-        send: event => write(`data: ${JSON.stringify(event)}\n\n`),
-      });
-      write("retry: 1500\n\n");
-      keepalive = setInterval(() => write(": keepalive\n\n"), 15_000);
-    },
-    cancel() {
-      subscribers.delete(subscriberId);
-      if (keepalive) clearInterval(keepalive);
-    },
+  const stream = new TransformStream<Uint8Array, Uint8Array>();
+  const writer = stream.writable.getWriter();
+  const subscriberId = nextSubscriber++;
+  let closed = false;
+  let keepalive: ReturnType<typeof setInterval>;
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    subscribers.delete(subscriberId);
+    clearInterval(keepalive);
+    void writer.close().catch(() => {});
+  };
+  const write = (value: string) => {
+    if (closed) return;
+    void writer.write(encoder.encode(value)).catch(cleanup);
+  };
+  subscribers.set(subscriberId, {
+    userId,
+    send: event => write(`data: ${JSON.stringify(event)}\n\n`),
   });
-  return new Response(stream, {
+  write("retry: 1500\n\n");
+  keepalive = setInterval(() => write(": keepalive\n\n"), 15_000);
+  req.signal.addEventListener("abort", cleanup, { once: true });
+  return new Response(stream.readable, {
     headers: {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store",

@@ -25,9 +25,27 @@ export async function renderDevices() {
 function jobsHTML(jobs) {
   return jobs.length ? jobs.map(job => `
     <div class="job" data-job="${job.id}">
-      <div class="job-command"><span class="prompt">›</span>${escapeHTML(job.payload.command)}<span class="job-state">${job.status === 'sent' ? 'RUNNING' : escapeHTML(job.status.toUpperCase())}</span></div>
+      <div class="job-command"><span class="prompt">›</span>${escapeHTML(job.payload.command)}<span class="job-state">${job.status === 'sent' ? (job.started_at ? 'RUNNING' : 'QUEUED') : escapeHTML(job.status.toUpperCase())}</span></div>
       <div class="job-result">${job.result == null ? '' : escapeHTML(job.result)}${job.exit_code != null && job.exit_code !== 0 ? `\n[exit ${job.exit_code}]` : ''}</div>
     </div>`).join('') : '<span class="muted">Session ready.</span>';
+}
+
+function jobElement(jobId) { return document.querySelector(`[data-job="${CSS.escape(jobId)}"]`); }
+
+function applyJobEvent(event) {
+  const job = jobElement(event.jobId);
+  if (!job) return false;
+  const state = job.querySelector('.job-state'), result = job.querySelector('.job-result');
+  if (event.kind === 'job.started') state.textContent = 'RUNNING';
+  if (event.kind === 'job.output' && event.detail?.chunk) {
+    result.textContent += event.detail.chunk;
+  }
+  if (event.kind === 'job.finished') {
+    state.textContent = String(event.detail?.status || 'finished').toUpperCase();
+    if (event.detail?.message) result.textContent += event.detail.message;
+    if (Number.isInteger(event.detail?.exitCode) && event.detail.exitCode !== 0) result.textContent += `\n[exit ${event.detail.exitCode}]`;
+  }
+  return true;
 }
 
 export async function renderDevice(deviceId) {
@@ -52,7 +70,7 @@ export async function renderDevice(deviceId) {
       </section>
     </section>`;
   if (!device.online) return;
-  let sessionId = null, refreshTimer = null;
+  let sessionId = null, syncTimer = null;
   const terminal = $('#terminal');
   async function loadJobs() {
     if (!sessionId) return;
@@ -62,9 +80,9 @@ export async function renderDevice(deviceId) {
       terminal.scrollTop = terminal.scrollHeight;
     } catch {}
   }
-  function scheduleJobs() {
-    if (refreshTimer) return;
-    refreshTimer = setTimeout(() => { refreshTimer = null; loadJobs(); }, 80);
+  function scheduleSync() {
+    if (syncTimer) return;
+    syncTimer = setTimeout(() => { syncTimer = null; loadJobs(); }, 80);
   }
   $('#command-form').addEventListener('submit', async event => {
     event.preventDefault();
@@ -80,8 +98,9 @@ export async function renderDevice(deviceId) {
   });
   onRelayEvent(event => {
     if (event.deviceId !== deviceId) return;
-    if (event.kind === 'job.updated' || event.kind === 'job.output') {
-      if (event.sessionId === sessionId) scheduleJobs();
+    if (event.kind.startsWith('job.') && event.sessionId === sessionId) {
+      if (!applyJobEvent(event)) scheduleSync();
+      terminal.scrollTop = terminal.scrollHeight;
       return;
     }
     if (event.kind === 'device.online' || event.kind === 'device.offline') {

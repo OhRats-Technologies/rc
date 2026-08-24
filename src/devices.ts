@@ -74,7 +74,7 @@ async function createJob(req: Request, user: User, sessionId: string) {
   const workspace = q<any>(`SELECT f.workspace_id FROM fleet_devices fd JOIN fleets f ON f.id=fd.fleet_id
     WHERE fd.device_id=? LIMIT 1`).get(access.deviceId);
   logEvent("job.created", workspace?.workspace_id || null, user.id, access.deviceId, { jobId, command });
-  publishEvent({ kind: "job.updated", workspaceId: workspace?.workspace_id || null, deviceId: access.deviceId, sessionId, jobId });
+  publishEvent({ kind: "job.queued", workspaceId: workspace?.workspace_id || null, deviceId: access.deviceId, sessionId, jobId });
   return json({ id: jobId }, 201);
 }
 

@@ -190,12 +190,12 @@ func runJob(ctx context.Context, send func(wireMessage) error, message wireMessa
 	}
 	cmd := exec.CommandContext(ctx, "sh", "-lc", message.Command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.WaitDelay = 2 * time.Second
+	cmd.WaitDelay = time.Second
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
 			return os.ErrProcessDone
 		}
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	writer := &chunkWriter{send: send, jobID: message.ID}
 	cmd.Stdout, cmd.Stderr = writer, writer
