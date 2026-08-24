@@ -58,10 +58,10 @@ func shellCommand(args []string) error {
 	defer term.Restore(int(os.Stdin.Fd()), old)
 	cols, rows, _ := term.GetSize(int(os.Stdin.Fd()))
 	if cols < 2 {
-		cols = 100
+		cols = 80
 	}
 	if rows < 2 {
-		rows = 30
+		rows = 24
 	}
 	requestID := fmt.Sprintf("cli-%d", time.Now().UnixNano())
 	if err := send(map[string]any{"type": "process.start", "requestId": requestID, "deviceId": device.ID, "command": `exec "${SHELL:-sh}" -l`, "cols": cols, "rows": rows}); err != nil {

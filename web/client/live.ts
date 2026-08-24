@@ -14,8 +14,12 @@ async function refreshDevice(deviceId: string) {
   const page = document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(deviceId)}"]`); if (!page) return;
   const { device } = await api<{ device: Device }>(`/api/v1/devices/${deviceId}`);
   page.querySelector<HTMLElement>("#node-agent")!.textContent = device.agent_version;
-  page.querySelector<HTMLElement>("#node-capabilities")!.textContent = device.capabilities.map(v => v.toUpperCase()).join(" · ") || "NONE";
-  const update = page.querySelector<HTMLButtonElement>("#update-node"); if (update) update.disabled = !device.online;
+  const update = page.querySelector<HTMLButtonElement>("#update-node"), updateState = page.querySelector<HTMLElement>("#update-state");
+  if (update) update.disabled = !device.online;
+  if (update && updateState && device.agent_version === page.dataset.relayVersion) {
+    update.hidden = true;
+    updateState.textContent = `Updated to ${device.agent_version}.`;
+  }
 }
 
 function activity(event: RelayEvent) {
@@ -44,6 +48,12 @@ onEvent(event => {
   if (event.kind === "device.updated" && event.deviceId) void refreshDevice(event.deviceId);
   if (event.kind.startsWith("process.") && event.deviceId) void refreshProcessList(event.deviceId);
   if (event.kind === "node.update.ready" && event.deviceId) document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(event.deviceId)}"] #update-state`)!.textContent = "Restarting node…";
+  if (event.kind === "node.update.complete" && event.deviceId) {
+    const page = document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(event.deviceId)}"]`);
+    const state = page?.querySelector<HTMLElement>("#update-state"), button = page?.querySelector<HTMLButtonElement>("#update-node");
+    if (state) state.textContent = `Updated to ${String(event.detail?.version || "current version")}.`;
+    if (button) button.hidden = true;
+  }
   if (event.kind === "node.update.error" && event.deviceId) document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(event.deviceId)}"] #update-state`)!.textContent = String(event.detail?.error || "Update failed.");
   activity(event);
 });

@@ -5,10 +5,12 @@ import { publishEvent } from "./events";
 import { appendProcessOutput, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
 import type { AgentClientMessage, AgentServerMessage } from "./protocol";
 import type { SocketWriter } from "./browser-socket";
+import { VERSION } from "./config";
 
 const agents = new Map<string, SocketWriter>();
 const agentActivity = new Map<string, number>();
 const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const pendingUpdates = new Map<string, string>();
 const RECONNECT_GRACE_MS = 45_000;
 
 export function agentsCount() { return agents.size; }
@@ -23,6 +25,7 @@ export function disconnectDevice(deviceId: string, remove = false) {
   ws?.close(1008, "device removed");
   agents.delete(deviceId);
   agentActivity.delete(deviceId);
+  if (remove) pendingUpdates.delete(deviceId);
 }
 
 function send(deviceId: string, message: AgentServerMessage) {
@@ -48,7 +51,12 @@ export function sendProcessControl(deviceId: string, message: AgentServerMessage
 
 export function sendNodeUpdate(deviceId: string) {
   if (!capabilities(deviceId).includes("update")) return false;
-  return send(deviceId, { type: "node.update" });
+  pendingUpdates.set(deviceId, VERSION);
+  if (!send(deviceId, { type: "node.update" })) {
+    pendingUpdates.delete(deviceId);
+    return false;
+  }
+  return true;
 }
 
 export async function verifyAgent(url: URL): Promise<string | null> {
@@ -69,6 +77,7 @@ function scheduleDisconnect(deviceId: string, startup = false) {
   disconnectTimers.set(deviceId, setTimeout(() => {
     disconnectTimers.delete(deviceId);
     if (agents.has(deviceId)) return;
+    const updateTarget = pendingUpdates.get(deviceId);
     const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
     for (const process of running) {
       const error = startup ? "control plane restarted and device did not reconnect" : process.status === "running" ? "device disconnected beyond reconnect grace" : "device disconnected before acknowledgement";
@@ -76,6 +85,9 @@ function scheduleDisconnect(deviceId: string, startup = false) {
       publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { error } });
     }
     logEvent(startup ? "device.reconnect.timeout" : "device.offline", workspaceForDevice(deviceId), null, deviceId, { reconnectGraceMs: RECONNECT_GRACE_MS });
+    if (updateTarget) publishEvent({ kind: "node.update.error", workspaceId: workspaceForDevice(deviceId), deviceId,
+      detail: { error: `Node did not reconnect on ${updateTarget}.` } });
+    pendingUpdates.delete(deviceId);
   }, RECONNECT_GRACE_MS));
 }
 
@@ -116,6 +128,12 @@ export const agentSocketHandlers = {
           JSON.stringify(capabilities), Date.now(), deviceId,
         );
         publishEvent({ kind: "device.updated", workspaceId: workspaceForDevice(deviceId), deviceId });
+        const targetVersion = pendingUpdates.get(deviceId);
+        if (targetVersion && msg.agentVersion === targetVersion) {
+          pendingUpdates.delete(deviceId);
+          publishEvent({ kind: "node.update.complete", workspaceId: workspaceForDevice(deviceId), deviceId,
+            detail: { version: msg.agentVersion } });
+        }
         return;
       }
       if (msg.type === "heartbeat") {
@@ -161,6 +179,7 @@ export const agentSocketHandlers = {
         return;
       }
       if (msg.type === "node.update.error") {
+        pendingUpdates.delete(deviceId);
         publishEvent({ kind: "node.update.error", workspaceId: workspaceForDevice(deviceId), deviceId, detail: { error: String(msg.output || "update failed").slice(0, 1024) } });
       }
     } catch (error) { console.error("agent message", error); }

@@ -34,7 +34,7 @@ func resolveAccountDevice(server, token, value string) (accountDevice, error) {
 }
 
 func startAccountProcess(server, token, deviceID, command, cwd string) (string, error) {
-	body := map[string]any{"command": command, "cols": 100, "rows": 30}
+	body := map[string]any{"command": command, "cols": 80, "rows": 24}
 	if cwd != "" {
 		body["cwd"] = cwd
 	}

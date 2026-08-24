@@ -71,7 +71,7 @@ export function runAction(user: User, actionId: string, deviceIds: string[]): Ac
     const device = q<{ name: string; workspace_id: string }>("SELECT name,workspace_id FROM devices WHERE id=?").get(deviceId);
     if (!device || device.workspace_id !== action.workspace_id) return { deviceId, deviceName: device?.name || deviceId, error: "device is not in this workspace" };
     try {
-      const { processId } = startProcess(user.id, { deviceId, command: action.command, cwd: action.cwd || undefined, cols: 100, rows: 30 });
+      const { processId } = startProcess(user.id, { deviceId, command: action.command, cwd: action.cwd || undefined, cols: 80, rows: 24 });
       return { deviceId, deviceName: device.name, processId };
     } catch (error) { return { deviceId, deviceName: device.name, error: error instanceof Error ? error.message : "run failed" }; }
   });

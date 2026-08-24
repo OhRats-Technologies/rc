@@ -4,6 +4,7 @@ import { isOnline, sendNodeUpdate } from "./gateway";
 import { inputProcess, resizeRemoteProcess, signalProcess, startProcess } from "./process-api";
 import { workspaceForDevice } from "./process-store";
 import type { BrowserCommand, BrowserServerMessage } from "./protocol";
+import { VERSION } from "./config";
 
 export type SocketWriter = { send(data: string): unknown; close(code?: number, reason?: string): void };
 type BrowserConnection = { socket: SocketWriter; unsubscribe?: () => void };
@@ -18,7 +19,7 @@ function updateNode(userId: string, input: any) {
   if (!isOnline(deviceId)) throw new Error("device is offline");
   if (!sendNodeUpdate(deviceId)) throw new Error("node does not support remote update");
   logEvent("node.update.requested", workspaceForDevice(deviceId), userId, deviceId);
-  return { ok: true };
+  return { ok: true, targetVersion: VERSION };
 }
 
 export const browserSocketHandlers = {

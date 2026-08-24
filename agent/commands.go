@@ -40,7 +40,18 @@ func enrollCommand(args []string) error {
 	}
 	dir, server, config := commandDefaults(*stateDir, *serverFlag)
 	if existing, err := loadState(dir); err == nil {
-		return fmt.Errorf("already enrolled as %s; uninstall first to replace identity", existing.DeviceID)
+		remote, statusErr := fetchStatus(server, existing)
+		switch {
+		case statusErr == nil:
+			return fmt.Errorf("this machine is already enrolled as %s (%s); remove or uninstall that enrollment before moving it", remote.Name, existing.DeviceID)
+		case errors.Is(statusErr, errNodeRemoved):
+			if err := os.Remove(statePath(dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			fmt.Printf("Cleared stale enrollment %s\n", existing.DeviceID)
+		default:
+			return fmt.Errorf("could not verify existing enrollment %s: %w", existing.DeviceID, statusErr)
+		}
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -93,7 +104,8 @@ func runNode(args []string) error {
 	for {
 		if err := connect(ctx, server, value, dir, manager); err != nil && ctx.Err() == nil {
 			if errors.Is(err, errNodeRemoved) {
-				fmt.Println("Device removed from Relay")
+				fmt.Println("This device was removed from Relay; local enrollment cleared.")
+				fmt.Println("Enroll it again from Relay to reconnect.")
 				return nil
 			}
 			fmt.Fprintf(os.Stderr, "connection ended: %v\n", err)

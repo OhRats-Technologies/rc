@@ -5,7 +5,7 @@ const page = document.querySelector<HTMLElement>("[data-device-page]");
 const deviceId = page?.dataset.devicePage || "";
 
 async function start(command: string, cwd = "") {
-  const result = await request<{ processId: string }>({ type: "process.start", deviceId, command, cwd, cols: 100, rows: 30 });
+  const result = await request<{ processId: string }>({ type: "process.start", deviceId, command, cwd, cols: 80, rows: 24 });
   location.href = `/devices/${deviceId}/processes/${result.processId}`;
 }
 
@@ -23,7 +23,10 @@ document.querySelector<HTMLFormElement>("#process-launch")?.addEventListener("su
 
 document.querySelector<HTMLButtonElement>("#update-node")?.addEventListener("click", async event => {
   const button = event.currentTarget as HTMLButtonElement; button.disabled = true; qs<HTMLElement>("#update-state").textContent = "Starting update…";
-  try { await request({ type: "node.update", deviceId }); qs<HTMLElement>("#update-state").textContent = "Updating and restarting…"; }
+  try {
+    const result = await request<{ targetVersion: string }>({ type: "node.update", deviceId });
+    qs<HTMLElement>("#update-state").textContent = `Installing ${result.targetVersion} and restarting…`;
+  }
   catch (error) { qs<HTMLElement>("#update-state").textContent = error instanceof Error ? error.message : String(error); button.disabled = false; }
 });
 

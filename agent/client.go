@@ -144,13 +144,19 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 				return
 			}
 			if message.Type == "node.update" {
+				fmt.Printf("Updating OhRats Relay Node %s…\n", version)
 				if err := replaceExecutable(serverURL); err != nil {
 					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
+					fmt.Fprintf(os.Stderr, "update failed: %v\n", err)
 					continue
 				}
 				manager.shutdown()
 				_ = send(wireMessage{Type: "node.update.ready", AgentVersion: version})
-				_ = syscallExecCurrent()
+				fmt.Println("Update installed; restarting Relay Node…")
+				if err := syscallExecCurrent(); err != nil {
+					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
+					readDone <- fmt.Errorf("restart after update: %w", err)
+				}
 				return
 			}
 			if message.Type == "node.remove" {
@@ -196,6 +202,9 @@ func fetchStatus(serverURL string, value state) (remoteNodeStatus, error) {
 		return remoteNodeStatus{}, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return remoteNodeStatus{}, errNodeRemoved
+	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return remoteNodeStatus{}, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
