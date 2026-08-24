@@ -12,6 +12,7 @@
         "elysia": "^1.4.29",
         "react": "^19.2.8",
         "react-dom": "^19.2.8",
+        "reflect-metadata": "^0.2.2",
       },
       "devDependencies": {
         "@types/bun": "latest",

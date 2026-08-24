@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { app } from "./src/app";
 import { PORT, PUBLIC_URL } from "./src/config";
 import { now, q } from "./src/db";

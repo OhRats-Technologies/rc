@@ -27,5 +27,5 @@ RUN mkdir -p /data
 ENV PORT=3000 DATA_DIR=/data STATIC_DIR=/app/static PUBLIC_URL=https://relay.ohrats.party
 EXPOSE 3000
 WORKDIR /app/dist
-CMD ["bun", "server.js"]
+CMD ["bun", "server/server.js"]
 
