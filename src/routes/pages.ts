@@ -19,7 +19,7 @@ import {
 
 const loginRedirect = () => Response.redirect("/", 303);
 
-export const pageRoutes = new Elysia({ name: "relay.pages" })
+export const pageRoutes = new Elysia({ name: "relay.pages", detail: { hide: true } })
   .get("/setup/:token", ({ params }) => {
     if ((q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
     if (!SETUP_TOKEN || sha(params.token) !== sha(SETUP_TOKEN)) return fail("invalid setup link", 403);

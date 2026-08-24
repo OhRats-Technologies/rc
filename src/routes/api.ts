@@ -1,11 +1,12 @@
 import { Elysia, t } from "elysia";
+import { openapi } from "@elysia/openapi";
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
 import { createApiToken, deleteApiToken, listApiTokens } from "../account";
 import {
   addPasskeyOptions, auth, deletePasskey, listPasskeys, loginOptions, logout, registerOptions, relayStatus,
   setupOptions, tokenLogin, verifyAddedPasskey, verifyLogin, verifyNewUser,
 } from "../auth";
-import { VERSION } from "../config";
+import { PUBLIC_URL, VERSION } from "../config";
 import { userWorkspaces } from "../core";
 import {
   enrollAgent, getDevice, handleAgentUnregister, listDevices, removeDevice, type AgentEnrollInput,
@@ -30,6 +31,15 @@ const AgentEnroll = t.Object({
 });
 
 export const apiRoutes = new Elysia({ name: "relay.api", prefix: "/api/v1" })
+  .use(openapi({
+    path: "/openapi",
+    documentation: {
+      info: { title: "Relay API", description: "Relay HTTP API.", version: VERSION },
+      servers: [{ url: PUBLIC_URL }],
+      components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "Relay API token" } } },
+      security: [{ bearerAuth: [] }],
+    },
+  }))
   .derive(async ({ request }) => ({ relayUser: await auth(request) }))
   .onBeforeHandle(({ request, set, relayUser }) => {
     set.headers["cache-control"] = "no-store";
@@ -45,44 +55,45 @@ export const apiRoutes = new Elysia({ name: "relay.api", prefix: "/api/v1" })
   })
   .get("/health", () => ({ ok: true as const, version: VERSION, agents: agentsCount() }), {
     response: t.Object({ ok: t.Literal(true), version: t.String(), agents: t.Number() }),
+    detail: { hide: true },
   })
-  .get("/status", ({ request }) => relayStatus(request))
-  .all("/auth/setup", () => fail("Relay was updated. Refresh this page and try again.", 409))
-  .all("/auth/login", () => fail("Relay was updated. Refresh this page and try again.", 409))
-  .all("/auth/register", () => fail("Relay was updated. Refresh this page and try again.", 409))
+  .get("/status", ({ request }) => relayStatus(request), { detail: { hide: true } })
+  .all("/auth/setup", () => fail("Relay was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
+  .all("/auth/login", () => fail("Relay was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
+  .all("/auth/register", () => fail("Relay was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
   .post("/auth/setup/options", ({ request, body }) => setupOptions(request, body.name), {
-    body: t.Object({ name: t.String({ maxLength: 120 }) }),
+    body: t.Object({ name: t.String({ maxLength: 120 }) }), detail: { hide: true },
   })
   .post("/auth/setup/verify", ({ body }) => verifyNewUser("setup", body.ceremonyId, body.response as RegistrationResponseJSON), {
-    body: WebAuthnVerify,
+    body: WebAuthnVerify, detail: { hide: true },
   })
-  .post("/auth/login/options", () => loginOptions(), { body: t.Optional(t.Object({})) })
+  .post("/auth/login/options", () => loginOptions(), { body: t.Optional(t.Object({})), detail: { hide: true } })
   .post("/auth/login/verify", ({ body }) => verifyLogin(body.ceremonyId, body.response as AuthenticationResponseJSON), {
-    body: WebAuthnVerify,
+    body: WebAuthnVerify, detail: { hide: true },
   })
   .post("/auth/token", async ({ body }) => json({ ok: true }, 200, { "set-cookie": sessionCookie(await tokenLogin(body.token)) }), {
-    body: t.Object({ token: t.String({ minLength: 1, maxLength: 512 }) }),
+    body: t.Object({ token: t.String({ minLength: 1, maxLength: 512 }) }), detail: { hide: true },
   })
   .post("/auth/register/options", ({ body }) => registerOptions(body.invite, body.name), {
-    body: t.Object({ invite: t.String(), name: t.String({ maxLength: 120 }) }),
+    body: t.Object({ invite: t.String(), name: t.String({ maxLength: 120 }) }), detail: { hide: true },
   })
   .post("/auth/register/verify", ({ body }) => verifyNewUser("register", body.ceremonyId, body.response as RegistrationResponseJSON), {
-    body: WebAuthnVerify,
+    body: WebAuthnVerify, detail: { hide: true },
   })
-  .post("/auth/logout", ({ request }) => { logout(request); return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0) }); })
-  .post("/agent/enroll", ({ body }) => json(enrollAgent(body as AgentEnrollInput), 201), { body: AgentEnroll })
-  .get("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery })
-  .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery })
+  .post("/auth/logout", ({ request }) => { logout(request); return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0) }); }, { detail: { hide: true } })
+  .post("/agent/enroll", ({ body }) => json(enrollAgent(body as AgentEnrollInput), 201), { body: AgentEnroll, detail: { hide: true } })
+  .get("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
+  .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .get("/me", ({ relayUser }) => ({ user: relayUser!, workspaces: userWorkspaces(relayUser!.id) }))
-  .get("/passkeys", ({ request, relayUser }) => listPasskeys(request, relayUser!).then(passkeys => ({ passkeys })))
-  .post("/passkeys/options", ({ request, relayUser }) => addPasskeyOptions(request, relayUser!), { body: t.Optional(t.Object({})) })
+  .get("/passkeys", ({ request, relayUser }) => listPasskeys(request, relayUser!).then(passkeys => ({ passkeys })), { detail: { hide: true } })
+  .post("/passkeys/options", ({ request, relayUser }) => addPasskeyOptions(request, relayUser!), { body: t.Optional(t.Object({})), detail: { hide: true } })
   .post("/passkeys/verify", async ({ request, relayUser, body }) => {
     await verifyAddedPasskey(request, relayUser!, body.ceremonyId, body.response as RegistrationResponseJSON);
     return json({ ok: true }, 201);
-  }, { body: WebAuthnVerify })
+  }, { body: WebAuthnVerify, detail: { hide: true } })
   .delete("/passkeys/:id", async ({ request, relayUser, params }) => {
     await deletePasskey(request, relayUser!, params.id); return { ok: true };
-  }, { params: IdParams })
+  }, { params: IdParams, detail: { hide: true } })
   .get("/tokens", ({ relayUser }) => ({ tokens: listApiTokens(relayUser!.id) }))
   .post("/tokens", ({ relayUser, body }) => json(createApiToken(relayUser!.id, body.name), 201), {
     body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })) }),

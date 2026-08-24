@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun run build:client && bun --hot server.ts",
-    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name]-[hash].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name]-[hash].[ext]' ./web/client/auth.ts ./web/client/account.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/workspace.ts ./web/client/sidebar.ts ./web/styles.css",
+    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name]-[hash].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name]-[hash].[ext]' ./web/client/auth.ts ./web/client/account.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/copy.ts ./web/client/sidebar.ts ./web/styles.css",
     "build:server": "rm -rf dist/server && bun build --target=bun --production --outdir=dist/server ./server.ts",
     "build": "rm -rf dist && bun run build:client && bun run build:server",
     "start": "bun server.ts",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@elysia/eden": "^1.4.10",
+    "@elysia/openapi": "^1.4.15",
     "@simplewebauthn/server": "^13.3.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",

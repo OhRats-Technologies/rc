@@ -5,6 +5,10 @@ import { htmlDocument } from "../document";
 import { relative } from "../format";
 import { SectionBadge } from "../components";
 
+type WorkspaceResult =
+  | { kind: "enrollment"; install: string }
+  | { kind: "invite"; url: string };
+
 function DeviceRows({ devices }: { devices: DeviceView[] }) {
   return <div id="workspace-device-list" className="data-list">{devices.length ? devices.map(device => <a key={device.id} className="data-row" href={`/devices/${device.id}`} data-device-row={device.id}>
     <div><strong>{device.name}</strong><div className="meta">{device.platform.toUpperCase()}/{device.arch}</div></div>
@@ -28,16 +32,18 @@ export function newWorkspacePage(user: User, workspaces: WorkspaceView[], sideba
     </div> });
 }
 
-export function workspacePage(user: User, workspaces: WorkspaceView[], workspace: WorkspaceView, devices: DeviceView[], sidebar: "open" | "closed", result?: { kind: string; value: string }) {
+export function workspacePage(user: User, workspaces: WorkspaceView[], workspace: WorkspaceView, devices: DeviceView[], sidebar: "open" | "closed", result?: WorkspaceResult) {
   const writable = workspace.role === "owner" || workspace.role === "member";
-  return htmlDocument({ title: workspace.name, user, workspaces, path: `/workspaces/${workspace.id}`, sidebar, scripts: ["live", "workspace"], body:
+  return htmlDocument({ title: workspace.name, user, workspaces, path: `/workspaces/${workspace.id}`, sidebar, scripts: ["live", "copy"], body:
     <div className="page" data-workspace-page={workspace.id}><header className="page-header"><div><p className="eyebrow">WORKSPACE</p><h1>{workspace.name}</h1><p className="meta">{workspace.role.toUpperCase()}</p></div></header>
       <section className="content-section"><div className="section-heading"><div><SectionBadge index="01">Devices</SectionBadge><h2>{devices.length} {devices.length === 1 ? "device" : "devices"}</h2></div></div><DeviceRows devices={devices}/>
-        {result && <div className="credential-result" data-copy-value={result.value}><span className="meta">{result.kind.toUpperCase()}</span><code>{result.value}</code><button className="text-button copy-value" type="button">COPY</button></div>}
         {writable && <form method="post" action={`/workspaces/${workspace.id}/enrollments`} className="inline-action-form"><button className="or-button" type="submit">ENROLL DEVICE</button></form>}
+        {result?.kind === "enrollment" && <div className="enrollment-command" data-copy-value={result.install}><span className="meta">INSTALL COMMAND</span><div className="copy-value-line"><code>{result.install}</code><button className="text-button copy-value" type="button">COPY COMMAND</button></div></div>}
       </section>
       <section className="content-section"><SectionBadge index="02">Activity</SectionBadge><a className="or-button" href={`/workspaces/${workspace.id}/activity`}>VIEW AUDIT LOG <span aria-hidden="true">→</span></a></section>
-      {workspace.role === "owner" && <><section className="content-section"><div className="section-heading"><div><SectionBadge index="03">Invite</SectionBadge><h2>Workspace access</h2></div></div><form method="post" action={`/workspaces/${workspace.id}/invites`} className="inline-action-form"><input type="hidden" name="role" value="member"/><button className="or-button" type="submit">CREATE INVITE</button></form></section>
+      {workspace.role === "owner" && <><section className="content-section"><div className="section-heading"><div><SectionBadge index="03">Invite</SectionBadge><h2>Workspace access</h2></div></div><form method="post" action={`/workspaces/${workspace.id}/invites`} className="inline-action-form"><input type="hidden" name="role" value="member"/><button className="or-button" type="submit">CREATE INVITE</button></form>
+        {result?.kind === "invite" && <div className="invite-link" data-copy-value={result.url}><span className="meta">INVITE LINK</span><div className="copy-value-line"><code>{result.url}</code><button className="text-button copy-value" type="button">COPY LINK</button></div></div>}
+      </section>
       <section className="content-section danger-section"><SectionBadge index="04">Workspace</SectionBadge><a className="text-action danger-text" href={`/workspaces/${workspace.id}/delete`}>DELETE WORKSPACE</a></section></>}
     </div> });
 }

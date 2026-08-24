@@ -13,7 +13,7 @@ export const app = new Elysia({ name: "relay" })
   .use(apiRoutes)
   .use(browserSocketRoute)
   .use(agentSocketRoute)
-  .get("/healthz", () => "ok")
-  .get("/robots.txt", () => new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } }));
+  .get("/healthz", () => "ok", { detail: { hide: true } })
+  .get("/robots.txt", () => new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } }), { detail: { hide: true } });
 
 export type App = typeof app;

@@ -8,7 +8,7 @@ import { BrowserCommandSchema } from "../protocol";
 type Connection = ReturnType<typeof browserSocketHandlers.open>;
 const connections = new WeakMap<object, Connection>();
 
-export const browserSocketRoute = new Elysia({ name: "relay.websocket.browser" })
+export const browserSocketRoute = new Elysia({ name: "relay.websocket.browser", detail: { hide: true } })
   .derive(async ({ request }) => ({ relayUser: await auth(request) }))
   .ws("/api/v1/ws", {
     body: BrowserCommandSchema,

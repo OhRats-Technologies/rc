@@ -15,7 +15,7 @@ import { deleteWorkspacePage, newWorkspacePage, workspacePage } from "../../web/
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
 
-export const pageActions = new Elysia({ name: "relay.page-actions" })
+export const pageActions = new Elysia({ name: "relay.page-actions", detail: { hide: true } })
   .onBeforeHandle(({ request }) => { if (!checkOrigin(request)) return new Response("invalid origin", { status: 403 }); })
   .post("/auth/token", async ({ request }) => {
     const input = await form(request), next = safeNext(input.next);
@@ -47,14 +47,14 @@ export const pageActions = new Elysia({ name: "relay.page-actions" })
   .post("/workspaces/:workspaceId/enrollments", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const detail = workspaceDetail(context.user, params.workspaceId); if (!detail) return new Response("not found", { status: 404 });
-    try { const result = createEnrollment(context.user, params.workspaceId); return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, context.sidebar, { kind: "Install", value: result.install }); }
+    try { const result = createEnrollment(context.user, params.workspaceId); return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, context.sidebar, { kind: "enrollment", install: result.install }); }
     catch (error) { throw error; }
   })
   .post("/workspaces/:workspaceId/invites", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const detail = workspaceDetail(context.user, params.workspaceId); if (!detail) return new Response("not found", { status: 404 });
     const input = await form(request), result = createInvite(context.user, params.workspaceId, input.role);
-    return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, context.sidebar, { kind: "Invite", value: result.url });
+    return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, context.sidebar, { kind: "invite", url: result.url });
   })
   .post("/devices/:deviceId/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
