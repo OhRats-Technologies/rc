@@ -1,4 +1,5 @@
-import { existsSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { fail } from "./http-utils";
 
@@ -22,26 +23,53 @@ function validators(path: string) {
   return `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
 }
 
-function cacheHeaders(kind: "asset" | "html" | "download" | "other") {
+function cacheHeaders(kind: "asset" | "html" | "other") {
   if (kind === "asset") return "public, max-age=31536000, immutable";
-  if (kind === "download") return "public, max-age=3600, stale-while-revalidate=86400";
   if (kind === "html") return "public, max-age=0, must-revalidate";
   return "public, max-age=300, must-revalidate";
+}
+
+const downloadHashes = new Map<string, string>();
+
+function downloadHash(path: string) {
+  let value = downloadHashes.get(path);
+  if (!value) {
+    value = createHash("sha256").update(readFileSync(path)).digest("hex").slice(0, 12);
+    downloadHashes.set(path, value);
+  }
+  return value;
 }
 
 export async function staticResponse(req: Request, pathname: string) {
   if (pathname.includes("..")) return fail("not found", 404);
 
   let path: string;
-  let kind: "asset" | "html" | "download" | "other";
+  let kind: "asset" | "html" | "other";
   if (pathname.startsWith("/assets/")) {
     path = join(DIST, pathname.replace(/^\/+/, ""));
+    kind = "asset";
+  } else if (pathname.startsWith("/downloads/")) {
+    const name = pathname.slice("/downloads/".length);
+    const match = name.match(/^(.*)\.([0-9a-f]{12})$/);
+    const logical = match?.[1] || name;
+    path = join(PUBLIC, "downloads", logical);
+    if (!existsSync(path)) return fail("not found", 404);
+    const hash = downloadHash(path);
+    if (!match) {
+      const headers = {
+        location: `/downloads/${logical}.${hash}`,
+        "cache-control": "no-store",
+        "cloudflare-cdn-cache-control": "no-store",
+      };
+      return new Response(null, { status: 307, headers });
+    }
+    if (match[2] !== hash) return fail("not found", 404);
     kind = "asset";
   } else {
     const publicPath = join(PUBLIC, pathname.replace(/^\/+/, ""));
     if (pathname !== "/" && existsSync(publicPath)) {
       path = publicPath;
-      kind = pathname.startsWith("/downloads/") ? "download" : "other";
+      kind = "other";
     } else if (pathname === "/" || !extname(pathname)) {
       path = join(DIST, "index.html");
       kind = "html";
