@@ -1,4 +1,5 @@
 import { canWrite, deviceRole, logEvent } from "./core";
+import type { ServerWebSocket } from "bun";
 import { subscribeEvents } from "./events";
 import { isOnline, sendNodeUpdate } from "./gateway";
 import { inputProcess, resizeRemoteProcess, signalProcess, startProcess } from "./process-api";
@@ -24,9 +25,9 @@ export const browserSocketHandlers = {
     ws.data.unsubscribe = subscribeEvents(ws.data.userId, event => send(ws, { type: "event", event }));
     send(ws, { type: "ready" });
   },
-  message(ws: ServerWebSocket<BrowserData>, raw: string | Buffer) {
+  message(ws: ServerWebSocket<BrowserData>, raw: string | Uint8Array) {
     let message: any;
-    try { message = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw as any).toString("utf8")); }
+    try { message = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw)); }
     catch { return; }
     const requestId = String(message.requestId || "");
     try {

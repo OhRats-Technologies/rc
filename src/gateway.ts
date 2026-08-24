@@ -1,6 +1,7 @@
-import { createPublicKey, verify as verifySignature } from "node:crypto";
 import { logEvent } from "./core";
+import type { ServerWebSocket } from "bun";
 import { q } from "./db";
+import { base64urlToBytes, pemPublicKeyToDer } from "./encoding";
 import { publishEvent } from "./events";
 import { appendProcessOutput, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
 
@@ -10,8 +11,12 @@ const agentActivity = new Map<string, number>();
 
 export function agentsCount() { return agents.size; }
 export function isOnline(deviceId: string) { return agents.has(deviceId); }
-export function disconnectDevice(deviceId: string) {
-  agents.get(deviceId)?.close(1008, "device removed");
+export function disconnectDevice(deviceId: string, remove = false) {
+  const ws = agents.get(deviceId);
+  if (remove && ws) {
+    try { ws.send(JSON.stringify({ type: "node.remove" })); } catch {}
+  }
+  ws?.close(1008, "device removed");
   agents.delete(deviceId);
   agentActivity.delete(deviceId);
 }
@@ -42,15 +47,16 @@ export function sendNodeUpdate(deviceId: string) {
   return send(deviceId, { type: "node.update" });
 }
 
-export function verifyAgent(url: URL): string | null {
+export async function verifyAgent(url: URL): Promise<string | null> {
   const deviceId = url.searchParams.get("device") || "", ts = url.searchParams.get("ts") || "", sig = url.searchParams.get("sig") || "";
   const seconds = Number(ts);
   if (!deviceId || !Number.isFinite(seconds) || Math.abs(Date.now() / 1000 - seconds) > 60 || !sig) return null;
   const row = q<any>("SELECT public_key FROM devices WHERE id=?").get(deviceId);
   if (!row) return null;
   try {
-    return verifySignature(null, Buffer.from(`relay:${deviceId}:${ts}`), createPublicKey(row.public_key), Buffer.from(sig, "base64url"))
-      ? deviceId : null;
+    const key = await crypto.subtle.importKey("spki", pemPublicKeyToDer(row.public_key), { name: "Ed25519" }, false, ["verify"]);
+    const ok = await crypto.subtle.verify("Ed25519", key, base64urlToBytes(sig), new TextEncoder().encode(`relay:${deviceId}:${ts}`));
+    return ok ? deviceId : null;
   } catch { return null; }
 }
 
@@ -80,9 +86,9 @@ export const agentSocketHandlers = {
     q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
     logEvent("device.online", workspaceForDevice(deviceId), null, deviceId);
   },
-  message(ws: ServerWebSocket<AgentData>, raw: string | Buffer) {
+  message(ws: ServerWebSocket<AgentData>, raw: string | Uint8Array) {
     try {
-      const msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw as any).toString("utf8"));
+      const msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw));
       const deviceId = ws.data.deviceId;
       agentActivity.set(deviceId, Date.now());
       if (msg.type === "hello") {

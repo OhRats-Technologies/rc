@@ -1,34 +1,55 @@
-import { PUBLIC_URL, PORT, SETUP_TOKEN } from "./src/config";
+import app from "./web/index.html";
+import type { ServerWebSocket } from "bun";
+import { PUBLIC_URL, PORT, SETUP_TOKEN, VERSION } from "./src/config";
 import { auth } from "./src/auth";
 import { BrowserData, browserSocketHandlers } from "./src/browser-socket";
 import { now, q, sha } from "./src/db";
-import { AgentData, agentSocketHandlers, recoverInterruptedProcesses, verifyAgent } from "./src/gateway";
-import { checkOrigin, fail, setupCookie } from "./src/http-utils";
+import { AgentData, agentSocketHandlers, agentsCount, recoverInterruptedProcesses, verifyAgent } from "./src/gateway";
+import { fail, json, setupCookie } from "./src/http-utils";
 import { handleAPI } from "./src/router";
-import { staticResponse } from "./src/static";
+import { download, installScript } from "./src/artifacts";
 
 recoverInterruptedProcesses();
 
 type SocketData = AgentData | BrowserData;
 
+function setupRoute(req: Request & { params: { token: string } }) {
+  if ((q<any>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
+  const token = req.params.token || "";
+  if (!SETUP_TOKEN || sha(token) !== sha(SETUP_TOKEN)) return fail("invalid setup link", 403);
+  return new Response(null, {
+    status: 303,
+    headers: { location: "/", "set-cookie": setupCookie(token), "cache-control": "no-store" },
+  });
+}
+
 const server = Bun.serve<SocketData>({
   port: PORT,
   hostname: "0.0.0.0",
   idleTimeout: 60,
+  development: Bun.env.NODE_ENV === "development",
+  routes: {
+    "/": app,
+    "/devices": app,
+    "/devices/*": app,
+    "/workspaces": app,
+    "/workspaces/*": app,
+    "/account": app,
+    "/api": app,
+    "/setup/:token": setupRoute,
+    "/install.sh": installScript,
+    "/downloads/*": (req: Request) => download(new URL(req.url).pathname.slice("/downloads/".length)),
+    "/api/v1/health": () => json({ ok: true, version: VERSION, agents: agentsCount() }),
+    "/healthz": new Response("ok"),
+    "/robots.txt": new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } }),
+  },
   async fetch(req, server) {
     const url = new URL(req.url);
     try {
-      if (req.method === "GET" && url.pathname === "/" && url.searchParams.has("setup")) {
-        if ((q<any>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
-        const token = url.searchParams.get("setup") || "";
-        if (!SETUP_TOKEN || sha(token) !== sha(SETUP_TOKEN)) return fail("invalid setup link", 403);
-        return new Response(null, {
-          status: 303,
-          headers: { location: "/", "set-cookie": setupCookie(token), "cache-control": "no-store" },
-        });
-      }
       if (url.pathname === "/api/v1/agent/ws") {
-        const deviceId = verifyAgent(url);
+        const requestedDevice = url.searchParams.get("device") || "";
+        if (!requestedDevice || !q("SELECT 1 FROM devices WHERE id=?").get(requestedDevice)) return fail("device not found", 404);
+        const deviceId = await verifyAgent(url);
         if (!deviceId) return fail("invalid agent signature", 401);
         if (server.upgrade(req, { data: { kind: "agent", deviceId } })) return undefined;
         return fail("upgrade failed", 400);
@@ -42,12 +63,10 @@ const server = Bun.serve<SocketData>({
         return fail("upgrade failed", 400);
       }
       if (url.pathname.startsWith("/api/v1/")) return await handleAPI(req, url);
-      if (url.pathname === "/healthz") return new Response("ok");
-      if (url.pathname === "/robots.txt") return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } });
-      return await staticResponse(req, url.pathname);
-    } catch (error: any) {
+      return fail("not found", 404);
+    } catch (error) {
       console.error(error);
-      return fail(error?.message || "internal error", 500);
+      return fail(error instanceof Error ? error.message : "internal error", 500);
     }
   },
   websocket: {
@@ -56,8 +75,8 @@ const server = Bun.serve<SocketData>({
       else browserSocketHandlers.open(ws as ServerWebSocket<BrowserData>);
     },
     message(ws, raw) {
-      if (ws.data.kind === "agent") agentSocketHandlers.message(ws as ServerWebSocket<AgentData>, raw as any);
-      else browserSocketHandlers.message(ws as ServerWebSocket<BrowserData>, raw as any);
+      if (ws.data.kind === "agent") agentSocketHandlers.message(ws as ServerWebSocket<AgentData>, raw as string | Uint8Array);
+      else browserSocketHandlers.message(ws as ServerWebSocket<BrowserData>, raw as string | Uint8Array);
     },
     close(ws) {
       if (ws.data.kind === "agent") agentSocketHandlers.close(ws as ServerWebSocket<AgentData>);

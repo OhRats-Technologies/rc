@@ -1,4 +1,4 @@
-import { deviceRole, logEvent, User } from "./core";
+import { canWrite, deviceRole, logEvent, User } from "./core";
 import { db, id, now, q, sha } from "./db";
 import { disconnectDevice, isOnline, verifyAgent } from "./gateway";
 import { body, fail, json } from "./http-utils";
@@ -29,7 +29,9 @@ export async function handleAgentEnroll(req: Request, path: string): Promise<Res
 
 export async function handleAgentUnregister(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname !== "/api/v1/agent/self" || !["GET", "DELETE"].includes(req.method)) return null;
-  const deviceId = verifyAgent(url);
+  const requestedDevice = url.searchParams.get("device") || "";
+  if (!requestedDevice || !q("SELECT 1 FROM devices WHERE id=?").get(requestedDevice)) return fail("device not found", 404);
+  const deviceId = await verifyAgent(url);
   if (!deviceId) return fail("invalid agent signature", 401);
   const device = q<any>("SELECT workspace_id,name,agent_version FROM devices WHERE id=?").get(deviceId);
   if (!device) return fail("device not found", 404);
@@ -48,10 +50,22 @@ function listDevices(user: User) {
 }
 
 function deviceDetail(user: User, deviceId: string) {
-  if (!deviceRole(user.id, deviceId)) return null;
   const device = q<any>(`SELECT d.id,d.workspace_id,d.name,d.hostname,d.platform,d.arch,d.agent_version,d.capabilities,
-    d.last_seen,d.created_at,w.name workspace_name FROM devices d JOIN workspaces w ON w.id=d.workspace_id WHERE d.id=?`).get(deviceId);
+    d.last_seen,d.created_at,w.name workspace_name,wm.role FROM devices d JOIN workspaces w ON w.id=d.workspace_id
+    JOIN workspace_members wm ON wm.workspace_id=d.workspace_id WHERE d.id=? AND wm.user_id=?`).get(deviceId, user.id);
   return device ? { ...device, online: isOnline(deviceId), capabilities: JSON.parse(device.capabilities || "[]") } : null;
+}
+
+function removeDevice(user: User, deviceId: string) {
+  const role = deviceRole(user.id, deviceId);
+  if (!role) return fail("device not found", 404);
+  if (!canWrite(role)) return fail("forbidden", 403);
+  const device = q<any>("SELECT workspace_id,name FROM devices WHERE id=?").get(deviceId);
+  if (!device) return fail("device not found", 404);
+  disconnectDevice(deviceId, true);
+  q("DELETE FROM devices WHERE id=?").run(deviceId);
+  logEvent("device.removed", device.workspace_id, user.id, null, { deviceId, name: device.name });
+  return json({ ok: true });
 }
 
 export async function handleDevices(req: Request, path: string, user: User): Promise<Response | null> {
@@ -61,5 +75,6 @@ export async function handleDevices(req: Request, path: string, user: User): Pro
     const data = deviceDetail(user, match[1]);
     return data ? json({ device: data }) : fail("device not found", 404);
   }
+  if (match && req.method === "DELETE") return removeDevice(user, match[1]);
   return null;
 }

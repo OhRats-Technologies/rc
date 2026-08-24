@@ -41,6 +41,10 @@ func run(args []string) error {
 		return enrollCommand(args[1:])
 	case "status":
 		return statusCommand(args[1:])
+	case "devices":
+		return devicesCommand(args[1:])
+	case "device":
+		return deviceCommand(args[1:])
 	case "update":
 		return updateCommand(args[1:])
 	case "config":

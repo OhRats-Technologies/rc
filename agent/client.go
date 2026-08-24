@@ -23,6 +23,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+var errNodeRemoved = errors.New("node removed from Relay")
+
 func enroll(serverURL, token, displayName string) (state, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -96,7 +98,7 @@ func unregister(serverURL string, value state) error {
 	return fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
 }
 
-func connect(ctx context.Context, serverURL string, value state) error {
+func connect(ctx context.Context, serverURL string, value state, stateDir string) error {
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	u, err := signedURL(serverURL, "/api/v1/agent/ws", value)
@@ -108,8 +110,12 @@ func connect(ctx context.Context, serverURL string, value state) error {
 	} else {
 		u.Scheme = "ws"
 	}
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, response, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
+		if response != nil && response.StatusCode == http.StatusNotFound {
+			_ = os.Remove(statePath(stateDir))
+			return errNodeRemoved
+		}
 		return err
 	}
 	defer conn.Close()
@@ -145,6 +151,12 @@ func connect(ctx context.Context, serverURL string, value state) error {
 				manager.shutdown()
 				_ = send(wireMessage{Type: "node.update.ready", AgentVersion: version})
 				_ = syscallExecCurrent()
+				return
+			}
+			if message.Type == "node.remove" {
+				manager.shutdown()
+				_ = os.Remove(statePath(stateDir))
+				readDone <- errNodeRemoved
 				return
 			}
 			manager.handle(message)

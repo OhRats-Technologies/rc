@@ -6,25 +6,30 @@
   <meta name="robots" content="noindex,nofollow">
   <meta name="color-scheme" content="light dark">
   <title>Relay | OhRats</title>
-  <link rel="icon" href="https://assets.ohrats.party/current/logo.png">
+  <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/current/logo.svg">
   <link rel="stylesheet" href="https://assets.ohrats.party/current/ohrats.css">
-  <link rel="stylesheet" href="/relay.css">
+  <link rel="stylesheet" href="./styles.css">
   <script src="https://assets.ohrats.party/current/theme.js"></script>
 </head>
 <body>
   <section id="auth" class="auth-shell" hidden>
-    <div class="auth-panel">
+    <div class="auth-content">
       <p class="eyebrow">RELAY / CONTROL PLANE</p>
       <h1 id="auth-title">Sign in</h1>
       <p id="auth-copy" class="muted">Use a passkey to continue.</p>
-      <form id="setup-form" class="form-stack" hidden>
+      <form id="setup-form" class="auth-form" hidden>
         <label>Name<input name="name" autocomplete="name" required autofocus></label>
         <button class="primary-button" type="submit">CREATE PASSKEY</button>
       </form>
-      <form id="login-form" class="form-stack" hidden>
-        <button class="primary-button" type="submit">SIGN IN WITH PASSKEY</button>
-      </form>
-      <form id="register-form" class="form-stack" hidden>
+      <div id="login-options" hidden>
+        <form id="login-form" class="auth-form"><button class="primary-button" type="submit">SIGN IN WITH PASSKEY</button></form>
+        <div class="auth-divider"><span>OR</span></div>
+        <form id="token-login-form" class="auth-form compact-form">
+          <label>API token<input name="token" type="password" autocomplete="off" spellcheck="false" required></label>
+          <button class="text-button auth-token-submit" type="submit">SIGN IN WITH TOKEN</button>
+        </form>
+      </div>
+      <form id="register-form" class="auth-form" hidden>
         <label>Name<input name="name" autocomplete="name" required></label>
         <input name="invite" type="hidden">
         <button class="primary-button" type="submit">CREATE PASSKEY</button>
@@ -37,20 +42,15 @@
   <div id="site-shell" class="site-shell" hidden>
     <aside id="site-sidebar" class="site-sidebar">
       <div class="sidebar-scroll">
-        <a class="site-brand" href="/devices">
-          <img src="https://assets.ohrats.party/current/logo.png" alt="">
-          <strong>Relay</strong>
-        </a>
+        <a class="site-brand" href="/devices"><img src="https://assets.ohrats.party/current/logo.svg" alt=""><strong>Relay</strong></a>
         <nav aria-label="Relay navigation">
           <section class="sidebar-section">
             <h2>Navigation</h2>
             <a class="nav-link" data-nav="devices" href="/devices"><span class="ui-icon icon-devices"></span><span>Devices</span></a>
             <a class="nav-link" data-nav="workspaces" href="/workspaces"><span class="ui-icon icon-workspaces"></span><span>Workspaces</span></a>
+            <a class="nav-link" data-nav="api" href="/api"><span class="ui-icon icon-api"></span><span>API</span></a>
           </section>
-          <section class="sidebar-section">
-            <h2>Workspaces</h2>
-            <div id="workspace-links"></div>
-          </section>
+          <section class="sidebar-section"><h2>Workspaces</h2><div id="workspace-links"></div></section>
         </nav>
       </div>
       <div class="sidebar-footer">
@@ -61,11 +61,9 @@
         </div>
       </div>
     </aside>
-    <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-expanded="true" aria-controls="site-sidebar" aria-label="Close sidebar">
-      <span class="ui-icon icon-sidebar"></span>
-    </button>
-    <main id="page" class="site-content"></main>
+    <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar"><span class="ui-icon icon-sidebar"></span></button>
+    <main id="site-content" class="site-content"><div id="page"></div></main>
   </div>
-  <script type="module" src="/app.js"></script>
+  <script type="module" src="./app.ts"></script>
 </body>
 </html>

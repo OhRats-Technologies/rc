@@ -1,9 +1,9 @@
 import { Database } from "bun:sqlite";
-import { createHash, randomBytes } from "node:crypto";
-import { mkdirSync } from "node:fs";
+import { $ } from "bun";
 import { DATA_DIR, DB_PATH } from "./config";
+import { bytesToBase64url } from "./encoding";
 
-mkdirSync(DATA_DIR, { recursive: true });
+await $`mkdir -p ${DATA_DIR}`.quiet();
 export const db = new Database(DB_PATH, { create: true, strict: true });
 db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
 
@@ -77,5 +77,5 @@ CREATE INDEX IF NOT EXISTS idx_events_workspace ON events(workspace_id,created_a
 export const q = <T = any>(sql: string) => db.query<T, any[]>(sql);
 export const now = () => Date.now();
 export const id = () => crypto.randomUUID();
-export const sha = (value: string) => createHash("sha256").update(value).digest("hex");
-export const opaque = (prefix: string) => `${prefix}_${randomBytes(32).toString("base64url")}`;
+export const sha = (value: string) => new Bun.CryptoHasher("sha256").update(value).digest("hex");
+export const opaque = (prefix: string) => `${prefix}_${bytesToBase64url(crypto.getRandomValues(new Uint8Array(32)))}`;

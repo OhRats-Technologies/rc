@@ -3,7 +3,7 @@
 - [x] Fresh product repository
 - [x] Keep the domain model to users, workspaces, devices, and processes
 - [x] Persistent SQLite state
-- [x] Passkey-only human authentication
+- [x] Passkey authentication plus full-account API-token browser login
 - [x] Workspace membership and invite links
 - [x] Signed device identity and workspace enrollment tokens
 - [x] Agent heartbeat, reconnect, and capability advertisement
@@ -18,8 +18,14 @@
 - [x] Never replay an ambiguous process start
 - [x] Half-open node heartbeat expiry
 - [x] `ohrats-relay` help/run/enroll/status/update/config/uninstall lifecycle
+- [x] Account CLI device listing/removal with API tokens
 - [x] Node state/config under `~/.config/ohrats-relay`
 - [x] Installer exits after install/enrollment
 - [x] Remote Relay Node updates from the web UI
+- [x] Device removal from web, API, and CLI with remote node cleanup
 - [x] Immutable fingerprinted frontend assets
+- [x] Bun-native HTML/TypeScript/CSS production build with no custom asset pipeline
+- [x] Persistent SPA sidebar navigation with no page-remount blink
+- [x] Flat responsive device/process UI without panel stacking
+- [x] First-class API token management route
 - [x] Keep maintained source files under 300 LOC

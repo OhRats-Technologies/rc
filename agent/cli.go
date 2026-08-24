@@ -32,14 +32,75 @@ func printHelp() {
 	helpRow("35;1", "run", "Connect this node to Relay")
 	helpRow("35;1", "enroll TOKEN", "Enroll this machine")
 	helpRow("35;1", "status", "Show node and Relay status")
+	helpRow("35;1", "devices", "List devices in your account")
 	fmt.Println()
 	helpRow("34;1", "update", "Update this Relay Node")
+	helpRow("34;1", "device delete ID", "Remove a device from Relay")
 	helpRow("34;1", "config", "Read or change node configuration")
 	helpRow("34;1", "uninstall", "Unenroll and remove this node")
 	fmt.Println()
 	helpRow("33;1", "version", "Print version")
 	helpRow("36;1", "help", "Print this help")
 	fmt.Printf("\n%s\n  ohrats-relay <command> --help\n", color("1", "Command help:"))
+}
+
+func accountFlags(name string, args []string) (*flag.FlagSet, *string, *string, error) {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	server := flags.String("url", defaultServer, "Relay server URL")
+	token := flags.String("token", env("RELAY_API_TOKEN", ""), "Relay API token")
+	if err := flags.Parse(args); err != nil {
+		return flags, server, token, err
+	}
+	return flags, server, token, nil
+}
+
+func devicesCommand(args []string) error {
+	flags, server, token, err := accountFlags("ohrats-relay devices", args)
+	if err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return errors.New("usage: ohrats-relay devices [--token TOKEN]")
+	}
+	devices, err := listAccountDevices(*server, *token)
+	if err != nil {
+		return err
+	}
+	if len(devices) == 0 {
+		fmt.Println("No devices")
+		return nil
+	}
+	for _, device := range devices {
+		state := "offline"
+		if device.Online {
+			state = "online"
+		}
+		fmt.Printf("%s  %s  %s  %s  %s\n", device.ID, device.Name, device.Workspace, state, device.AgentVersion)
+	}
+	return nil
+}
+
+func deviceCommand(args []string) error {
+	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+		fmt.Println("Usage: ohrats-relay device delete [--token TOKEN] ID")
+		fmt.Println("       RELAY_API_TOKEN=... ohrats-relay device delete ID")
+		return nil
+	}
+	if args[0] != "delete" {
+		return fmt.Errorf("unknown device command %q", args[0])
+	}
+	flags, server, token, err := accountFlags("ohrats-relay device delete", args[1:])
+	if err != nil {
+		return err
+	}
+	if flags.NArg() != 1 {
+		return errors.New("usage: ohrats-relay device delete [--token TOKEN] ID")
+	}
+	if err := deleteAccountDevice(*server, *token, flags.Arg(0)); err != nil {
+		return err
+	}
+	fmt.Printf("Removed %s\n", flags.Arg(0))
+	return nil
 }
 
 func printConfigHelp() {
@@ -64,6 +125,10 @@ func commandHelp(command string) error {
 		return enrollCommand([]string{"--help"})
 	case "status":
 		return statusCommand([]string{"--help"})
+	case "devices":
+		return devicesCommand([]string{"--help"})
+	case "device":
+		return deviceCommand([]string{"--help"})
 	case "update":
 		return updateCommand([]string{"--help"})
 	case "uninstall":

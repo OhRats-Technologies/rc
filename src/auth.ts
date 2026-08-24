@@ -7,6 +7,7 @@ import {
 import { CEREMONY_TTL, PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN, VERSION } from "./config";
 import { User, userWorkspaces } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
+import { base64ToBytes, bytesToBase64 } from "./encoding";
 import { body, cookie, fail, json, sessionCookie } from "./http-utils";
 
 export function setupAuthorized(req: Request) {
@@ -15,16 +16,17 @@ export function setupAuthorized(req: Request) {
   return !!token && sha(token) === sha(SETUP_TOKEN);
 }
 
+function apiTokenUser(token: string): User | null {
+  const row = q<any>(`SELECT u.id,u.name,a.id token_id FROM api_tokens a JOIN users u ON u.id=a.user_id
+    WHERE a.token_hash=?`).get(sha(token));
+  if (!row) return null;
+  q("UPDATE api_tokens SET last_used=? WHERE id=?").run(now(), row.token_id);
+  return { id: row.id, name: row.name };
+}
+
 export async function auth(req: Request): Promise<User | null> {
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (bearer) {
-    const row = q<any>(`SELECT u.id,u.name,a.id token_id FROM api_tokens a JOIN users u ON u.id=a.user_id
-      WHERE a.token_hash=?`).get(sha(bearer));
-    if (row) {
-      q("UPDATE api_tokens SET last_used=? WHERE id=?").run(now(), row.token_id);
-      return { id: row.id, name: row.name };
-    }
-  }
+  if (bearer) return apiTokenUser(bearer);
   return cookieUser(req);
 }
 
@@ -89,7 +91,7 @@ async function verifyNewPasskey(ceremony: any, response: any) {
 
 function insertPasskey(userId: string, credential: any) {
   q(`INSERT INTO passkeys(id,user_id,credential_id,public_key,counter,transports,created_at) VALUES(?,?,?,?,?,?,?)`).run(
-    id(), userId, credential.id, Buffer.from(credential.publicKey).toString("base64"), Number(credential.counter || 0),
+    id(), userId, credential.id, bytesToBase64(credential.publicKey), Number(credential.counter || 0),
     JSON.stringify(credential.transports || []), now()
   );
 }
@@ -104,7 +106,7 @@ async function loginVerify(req: Request) {
     const result = await verifyAuthenticationResponse({
       response: input.response, expectedChallenge: ceremony.challenge, expectedOrigin: PUBLIC_URL,
       expectedRPID: RP_ID, requireUserVerification: true,
-      credential: { id: row.credential_id, publicKey: Buffer.from(row.public_key, "base64"),
+      credential: { id: row.credential_id, publicKey: base64ToBytes(row.public_key),
         counter: Number(row.counter || 0), transports: JSON.parse(row.transports || "[]") },
     });
     if (!result.verified) return fail("passkey verification failed", 401);
@@ -160,6 +162,12 @@ export async function handlePublicAuth(req: Request, path: string): Promise<Resp
     return json(await authenticationCeremony(), 201);
   }
   if (path === "/api/v1/auth/login/verify" && req.method === "POST") return loginVerify(req);
+  if (path === "/api/v1/auth/token" && req.method === "POST") {
+    const input = await body(req), user = apiTokenUser(String(input.token || "").trim());
+    if (!user) return fail("invalid API token", 401);
+    const token = await createLogin(user.id);
+    return json({ ok: true }, 200, { "set-cookie": sessionCookie(token) });
+  }
   if (path === "/api/v1/auth/register/options" && req.method === "POST") {
     const input = await body(req), invite = String(input.invite || "").trim(), name = cleanName(input.name);
     const row = q<any>("SELECT * FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?").get(sha(invite), now());

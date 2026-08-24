@@ -1,15 +1,21 @@
 {
   "name": "relay",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
-    "build": "bun run build.ts",
-    "start": "bun run build && bun run server.ts"
+    "dev": "bun --hot server.ts",
+    "build": "rm -rf dist && bun build --target=bun --production --public-path=/ --outdir=dist ./server.ts",
+    "start": "bun server.ts",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "latest"
   }
 }

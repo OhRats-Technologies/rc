@@ -89,7 +89,11 @@ func runNode(args []string) error {
 	defer stop()
 	fmt.Printf("Connecting to %s as %s\n", server, value.DeviceID)
 	for {
-		if err := connect(ctx, server, value); err != nil && ctx.Err() == nil {
+		if err := connect(ctx, server, value, dir); err != nil && ctx.Err() == nil {
+			if errors.Is(err, errNodeRemoved) {
+				fmt.Println("Device removed from Relay")
+				return nil
+			}
 			fmt.Fprintf(os.Stderr, "connection ended: %v\n", err)
 		}
 		if ctx.Err() != nil {

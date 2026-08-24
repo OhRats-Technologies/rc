@@ -7,17 +7,20 @@ Remote device control plane for OhRats Technologies.
 - Keep the control plane small and observable.
 - Treat disconnects, stale devices, and interrupted processes as normal states.
 - Never store agent private keys or plaintext auth/enrollment tokens server-side.
-- Humans authenticate only with WebAuthn passkeys. User records contain only opaque identity, display name, and timestamps; there is no password or recovery flow.
-- API tokens are for programmatic access. Passkey management requires an authenticated browser session.
+- Passkeys are the primary human credential. Full-access API tokens may also exchange for a browser session; there is no email/password or recovery flow.
+- API tokens are hashed server-side, shown once, and grant the same account authority as their owner. Keep token management visible under the API route.
 - Shared visual primitives come from `https://assets.ohrats.party/current/ohrats.css`.
 - Product CSS must use existing `--or-*` tokens; do not invent a parallel design system.
-- Keep frontend source modular. `build.ts` fingerprints and bundles production JS/CSS/icons; hashed `/assets/*` are immutable, while the HTML shell revalidates.
+- Keep browser source typed under `web/`. Bun's HTML imports and production bundler own TypeScript/CSS/assets; do not add a custom asset pipeline or untyped `public/js` tree.
 - API routes are versioned under `/api/v1`.
 - Persist server state under `/data` in production.
 - Keep every maintained source file under 300 lines. Split by responsibility before a file reaches that size.
 - Global navigation uses the persistent sidebar. Route-specific actions belong on their pages, not in global chrome or dialogs.
+- Use History API navigation inside the authenticated app so the persistent sidebar never remounts between pages.
+- Keep authenticated pages visually flat: natural sections, typography, rows, and dividers. Do not turn every section into a bordered panel/card.
 - Browser live state and interactive PTY control use one authenticated WebSocket. HTTP remains for snapshots and ordinary CRUD. Do not reintroduce timer polling.
 - The device binary is branded `ohrats-relay` and presented as OhRats Relay Node.
+- Device removal is available from the web, `DELETE /api/v1/devices/:id`, and `ohrats-relay device delete`. Current nodes erase their local enrollment when removed remotely.
 - Keep the product model `User → Workspace → Device → Process`. Do not add fleets or browser shell-session wrappers without a concrete need.
 - Every remote process owns a PTY and is at-most-once. If execution becomes ambiguous after disconnect/restart, mark it lost instead of replaying it.
 - Relay Node shutdown, crash, and update must tear down all PTY process trees; never leave detached remote work behind.
