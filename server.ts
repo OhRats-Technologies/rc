@@ -430,7 +430,9 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     const ceremony = takeCeremony(input.ceremonyId, "setup");
     if (!ceremony) return fail("registration expired", 410);
     if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return fail("setup already completed", 409);
-    const credential = await verifyNewPasskey(ceremony, input.response);
+    let credential;
+    try { credential = await verifyNewPasskey(ceremony, input.response); }
+    catch { return fail("passkey verification failed", 401); }
     const userId = ceremony.user_id, workspaceId = id(), fleetId = id(), t = now();
     db.transaction(() => {
       if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) throw new Error("setup already completed");
@@ -455,19 +457,22 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     const credentialId = String(input.response?.id || "");
     const row = q<any>(`SELECT p.*,u.name FROM passkeys p JOIN users u ON u.id=p.user_id WHERE p.credential_id=?`).get(credentialId);
     if (!row) return fail("unknown passkey", 401);
-    const verification = await verifyAuthenticationResponse({
-      response: input.response,
-      expectedChallenge: ceremony.challenge,
-      expectedOrigin: PUBLIC_URL,
-      expectedRPID: RP_ID,
-      requireUserVerification: true,
-      credential: {
-        id: row.credential_id,
-        publicKey: Buffer.from(row.public_key, "base64"),
-        counter: Number(row.counter || 0),
-        transports: JSON.parse(row.transports || "[]"),
-      },
-    });
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: input.response,
+        expectedChallenge: ceremony.challenge,
+        expectedOrigin: PUBLIC_URL,
+        expectedRPID: RP_ID,
+        requireUserVerification: true,
+        credential: {
+          id: row.credential_id,
+          publicKey: Buffer.from(row.public_key, "base64"),
+          counter: Number(row.counter || 0),
+          transports: JSON.parse(row.transports || "[]"),
+        },
+      });
+    } catch { return fail("passkey verification failed", 401); }
     if (!verification.verified) return fail("passkey verification failed", 401);
     q(`UPDATE passkeys SET counter=?,last_used=? WHERE id=?`).run(verification.authenticationInfo.newCounter, now(), row.id);
     const token = await createLogin(row.user_id);
@@ -488,7 +493,9 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     if (!ceremony) return fail("registration expired", 410);
     const inviteRow = q<any>(`SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?`).get(ceremony.invite_id, now());
     if (!inviteRow) return fail("invalid or expired invite", 401);
-    const credential = await verifyNewPasskey(ceremony, input.response);
+    let credential;
+    try { credential = await verifyNewPasskey(ceremony, input.response); }
+    catch { return fail("passkey verification failed", 401); }
     const userId = ceremony.user_id, t = now();
     db.transaction(() => {
       q(`INSERT INTO users(id,name,created_at) VALUES(?,?,?)`).run(userId, ceremony.name, t);
@@ -551,7 +558,9 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     const input = await body(req);
     const ceremony = takeCeremony(input.ceremonyId, "add-passkey");
     if (!ceremony || ceremony.user_id !== user.id) return fail("registration expired", 410);
-    const credential = await verifyNewPasskey(ceremony, input.response);
+    let credential;
+    try { credential = await verifyNewPasskey(ceremony, input.response); }
+    catch { return fail("passkey verification failed", 401); }
     insertPasskey(user.id, credential);
     return json({ ok: true }, 201);
   }
