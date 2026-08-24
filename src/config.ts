@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 export const PORT = Number(process.env.PORT || 3000);
+export const VERSION = "0.2.0";
 export const DATA_DIR = process.env.DATA_DIR || "./data";
 export const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 export const SETUP_TOKEN = String(process.env.RELAY_SETUP_TOKEN || "").trim();

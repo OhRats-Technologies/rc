@@ -10,6 +10,10 @@ function detail(event) {
   return '';
 }
 
+function row(event) {
+  return `<div class="event-row"><span>${escapeHTML(event.kind.toUpperCase())}</span><span>${escapeHTML(detail(event))}</span><span>${relative(event.created_at || event.at)}</span></div>`;
+}
+
 export async function renderActivity(workspaceId) {
   const { workspace } = await api(`/api/v1/workspaces/${workspaceId}`);
   $('#page').innerHTML = `
@@ -19,12 +23,14 @@ export async function renderActivity(workspaceId) {
     </section>`;
   const load = async () => {
     const { events } = await api(`/api/v1/workspaces/${workspaceId}/activity`);
-    $('#activity-list').innerHTML = events.length ? events.map(event => `
-      <div class="event-row"><span>${escapeHTML(event.kind.toUpperCase())}</span><span>${escapeHTML(detail(event))}</span><span>${relative(event.created_at)}</span></div>
-    `).join('') : '<div class="event-row"><span class="muted">NO ACTIVITY</span></div>';
+    $('#activity-list').innerHTML = events.length ? events.map(row).join('') : '<div class="event-row"><span class="muted">NO ACTIVITY</span></div>';
   };
   await load();
   onRelayEvent(event => {
-    if (event.audit && event.workspaceId === workspaceId) load().catch(() => {});
+    if (!event.audit || event.workspaceId !== workspaceId) return;
+    const list = $('#activity-list');
+    if (list.querySelector('.muted')) list.innerHTML = '';
+    list.insertAdjacentHTML('afterbegin', row(event));
+    while (list.children.length > 100) list.lastElementChild.remove();
   });
 }

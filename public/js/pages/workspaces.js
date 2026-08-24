@@ -62,7 +62,10 @@ export async function renderWorkspace(workspaceId) {
     $('#workspace-device-count').textContent = `${data.devices.length} ${data.devices.length === 1 ? 'device' : 'devices'}`;
   };
   onRelayEvent(event => {
-    if (event.workspaceId === workspaceId && event.audit) refreshCounts().catch(() => {});
+    if (event.workspaceId !== workspaceId) return;
+    if (['fleet.created','fleet.deleted','device.enrolled','device.unenrolled','fleet.device_added'].includes(event.kind)) {
+      refreshCounts().catch(() => {});
+    }
   });
   if (workspace.role !== 'owner') return;
   $('#create-invite').addEventListener('click', async () => {

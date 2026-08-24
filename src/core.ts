@@ -22,11 +22,14 @@ export function devicePermission(userId: string, deviceId: string, capability: s
   return rows.some((row: any) => { try { return JSON.parse(row.permissions || "[]").includes(capability); } catch { return false; } });
 }
 export function sessionAccess(userId: string, sessionId: string) {
-  const row = q<any>("SELECT device_id FROM sessions WHERE id=?").get(sessionId);
-  return row ? { deviceId: row.device_id, role: deviceRole(userId, row.device_id) } : null;
+  const row = q<any>("SELECT device_id,status FROM sessions WHERE id=?").get(sessionId);
+  return row?.status === "active" ? { deviceId: row.device_id, role: deviceRole(userId, row.device_id) } : null;
 }
 export function logEvent(kind: string, workspaceId: string | null, userId: string | null, deviceId: string | null, detail: unknown = {}) {
+  const eventDetail = deviceId && detail && typeof detail === "object" && !Array.isArray(detail)
+    ? { ...(detail as Record<string, unknown>), deviceId }
+    : detail;
   q("INSERT INTO events(workspace_id,user_id,device_id,kind,detail,created_at) VALUES(?,?,?,?,?,?)")
-    .run(workspaceId, userId, deviceId, kind, JSON.stringify(detail), now());
-  publishEvent({ kind, workspaceId, deviceId, audit: true, detail });
+    .run(workspaceId, userId, deviceId, kind, JSON.stringify(eventDetail), now());
+  publishEvent({ kind, workspaceId, deviceId, audit: true, detail: eventDetail });
 }

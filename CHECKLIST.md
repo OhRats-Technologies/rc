@@ -20,4 +20,7 @@
 - [x] Stream command output and acknowledge job execution
 - [x] Make node shutdown cancel active command process groups
 - [x] Brand the node CLI as `ohrats-relay` with self-uninstall
+- [x] Expire half-open nodes when heartbeats stop
+- [x] Fail ambiguous in-flight jobs after control-plane restart instead of replaying them
+- [x] Verify fleet, activity, presence, and command output update live without page refresh/polling
 

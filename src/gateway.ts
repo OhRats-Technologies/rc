@@ -5,22 +5,28 @@ import { publishEvent } from "./events";
 
 export type AgentData = { kind: "agent"; deviceId: string };
 const agents = new Map<string, ServerWebSocket<AgentData>>();
+const agentActivity = new Map<string, number>();
 
 export function agentsCount() { return agents.size; }
 export function isOnline(deviceId: string) { return agents.has(deviceId); }
 export function disconnectDevice(deviceId: string) {
   agents.get(deviceId)?.close(1008, "device removed");
   agents.delete(deviceId);
+  agentActivity.delete(deviceId);
 }
 
 export function dispatchJob(jobId: string, deviceId: string, command: string) {
   const ws = agents.get(deviceId);
   if (!ws) return false;
+  const claimed = q("UPDATE jobs SET status='sent' WHERE id=? AND status='pending'").run(jobId);
+  if (!claimed.changes) return false;
   try {
     ws.send(JSON.stringify({ type: "job", id: jobId, command }));
-    q("UPDATE jobs SET status='sent' WHERE id=? AND status='pending'").run(jobId);
     return true;
-  } catch { return false; }
+  } catch {
+    q("UPDATE jobs SET status='pending' WHERE id=? AND status='sent' AND started_at IS NULL").run(jobId);
+    return false;
+  }
 }
 
 function sendPending(deviceId: string) {
@@ -45,11 +51,30 @@ function workspaceForDevice(deviceId: string) {
     WHERE fd.device_id=? LIMIT 1`).get(deviceId)?.workspace_id || null;
 }
 
+export function recoverInterruptedJobs() {
+  const rows = q<any>("SELECT id,device_id FROM jobs WHERE status='sent'").all();
+  if (!rows.length) return;
+  q("UPDATE jobs SET status='failed',result=coalesce(result,'') || ?,completed_at=? WHERE status='sent'")
+    .run("\n[control plane restarted during execution]", now());
+  for (const row of rows) {
+    logEvent("job.interrupted", workspaceForDevice(row.device_id), null, row.device_id, { jobId: row.id, reason: "control-plane-restart" });
+  }
+}
+
+setInterval(() => {
+  const cutoff = Date.now() - 35_000;
+  for (const [deviceId, ws] of agents) {
+    if ((agentActivity.get(deviceId) || 0) >= cutoff) continue;
+    ws.close(1011, "heartbeat timeout");
+  }
+}, 10_000).unref();
+
 export const websocketHandlers = {
   open(ws: ServerWebSocket<AgentData>) {
     const { deviceId } = ws.data, previous = agents.get(deviceId);
     if (previous && previous !== ws) previous.close(1012, "replaced");
     agents.set(deviceId, ws);
+    agentActivity.set(deviceId, Date.now());
     q("UPDATE devices SET last_seen=? WHERE id=?").run(now(), deviceId);
     logEvent("device.online", workspaceForDevice(deviceId), null, deviceId);
     sendPending(deviceId);
@@ -58,6 +83,7 @@ export const websocketHandlers = {
     try {
       const msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw as any).toString("utf8"));
       const deviceId = ws.data.deviceId;
+      agentActivity.set(deviceId, Date.now());
       if (msg.type === "heartbeat") {
         q("UPDATE devices SET last_seen=? WHERE id=?").run(now(), deviceId);
         return;
@@ -95,6 +121,7 @@ export const websocketHandlers = {
     const { deviceId } = ws.data;
     if (agents.get(deviceId) !== ws) return;
     agents.delete(deviceId);
+    agentActivity.delete(deviceId);
     const running = q<any>("SELECT id,session_id,started_at FROM jobs WHERE device_id=? AND status='sent'").all(deviceId);
     for (const job of running) {
       const message = job.started_at ? "\n[device disconnected during execution]" : "\n[device disconnected before acknowledgement]";

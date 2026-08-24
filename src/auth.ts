@@ -4,7 +4,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server";
-import { CEREMONY_TTL, PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN } from "./config";
+import { CEREMONY_TTL, PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN, VERSION } from "./config";
 import { User, userWorkspaces } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
 import { body, cookie, fail, json, sessionCookie } from "./http-utils";
@@ -145,7 +145,7 @@ async function newUserVerify(req: Request, kind: "setup" | "register") {
 export async function handlePublicAuth(req: Request, path: string): Promise<Response | null> {
   if (path === "/api/v1/status" && req.method === "GET") {
     const count = q<any>("SELECT count(*) count FROM users").get()?.count || 0;
-    return json({ setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: "0.1.0" });
+    return json({ setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: VERSION });
   }
   if (["/api/v1/auth/setup", "/api/v1/auth/login", "/api/v1/auth/register"].includes(path)) {
     return fail("Relay was updated. Refresh this page and try again.", 409);

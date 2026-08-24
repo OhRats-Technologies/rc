@@ -24,7 +24,7 @@ export async function renderDevices() {
 
 function jobsHTML(jobs) {
   return jobs.length ? jobs.map(job => `
-    <div class="job" data-job="${job.id}">
+    <div class="job" data-job="${job.id}" data-exit="${job.exit_code ?? ''}">
       <div class="job-command"><span class="prompt">›</span>${escapeHTML(job.payload.command)}<span class="job-state">${job.status === 'sent' ? (job.started_at ? 'RUNNING' : 'QUEUED') : escapeHTML(job.status.toUpperCase())}</span></div>
       <div class="job-result">${job.result == null ? '' : escapeHTML(job.result)}${job.exit_code != null && job.exit_code !== 0 ? `\n[exit ${job.exit_code}]` : ''}</div>
     </div>`).join('') : '<span class="muted">Session ready.</span>';
@@ -42,8 +42,11 @@ function applyJobEvent(event) {
   }
   if (event.kind === 'job.finished') {
     state.textContent = String(event.detail?.status || 'finished').toUpperCase();
-    if (event.detail?.message) result.textContent += event.detail.message;
-    if (Number.isInteger(event.detail?.exitCode) && event.detail.exitCode !== 0) result.textContent += `\n[exit ${event.detail.exitCode}]`;
+    if (event.detail?.message && !result.textContent.endsWith(event.detail.message)) result.textContent += event.detail.message;
+    if (Number.isInteger(event.detail?.exitCode) && event.detail.exitCode !== 0 && job.dataset.exit !== String(event.detail.exitCode)) {
+      result.textContent += `\n[exit ${event.detail.exitCode}]`;
+      job.dataset.exit = String(event.detail.exitCode);
+    }
   }
   return true;
 }
@@ -61,15 +64,14 @@ export async function renderDevice(deviceId) {
         <div class="meta">${device.fleets.map(fleet => `${escapeHTML(fleet.workspace_name)} / ${escapeHTML(fleet.name)}`).join(' · ') || 'NONE'}</div>
       </section>
       <section class="panel">
-        <div class="console-bar"><span>SHELL</span><span id="session-state">IDLE</span></div>
-        <div id="terminal" class="terminal"><span class="muted">${device.online ? 'Session ready.' : 'Device is offline.'}</span></div>
+        <div class="console-bar"><span>COMMAND CONSOLE</span><span id="session-state">IDLE</span></div>
+        <div id="terminal" class="terminal"><span class="muted">${device.online ? 'Ready.' : 'Offline.'}</span></div>
         <form id="command-form" class="command-row">
           <input id="command" autocomplete="off" spellcheck="false" placeholder="uname -a" ${device.online ? '' : 'disabled'} required>
           <button class="primary-button" type="submit" ${device.online ? '' : 'disabled'}>RUN</button>
         </form>
       </section>
     </section>`;
-  if (!device.online) return;
   let sessionId = null, syncTimer = null;
   const terminal = $('#terminal');
   async function loadJobs() {
@@ -110,7 +112,16 @@ export async function renderDevice(deviceId) {
         status.textContent = current.online ? 'ONLINE' : `LAST SEEN ${relative(current.last_seen)}`;
         $('#command').disabled = !current.online;
         $('#command-form button').disabled = !current.online;
+        if (!sessionId && !terminal.querySelector('.job')) {
+          terminal.innerHTML = `<span class="muted">${current.online ? 'Ready.' : 'Offline.'}</span>`;
+        }
       }).catch(() => {});
     }
   });
+  addEventListener('pagehide', () => {
+    if (!sessionId) return;
+    fetch(`/api/v1/sessions/${sessionId}`, {
+      method: 'DELETE', headers: { 'content-type': 'application/json' }, body: '{}', keepalive: true,
+    }).catch(() => {});
+  }, { once: true });
 }

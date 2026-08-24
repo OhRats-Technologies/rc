@@ -70,11 +70,12 @@ async function createJob(req: Request, user: User, sessionId: string) {
   const jobId = id(), t = now();
   q("INSERT INTO jobs(id,device_id,session_id,type,payload,status,created_by,created_at) VALUES(?,?,?,?,?,?,?,?)")
     .run(jobId, access.deviceId, sessionId, "shell", JSON.stringify({ command }), "pending", user.id, t);
-  dispatchJob(jobId, access.deviceId, command);
+  const dispatched = dispatchJob(jobId, access.deviceId, command);
   const workspace = q<any>(`SELECT f.workspace_id FROM fleet_devices fd JOIN fleets f ON f.id=fd.fleet_id
     WHERE fd.device_id=? LIMIT 1`).get(access.deviceId);
   logEvent("job.created", workspace?.workspace_id || null, user.id, access.deviceId, { jobId, command });
-  publishEvent({ kind: "job.queued", workspaceId: workspace?.workspace_id || null, deviceId: access.deviceId, sessionId, jobId });
+  publishEvent({ kind: dispatched ? "job.dispatched" : "job.queued", workspaceId: workspace?.workspace_id || null,
+    deviceId: access.deviceId, sessionId, jobId });
   return json({ id: jobId }, 201);
 }
 

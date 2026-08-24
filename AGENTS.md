@@ -18,4 +18,5 @@ Remote device control plane for OhRats Technologies.
 - Global navigation uses the persistent sidebar. Route-specific actions belong on their pages, not in global chrome or dialogs.
 - Browser live state uses authenticated SSE. Do not reintroduce timer polling for device, activity, or job updates.
 - The device binary is branded `ohrats-relay` and presented as OhRats Relay Node.
+- Treat dispatched shell jobs as at-most-once. If execution becomes ambiguous after disconnect/restart, fail the job instead of replaying it.
 

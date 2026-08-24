@@ -1,13 +1,16 @@
 import { PUBLIC_URL, PORT, SETUP_TOKEN } from "./src/config";
 import { now, q, sha } from "./src/db";
-import { AgentData, verifyAgent, websocketHandlers } from "./src/gateway";
+import { AgentData, recoverInterruptedJobs, verifyAgent, websocketHandlers } from "./src/gateway";
 import { fail, setupCookie } from "./src/http-utils";
 import { handleAPI } from "./src/router";
 import { staticResponse } from "./src/static";
 
+recoverInterruptedJobs();
+
 const server = Bun.serve<AgentData>({
   port: PORT,
   hostname: "0.0.0.0",
+  idleTimeout: 60,
   async fetch(req, server) {
     const url = new URL(req.url);
     try {
