@@ -25,7 +25,7 @@ export async function renderDevices() {
 function jobsHTML(jobs) {
   return jobs.length ? jobs.map(job => `
     <div class="job" data-job="${job.id}" data-exit="${job.exit_code ?? ''}">
-      <div class="job-command"><span class="prompt">›</span>${escapeHTML(job.payload.command)}<span class="job-state">${job.status === 'sent' ? (job.started_at ? 'RUNNING' : 'QUEUED') : escapeHTML(job.status.toUpperCase())}</span></div>
+      <div class="job-command"><span class="prompt">$</span><span>${escapeHTML(job.payload.command)}</span><span class="job-state">${job.status === 'sent' ? (job.started_at ? 'RUNNING' : 'QUEUED') : escapeHTML(job.status.toUpperCase())}</span></div>
       <div class="job-result">${job.result == null ? '' : escapeHTML(job.result)}${job.exit_code != null && job.exit_code !== 0 ? `\n[exit ${job.exit_code}]` : ''}</div>
     </div>`).join('') : '<span class="muted">Session ready.</span>';
 }
@@ -52,32 +52,49 @@ function applyJobEvent(event) {
 }
 
 export async function renderDevice(deviceId) {
-  const { device } = await api(`/api/v1/devices/${deviceId}`);
+  const [{ device }, { session }] = await Promise.all([
+    api(`/api/v1/devices/${deviceId}`), api(`/api/v1/devices/${deviceId}/sessions`),
+  ]);
+  let sessionId = session?.id || null, syncTimer = null, historyIndex = 0;
+  const history = [];
   $('#page').innerHTML = `
     <section class="page">
       <div class="page-heading">
         <div><p class="eyebrow">DEVICE</p><h1>${escapeHTML(device.name)}</h1><div class="meta">${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)} · ${escapeHTML(device.hostname)}</div></div>
         <span id="device-status" class="status ${device.online ? 'online' : ''}">${device.online ? 'ONLINE' : `LAST SEEN ${relative(device.last_seen)}`}</span>
       </div>
-      <section class="panel">
-        <p class="eyebrow">FLEETS</p>
-        <div class="meta">${device.fleets.map(fleet => `${escapeHTML(fleet.workspace_name)} / ${escapeHTML(fleet.name)}`).join(' · ') || 'NONE'}</div>
-      </section>
-      <section class="panel">
-        <div class="console-bar"><span>COMMAND CONSOLE</span><span id="session-state">IDLE</span></div>
-        <div id="terminal" class="terminal"><span class="muted">${device.online ? 'Ready.' : 'Offline.'}</span></div>
-        <form id="command-form" class="command-row">
-          <input id="command" autocomplete="off" spellcheck="false" placeholder="uname -a" ${device.online ? '' : 'disabled'} required>
-          <button class="primary-button" type="submit" ${device.online ? '' : 'disabled'}>RUN</button>
-        </form>
-      </section>
+      <div class="device-console-grid">
+        <section class="console-panel">
+          <div class="console-bar">
+            <span>RELAY://NODE/${escapeHTML(device.name.toUpperCase())}/SHELL</span>
+            <div class="console-actions"><span id="session-state">${sessionId ? `SESSION ${sessionId.slice(0, 8)}` : 'NO SESSION'}</span><button id="new-session" class="text-button" type="button">NEW SESSION</button></div>
+          </div>
+          <div id="terminal" class="terminal"><span class="muted">${sessionId ? 'Loading session…' : device.online ? 'Ready.' : 'Offline.'}</span></div>
+          <form id="command-form" class="command-row">
+            <span class="command-prompt">$</span>
+            <input id="command" autocomplete="off" spellcheck="false" placeholder="command" ${device.online ? '' : 'disabled'} required>
+            <button class="primary-button" type="submit" ${device.online ? '' : 'disabled'}>EXEC</button>
+          </form>
+        </section>
+        <aside class="node-inspector">
+          <section><p class="eyebrow">NODE</p><dl class="fact-list">
+            <div><dt>HOST</dt><dd>${escapeHTML(device.hostname)}</dd></div>
+            <div><dt>OS</dt><dd>${escapeHTML(device.platform.toUpperCase())}</dd></div>
+            <div><dt>ARCH</dt><dd>${escapeHTML(device.arch)}</dd></div>
+            <div><dt>AGENT</dt><dd>${escapeHTML(device.agent_version)}</dd></div>
+          </dl></section>
+          <section><p class="eyebrow">FLEETS</p><div class="inspector-lines">${device.fleets.map(fleet => `<span>${escapeHTML(fleet.workspace_name)} / ${escapeHTML(fleet.name)}</span>`).join('') || '<span>NONE</span>'}</div></section>
+          <section><p class="eyebrow">CAPABILITIES</p><div class="inspector-lines">${device.capabilities.map(capability => `<span>${escapeHTML(capability.toUpperCase())}</span>`).join('') || '<span>NONE</span>'}</div></section>
+        </aside>
+      </div>
     </section>`;
-  let sessionId = null, syncTimer = null;
   const terminal = $('#terminal');
   async function loadJobs() {
     if (!sessionId) return;
     try {
       const { jobs } = await api(`/api/v1/sessions/${sessionId}/jobs`);
+      history.splice(0, history.length, ...jobs.map(job => job.payload.command));
+      historyIndex = history.length;
       terminal.innerHTML = jobsHTML(jobs);
       terminal.scrollTop = terminal.scrollHeight;
     } catch {}
@@ -95,14 +112,31 @@ export async function renderDevice(deviceId) {
       $('#session-state').textContent = `SESSION ${sessionId.slice(0, 8)}`;
     }
     await api(`/api/v1/sessions/${sessionId}/jobs`, { method: 'POST', body: JSON.stringify({ command }) });
+    history.push(command); historyIndex = history.length;
     input.value = '';
     await loadJobs();
   });
+  $('#command').addEventListener('keydown', event => {
+    if (!history.length || !['ArrowUp','ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    historyIndex = event.key === 'ArrowUp' ? Math.max(0, historyIndex - 1) : Math.min(history.length, historyIndex + 1);
+    event.currentTarget.value = historyIndex === history.length ? '' : history[historyIndex];
+  });
+  $('#new-session').addEventListener('click', async () => {
+    sessionId = (await api(`/api/v1/devices/${deviceId}/sessions`, {
+      method: 'POST', body: JSON.stringify({ fresh: true }),
+    })).id;
+    history.splice(0); historyIndex = 0;
+    $('#session-state').textContent = `SESSION ${sessionId.slice(0, 8)}`;
+    terminal.innerHTML = `<span class="muted">${$('#command').disabled ? 'Offline.' : 'Ready.'}</span>`;
+  });
+  if (sessionId) await loadJobs();
   onRelayEvent(event => {
     if (event.deviceId !== deviceId) return;
     if (event.kind.startsWith('job.') && event.sessionId === sessionId) {
+      const pinned = terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight < 80;
       if (!applyJobEvent(event)) scheduleSync();
-      terminal.scrollTop = terminal.scrollHeight;
+      if (pinned) terminal.scrollTop = terminal.scrollHeight;
       return;
     }
     if (event.kind === 'device.online' || event.kind === 'device.offline') {
@@ -118,10 +152,4 @@ export async function renderDevice(deviceId) {
       }).catch(() => {});
     }
   });
-  addEventListener('pagehide', () => {
-    if (!sessionId) return;
-    fetch(`/api/v1/sessions/${sessionId}`, {
-      method: 'DELETE', headers: { 'content-type': 'application/json' }, body: '{}', keepalive: true,
-    }).catch(() => {});
-  }, { once: true });
 }

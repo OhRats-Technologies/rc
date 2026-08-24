@@ -23,4 +23,6 @@
 - [x] Expire half-open nodes when heartbeats stop
 - [x] Fail ambiguous in-flight jobs after control-plane restart instead of replaying them
 - [x] Verify fleet, activity, presence, and command output update live without page refresh/polling
+- [x] Persist active console sessions across reloads with explicit fresh-session control
+- [x] Replace the generic shell card with the Relay node control surface
 

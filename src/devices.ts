@@ -84,9 +84,24 @@ export async function handleDevices(req: Request, path: string, user: User): Pro
   let m = path.match(/^\/api\/v1\/devices\/([^/]+)$/);
   if (m && req.method === "GET") { const data = deviceDetail(user, m[1]); return data ? json({ device: data }) : fail("device not found", 404); }
   m = path.match(/^\/api\/v1\/devices\/([^/]+)\/sessions$/);
+  if (m && req.method === "GET") {
+    if (!deviceRole(user.id, m[1])) return fail("forbidden", 403);
+    const session = q<any>(`SELECT id,status,created_at FROM sessions
+      WHERE device_id=? AND user_id=? AND status='active' ORDER BY created_at DESC LIMIT 1`).get(m[1], user.id) || null;
+    return json({ session });
+  }
   if (m && req.method === "POST") {
     const role = deviceRole(user.id, m[1]);
     if (!canWrite(role) || !devicePermission(user.id, m[1], "shell")) return fail("forbidden", 403);
+    const input = await body(req), fresh = input.fresh === true;
+    if (fresh) {
+      q("UPDATE sessions SET status='closed',closed_at=? WHERE device_id=? AND user_id=? AND status='active'")
+        .run(now(), m[1], user.id);
+    } else {
+      const existing = q<any>(`SELECT id FROM sessions WHERE device_id=? AND user_id=? AND status='active'
+        ORDER BY created_at DESC LIMIT 1`).get(m[1], user.id);
+      if (existing) return json({ id: existing.id, reused: true });
+    }
     const sessionId = id();
     q("INSERT INTO sessions(id,device_id,user_id,type,status,created_at) VALUES(?,?,?,?,?,?)")
       .run(sessionId, m[1], user.id, "shell", "active", now());
