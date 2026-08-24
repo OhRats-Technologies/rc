@@ -39,7 +39,7 @@ const server = Bun.serve<SocketData>({
     "/account": spa,
     "/api": spa,
     ...(production ? {
-      "/assets/:name": (req: Request & { params: { name: string } }) => frontendAsset(import.meta.dir, req.params.name),
+      "/assets/*": (req: Request) => frontendAsset(import.meta.dir, new URL(req.url).pathname.slice("/assets/".length)),
     } : {}),
     "/setup/:token": setupRoute,
     "/install.sh": installScript,
