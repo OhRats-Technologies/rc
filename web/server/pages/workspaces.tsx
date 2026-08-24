@@ -3,6 +3,7 @@ import type { DeviceView } from "../../../src/devices";
 import type { ActivityView, WorkspaceView } from "../../../src/workspaces";
 import { htmlDocument } from "../document";
 import { relative } from "../format";
+import { SectionBadge } from "../components";
 
 function DeviceRows({ devices }: { devices: DeviceView[] }) {
   return <div id="workspace-device-list" className="data-list">{devices.length ? devices.map(device => <a key={device.id} className="data-row" href={`/devices/${device.id}`} data-device-row={device.id}>
@@ -14,7 +15,9 @@ function DeviceRows({ devices }: { devices: DeviceView[] }) {
 export function workspacesPage(user: User, workspaces: WorkspaceView[], sidebar: "open" | "closed") {
   return htmlDocument({ title: "Workspaces", user, workspaces, path: "/workspaces", sidebar, body:
     <div className="page"><header className="page-header"><div><p className="eyebrow">WORKSPACES</p><h1>Workspaces</h1></div><a className="text-action" href="/workspaces/new">NEW WORKSPACE</a></header>
-      <div className="data-list">{workspaces.length ? workspaces.map(workspace => <a className="data-row" key={workspace.id} href={`/workspaces/${workspace.id}`}><div><strong>{workspace.name}</strong><div className="meta">{workspace.role.toUpperCase()}</div></div><span>→</span></a>) : <p className="empty-state">No workspaces.</p>}</div>
+      <div className="data-list workspace-list">{workspaces.length ? workspaces.map((workspace, index) => <a className="data-row workspace-row" key={workspace.id} href={`/workspaces/${workspace.id}`}>
+        <SectionBadge index={String(index + 1).padStart(2, "0")}>{workspace.name}</SectionBadge><span className="meta workspace-role">{workspace.role.toUpperCase()}</span>
+      </a>) : <p className="empty-state">No workspaces.</p>}</div>
     </div> });
 }
 
@@ -29,13 +32,13 @@ export function workspacePage(user: User, workspaces: WorkspaceView[], workspace
   const writable = workspace.role === "owner" || workspace.role === "member";
   return htmlDocument({ title: workspace.name, user, workspaces, path: `/workspaces/${workspace.id}`, sidebar, scripts: ["live", "workspace"], body:
     <div className="page" data-workspace-page={workspace.id}><header className="page-header"><div><p className="eyebrow">WORKSPACE</p><h1>{workspace.name}</h1><p className="meta">{workspace.role.toUpperCase()}</p></div></header>
-      <section className="content-section"><div className="section-heading"><div><p className="eyebrow">DEVICES</p><h2>{devices.length} {devices.length === 1 ? "device" : "devices"}</h2></div></div><DeviceRows devices={devices}/>
+      <section className="content-section"><div className="section-heading"><div><SectionBadge index="01">Devices</SectionBadge><h2>{devices.length} {devices.length === 1 ? "device" : "devices"}</h2></div></div><DeviceRows devices={devices}/>
         {result && <div className="credential-result" data-copy-value={result.value}><span className="meta">{result.kind.toUpperCase()}</span><code>{result.value}</code><button className="text-button copy-value" type="button">COPY</button></div>}
         {writable && <form method="post" action={`/workspaces/${workspace.id}/enrollments`} className="inline-action-form"><button className="text-button" type="submit">ENROLL DEVICE</button></form>}
       </section>
-      <section className="content-section"><a className="section-link" href={`/workspaces/${workspace.id}/activity`}><span><span className="eyebrow">ACTIVITY</span><strong>Audit log</strong></span><span>→</span></a></section>
-      {workspace.role === "owner" && <><section className="content-section"><div className="section-heading"><div><p className="eyebrow">INVITE</p><h2>Workspace access</h2></div></div><form method="post" action={`/workspaces/${workspace.id}/invites`} className="inline-action-form"><input type="hidden" name="role" value="member"/><button className="text-button" type="submit">CREATE INVITE</button></form></section>
-      <section className="content-section danger-section"><p className="eyebrow">DELETE WORKSPACE</p><a className="text-action danger-text" href={`/workspaces/${workspace.id}/delete`}>DELETE WORKSPACE</a></section></>}
+      <section className="content-section"><a className="section-link" href={`/workspaces/${workspace.id}/activity`}><span><SectionBadge index="02">Activity</SectionBadge><strong>Audit log</strong></span><span>→</span></a></section>
+      {workspace.role === "owner" && <><section className="content-section"><div className="section-heading"><div><SectionBadge index="03">Invite</SectionBadge><h2>Workspace access</h2></div></div><form method="post" action={`/workspaces/${workspace.id}/invites`} className="inline-action-form"><input type="hidden" name="role" value="member"/><button className="text-button" type="submit">CREATE INVITE</button></form></section>
+      <section className="content-section danger-section"><SectionBadge index="04">Workspace</SectionBadge><a className="text-action danger-text" href={`/workspaces/${workspace.id}/delete`}>DELETE WORKSPACE</a></section></>}
     </div> });
 }
 

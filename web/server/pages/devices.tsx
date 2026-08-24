@@ -3,6 +3,7 @@ import type { WorkspaceView } from "../../../src/workspaces";
 import { processState, relative } from "../format";
 import { htmlDocument } from "../document";
 import type { User } from "../../../src/core";
+import { SectionBadge } from "../components";
 
 type RemoteProcess = ReturnType<typeof import("../../../src/process-store").processJSON>;
 
@@ -54,7 +55,7 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
         </div>
       </section>
       <section className="content-section process-launch-section">
-        <div className="section-heading"><div><p className="eyebrow">NEW PROCESS</p><h2>Start a PTY</h2></div></div>
+        <div className="section-heading"><div><SectionBadge index="01">New process</SectionBadge><h2>Start a PTY</h2></div></div>
         <form id="process-launch" className="process-form">
           <label>Working directory<input id="process-cwd" name="cwd" spellCheck={false} placeholder="~"/></label>
           <label>Command<input id="process-command" name="command" spellCheck={false} defaultValue="sh" required/></label>
@@ -62,8 +63,8 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
         </form>
         <p id="process-error" className="error">{supportsProcess ? "" : "Update this node to start PTY processes."}</p>
       </section>
-      <section className="content-section"><div className="section-heading"><div><p className="eyebrow">PROCESSES</p><h2>History</h2></div></div><ProcessRows deviceId={device.id} processes={processes}/></section>
-      {(device.role === "owner" || device.role === "member") && <section className="content-section danger-section"><p className="eyebrow">DEVICE</p><a className="text-action danger-text" href={`/devices/${device.id}/delete`}>REMOVE DEVICE</a></section>}
+      <section className="content-section"><div className="section-heading"><div><SectionBadge index="02">Processes</SectionBadge><h2>History</h2></div></div><ProcessRows deviceId={device.id} processes={processes}/></section>
+      {(device.role === "owner" || device.role === "member") && <section className="content-section danger-section"><SectionBadge index="03">Device</SectionBadge><a className="text-action danger-text" href={`/devices/${device.id}/delete`}>REMOVE DEVICE</a></section>}
     </div> });
 }
 
