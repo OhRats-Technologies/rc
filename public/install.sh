@@ -22,7 +22,15 @@ esac
 DIR="$HOME/.local/bin"
 mkdir -p "$DIR"
 URL="https://relay.ohrats.party/downloads/relay-agent-${OS}-${ARCH}"
-curl -fsSL "$URL" -o "$DIR/relay-agent"
-chmod 755 "$DIR/relay-agent"
+TMP="$DIR/.relay-agent.$$"
+trap 'rm -f "$TMP"' EXIT HUP INT TERM
+curl -fsSL "$URL" -o "$TMP"
+if [ ! -s "$TMP" ] || [ "$(head -c 1 "$TMP" || true)" = "<" ]; then
+  echo "downloaded relay-agent is not a valid binary" >&2
+  exit 1
+fi
+chmod 755 "$TMP"
+mv "$TMP" "$DIR/relay-agent"
+trap - EXIT HUP INT TERM
 echo "installed $DIR/relay-agent"
 exec "$DIR/relay-agent" --enroll "$TOKEN"

@@ -37,12 +37,18 @@ export async function staticResponse(req: Request, pathname: string) {
   if (pathname.startsWith("/assets/")) {
     path = join(DIST, pathname.replace(/^\/+/, ""));
     kind = "asset";
-  } else if (pathname === "/" || !extname(pathname)) {
-    path = join(DIST, "index.html");
-    kind = "html";
   } else {
-    path = join(PUBLIC, pathname.replace(/^\/+/, ""));
-    kind = pathname.startsWith("/downloads/") ? "download" : "other";
+    const publicPath = join(PUBLIC, pathname.replace(/^\/+/, ""));
+    if (pathname !== "/" && existsSync(publicPath)) {
+      path = publicPath;
+      kind = pathname.startsWith("/downloads/") ? "download" : "other";
+    } else if (pathname === "/" || !extname(pathname)) {
+      path = join(DIST, "index.html");
+      kind = "html";
+    } else {
+      path = publicPath;
+      kind = "other";
+    }
   }
   if (!existsSync(path)) return fail("not found", 404);
 
