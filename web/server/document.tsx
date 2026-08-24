@@ -17,9 +17,9 @@ function Document({ title, body, user, workspaces = [], path = "/", scripts = []
       <meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
       <meta name="robots" content="noindex,nofollow"/><meta name="color-scheme" content="light dark"/>
       <title>{`${title} | Relay`}</title>
-      <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/logo.svg"/>
-      <link rel="stylesheet" href="https://assets.ohrats.party/ohrats.css"/>
-      {css && <link rel="stylesheet" href={css}/>} {styles.map(name => assetUrl(name, "css")).filter(Boolean).map(src => <link key={src} rel="stylesheet" href={src}/>)}<script src="https://assets.ohrats.party/theme.js"/>
+      <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>
+      <link rel="stylesheet" href="https://assets.ohrats.party/assets/ohrats.7911fd35d5d3.css"/>
+      {css && <link rel="stylesheet" href={css}/>} {styles.map(name => assetUrl(name, "css")).filter(Boolean).map(src => <link key={src} rel="stylesheet" href={src}/>)}<script src="https://assets.ohrats.party/assets/theme.b6e0fe408633.js"/>
     </head>
     <body className={user ? "authenticated" : undefined}>
       {user ? <div className="site-shell"><Sidebar user={user} workspaces={workspaces} path={path}/><main className="site-content">{body}</main></div> : body}

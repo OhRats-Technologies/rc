@@ -9,7 +9,7 @@ Remote device control plane for OhRats Technologies.
 - Never store agent private keys or plaintext auth/enrollment tokens server-side.
 - Passkeys are the primary human credential. Full-access API tokens may also exchange for a browser session; there is no email/password or recovery flow.
 - API tokens are hashed server-side, shown once, and grant the same account authority as their owner. Keep token management visible under the API route.
-- Shared visual primitives come from stable root URLs on `https://assets.ohrats.party/`.
+- Shared visual primitives use content-fingerprinted immutable URLs under `https://assets.ohrats.party/assets/`.
 - Follow cross-product UI guidance in `../handbook/design/ui.md`; when review feedback generalizes, promote it there/shared UI instead of keeping a one-off local fix.
 - Product CSS must use existing `--or-*` tokens; do not invent a parallel design system.
 - Keep browser source typed under `web/`. Bun remains the runtime and bundler; do not add a custom asset pipeline or untyped `public/js` tree.
