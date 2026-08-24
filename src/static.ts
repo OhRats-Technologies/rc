@@ -23,8 +23,9 @@ function validators(path: string) {
   return `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
 }
 
-function cacheHeaders(kind: "asset" | "html" | "other") {
+function cacheHeaders(kind: "asset" | "html" | "alias" | "other") {
   if (kind === "asset") return "public, max-age=31536000, immutable";
+  if (kind === "alias") return "no-store";
   if (kind === "html") return "public, max-age=0, must-revalidate";
   return "public, max-age=300, must-revalidate";
 }
@@ -44,14 +45,15 @@ export async function staticResponse(req: Request, pathname: string) {
   if (pathname.includes("..")) return fail("not found", 404);
 
   let path: string;
-  let kind: "asset" | "html" | "other";
+  let kind: "asset" | "html" | "alias" | "other";
   if (pathname.startsWith("/assets/")) {
     path = join(DIST, pathname.replace(/^\/+/, ""));
     kind = "asset";
   } else if (pathname.startsWith("/downloads/")) {
     const name = pathname.slice("/downloads/".length);
     const match = name.match(/^(.*)\.([0-9a-f]{12})$/);
-    const logical = match?.[1] || name;
+    const requested = match?.[1] || name;
+    const logical = requested.replace(/^relay-agent-/, "ohrats-relay-");
     path = join(PUBLIC, "downloads", logical);
     if (!existsSync(path)) return fail("not found", 404);
     const hash = downloadHash(path);
@@ -69,7 +71,7 @@ export async function staticResponse(req: Request, pathname: string) {
     const publicPath = join(PUBLIC, pathname.replace(/^\/+/, ""));
     if (pathname !== "/" && existsSync(publicPath)) {
       path = publicPath;
-      kind = "other";
+      kind = pathname === "/install.sh" ? "alias" : "other";
     } else if (pathname === "/" || !extname(pathname)) {
       path = join(DIST, "index.html");
       kind = "html";
