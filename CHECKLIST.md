@@ -4,7 +4,7 @@
 - [x] Freeze domain model: users, workspaces, fleets, devices, sessions, jobs
 - [x] Replace prototype application architecture
 - [x] Add persistent SQLite schema and migrations
-- [x] Add first-user setup, login, logout, invites, workspace membership
+- [x] Add passkey-only setup, login, logout, invites, workspace membership
 - [x] Add workspace and fleet management
 - [x] Add signed device identity and enrollment tokens
 - [x] Add agent heartbeat, reconnect, capability advertisement

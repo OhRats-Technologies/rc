@@ -6,6 +6,7 @@ const loginForm = $('#login-form');
 const registerForm = $('#register-form');
 const errorEl = $('#auth-error');
 const dialog = $('#token-dialog');
+const passkeyDialog = $('#passkey-dialog');
 
 let state = { data: null, workspaceId: null, selectedDevice: null, sessionId: null, jobs: [], refresh: null, jobRefresh: null };
 
@@ -22,6 +23,75 @@ async function api(path, options = {}) {
 
 function payload(form) { return Object.fromEntries(new FormData(form).entries()); }
 function escapeHTML(v = '') { return String(v).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
+function b64urlToBytes(value) {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4);
+  return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+}
+function bytesToB64url(value) {
+  const bytes = new Uint8Array(value);
+  let binary = ''; for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+function creationOptions(options) {
+  if (PublicKeyCredential.parseCreationOptionsFromJSON) return PublicKeyCredential.parseCreationOptionsFromJSON(options);
+  return {
+    ...options,
+    challenge: b64urlToBytes(options.challenge),
+    user: { ...options.user, id: b64urlToBytes(options.user.id) },
+    excludeCredentials: (options.excludeCredentials || []).map(c => ({ ...c, id: b64urlToBytes(c.id) })),
+  };
+}
+function requestOptions(options) {
+  if (PublicKeyCredential.parseRequestOptionsFromJSON) return PublicKeyCredential.parseRequestOptionsFromJSON(options);
+  return {
+    ...options,
+    challenge: b64urlToBytes(options.challenge),
+    allowCredentials: options.allowCredentials?.map(c => ({ ...c, id: b64urlToBytes(c.id) })),
+  };
+}
+function credentialJSON(credential) {
+  if (credential.toJSON) return credential.toJSON();
+  const response = credential.response;
+  const out = {
+    id: credential.id,
+    rawId: bytesToB64url(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment,
+    clientExtensionResults: credential.getClientExtensionResults(),
+  };
+  if ('attestationObject' in response) {
+    out.response = {
+      clientDataJSON: bytesToB64url(response.clientDataJSON),
+      attestationObject: bytesToB64url(response.attestationObject),
+      transports: response.getTransports?.() || [],
+    };
+  } else {
+    out.response = {
+      clientDataJSON: bytesToB64url(response.clientDataJSON),
+      authenticatorData: bytesToB64url(response.authenticatorData),
+      signature: bytesToB64url(response.signature),
+      ...(response.userHandle ? { userHandle: bytesToB64url(response.userHandle) } : {}),
+    };
+  }
+  return out;
+}
+function requirePasskeys() {
+  if (!window.PublicKeyCredential || !navigator.credentials) throw new Error('Passkeys are not supported in this browser.');
+}
+async function createPasskey(path, verifyPath, data) {
+  requirePasskeys();
+  const start = await api(path, { method: 'POST', body: JSON.stringify(data) });
+  const credential = await navigator.credentials.create({ publicKey: creationOptions(start.options) });
+  if (!credential) throw new Error('Passkey creation was cancelled.');
+  return api(verifyPath, { method: 'POST', body: JSON.stringify({ ceremonyId: start.ceremonyId, response: credentialJSON(credential) }) });
+}
+async function authenticatePasskey() {
+  requirePasskeys();
+  const start = await api('/api/v1/auth/login/options', { method: 'POST', body: '{}' });
+  const credential = await navigator.credentials.get({ publicKey: requestOptions(start.options) });
+  if (!credential) throw new Error('Sign in was cancelled.');
+  return api('/api/v1/auth/login/verify', { method: 'POST', body: JSON.stringify({ ceremonyId: start.ceremonyId, response: credentialJSON(credential) }) });
+}
 function relative(ts) {
   if (!ts) return 'NEVER';
   const seconds = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -35,7 +105,7 @@ function showAuth(mode, invite = '') {
   dashboardEl.hidden = true; authShell.hidden = false; $('#logout').hidden = true; $('#connection-state').hidden = true;
   setupForm.hidden = mode !== 'setup'; loginForm.hidden = mode !== 'login'; registerForm.hidden = mode !== 'register';
   $('#auth-title').textContent = mode === 'setup' ? 'Create Relay' : mode === 'register' ? 'Join Relay' : 'Sign in';
-  $('#auth-copy').textContent = mode === 'setup' ? 'Create the first account and personal workspace.' : mode === 'register' ? 'Create an account with your workspace invite.' : 'Connect to your devices.';
+  $('#auth-copy').textContent = mode === 'setup' ? 'Create the first account with a passkey.' : mode === 'register' ? 'Create a passkey to join this workspace.' : 'Use a passkey to continue.';
   if (mode === 'register') registerForm.elements.invite.value = invite;
 }
 
@@ -64,13 +134,33 @@ async function boot() {
   }
 }
 
-for (const [form, path] of [[setupForm, '/api/v1/auth/setup'], [loginForm, '/api/v1/auth/login'], [registerForm, '/api/v1/auth/register']]) {
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault(); errorEl.textContent = '';
-    try { await api(path, { method: 'POST', body: JSON.stringify(payload(form)) }); history.replaceState({}, '', '/'); await loadDashboard(); }
-    catch (err) { errorEl.textContent = err.message; }
-  });
-}
+setupForm.addEventListener('submit', async event => {
+  event.preventDefault(); errorEl.textContent = '';
+  try {
+    await createPasskey('/api/v1/auth/setup/options', '/api/v1/auth/setup/verify', payload(setupForm));
+    history.replaceState({}, '', '/'); await loadDashboard();
+  } catch (err) { errorEl.textContent = err.message; }
+});
+
+loginForm.addEventListener('submit', async event => {
+  event.preventDefault(); errorEl.textContent = '';
+  try {
+    await authenticatePasskey();
+    const invite = new URLSearchParams(location.search).get('invite');
+    if (invite) await api('/api/v1/workspaces/join', { method: 'POST', body: JSON.stringify({ token: invite }) });
+    history.replaceState({}, '', '/'); await loadDashboard();
+  } catch (err) { errorEl.textContent = err.message; }
+});
+
+registerForm.addEventListener('submit', async event => {
+  event.preventDefault(); errorEl.textContent = '';
+  try {
+    await createPasskey('/api/v1/auth/register/options', '/api/v1/auth/register/verify', payload(registerForm));
+    history.replaceState({}, '', '/'); await loadDashboard();
+  } catch (err) { errorEl.textContent = err.message; }
+});
+
+$('#existing-account').addEventListener('click', () => showAuth('login'));
 
 $('#logout').addEventListener('click', async () => { await api('/api/v1/auth/logout', { method: 'POST', body: '{}' }); clearTimers(); showAuth('login'); });
 
@@ -150,6 +240,34 @@ $('#invite-member').addEventListener('click', async () => {
 $('#api-token').addEventListener('click', async () => {
   const out = await api('/api/v1/tokens', { method: 'POST', body: JSON.stringify({ name: 'Dashboard token' }) });
   showToken('API token', 'Shown once. Use as Authorization: Bearer TOKEN.', out.token);
+});
+
+async function loadPasskeys() {
+  const data = await api('/api/v1/passkeys');
+  $('#passkey-list').innerHTML = data.passkeys.length ? data.passkeys.map((passkey, index) => `
+    <div class="passkey-row">
+      <div><strong>Passkey ${index + 1}</strong><span class="device-meta">ADDED ${relative(passkey.created_at)}${passkey.last_used ? ` · USED ${relative(passkey.last_used)}` : ''}</span></div>
+      <button class="text-button" type="button" data-remove-passkey="${passkey.id}">REMOVE</button>
+    </div>`).join('') : `<div class="passkey-row muted">No passkeys.</div>`;
+}
+
+$('#passkeys').addEventListener('click', async () => {
+  $('#passkey-error').textContent = '';
+  await loadPasskeys();
+  passkeyDialog.showModal();
+});
+$('#close-passkeys').addEventListener('click', () => passkeyDialog.close());
+$('#add-passkey').addEventListener('click', async () => {
+  $('#passkey-error').textContent = '';
+  try {
+    await createPasskey('/api/v1/passkeys/options', '/api/v1/passkeys/verify', {});
+    await loadPasskeys();
+  } catch (err) { $('#passkey-error').textContent = err.message; }
+});
+$('#passkey-list').addEventListener('click', async event => {
+  const button = event.target.closest('[data-remove-passkey]'); if (!button) return;
+  await api(`/api/v1/passkeys/${button.dataset.removePasskey}`, { method: 'DELETE', body: '{}' });
+  await loadPasskeys();
 });
 
 $('#fleets').addEventListener('click', async e => {

@@ -38,23 +38,18 @@
         <form id="setup-form" class="form-stack" hidden>
           <label id="setup-token-row" hidden>Setup token<input name="setupToken" autocomplete="off"></label>
           <label>Name<input name="name" autocomplete="name" required></label>
-          <label>Email<input name="email" type="email" autocomplete="email" required></label>
-          <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
-          <button class="primary-button" type="submit">CREATE RELAY</button>
+          <button class="primary-button" type="submit">CREATE PASSKEY</button>
         </form>
 
         <form id="login-form" class="form-stack" hidden>
-          <label>Email<input name="email" type="email" autocomplete="email" required></label>
-          <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
-          <button class="primary-button" type="submit">SIGN IN</button>
+          <button class="primary-button" type="submit">SIGN IN WITH PASSKEY</button>
         </form>
 
         <form id="register-form" class="form-stack" hidden>
           <label>Name<input name="name" autocomplete="name" required></label>
-          <label>Email<input name="email" type="email" autocomplete="email" required></label>
-          <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
           <input name="invite" type="hidden">
-          <button class="primary-button" type="submit">JOIN WORKSPACE</button>
+          <button class="primary-button" type="submit">CREATE PASSKEY</button>
+          <button id="existing-account" class="text-button" type="button">SIGN IN INSTEAD</button>
         </form>
         <p id="auth-error" class="error" role="alert"></p>
       </div>
@@ -69,6 +64,7 @@
         <div class="workspace-actions">
           <button id="new-workspace" class="text-button" type="button">NEW WORKSPACE</button>
           <button id="invite-member" class="text-button" type="button">INVITE</button>
+          <button id="passkeys" class="text-button" type="button">PASSKEYS</button>
           <button id="api-token" class="text-button" type="button">API TOKEN</button>
         </div>
       </div>
@@ -136,6 +132,16 @@
       <label class="dialog-label"><span id="input-dialog-label">Name</span><input id="input-dialog-value" autocomplete="off"></label>
       <button class="primary-button" value="default">CREATE</button>
     </form>
+  </dialog>
+
+  <dialog id="passkey-dialog">
+    <div class="dialog-panel">
+      <div class="panel-heading"><h2>Passkeys</h2><button id="close-passkeys" class="icon-button" type="button" aria-label="Close">×</button></div>
+      <p class="muted">Passkeys are the only way to sign in.</p>
+      <div id="passkey-list" class="passkey-list"></div>
+      <p id="passkey-error" class="error" role="alert"></p>
+      <button id="add-passkey" class="primary-button" type="button">ADD PASSKEY</button>
+    </div>
   </dialog>
 
   <script type="module" src="/app.js"></script>

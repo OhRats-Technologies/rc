@@ -185,6 +185,10 @@ dialog::backdrop { background: color-mix(in srgb, var(--or-text) 30%, transparen
 .dialog-label { margin-top: var(--or-space-sm); display: grid; gap: 0.35rem; color: var(--or-text-muted); font-family: var(--or-font-mono); font-size: 0.7rem; text-transform: uppercase; }
 pre { max-height: 260px; overflow: auto; padding: var(--or-space-sm); border: 1px solid var(--or-border); background: var(--or-surface); color: var(--or-text); font-size: 0.72rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .dialog-panel .primary-button { margin-top: var(--or-space-sm); width: 100%; }
+.passkey-list { margin-top: var(--or-space-sm); border: 1px solid var(--or-border); }
+.passkey-row { padding: var(--or-space-sm); display: flex; align-items: center; justify-content: space-between; gap: var(--or-space-sm); border-bottom: 1px solid var(--or-border); }
+.passkey-row:last-child { border-bottom: 0; }
+.passkey-row > div { display: grid; gap: 0.25rem; }
 
 @media (max-width: 1120px) {
   .control-grid { grid-template-columns: 190px 1fr; }

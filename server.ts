@@ -2,14 +2,23 @@ import { Database } from "bun:sqlite";
 import { createHash, createPublicKey, randomBytes, verify as verifySignature } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { extname, join } from "node:path";
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+} from "@simplewebauthn/server";
 
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.DATA_DIR || "./data";
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 const SETUP_TOKEN = String(process.env.RELAY_SETUP_TOKEN || "").trim();
+const RP_ID = new URL(PUBLIC_URL).hostname;
+const RP_NAME = "Relay";
 const DB_PATH = join(DATA_DIR, "relay.db");
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_TTL = 24 * 60 * 60 * 1000;
+const CEREMONY_TTL = 5 * 60 * 1000;
 
 mkdirSync(DATA_DIR, { recursive: true });
 const db = new Database(DB_PATH, { create: true, strict: true });
@@ -22,10 +31,28 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 );
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
-  password_hash TEXT NOT NULL,
   created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS passkeys (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  credential_id TEXT NOT NULL UNIQUE,
+  public_key TEXT NOT NULL,
+  counter INTEGER NOT NULL DEFAULT 0,
+  transports TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  last_used INTEGER
+);
+CREATE TABLE IF NOT EXISTS webauthn_challenges (
+  id TEXT PRIMARY KEY,
+  challenge TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL CHECK(kind IN ('setup','register','login','add-passkey')),
+  user_id TEXT,
+  name TEXT,
+  invite_id TEXT,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS workspaces (
   id TEXT PRIMARY KEY,
@@ -131,6 +158,7 @@ CREATE TABLE IF NOT EXISTS events (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_members_user ON workspace_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id);
 CREATE INDEX IF NOT EXISTS idx_fleets_workspace ON fleets(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_fleet_devices_device ON fleet_devices(device_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id);
@@ -138,12 +166,11 @@ CREATE INDEX IF NOT EXISTS idx_jobs_device_status ON jobs(device_id, status);
 CREATE INDEX IF NOT EXISTS idx_events_workspace ON events(workspace_id, created_at DESC);
 `);
 
-type User = { id: string; email: string; name: string };
+type User = { id: string; name: string };
 type AgentData = { kind: "agent"; deviceId: string };
 type Role = "owner" | "member" | "viewer";
 
 const agents = new Map<string, ServerWebSocket<AgentData>>();
-const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 
 const q = <T = any>(sql: string) => db.query<T, any[]>(sql);
 const now = () => Date.now();
@@ -153,6 +180,30 @@ const opaque = (prefix: string) => `${prefix}_${randomBytes(32).toString("base64
 
 if (!q<any>(`SELECT version FROM schema_migrations WHERE version=1`).get()) {
   q(`INSERT INTO schema_migrations(version,applied_at) VALUES(1,?)`).run(now());
+}
+
+const userColumns = q<any>(`PRAGMA table_info(users)`).all();
+if (userColumns.some((column: any) => column.name === "email" || column.name === "password_hash")) {
+  db.exec("PRAGMA foreign_keys = OFF");
+  try {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE users_v2 (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          created_at INTEGER NOT NULL
+        );
+        INSERT INTO users_v2(id,name,created_at) SELECT id,name,created_at FROM users;
+        DROP TABLE users;
+        ALTER TABLE users_v2 RENAME TO users;
+      `);
+    })();
+  } finally {
+    db.exec("PRAGMA foreign_keys = ON");
+  }
+}
+if (!q<any>(`SELECT version FROM schema_migrations WHERE version=2`).get()) {
+  q(`INSERT INTO schema_migrations(version,applied_at) VALUES(2,?)`).run(now());
 }
 
 function json(data: unknown, status = 200, headers: HeadersInit = {}) {
@@ -185,16 +236,23 @@ function sessionCookie(token: string, maxAge = Math.floor(SESSION_TTL / 1000)) {
 async function auth(req: Request): Promise<User | null> {
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (bearer) {
-    const row = q<any>(`SELECT u.id,u.email,u.name,a.id token_id FROM api_tokens a JOIN users u ON u.id=a.user_id WHERE a.token_hash=?`).get(sha(bearer));
+    const row = q<any>(`SELECT u.id,u.name,a.id token_id FROM api_tokens a JOIN users u ON u.id=a.user_id WHERE a.token_hash=?`).get(sha(bearer));
     if (row) {
       q(`UPDATE api_tokens SET last_used=? WHERE id=?`).run(now(), row.token_id);
-      return { id: row.id, email: row.email, name: row.name };
+      return { id: row.id, name: row.name };
     }
   }
   const token = cookie(req, "relay_session");
   if (!token) return null;
-  const row = q<any>(`SELECT u.id,u.email,u.name FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).get(sha(token), now());
-  return row ? { id: row.id, email: row.email, name: row.name } : null;
+  const row = q<any>(`SELECT u.id,u.name FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).get(sha(token), now());
+  return row ? { id: row.id, name: row.name } : null;
+}
+
+async function cookieUser(req: Request): Promise<User | null> {
+  const token = cookie(req, "relay_session");
+  if (!token) return null;
+  const row = q<any>(`SELECT u.id,u.name FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).get(sha(token), now());
+  return row ? { id: row.id, name: row.name } : null;
 }
 
 function roleFor(userId: string, workspaceId: string): Role | null {
@@ -271,28 +329,81 @@ function checkOrigin(req: Request) {
   return origin === new URL(req.url).origin || origin === PUBLIC_URL;
 }
 
-function clientIP(req: Request) {
-  return (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for")?.split(",")[0] || "local").trim();
-}
-
-function loginLimited(req: Request) {
-  const key = clientIP(req), t = now();
-  const entry = loginAttempts.get(key);
-  if (!entry || entry.resetAt <= t) return false;
-  return entry.count >= 10;
-}
-
-function recordLoginFailure(req: Request) {
-  const key = clientIP(req), t = now();
-  const entry = loginAttempts.get(key);
-  if (!entry || entry.resetAt <= t) loginAttempts.set(key, { count: 1, resetAt: t + 10 * 60 * 1000 });
-  else entry.count++;
-}
-
 async function createLogin(userId: string) {
   const token = opaque("sess");
   q(`INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)`).run(sha(token), userId, now(), now() + SESSION_TTL);
   return token;
+}
+
+function cleanName(value: unknown) {
+  return String(value || "").trim().slice(0, 120);
+}
+
+function passkeyDescriptors(userId: string) {
+  return q<any>(`SELECT credential_id,transports FROM passkeys WHERE user_id=?`).all(userId).map((row: any) => ({
+    id: row.credential_id,
+    transports: JSON.parse(row.transports || "[]"),
+  }));
+}
+
+async function registrationCeremony(kind: "setup" | "register" | "add-passkey", userId: string, name: string, inviteId: string | null = null) {
+  const options = await generateRegistrationOptions({
+    rpName: RP_NAME,
+    rpID: RP_ID,
+    userName: name,
+    userDisplayName: name,
+    userID: new TextEncoder().encode(userId),
+    attestationType: "none",
+    excludeCredentials: kind === "add-passkey" ? passkeyDescriptors(userId) : [],
+    authenticatorSelection: {
+      residentKey: "required",
+      requireResidentKey: true,
+      userVerification: "required",
+    },
+  });
+  const ceremonyId = id(), t = now();
+  q(`INSERT INTO webauthn_challenges(id,challenge,kind,user_id,name,invite_id,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)`).run(
+    ceremonyId, options.challenge, kind, userId, name, inviteId, t, t + CEREMONY_TTL
+  );
+  return { ceremonyId, options };
+}
+
+async function authenticationCeremony() {
+  const options = await generateAuthenticationOptions({
+    rpID: RP_ID,
+    userVerification: "required",
+  });
+  const ceremonyId = id(), t = now();
+  q(`INSERT INTO webauthn_challenges(id,challenge,kind,created_at,expires_at) VALUES(?,?,?,?,?)`).run(
+    ceremonyId, options.challenge, "login", t, t + CEREMONY_TTL
+  );
+  return { ceremonyId, options };
+}
+
+function takeCeremony(ceremonyId: unknown, kind: string) {
+  const key = String(ceremonyId || "");
+  const row = q<any>(`SELECT * FROM webauthn_challenges WHERE id=? AND kind=? AND expires_at>?`).get(key, kind, now());
+  if (key) q(`DELETE FROM webauthn_challenges WHERE id=?`).run(key);
+  return row || null;
+}
+
+async function verifyNewPasskey(ceremony: any, response: any) {
+  const verification = await verifyRegistrationResponse({
+    response,
+    expectedChallenge: ceremony.challenge,
+    expectedOrigin: PUBLIC_URL,
+    expectedRPID: RP_ID,
+    requireUserVerification: true,
+  });
+  if (!verification.verified || !verification.registrationInfo) throw new Error("passkey verification failed");
+  return verification.registrationInfo.credential;
+}
+
+function insertPasskey(userId: string, credential: any) {
+  q(`INSERT INTO passkeys(id,user_id,credential_id,public_key,counter,transports,created_at) VALUES(?,?,?,?,?,?,?)`).run(
+    id(), userId, credential.id, Buffer.from(credential.publicKey).toString("base64"), Number(credential.counter || 0),
+    JSON.stringify(credential.transports || []), now()
+  );
 }
 
 async function handleAPI(req: Request, url: URL): Promise<Response> {
@@ -306,55 +417,82 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     const count = q<any>(`SELECT count(*) count FROM users`).get()?.count || 0;
     return json({ setupRequired: count === 0, setupTokenRequired: count === 0 && !!SETUP_TOKEN, version: "0.1.0" });
   }
-  if (path === "/api/v1/auth/setup" && req.method === "POST") {
+  if (path === "/api/v1/auth/setup/options" && req.method === "POST") {
     if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return fail("setup already completed", 409);
     const input = await body(req);
     if (SETUP_TOKEN && sha(String(input.setupToken || "")) !== sha(SETUP_TOKEN)) return fail("invalid setup token", 403);
-    const email = String(input.email || "").trim().toLowerCase();
-    const name = String(input.name || "").trim() || email.split("@")[0];
-    const password = String(input.password || "");
-    if (!email.includes("@") || password.length < 10) return fail("valid email and password of at least 10 characters required");
-    const userId = id(), workspaceId = id(), fleetId = id(), t = now();
-    const passwordHash = await Bun.password.hash(password, { algorithm: "argon2id" });
-    const tx = db.transaction(() => {
-      q(`INSERT INTO users VALUES(?,?,?,?,?)`).run(userId, email, name, passwordHash, t);
+    const name = cleanName(input.name);
+    if (!name) return fail("name required");
+    return json(await registrationCeremony("setup", id(), name), 201);
+  }
+  if (path === "/api/v1/auth/setup/verify" && req.method === "POST") {
+    const input = await body(req);
+    const ceremony = takeCeremony(input.ceremonyId, "setup");
+    if (!ceremony) return fail("registration expired", 410);
+    if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return fail("setup already completed", 409);
+    const credential = await verifyNewPasskey(ceremony, input.response);
+    const userId = ceremony.user_id, workspaceId = id(), fleetId = id(), t = now();
+    db.transaction(() => {
+      if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) throw new Error("setup already completed");
+      q(`INSERT INTO users(id,name,created_at) VALUES(?,?,?)`).run(userId, ceremony.name, t);
+      insertPasskey(userId, credential);
       q(`INSERT INTO workspaces VALUES(?,?,?,?)`).run(workspaceId, "Personal", userId, t);
       q(`INSERT INTO workspace_members VALUES(?,?,?,?)`).run(workspaceId, userId, "owner", t);
       q(`INSERT INTO fleets VALUES(?,?,?,?)`).run(fleetId, workspaceId, "Default", t);
-    });
-    tx();
+    })();
     logEvent("workspace.created", workspaceId, userId, null, { name: "Personal" });
     const token = await createLogin(userId);
     return json({ ok: true }, 201, { "set-cookie": sessionCookie(token) });
   }
-  if (path === "/api/v1/auth/login" && req.method === "POST") {
-    if (loginLimited(req)) return fail("too many login attempts", 429);
+  if (path === "/api/v1/auth/login/options" && req.method === "POST") {
+    if ((q<any>(`SELECT count(*) count FROM passkeys`).get()?.count || 0) === 0) return fail("no passkeys registered", 409);
+    return json(await authenticationCeremony(), 201);
+  }
+  if (path === "/api/v1/auth/login/verify" && req.method === "POST") {
     const input = await body(req);
-    const email = String(input.email || "").trim().toLowerCase();
-    const password = String(input.password || "");
-    const row = q<any>(`SELECT id,email,name,password_hash FROM users WHERE email=?`).get(email);
-    if (!row || !(await Bun.password.verify(password, row.password_hash))) {
-      recordLoginFailure(req);
-      return fail("invalid email or password", 401);
-    }
-    loginAttempts.delete(clientIP(req));
-    const token = await createLogin(row.id);
+    const ceremony = takeCeremony(input.ceremonyId, "login");
+    if (!ceremony) return fail("authentication expired", 410);
+    const credentialId = String(input.response?.id || "");
+    const row = q<any>(`SELECT p.*,u.name FROM passkeys p JOIN users u ON u.id=p.user_id WHERE p.credential_id=?`).get(credentialId);
+    if (!row) return fail("unknown passkey", 401);
+    const verification = await verifyAuthenticationResponse({
+      response: input.response,
+      expectedChallenge: ceremony.challenge,
+      expectedOrigin: PUBLIC_URL,
+      expectedRPID: RP_ID,
+      requireUserVerification: true,
+      credential: {
+        id: row.credential_id,
+        publicKey: Buffer.from(row.public_key, "base64"),
+        counter: Number(row.counter || 0),
+        transports: JSON.parse(row.transports || "[]"),
+      },
+    });
+    if (!verification.verified) return fail("passkey verification failed", 401);
+    q(`UPDATE passkeys SET counter=?,last_used=? WHERE id=?`).run(verification.authenticationInfo.newCounter, now(), row.id);
+    const token = await createLogin(row.user_id);
     return json({ ok: true }, 200, { "set-cookie": sessionCookie(token) });
   }
-  if (path === "/api/v1/auth/register" && req.method === "POST") {
+  if (path === "/api/v1/auth/register/options" && req.method === "POST") {
     const input = await body(req);
     const invite = String(input.invite || "").trim();
     const inviteRow = q<any>(`SELECT * FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?`).get(sha(invite), now());
     if (!inviteRow) return fail("invalid or expired invite", 401);
-    const email = String(input.email || "").trim().toLowerCase();
-    const name = String(input.name || "").trim() || email.split("@")[0];
-    const password = String(input.password || "");
-    if (!email.includes("@") || password.length < 10) return fail("valid email and password of at least 10 characters required");
-    if (q(`SELECT id FROM users WHERE email=?`).get(email)) return fail("email already exists", 409);
-    const userId = id(), t = now();
-    const passwordHash = await Bun.password.hash(password, { algorithm: "argon2id" });
+    const name = cleanName(input.name);
+    if (!name) return fail("name required");
+    return json(await registrationCeremony("register", id(), name, inviteRow.id), 201);
+  }
+  if (path === "/api/v1/auth/register/verify" && req.method === "POST") {
+    const input = await body(req);
+    const ceremony = takeCeremony(input.ceremonyId, "register");
+    if (!ceremony) return fail("registration expired", 410);
+    const inviteRow = q<any>(`SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?`).get(ceremony.invite_id, now());
+    if (!inviteRow) return fail("invalid or expired invite", 401);
+    const credential = await verifyNewPasskey(ceremony, input.response);
+    const userId = ceremony.user_id, t = now();
     db.transaction(() => {
-      q(`INSERT INTO users VALUES(?,?,?,?,?)`).run(userId, email, name, passwordHash, t);
+      q(`INSERT INTO users(id,name,created_at) VALUES(?,?,?)`).run(userId, ceremony.name, t);
+      insertPasskey(userId, credential);
       q(`INSERT INTO workspace_members VALUES(?,?,?,?)`).run(inviteRow.workspace_id, userId, inviteRow.role, t);
       q(`UPDATE workspace_invites SET used_at=? WHERE id=?`).run(t, inviteRow.id);
     })();
@@ -399,6 +537,33 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
   if (path === "/api/v1/me" && req.method === "GET") return json({ user, workspaces: userWorkspaces(user.id) });
   if (path === "/api/v1/dashboard" && req.method === "GET") return json(dashboard(user, url.searchParams.get("workspace")));
 
+  if (path === "/api/v1/passkeys" && req.method === "GET") {
+    const human = await cookieUser(req); if (!human || human.id !== user.id) return fail("browser session required", 401);
+    const passkeys = q<any>(`SELECT id,created_at,last_used FROM passkeys WHERE user_id=? ORDER BY created_at`).all(user.id);
+    return json({ passkeys });
+  }
+  if (path === "/api/v1/passkeys/options" && req.method === "POST") {
+    const human = await cookieUser(req); if (!human || human.id !== user.id) return fail("browser session required", 401);
+    return json(await registrationCeremony("add-passkey", user.id, user.name), 201);
+  }
+  if (path === "/api/v1/passkeys/verify" && req.method === "POST") {
+    const human = await cookieUser(req); if (!human || human.id !== user.id) return fail("browser session required", 401);
+    const input = await body(req);
+    const ceremony = takeCeremony(input.ceremonyId, "add-passkey");
+    if (!ceremony || ceremony.user_id !== user.id) return fail("registration expired", 410);
+    const credential = await verifyNewPasskey(ceremony, input.response);
+    insertPasskey(user.id, credential);
+    return json({ ok: true }, 201);
+  }
+
+  let m = path.match(/^\/api\/v1\/passkeys\/([^/]+)$/);
+  if (m && req.method === "DELETE") {
+    const human = await cookieUser(req); if (!human || human.id !== user.id) return fail("browser session required", 401);
+    const removed = q(`DELETE FROM passkeys WHERE id=? AND user_id=?`).run(m[1], user.id);
+    if (removed.changes === 0) return fail("passkey not found", 404);
+    return json({ ok: true });
+  }
+
   if (path === "/api/v1/workspaces" && req.method === "POST") {
     const input = await body(req); const name = String(input.name || "").trim();
     if (!name) return fail("workspace name required");
@@ -412,7 +577,7 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     return json({ id: workspaceId }, 201);
   }
 
-  let m = path.match(/^\/api\/v1\/workspaces\/([^/]+)\/fleets$/);
+  m = path.match(/^\/api\/v1\/workspaces\/([^/]+)\/fleets$/);
   if (m && req.method === "POST") {
     const role = roleFor(user.id, m[1]); if (!canWrite(role)) return fail("forbidden", 403);
     const input = await body(req); const name = String(input.name || "").trim(); if (!name) return fail("fleet name required");
@@ -614,7 +779,7 @@ setInterval(() => {
   q(`DELETE FROM auth_sessions WHERE expires_at<?`).run(now());
   q(`DELETE FROM workspace_invites WHERE expires_at<? AND used_at IS NULL`).run(now());
   q(`DELETE FROM enrollment_tokens WHERE expires_at<? AND used_at IS NULL`).run(now());
-  for (const [key, value] of loginAttempts) if (value.resetAt <= now()) loginAttempts.delete(key);
+  q(`DELETE FROM webauthn_challenges WHERE expires_at<?`).run(now());
 }, 60_000).unref();
 
 console.log(`Relay ${PUBLIC_URL} listening on :${server.port}; database ${DB_PATH}`);

@@ -11,7 +11,9 @@ RUN mkdir -p /out \
 
 FROM oven/bun:1.2.21-alpine
 WORKDIR /app
-COPY server.ts package.json ./
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+COPY server.ts ./
 COPY public ./public
 COPY --from=agent /out ./public/downloads
 RUN mkdir -p /data
