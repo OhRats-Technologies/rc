@@ -26,4 +26,7 @@
 - [x] Persist active console sessions across reloads with explicit fresh-session control
 - [x] Replace the generic shell card with the Relay node control surface
 - [x] Allow enrolled nodes to upgrade without minting another enrollment token
+- [x] Give `ohrats-relay` a conventional help/run/enroll/status/config lifecycle
+- [x] Move node state/config to `~/.config/ohrats-relay` with legacy migration
+- [x] Make the installer finish instead of becoming the foreground node
 

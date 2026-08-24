@@ -121,6 +121,11 @@ func connect(ctx context.Context, serverURL string, value state) error {
 		defer writeMu.Unlock()
 		return conn.WriteJSON(message)
 	}
+	hostname, _ := os.Hostname()
+	if err := send(wireMessage{
+		Type: "hello", AgentVersion: version, Hostname: hostname,
+		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"shell"},
+	}); err != nil { return err }
 
 	readDone := make(chan error, 1)
 	jobs := make(chan wireMessage, 32)
@@ -172,6 +177,27 @@ func connect(ctx context.Context, serverURL string, value state) error {
 type chunkWriter struct {
 	send  func(wireMessage) error
 	jobID string
+}
+
+type remoteNodeStatus struct {
+	Name         string `json:"name"`
+	Online       bool   `json:"online"`
+	AgentVersion string `json:"agentVersion"`
+}
+
+func fetchStatus(serverURL string, value state) (remoteNodeStatus, error) {
+	u, err := signedURL(serverURL, "/api/v1/agent/self", value)
+	if err != nil { return remoteNodeStatus{}, err }
+	resp, err := http.Get(u.String())
+	if err != nil { return remoteNodeStatus{}, err }
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return remoteNodeStatus{}, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+	var out remoteNodeStatus
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	return out, err
 }
 
 func (writer *chunkWriter) Write(data []byte) (int, error) {

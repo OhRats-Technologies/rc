@@ -31,9 +31,14 @@ export async function handleAgentEnroll(req: Request, path: string): Promise<Res
 }
 
 export async function handleAgentUnregister(req: Request, url: URL): Promise<Response | null> {
-  if (url.pathname !== "/api/v1/agent/self" || req.method !== "DELETE") return null;
+  if (url.pathname !== "/api/v1/agent/self" || !["GET", "DELETE"].includes(req.method)) return null;
   const deviceId = verifyAgent(url);
   if (!deviceId) return fail("invalid agent signature", 401);
+  if (req.method === "GET") {
+    const device = q<any>("SELECT name,agent_version FROM devices WHERE id=?").get(deviceId);
+    if (!device) return fail("device not found", 404);
+    return json({ name: device.name, online: isOnline(deviceId), agentVersion: device.agent_version });
+  }
   const workspace = q<any>(`SELECT f.workspace_id FROM fleet_devices fd JOIN fleets f ON f.id=fd.fleet_id
     WHERE fd.device_id=? LIMIT 1`).get(deviceId)?.workspace_id || null;
   disconnectDevice(deviceId);

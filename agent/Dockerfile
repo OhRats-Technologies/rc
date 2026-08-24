@@ -11,4 +11,5 @@ COPY --from=build /ohrats-relay /usr/local/bin/ohrats-relay
 VOLUME /data
 ENV RELAY_STATE_DIR=/data
 ENTRYPOINT ["ohrats-relay"]
+CMD ["run"]
 

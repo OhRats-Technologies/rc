@@ -1,6 +1,6 @@
 package main
 
-const version = "0.2.0"
+const version = "0.2.1"
 
 type state struct {
 	DeviceID   string `json:"deviceId"`
@@ -23,9 +23,14 @@ type enrollResponse struct {
 }
 
 type wireMessage struct {
-	Type     string `json:"type"`
-	ID       string `json:"id,omitempty"`
-	Command  string `json:"command,omitempty"`
-	Output   string `json:"output,omitempty"`
-	ExitCode int    `json:"exitCode"`
+	Type         string   `json:"type"`
+	ID           string   `json:"id,omitempty"`
+	Command      string   `json:"command,omitempty"`
+	Output       string   `json:"output,omitempty"`
+	ExitCode     int      `json:"exitCode"`
+	AgentVersion string   `json:"agentVersion,omitempty"`
+	Hostname     string   `json:"hostname,omitempty"`
+	Platform     string   `json:"platform,omitempty"`
+	Arch         string   `json:"arch,omitempty"`
+	Capabilities []string `json:"capabilities,omitempty"`
 }

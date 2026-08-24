@@ -84,6 +84,16 @@ export const websocketHandlers = {
       const msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw as any).toString("utf8"));
       const deviceId = ws.data.deviceId;
       agentActivity.set(deviceId, Date.now());
+      if (msg.type === "hello") {
+        const capabilities = Array.isArray(msg.capabilities) ? msg.capabilities.map(String).slice(0, 32) : [];
+        q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,last_seen=? WHERE id=?`).run(
+          String(msg.hostname || "unknown").slice(0, 255), String(msg.platform || "unknown").slice(0, 40),
+          String(msg.arch || "unknown").slice(0, 40), String(msg.agentVersion || "unknown").slice(0, 40),
+          JSON.stringify(capabilities), now(), deviceId,
+        );
+        publishEvent({ kind: "device.updated", workspaceId: workspaceForDevice(deviceId), deviceId });
+        return;
+      }
       if (msg.type === "heartbeat") {
         q("UPDATE devices SET last_seen=? WHERE id=?").run(now(), deviceId);
         return;

@@ -78,10 +78,10 @@ export async function renderDevice(deviceId) {
         </section>
         <aside class="node-inspector">
           <section><p class="eyebrow">NODE</p><dl class="fact-list">
-            <div><dt>HOST</dt><dd>${escapeHTML(device.hostname)}</dd></div>
-            <div><dt>OS</dt><dd>${escapeHTML(device.platform.toUpperCase())}</dd></div>
-            <div><dt>ARCH</dt><dd>${escapeHTML(device.arch)}</dd></div>
-            <div><dt>AGENT</dt><dd>${escapeHTML(device.agent_version)}</dd></div>
+            <div><dt>HOST</dt><dd id="node-host">${escapeHTML(device.hostname)}</dd></div>
+            <div><dt>OS</dt><dd id="node-os">${escapeHTML(device.platform.toUpperCase())}</dd></div>
+            <div><dt>ARCH</dt><dd id="node-arch">${escapeHTML(device.arch)}</dd></div>
+            <div><dt>AGENT</dt><dd id="node-agent">${escapeHTML(device.agent_version)}</dd></div>
           </dl></section>
           <section><p class="eyebrow">FLEETS</p><div class="inspector-lines">${device.fleets.map(fleet => `<span>${escapeHTML(fleet.workspace_name)} / ${escapeHTML(fleet.name)}</span>`).join('') || '<span>NONE</span>'}</div></section>
           <section><p class="eyebrow">CAPABILITIES</p><div class="inspector-lines">${device.capabilities.map(capability => `<span>${escapeHTML(capability.toUpperCase())}</span>`).join('') || '<span>NONE</span>'}</div></section>
@@ -139,11 +139,15 @@ export async function renderDevice(deviceId) {
       if (pinned) terminal.scrollTop = terminal.scrollHeight;
       return;
     }
-    if (event.kind === 'device.online' || event.kind === 'device.offline') {
+    if (event.kind === 'device.online' || event.kind === 'device.offline' || event.kind === 'device.updated') {
       api(`/api/v1/devices/${deviceId}`).then(({ device: current }) => {
         const status = $('#device-status');
         status.classList.toggle('online', current.online);
         status.textContent = current.online ? 'ONLINE' : `LAST SEEN ${relative(current.last_seen)}`;
+        $('#node-host').textContent = current.hostname;
+        $('#node-os').textContent = current.platform.toUpperCase();
+        $('#node-arch').textContent = current.arch;
+        $('#node-agent').textContent = current.agent_version;
         $('#command').disabled = !current.online;
         $('#command-form button').disabled = !current.online;
         if (!sessionId && !terminal.querySelector('.job')) {

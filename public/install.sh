@@ -2,11 +2,8 @@
 set -eu
 
 TOKEN="${1:-${RELAY_ENROLL_TOKEN:-}}"
-STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/relay}"
-if [ -z "$TOKEN" ] && [ ! -s "$STATE_DIR/device.json" ]; then
-  echo "usage: curl -fsSL https://relay.ohrats.party/install.sh | sh -s -- ENROLLMENT_TOKEN" >&2
-  exit 1
-fi
+STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/ohrats-relay}"
+LEGACY_STATE_DIR="$HOME/.config/relay"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -36,6 +33,16 @@ rm -f "$DIR/relay-agent"
 trap - EXIT HUP INT TERM
 echo "installed $DIR/ohrats-relay"
 if [ -n "$TOKEN" ]; then
-  exec "$DIR/ohrats-relay" enroll "$TOKEN"
+  "$DIR/ohrats-relay" enroll "$TOKEN"
+  echo ""
+  echo "OhRats Relay Node installed and enrolled."
+elif [ -s "$STATE_DIR/device.json" ] || [ -s "$LEGACY_STATE_DIR/device.json" ]; then
+  echo ""
+  echo "OhRats Relay Node updated."
+else
+  echo ""
+  echo "OhRats Relay Node installed."
+  echo "enroll: ohrats-relay enroll ENROLLMENT_TOKEN"
 fi
-exec "$DIR/ohrats-relay"
+echo "run:    ohrats-relay run"
+echo "help:   ohrats-relay --help"
