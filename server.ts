@@ -1,12 +1,12 @@
 import app from "./web/index.html";
 import type { ServerWebSocket } from "bun";
+import { app as elysia } from "./src/app";
 import { PUBLIC_URL, PORT, SETUP_TOKEN, VERSION } from "./src/config";
 import { auth } from "./src/auth";
 import { BrowserData, browserSocketHandlers } from "./src/browser-socket";
 import { now, q, sha } from "./src/db";
 import { AgentData, agentSocketHandlers, agentsCount, recoverInterruptedProcesses, verifyAgent } from "./src/gateway";
 import { fail, json, setupCookie } from "./src/http-utils";
-import { handleAPI } from "./src/router";
 import { download, frontendAsset, frontendHTML, installScript } from "./src/artifacts";
 
 recoverInterruptedProcesses();
@@ -67,7 +67,7 @@ const server = Bun.serve<SocketData>({
         if (server.upgrade(req, { data: { kind: "browser", userId: user.id } })) return undefined;
         return fail("upgrade failed", 400);
       }
-      if (url.pathname.startsWith("/api/v1/")) return await handleAPI(req, url);
+      if (url.pathname.startsWith("/api/v1/")) return await elysia.handle(req);
       return fail("not found", 404);
     } catch (error) {
       console.error(error);
