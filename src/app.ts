@@ -8,7 +8,7 @@ import { browserSocketRoute } from "./routes/websocket-browser";
 import { pageContext } from "./page-context";
 import { notFoundPage } from "../web/server/pages/auth";
 
-export const app = new Elysia({ name: "relay" })
+export const app = new Elysia({ name: "rc" })
   .use(pageRoutes)
   .use(pageActions)
   .use(artifactRoutes)

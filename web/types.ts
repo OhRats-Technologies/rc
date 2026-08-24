@@ -43,7 +43,7 @@ export interface RemoteProcess {
   completed_at: number | null;
 }
 
-export interface RelayEvent {
+export interface RCEvent {
   kind: string;
   workspaceId?: string | null;
   deviceId?: string | null;

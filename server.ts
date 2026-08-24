@@ -22,4 +22,4 @@ setInterval(() => {
   q("DELETE FROM cli_sessions WHERE expires_at<?").run(now());
 }, 60_000).unref();
 
-console.log(`Relay ${PUBLIC_URL} listening on :${app.server?.port || PORT}`);
+console.log(`RC ${PUBLIC_URL} listening on :${app.server?.port || PORT}`);

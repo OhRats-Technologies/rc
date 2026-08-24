@@ -29,16 +29,16 @@ func env(key, fallback string) string {
 func defaultStateDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".ohrats-relay"
+		return ".ohrats-rc"
 	}
-	return filepath.Join(home, ".config", "ohrats-relay")
+	return filepath.Join(home, ".config", "ohrats-rc")
 }
 
 func resolveStateDir(value string) string {
 	if strings.TrimSpace(value) != "" {
 		return value
 	}
-	if configured := strings.TrimSpace(os.Getenv("RELAY_STATE_DIR")); configured != "" {
+	if configured := strings.TrimSpace(os.Getenv("RC_STATE_DIR")); configured != "" {
 		return configured
 	}
 	return defaultStateDir()

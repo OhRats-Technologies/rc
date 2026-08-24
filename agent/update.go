@@ -17,7 +17,7 @@ func replaceExecutable(serverURL string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.Get(strings.TrimRight(serverURL, "/") + "/downloads/ohrats-relay-" + runtime.GOOS + "-" + runtime.GOARCH)
+	resp, err := http.Get(strings.TrimRight(serverURL, "/") + "/downloads/ohrats-rc-" + runtime.GOOS + "-" + runtime.GOARCH)
 	if err != nil {
 		return err
 	}
@@ -25,7 +25,7 @@ func replaceExecutable(serverURL string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download: %s", resp.Status)
 	}
-	temp, err := os.CreateTemp(filepath.Dir(executable), ".ohrats-relay-update-*")
+	temp, err := os.CreateTemp(filepath.Dir(executable), ".ohrats-rc-update-*")
 	if err != nil {
 		return err
 	}
@@ -42,8 +42,8 @@ func replaceExecutable(serverURL string) error {
 		return err
 	}
 	output, err := exec.Command(name, "version").CombinedOutput()
-	if err != nil || !strings.HasPrefix(string(output), "OhRats Relay Node ") {
-		return fmt.Errorf("downloaded file is not an OhRats Relay Node")
+	if err != nil || !strings.HasPrefix(string(output), "OhRats RC Node ") {
+		return fmt.Errorf("downloaded file is not an OhRats RC Node")
 	}
 	return os.Rename(name, executable)
 }

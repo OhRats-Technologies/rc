@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-TOKEN="${1:-${RELAY_ENROLL_TOKEN:-}}"
-STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/ohrats-relay}"
+TOKEN="${1:-${RC_ENROLL_TOKEN:-}}"
+STATE_DIR="${RC_STATE_DIR:-$HOME/.config/ohrats-rc}"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -18,29 +18,29 @@ esac
 
 DIR="$HOME/.local/bin"
 mkdir -p "$DIR"
-URL="https://relay.ohrats.party/downloads/ohrats-relay-${OS}-${ARCH}"
-TMP="$DIR/.ohrats-relay.$$"
+URL="https://rc.ohrats.party/downloads/ohrats-rc-${OS}-${ARCH}"
+TMP="$DIR/.ohrats-rc.$$"
 trap 'rm -f "$TMP"' EXIT HUP INT TERM
 curl -fsSL "$URL" -o "$TMP"
 if [ ! -s "$TMP" ] || [ "$(head -c 1 "$TMP" || true)" = "<" ]; then
-  echo "downloaded ohrats-relay is not a valid binary" >&2
+  echo "downloaded ohrats-rc is not a valid binary" >&2
   exit 1
 fi
 chmod 755 "$TMP"
-mv "$TMP" "$DIR/ohrats-relay"
+mv "$TMP" "$DIR/ohrats-rc"
 trap - EXIT HUP INT TERM
-echo "installed $DIR/ohrats-relay"
+echo "installed $DIR/ohrats-rc"
 if [ -n "$TOKEN" ]; then
-  "$DIR/ohrats-relay" enroll "$TOKEN"
+  "$DIR/ohrats-rc" enroll "$TOKEN"
   echo ""
-  echo "OhRats Relay Node installed and enrolled."
+  echo "OhRats RC Node installed and enrolled."
 elif [ -s "$STATE_DIR/device.json" ]; then
   echo ""
-  echo "OhRats Relay Node updated."
+  echo "OhRats RC Node updated."
 else
   echo ""
-  echo "OhRats Relay Node installed."
-  echo "enroll: ohrats-relay enroll ENROLLMENT_TOKEN"
+  echo "OhRats RC Node installed."
+  echo "enroll: ohrats-rc enroll ENROLLMENT_TOKEN"
 fi
-echo "run:    ohrats-relay run"
-echo "help:   ohrats-relay --help"
+echo "run:    ohrats-rc run"
+echo "help:   ohrats-rc --help"

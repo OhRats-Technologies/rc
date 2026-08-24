@@ -67,7 +67,7 @@ export async function verifyAgent(url: URL): Promise<string | null> {
   if (!row) return null;
   try {
     const key = await crypto.subtle.importKey("spki", pemPublicKeyToDer(row.public_key), { name: "Ed25519" }, false, ["verify"]);
-    const ok = await crypto.subtle.verify("Ed25519", key, base64urlToBytes(sig), new TextEncoder().encode(`relay:${deviceId}:${ts}`));
+    const ok = await crypto.subtle.verify("Ed25519", key, base64urlToBytes(sig), new TextEncoder().encode(`rc:${deviceId}:${ts}`));
     return ok ? deviceId : null;
   } catch { return null; }
 }
@@ -171,9 +171,9 @@ export const agentSocketHandlers = {
       if (msg.type === "node.update.ready") {
         const running = q<any>("SELECT id FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
         for (const process of running) {
-          markProcessLost(process.id, "Relay Node updated during execution");
+          markProcessLost(process.id, "RC Node updated during execution");
           publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
-            detail: { error: "Relay Node updated during execution" } });
+            detail: { error: "RC Node updated during execution" } });
         }
         publishEvent({ kind: "node.update.ready", workspaceId: workspaceForDevice(deviceId), deviceId, detail: { version: msg.agentVersion || null } });
         return;

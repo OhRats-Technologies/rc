@@ -27,7 +27,7 @@ export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("node.update"), requestId: RequestId, deviceId: DeviceId }),
 ]);
 
-export const RelayEventSchema = t.Object({
+export const RCEventSchema = t.Object({
   kind: t.String(), workspaceId: t.Optional(t.Nullable(t.String())), deviceId: t.Optional(t.Nullable(t.String())),
   processId: t.Optional(t.Nullable(t.String())), audit: t.Optional(t.Boolean()), detail: t.Optional(t.Unknown()),
   at: t.Optional(t.Number()),
@@ -36,7 +36,7 @@ export const RelayEventSchema = t.Object({
 export const BrowserServerMessageSchema = t.Union([
   t.Object({ type: t.Literal("ready") }),
   t.Object({ type: t.Literal("pong") }),
-  t.Object({ type: t.Literal("event"), event: RelayEventSchema }),
+  t.Object({ type: t.Literal("event"), event: RCEventSchema }),
   t.Object({ type: t.Literal("response"), requestId: RequestId, ok: t.Literal(true), result: t.Optional(t.Unknown()) }),
   t.Object({ type: t.Literal("response"), requestId: RequestId, ok: t.Literal(false), error: t.String() }),
 ]);

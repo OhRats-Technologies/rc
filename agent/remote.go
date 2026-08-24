@@ -106,14 +106,14 @@ func remoteRunCommand(args []string) error {
 		}
 	}
 	if separator < 1 || separator == len(args)-1 {
-		return errors.New("usage: ohrats-relay run [--url URL] [--token TOKEN] DEVICE -- COMMAND [ARG...]")
+		return errors.New("usage: ohrats-rc run [--url URL] [--token TOKEN] DEVICE -- COMMAND [ARG...]")
 	}
-	flags, server, token, err := accountFlags("ohrats-relay run", args[:separator])
+	flags, server, token, err := accountFlags("ohrats-rc run", args[:separator])
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: ohrats-relay run [flags] DEVICE -- COMMAND")
+		return errors.New("usage: ohrats-rc run [flags] DEVICE -- COMMAND")
 	}
 	device, err := resolveAccountDevice(*server, *token, flags.Arg(0))
 	if err != nil {
@@ -145,12 +145,12 @@ func listAccountActions(server, token string) ([]accountAction, error) {
 }
 
 func actionsCommand(args []string) error {
-	flags, server, token, err := accountFlags("ohrats-relay actions", args)
+	flags, server, token, err := accountFlags("ohrats-rc actions", args)
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-relay actions [--token TOKEN]")
+		return errors.New("usage: ohrats-rc actions [--token TOKEN]")
 	}
 	actions, err := listAccountActions(*server, *token)
 	if err != nil {
@@ -168,11 +168,11 @@ func actionsCommand(args []string) error {
 
 func actionCommand(args []string) error {
 	if len(args) == 0 || args[0] != "run" {
-		return errors.New("usage: ohrats-relay action run ACTION --device DEVICE [--token TOKEN]")
+		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE [--token TOKEN]")
 	}
 	var actionValue, deviceValue, server, token string
 	server = defaultServer
-	token = os.Getenv("RELAY_API_TOKEN")
+	token = os.Getenv("RC_API_TOKEN")
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
 		case "--device":
@@ -199,7 +199,7 @@ func actionCommand(args []string) error {
 		}
 	}
 	if actionValue == "" || deviceValue == "" {
-		return errors.New("usage: ohrats-relay action run ACTION --device DEVICE")
+		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE")
 	}
 	actions, err := listAccountActions(server, token)
 	if err != nil {

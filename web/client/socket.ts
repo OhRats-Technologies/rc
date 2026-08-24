@@ -1,14 +1,14 @@
 import type { BrowserCommand } from "../../src/protocol";
-import type { RelayEvent } from "../types";
+import type { RCEvent } from "../types";
 
-type Listener = (event: RelayEvent) => void;
+type Listener = (event: RCEvent) => void;
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: number };
 let socket: WebSocket | null = null, ready = false, closed = false, reconnectTimer = 0, heartbeat = 0;
 const listeners = new Set<Listener>(), pending = new Map<string, Pending>(), waiters = new Set<() => void>();
 type WithoutRequestId<T> = T extends unknown ? Omit<T, "requestId"> : never;
 type RequestCommand = WithoutRequestId<Exclude<BrowserCommand, { type: "ping" }>>;
 
-function emit(event: RelayEvent) { for (const listener of listeners) listener(event); }
+function emit(event: RCEvent) { for (const listener of listeners) listener(event); }
 function connect() {
   if (closed || socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/v1/ws`);
@@ -17,9 +17,9 @@ function connect() {
     if (value.type === "ready") {
       ready = true; clearInterval(heartbeat);
       heartbeat = window.setInterval(() => send({ type: "ping" }), 20_000);
-      for (const waiter of waiters) waiter(); waiters.clear(); emit({ kind: "relay.connected" }); return;
+      for (const waiter of waiters) waiter(); waiters.clear(); emit({ kind: "rc.connected" }); return;
     }
-    if (value.type === "event") { emit(value.event as RelayEvent); return; }
+    if (value.type === "event") { emit(value.event as RCEvent); return; }
     if (value.type !== "response") return;
     const requestId = String(value.requestId || ""), request = pending.get(requestId); if (!request) return;
     clearTimeout(request.timer); pending.delete(requestId);
@@ -27,7 +27,7 @@ function connect() {
   };
   socket.onclose = () => {
     ready = false; clearInterval(heartbeat);
-    for (const request of pending.values()) { clearTimeout(request.timer); request.reject(new Error("Relay connection closed")); }
+    for (const request of pending.values()) { clearTimeout(request.timer); request.reject(new Error("RC connection closed")); }
     pending.clear(); if (!closed) reconnectTimer = window.setTimeout(connect, 1000);
   };
 }
@@ -45,7 +45,7 @@ function send(message: BrowserCommand) {
 export async function request<T>(message: RequestCommand): Promise<T> {
   await whenReady(); const requestId = crypto.randomUUID();
   const result = new Promise<unknown>((resolve, reject) => {
-    const timer = window.setTimeout(() => { pending.delete(requestId); reject(new Error("Relay request timed out")); }, 10_000);
+    const timer = window.setTimeout(() => { pending.delete(requestId); reject(new Error("RC request timed out")); }, 10_000);
     pending.set(requestId, { resolve, reject, timer });
   });
   socket?.send(JSON.stringify({ ...message, requestId }));

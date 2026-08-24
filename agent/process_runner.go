@@ -50,7 +50,7 @@ func runProcessRunner() int {
 	if command == "" {
 		return 127
 	}
-	lifeline := os.NewFile(3, "relay-lifeline")
+	lifeline := os.NewFile(3, "rc-lifeline")
 	if lifeline == nil {
 		return 127
 	}

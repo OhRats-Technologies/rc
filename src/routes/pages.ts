@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { getAction, listActions } from "../actions";
 import { listApiTokens } from "../account";
-import { listPasskeys, relayStatus } from "../auth";
+import { listPasskeys, rcStatus } from "../auth";
 import { cliAuthorizationPreview } from "../cli-auth";
 import { PUBLIC_URL, SETUP_TOKEN, VERSION } from "../config";
 import { q, sha } from "../db";
@@ -25,14 +25,14 @@ import {
 
 const loginRedirect = () => Response.redirect("/", 303);
 
-export const pageRoutes = new Elysia({ name: "relay.pages", detail: { hide: true } })
+export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } })
   .get("/setup/:token", ({ params }) => {
     if ((q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
     if (!SETUP_TOKEN || sha(params.token) !== sha(SETUP_TOKEN)) return fail("invalid setup link", 403);
     return new Response(null, { status: 303, headers: { location: "/", "set-cookie": setupCookie(params.token), "cache-control": "no-store" } });
   })
   .get("/", async ({ request, query }) => {
-    const status = relayStatus(request), context = await pageContext(request), invite = String(query.invite || ""), next = safeNext(query.next);
+    const status = rcStatus(request), context = await pageContext(request), invite = String(query.invite || ""), next = safeNext(query.next);
     if (status.setupRequired) return authPage("setup", { authorized: status.setupAuthorized });
     const preview = invite ? invitePreview(invite) : null;
     if (invite && !preview) return authPage("invalid-invite");

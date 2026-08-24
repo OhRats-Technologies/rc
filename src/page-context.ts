@@ -8,7 +8,7 @@ export type PageContext = { user: User; workspaces: WorkspaceView[]; sidebar: "o
 export async function pageContext(request: Request): Promise<PageContext | null> {
   const user = await cookieUser(request);
   if (!user) return null;
-  const sidebar = cookie(request, "relay_sidebar") === "closed" ? "closed" : "open";
+  const sidebar = cookie(request, "rc_sidebar") === "closed" ? "closed" : "open";
   return { user, workspaces: userWorkspaces(user.id) as WorkspaceView[], sidebar };
 }
 

@@ -46,7 +46,7 @@ func publicJSON(server, path string, input any, output any) error {
 }
 
 func openBrowser(value string) error {
-	if os.Getenv("RELAY_NO_BROWSER") != "" {
+	if os.Getenv("RC_NO_BROWSER") != "" {
 		return errors.New("browser opening disabled")
 	}
 	var command *exec.Cmd
@@ -62,11 +62,11 @@ func openBrowser(value string) error {
 }
 
 func loginCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-relay login", flag.ContinueOnError)
+	flags := flag.NewFlagSet("ohrats-rc login", flag.ContinueOnError)
 	dir := resolveStateDir("")
 	config, _ := loadConfig(dir)
 	account, _ := loadAccountSession(dir)
-	serverDefault := strings.TrimSpace(os.Getenv("RELAY_URL"))
+	serverDefault := strings.TrimSpace(os.Getenv("RC_URL"))
 	if serverDefault == "" {
 		serverDefault = account.Server
 	}
@@ -76,18 +76,18 @@ func loginCommand(args []string) error {
 	if serverDefault == "" {
 		serverDefault = defaultServer
 	}
-	server := flags.String("url", serverDefault, "Relay server URL")
+	server := flags.String("url", serverDefault, "RC server URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-relay login [--url URL]")
+		return errors.New("usage: ohrats-rc login [--url URL]")
 	}
 	var start cliAuthorizationStart
 	if err := publicJSON(*server, "/api/v1/auth/cli/start", map[string]any{}, &start); err != nil {
 		return err
 	}
-	fmt.Printf("Open this URL to authorize Relay CLI:\n%s\n", start.VerificationURL)
+	fmt.Printf("Open this URL to authorize RC CLI:\n%s\n", start.VerificationURL)
 	if err := openBrowser(start.VerificationURL); err == nil {
 		fmt.Println("Waiting for browser authorization…")
 	}
@@ -111,7 +111,7 @@ func loginCommand(args []string) error {
 				return err
 			}
 			if name == "" {
-				fmt.Println("Relay CLI authorized")
+				fmt.Println("RC CLI authorized")
 			} else {
 				fmt.Printf("Signed in as %s\n", name)
 			}
@@ -123,17 +123,17 @@ func loginCommand(args []string) error {
 }
 
 func logoutCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-relay logout", flag.ContinueOnError)
+	flags := flag.NewFlagSet("ohrats-rc logout", flag.ContinueOnError)
 	dir := resolveStateDir("")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-relay logout")
+		return errors.New("usage: ohrats-rc logout")
 	}
 	account, err := loadAccountSession(dir)
 	if errors.Is(err, os.ErrNotExist) {
-		fmt.Println("Relay CLI is not signed in")
+		fmt.Println("RC CLI is not signed in")
 		return nil
 	}
 	if err != nil {
@@ -147,6 +147,6 @@ func logoutCommand(args []string) error {
 	if err := os.Remove(accountPath(dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	fmt.Println("Relay CLI signed out")
+	fmt.Println("RC CLI signed out")
 	return nil
 }

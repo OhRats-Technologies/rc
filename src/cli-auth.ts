@@ -38,7 +38,7 @@ export function exchangeCliAuthorization(requestIdValue: unknown, deviceCodeValu
     FROM cli_authorizations WHERE id=? AND device_code_hash=? AND expires_at>?`).get(requestId, sha(deviceCode), now());
   if (!row || row.exchanged_at) throw new HttpError(410, "CLI authorization expired");
   if (!row.approved_at || !row.user_id) return { pending: true as const };
-  const token = opaque("relay_cli"), t = now();
+  const token = opaque("rc_cli"), t = now();
   q("INSERT INTO cli_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)")
     .run(sha(token), row.user_id, t, t + SESSION_TTL);
   q("UPDATE cli_authorizations SET exchanged_at=? WHERE id=?").run(t, row.id);

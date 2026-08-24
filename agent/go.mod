@@ -1,4 +1,4 @@
-module github.com/OhRats-Technologies/relay/agent
+module github.com/OhRats-Technologies/rc/agent
 
 go 1.25.0
 

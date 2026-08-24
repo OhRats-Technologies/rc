@@ -12,14 +12,14 @@ import (
 	"time"
 )
 
-const defaultServer = "https://relay.ohrats.party"
+const defaultServer = "https://rc.ohrats.party"
 
 func commandDefaults(stateDir, urlFlag string) (string, string, nodeConfig) {
 	dir := resolveStateDir(stateDir)
 	config, _ := loadConfig(dir)
 	server := urlFlag
 	if server == "" {
-		server = env("RELAY_URL", config.Server)
+		server = env("RC_URL", config.Server)
 	}
 	if server == "" {
 		server = defaultServer
@@ -28,15 +28,15 @@ func commandDefaults(stateDir, urlFlag string) (string, string, nodeConfig) {
 }
 
 func enrollCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-relay enroll", flag.ContinueOnError)
+	flags := flag.NewFlagSet("ohrats-rc enroll", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
-	serverFlag := flags.String("url", "", "Relay server URL")
+	serverFlag := flags.String("url", "", "RC server URL")
 	nameFlag := flags.String("name", "", "Device display name")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: ohrats-relay enroll [flags] TOKEN")
+		return errors.New("usage: ohrats-rc enroll [flags] TOKEN")
 	}
 	dir, server, config := commandDefaults(*stateDir, *serverFlag)
 	if existing, err := loadState(dir); err == nil {
@@ -57,7 +57,7 @@ func enrollCommand(args []string) error {
 	}
 	name := *nameFlag
 	if name == "" {
-		name = env("RELAY_NAME", config.Name)
+		name = env("RC_NAME", config.Name)
 	}
 	if *serverFlag != "" {
 		config.Server = server
@@ -82,16 +82,16 @@ func enrollCommand(args []string) error {
 }
 
 func runNode(args []string) error {
-	flags := flag.NewFlagSet("ohrats-relay run", flag.ContinueOnError)
+	flags := flag.NewFlagSet("ohrats-rc run", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
-	serverFlag := flags.String("url", "", "Relay server URL")
+	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	dir, server, _ := commandDefaults(*stateDir, *serverFlag)
 	value, err := loadState(dir)
 	if errors.Is(err, os.ErrNotExist) {
-		return errors.New("not enrolled; run ohrats-relay enroll TOKEN")
+		return errors.New("not enrolled; run ohrats-rc enroll TOKEN")
 	}
 	if err != nil {
 		return err
@@ -104,8 +104,8 @@ func runNode(args []string) error {
 	for {
 		if err := connect(ctx, server, value, dir, manager); err != nil && ctx.Err() == nil {
 			if errors.Is(err, errNodeRemoved) {
-				fmt.Println("This device was removed from Relay; local enrollment cleared.")
-				fmt.Println("Enroll it again from Relay to reconnect.")
+				fmt.Println("This device was removed from RC; local enrollment cleared.")
+				fmt.Println("Enroll it again from RC to reconnect.")
 				return nil
 			}
 			fmt.Fprintf(os.Stderr, "connection ended: %v\n", err)
@@ -122,9 +122,9 @@ func runNode(args []string) error {
 }
 
 func updateCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-relay update", flag.ContinueOnError)
+	flags := flag.NewFlagSet("ohrats-rc update", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
-	serverFlag := flags.String("url", "", "Relay server URL")
+	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -132,14 +132,14 @@ func updateCommand(args []string) error {
 	if err := replaceExecutable(server); err != nil {
 		return err
 	}
-	fmt.Println("OhRats Relay Node updated")
+	fmt.Println("OhRats RC Node updated")
 	return nil
 }
 
 func uninstallCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-relay uninstall", flag.ContinueOnError)
+	flags := flag.NewFlagSet("ohrats-rc uninstall", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
-	serverFlag := flags.String("url", "", "Relay server URL")
+	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -153,9 +153,9 @@ func uninstallCommand(args []string) error {
 		return err
 	}
 	executable, _ := os.Executable()
-	if filepath.Base(executable) == "ohrats-relay" {
+	if filepath.Base(executable) == "ohrats-rc" {
 		_ = os.Remove(executable)
 	}
-	fmt.Println("OhRats Relay Node uninstalled")
+	fmt.Println("OhRats RC Node uninstalled")
 	return nil
 }

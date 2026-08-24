@@ -54,7 +54,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-terminal-key]").forEach(butt
 }));
 
 onEvent(event => {
-  if (event.kind === "relay.connected") { void resync(); return; }
+  if (event.kind === "rc.connected") { void resync(); return; }
   if (event.processId !== processId) return;
   if (event.kind === "process.output" && event.detail?.chunk) {
     const next = Number(event.detail.revision || 0);

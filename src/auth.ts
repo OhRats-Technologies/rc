@@ -18,7 +18,7 @@ export type PasskeyView = { id: string; created_at: number; last_used: number | 
 
 export function setupAuthorized(req: Request) {
   if (!SETUP_TOKEN) return true;
-  const token = cookie(req, "relay_setup");
+  const token = cookie(req, "rc_setup");
   return !!token && sha(token) === sha(SETUP_TOKEN);
 }
 
@@ -37,7 +37,7 @@ export async function auth(req: Request): Promise<User | null> {
 }
 
 export async function cookieUser(req: Request): Promise<User | null> {
-  const token = cookie(req, "relay_session");
+  const token = cookie(req, "rc_session");
   if (!token) return null;
   const row = q<any>(`SELECT u.id,u.name FROM auth_sessions s JOIN users u ON u.id=s.user_id
     WHERE s.token_hash=? AND s.expires_at>?`).get(sha(token), now());
@@ -51,14 +51,14 @@ export async function createLogin(userId: string) {
   return token;
 }
 
-export function relayStatus(req: Request) {
+export function rcStatus(req: Request) {
   const count = q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0;
   return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: VERSION };
 }
 
 export async function setupOptions(req: Request, value: unknown) {
   if ((q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0) > 0) throw new HttpError(409, "setup already completed");
-  if (!setupAuthorized(req)) throw new HttpError(403, "Open the Relay setup link first.");
+  if (!setupAuthorized(req)) throw new HttpError(403, "Open the RC setup link first.");
   const name = cleanName(value);
   if (!name) throw new HttpError(400, "name required");
   return registrationCeremony("setup", id(), name);
@@ -78,7 +78,7 @@ export async function registerOptions(inviteValue: unknown, nameValue: unknown) 
 }
 
 export function logout(req: Request) {
-  const token = cookie(req, "relay_session");
+  const token = cookie(req, "rc_session");
   if (token) q("DELETE FROM auth_sessions WHERE token_hash=?").run(sha(token));
 }
 

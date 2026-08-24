@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "relay",
+      "name": "rc",
       "dependencies": {
         "@elysia/eden": "^1.4.10",
         "@elysia/openapi": "^1.4.15",

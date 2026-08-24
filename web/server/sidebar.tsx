@@ -8,8 +8,8 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
   return <>
     <aside id="site-sidebar" className="site-sidebar">
       <div className="sidebar-scroll">
-        <a className="site-brand" href="/devices"><img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt=""/><strong>Relay</strong></a>
-        <nav aria-label="Relay navigation">
+        <a className="site-brand" href="/devices"><img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt=""/><strong>RC</strong></a>
+        <nav aria-label="RC navigation">
           <section className="sidebar-section">
             <h2>Navigation</h2>
             <a className={`nav-link${active(path, "/devices")}`} href="/devices"><span className="ui-icon icon-devices"/><span>Devices</span></a>

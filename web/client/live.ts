@@ -1,6 +1,6 @@
 import { api } from "./http";
 import { onEvent } from "./socket";
-import type { Device, RelayEvent, RemoteProcess } from "../types";
+import type { Device, RCEvent, RemoteProcess } from "../types";
 
 function setPresence(deviceId: string, online: boolean) {
   document.querySelectorAll<HTMLElement>(`[data-device-status="${CSS.escape(deviceId)}"]`).forEach(element => {
@@ -16,13 +16,13 @@ async function refreshDevice(deviceId: string) {
   page.querySelector<HTMLElement>("#node-agent")!.textContent = device.agent_version;
   const update = page.querySelector<HTMLButtonElement>("#update-node"), updateState = page.querySelector<HTMLElement>("#update-state");
   if (update) update.disabled = !device.online;
-  if (update && updateState && device.agent_version === page.dataset.relayVersion) {
+  if (update && updateState && device.agent_version === page.dataset.rcVersion) {
     update.hidden = true;
     updateState.textContent = `Updated to ${device.agent_version}.`;
   }
 }
 
-function activity(event: RelayEvent) {
+function activity(event: RCEvent) {
   const workspaceId = document.querySelector<HTMLElement>("[data-activity-page]")?.dataset.activityPage;
   if (!event.audit || !workspaceId || event.workspaceId !== workspaceId) return;
   const list = document.querySelector<HTMLElement>("#activity-list"); if (!list) return;

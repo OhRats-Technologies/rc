@@ -10,7 +10,7 @@ const AgentQuery = t.Object({
   sig: t.String({ minLength: 1, maxLength: 256 }),
 });
 
-export const agentSocketRoute = new Elysia({ name: "relay.websocket.agent", detail: { hide: true } })
+export const agentSocketRoute = new Elysia({ name: "rc.websocket.agent", detail: { hide: true } })
   .ws("/api/v1/agent/ws", {
     query: AgentQuery,
     body: AgentClientMessageSchema,

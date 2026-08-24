@@ -1,4 +1,4 @@
-# Relay v1
+# RC v1
 
 - [x] Fresh product repository
 - [x] Keep the domain model to users, workspaces, devices, and processes
@@ -9,19 +9,19 @@
 - [x] Agent heartbeat, reconnect, and capability advertisement
 - [x] Personal API tokens
 - [x] OhRats sidebar/page UI
-- [x] Downloadable Linux/macOS Relay Nodes
+- [x] Downloadable Linux/macOS RC Nodes
 - [x] Persistent Coolify deployment
 - [x] One authenticated browser WebSocket for live state and PTY control
 - [x] PTY-backed process handles with stdin, resize, signals, retained transcript, and exit/lost state
 - [x] Dedicated process list and PTY routes
-- [x] Kill active process trees when the Relay Node stops, crashes, or updates
+- [x] Kill active process trees when the RC Node stops, crashes, or updates
 - [x] Never replay an ambiguous process start
 - [x] Half-open node heartbeat expiry
-- [x] `ohrats-relay` help/run/enroll/status/update/config/uninstall lifecycle
+- [x] `ohrats-rc` help/run/enroll/status/update/config/uninstall lifecycle
 - [x] Account CLI device listing/removal with API tokens
-- [x] Node state/config under `~/.config/ohrats-relay`
+- [x] Node state/config under `~/.config/ohrats-rc`
 - [x] Installer exits after install/enrollment
-- [x] Remote Relay Node updates from the web UI
+- [x] Remote RC Node updates from the web UI
 - [x] Device removal from web, API, and CLI with remote node cleanup
 - [x] Immutable fingerprinted frontend assets
 - [x] Bun-native HTML/TypeScript/CSS production build with no custom asset pipeline

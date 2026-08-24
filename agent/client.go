@@ -23,7 +23,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var errNodeRemoved = errors.New("node removed from Relay")
+var errNodeRemoved = errors.New("node removed from RC")
 
 func enroll(serverURL, token, displayName string) (state, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -71,7 +71,7 @@ func signedURL(serverURL, path string, value state) (*url.URL, error) {
 	}
 	u.Path = path
 	ts := fmt.Sprintf("%d", time.Now().Unix())
-	signature := ed25519.Sign(ed25519.PrivateKey(privateBytes), []byte("relay:"+value.DeviceID+":"+ts))
+	signature := ed25519.Sign(ed25519.PrivateKey(privateBytes), []byte("rc:"+value.DeviceID+":"+ts))
 	query := u.Query()
 	query.Set("device", value.DeviceID)
 	query.Set("ts", ts)
@@ -144,7 +144,7 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 				return
 			}
 			if message.Type == "node.update" {
-				fmt.Printf("Updating OhRats Relay Node %s…\n", version)
+				fmt.Printf("Updating OhRats RC Node %s…\n", version)
 				if err := replaceExecutable(serverURL); err != nil {
 					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
 					fmt.Fprintf(os.Stderr, "update failed: %v\n", err)
@@ -152,7 +152,7 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 				}
 				manager.shutdown()
 				_ = send(wireMessage{Type: "node.update.ready", AgentVersion: version})
-				fmt.Println("Update installed; restarting Relay Node…")
+				fmt.Println("Update installed; restarting RC Node…")
 				if err := syscallExecCurrent(); err != nil {
 					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
 					readDone <- fmt.Errorf("restart after update: %w", err)

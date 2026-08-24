@@ -21,7 +21,7 @@ import { deleteWorkspacePage, newWorkspacePage, workspacePage } from "../../web/
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
 
-export const pageActions = new Elysia({ name: "relay.page-actions", detail: { hide: true } })
+export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide: true } })
   .onBeforeHandle(({ request }) => { if (!checkOrigin(request)) return new Response("invalid origin", { status: 403 }); })
   .post("/cli/login", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

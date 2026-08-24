@@ -8,22 +8,22 @@ import { BrowserCommandSchema } from "../protocol";
 type Connection = ReturnType<typeof browserSocketHandlers.open>;
 const connections = new WeakMap<object, Connection>();
 
-export const browserSocketRoute = new Elysia({ name: "relay.websocket.browser", detail: { hide: true } })
-  .derive(async ({ request }) => ({ relayUser: await auth(request) }))
+export const browserSocketRoute = new Elysia({ name: "rc.websocket.browser", detail: { hide: true } })
+  .derive(async ({ request }) => ({ rcUser: await auth(request) }))
   .ws("/api/v1/ws", {
     body: BrowserCommandSchema,
-    beforeHandle({ request, relayUser }) {
+    beforeHandle({ request, rcUser }) {
       const origin = request.headers.get("origin");
       if (origin && origin !== new URL(request.url).origin && origin !== PUBLIC_URL) return fail("invalid origin", 403);
-      if (!relayUser) return fail("authentication required", 401);
+      if (!rcUser) return fail("authentication required", 401);
     },
     open(ws) {
-      const user = ws.data.relayUser;
+      const user = ws.data.rcUser;
       if (!user) return ws.close(1008, "authentication required");
       connections.set(ws.raw, browserSocketHandlers.open(user.id, ws.raw));
     },
     message(ws, message) {
-      const user = ws.data.relayUser, connection = connections.get(ws.raw);
+      const user = ws.data.rcUser, connection = connections.get(ws.raw);
       if (!user || !connection) return;
       browserSocketHandlers.message(user.id, connection, message);
     },

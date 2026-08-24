@@ -21,10 +21,10 @@ export function cookie(req: Request, name: string) {
 
 function secureFlag() { return PUBLIC_URL.startsWith("https://") ? "; Secure" : ""; }
 export function sessionCookie(token: string, maxAge = Math.floor(SESSION_TTL / 1000)) {
-  return `relay_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureFlag()}`;
+  return `rc_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureFlag()}`;
 }
 export function setupCookie(token: string) {
-  return `relay_setup=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SETUP_COOKIE_TTL}${secureFlag()}`;
+  return `rc_setup=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SETUP_COOKIE_TTL}${secureFlag()}`;
 }
 
 export function checkOrigin(req: Request) {

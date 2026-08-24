@@ -1,4 +1,4 @@
-# Relay
+# RC
 
 Remote device control plane for OhRats Technologies.
 
@@ -21,9 +21,9 @@ Remote device control plane for OhRats Technologies.
 - Prefer normal links, forms, POST/redirect flows, and server-rendered snapshots. JavaScript is reserved for capabilities that inherently require it or materially benefit from live enhancement.
 - Keep authenticated pages visually flat: natural sections, typography, rows, and dividers. Do not turn every section into a bordered panel/card.
 - Browser live state and interactive PTY control use one authenticated WebSocket. HTTP remains for snapshots and ordinary CRUD. Do not reintroduce timer polling.
-- The device binary is branded `ohrats-relay` and presented as OhRats Relay Node.
-- Device removal is available from the web, `DELETE /api/v1/devices/:id`, and `ohrats-relay device delete`. Current nodes erase their local enrollment when removed remotely.
+- The device binary is branded `ohrats-rc` and presented as OhRats RC Node.
+- Device removal is available from the web, `DELETE /api/v1/devices/:id`, and `ohrats-rc device delete`. Current nodes erase their local enrollment when removed remotely.
 - Keep the product model `User → Workspace → Device → Process`. Do not add fleets or browser shell-session wrappers without a concrete need.
 - Every remote process owns a PTY and is at-most-once. If execution becomes ambiguous after disconnect/restart, mark it lost instead of replaying it.
-- Relay Node shutdown, crash, and update must tear down all PTY process trees; never leave detached remote work behind.
+- RC Node shutdown, crash, and update must tear down all PTY process trees; never leave detached remote work behind.
 

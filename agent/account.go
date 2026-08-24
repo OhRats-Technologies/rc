@@ -39,7 +39,7 @@ func accountRequest(server, token, method, path string) (*http.Response, error) 
 
 func accountJSONRequest(server, token, method, path string, body any) (*http.Response, error) {
 	if strings.TrimSpace(token) == "" {
-		return nil, fmt.Errorf("API token required; pass --token or set RELAY_API_TOKEN")
+		return nil, fmt.Errorf("API token required; pass --token or set RC_API_TOKEN")
 	}
 	var reader io.Reader
 	if body != nil {

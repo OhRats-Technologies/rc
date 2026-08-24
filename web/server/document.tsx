@@ -16,7 +16,7 @@ function Document({ title, body, user, workspaces = [], path = "/", scripts = []
     <head>
       <meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
       <meta name="robots" content="noindex,nofollow"/><meta name="color-scheme" content="light dark"/>
-      <title>{`${title} | Relay`}</title>
+      <title>{`${title} | RC`}</title>
       <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/ohrats.7911fd35d5d3.css"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/copy.e4c6bbb26b56.css"/>

@@ -18,12 +18,12 @@ import (
 )
 
 func shellCommand(args []string) error {
-	flags, server, token, err := accountFlags("ohrats-relay shell", args)
+	flags, server, token, err := accountFlags("ohrats-rc shell", args)
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: ohrats-relay shell [--token TOKEN] DEVICE")
+		return errors.New("usage: ohrats-rc shell [--token TOKEN] DEVICE")
 	}
 	device, err := resolveAccountDevice(*server, *token, flags.Arg(0))
 	if err != nil {

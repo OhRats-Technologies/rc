@@ -4,7 +4,7 @@ import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simp
 import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
 import { createApiToken, deleteApiToken, listApiTokens } from "../account";
 import {
-  addPasskeyOptions, auth, deletePasskey, listPasskeys, loginOptions, logout, registerOptions, relayStatus,
+  addPasskeyOptions, auth, deletePasskey, listPasskeys, loginOptions, logout, registerOptions, rcStatus,
   setupOptions, verifyAddedPasskey, verifyLogin, verifyNewUser,
 } from "../auth";
 import { exchangeCliAuthorization, revokeCliToken, startCliAuthorization } from "../cli-auth";
@@ -34,25 +34,25 @@ const AgentEnroll = t.Object({
   capabilities: t.Optional(t.Array(t.String(), { maxItems: 32 })),
 });
 
-export const apiRoutes = new Elysia({ name: "relay.api", prefix: "/api/v1" })
+export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .use(openapi({
     path: "/openapi",
     documentation: {
-      info: { title: "Relay API", description: "Relay HTTP API.", version: VERSION },
+      info: { title: "RC API", description: "RC HTTP API.", version: VERSION },
       servers: [{ url: PUBLIC_URL }],
-      components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "Relay API token" } } },
+      components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "RC API token" } } },
       security: [{ bearerAuth: [] }],
     },
   }))
-  .derive(async ({ request }) => ({ relayUser: await auth(request) }))
-  .onBeforeHandle(({ request, set, relayUser }) => {
+  .derive(async ({ request }) => ({ rcUser: await auth(request) }))
+  .onBeforeHandle(({ request, set, rcUser }) => {
     set.headers["cache-control"] = "no-store";
     if (!checkOrigin(request)) return fail("invalid origin", 403);
     const path = new URL(request.url).pathname;
     const publicRoute = path === "/api/v1/health" || path === "/api/v1/status" || path.startsWith("/api/v1/agent/")
       || ["/api/v1/auth/setup/options", "/api/v1/auth/setup/verify", "/api/v1/auth/login/options", "/api/v1/auth/login/verify",
         "/api/v1/auth/register/options", "/api/v1/auth/register/verify", "/api/v1/auth/cli/start", "/api/v1/auth/cli/poll"].includes(path);
-    if (!publicRoute && !relayUser) return fail("authentication required", 401);
+    if (!publicRoute && !rcUser) return fail("authentication required", 401);
   })
   .onError(({ error, code, status }) => {
     if (error instanceof HttpError) return status(error.status, { error: error.message });
@@ -62,10 +62,10 @@ export const apiRoutes = new Elysia({ name: "relay.api", prefix: "/api/v1" })
     response: t.Object({ ok: t.Literal(true), version: t.String(), agents: t.Number() }),
     detail: { hide: true },
   })
-  .get("/status", ({ request }) => relayStatus(request), { detail: { hide: true } })
-  .all("/auth/setup", () => fail("Relay was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
-  .all("/auth/login", () => fail("Relay was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
-  .all("/auth/register", () => fail("Relay was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
+  .get("/status", ({ request }) => rcStatus(request), { detail: { hide: true } })
+  .all("/auth/setup", () => fail("RC was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
+  .all("/auth/login", () => fail("RC was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
+  .all("/auth/register", () => fail("RC was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
   .post("/auth/setup/options", ({ request, body }) => setupOptions(request, body.name), {
     body: t.Object({ name: t.String({ maxLength: 120 }) }), detail: { hide: true },
   })
@@ -80,10 +80,10 @@ export const apiRoutes = new Elysia({ name: "relay.api", prefix: "/api/v1" })
   .post("/auth/cli/poll", ({ body }) => exchangeCliAuthorization(body.requestId, body.deviceCode), {
     body: t.Object({ requestId: t.String(), deviceCode: t.String() }), detail: { hide: true },
   })
-  .delete("/auth/cli/session", ({ request, relayUser }) => {
-    if (!relayUser) throw new HttpError(401, "authentication required");
+  .delete("/auth/cli/session", ({ request, rcUser }) => {
+    if (!rcUser) throw new HttpError(401, "authentication required");
     const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] || "";
-    if (!token.startsWith("relay_cli_")) throw new HttpError(400, "CLI session required");
+    if (!token.startsWith("rc_cli_")) throw new HttpError(400, "CLI session required");
     revokeCliToken(token); return { ok: true };
   }, { detail: { hide: true } })
   .post("/auth/register/options", ({ body }) => registerOptions(body.invite, body.name), {
@@ -96,96 +96,96 @@ export const apiRoutes = new Elysia({ name: "relay.api", prefix: "/api/v1" })
   .post("/agent/enroll", ({ body }) => json(enrollAgent(body as AgentEnrollInput), 201), { body: AgentEnroll, detail: { hide: true } })
   .get("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
-  .get("/me", ({ relayUser }) => ({ user: relayUser!, workspaces: userWorkspaces(relayUser!.id) }))
-  .get("/passkeys", ({ request, relayUser }) => listPasskeys(request, relayUser!).then(passkeys => ({ passkeys })), { detail: { hide: true } })
-  .post("/passkeys/options", ({ request, relayUser }) => addPasskeyOptions(request, relayUser!), { body: t.Optional(t.Object({})), detail: { hide: true } })
-  .post("/passkeys/verify", async ({ request, relayUser, body }) => {
-    await verifyAddedPasskey(request, relayUser!, body.ceremonyId, body.response as RegistrationResponseJSON);
+  .get("/me", ({ rcUser }) => ({ user: rcUser!, workspaces: userWorkspaces(rcUser!.id) }))
+  .get("/passkeys", ({ request, rcUser }) => listPasskeys(request, rcUser!).then(passkeys => ({ passkeys })), { detail: { hide: true } })
+  .post("/passkeys/options", ({ request, rcUser }) => addPasskeyOptions(request, rcUser!), { body: t.Optional(t.Object({})), detail: { hide: true } })
+  .post("/passkeys/verify", async ({ request, rcUser, body }) => {
+    await verifyAddedPasskey(request, rcUser!, body.ceremonyId, body.response as RegistrationResponseJSON);
     return json({ ok: true }, 201);
   }, { body: WebAuthnVerify, detail: { hide: true } })
-  .delete("/passkeys/:id", async ({ request, relayUser, params }) => {
-    await deletePasskey(request, relayUser!, params.id); return { ok: true };
+  .delete("/passkeys/:id", async ({ request, rcUser, params }) => {
+    await deletePasskey(request, rcUser!, params.id); return { ok: true };
   }, { params: IdParams, detail: { hide: true } })
-  .get("/tokens", ({ relayUser }) => ({ tokens: listApiTokens(relayUser!.id) }))
-  .post("/tokens", ({ relayUser, body }) => json(createApiToken(relayUser!.id, body.name), 201), {
+  .get("/tokens", ({ rcUser }) => ({ tokens: listApiTokens(rcUser!.id) }))
+  .post("/tokens", ({ rcUser, body }) => json(createApiToken(rcUser!.id, body.name), 201), {
     body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })) }),
   })
-  .delete("/tokens/:id", ({ relayUser, params }) => {
-    if (!deleteApiToken(relayUser!.id, params.id)) throw new HttpError(404, "token not found");
+  .delete("/tokens/:id", ({ rcUser, params }) => {
+    if (!deleteApiToken(rcUser!.id, params.id)) throw new HttpError(404, "token not found");
     return { ok: true };
   }, { params: IdParams })
-  .get("/workspaces", ({ relayUser }) => ({ workspaces: userWorkspaces(relayUser!.id) }))
-  .post("/workspaces", ({ relayUser, body }) => json(createWorkspace(relayUser!, body.name), 201), {
+  .get("/workspaces", ({ rcUser }) => ({ workspaces: userWorkspaces(rcUser!.id) }))
+  .post("/workspaces", ({ rcUser, body }) => json(createWorkspace(rcUser!, body.name), 201), {
     body: t.Object({ name: t.String({ maxLength: 120 }) }),
   })
-  .post("/workspaces/join", ({ relayUser, body }) => joinWorkspace(relayUser!, body.token), {
+  .post("/workspaces/join", ({ rcUser, body }) => joinWorkspace(rcUser!, body.token), {
     body: t.Object({ token: t.String() }),
   })
-  .get("/workspaces/:workspaceId", ({ relayUser, params }) => {
-    const value = workspaceDetail(relayUser!, params.workspaceId);
+  .get("/workspaces/:workspaceId", ({ rcUser, params }) => {
+    const value = workspaceDetail(rcUser!, params.workspaceId);
     if (!value) throw new HttpError(404, "workspace not found");
     return value;
   }, { params: WorkspaceParams })
-  .delete("/workspaces/:workspaceId", ({ relayUser, params }) => {
-    deleteWorkspace(relayUser!, params.workspaceId); return { ok: true };
+  .delete("/workspaces/:workspaceId", ({ rcUser, params }) => {
+    deleteWorkspace(rcUser!, params.workspaceId); return { ok: true };
   }, { params: WorkspaceParams })
-  .patch("/workspaces/:workspaceId", ({ relayUser, params, body }) => renameWorkspace(relayUser!, params.workspaceId, body.name), {
+  .patch("/workspaces/:workspaceId", ({ rcUser, params, body }) => renameWorkspace(rcUser!, params.workspaceId, body.name), {
     params: WorkspaceParams, body: t.Object({ name: t.String({ minLength: 1, maxLength: 120 }) }),
   })
-  .post("/workspaces/:workspaceId/leave", ({ relayUser, params }) => {
-    leaveWorkspace(relayUser!, params.workspaceId); return { ok: true };
+  .post("/workspaces/:workspaceId/leave", ({ rcUser, params }) => {
+    leaveWorkspace(rcUser!, params.workspaceId); return { ok: true };
   }, { params: WorkspaceParams, body: t.Optional(t.Object({})) })
-  .get("/workspaces/:workspaceId/activity", ({ relayUser, params }) => ({ events: workspaceActivity(relayUser!, params.workspaceId) }), {
+  .get("/workspaces/:workspaceId/activity", ({ rcUser, params }) => ({ events: workspaceActivity(rcUser!, params.workspaceId) }), {
     params: WorkspaceParams,
   })
-  .post("/workspaces/:workspaceId/invites", ({ relayUser, params, body }) => json(createInvite(relayUser!, params.workspaceId, body.role), 201), {
+  .post("/workspaces/:workspaceId/invites", ({ rcUser, params, body }) => json(createInvite(rcUser!, params.workspaceId, body.role), 201), {
     params: WorkspaceParams, body: t.Object({ role: t.Optional(t.Union([t.Literal("operator"), t.Literal("viewer")])) }),
   })
-  .get("/workspaces/:workspaceId/access", ({ relayUser, params }) => workspaceAccess(relayUser!, params.workspaceId), { params: WorkspaceParams })
-  .patch("/workspaces/:workspaceId/members/:id", ({ relayUser, params, body }) => changeWorkspaceRole(relayUser!, params.workspaceId, params.id, body.role), {
+  .get("/workspaces/:workspaceId/access", ({ rcUser, params }) => workspaceAccess(rcUser!, params.workspaceId), { params: WorkspaceParams })
+  .patch("/workspaces/:workspaceId/members/:id", ({ rcUser, params, body }) => changeWorkspaceRole(rcUser!, params.workspaceId, params.id, body.role), {
     params: t.Object({ workspaceId: t.String(), id: t.String() }), body: t.Object({ role: t.Union([t.Literal("owner"), t.Literal("operator"), t.Literal("viewer")]) }),
   })
-  .delete("/workspaces/:workspaceId/members/:id", ({ relayUser, params }) => {
-    removeWorkspaceMember(relayUser!, params.workspaceId, params.id); return { ok: true };
+  .delete("/workspaces/:workspaceId/members/:id", ({ rcUser, params }) => {
+    removeWorkspaceMember(rcUser!, params.workspaceId, params.id); return { ok: true };
   }, { params: t.Object({ workspaceId: t.String(), id: t.String() }) })
-  .delete("/workspaces/:workspaceId/invites/:id", ({ relayUser, params }) => {
-    revokeInvite(relayUser!, params.workspaceId, params.id); return { ok: true };
+  .delete("/workspaces/:workspaceId/invites/:id", ({ rcUser, params }) => {
+    revokeInvite(rcUser!, params.workspaceId, params.id); return { ok: true };
   }, { params: t.Object({ workspaceId: t.String(), id: t.String() }) })
-  .post("/workspaces/:workspaceId/enrollments", ({ relayUser, params }) => json(createEnrollment(relayUser!, params.workspaceId), 201), {
+  .post("/workspaces/:workspaceId/enrollments", ({ rcUser, params }) => json(createEnrollment(rcUser!, params.workspaceId), 201), {
     params: WorkspaceParams, body: t.Optional(t.Object({})),
   })
-  .get("/devices", ({ relayUser }) => ({ devices: listDevices(relayUser!) }))
-  .get("/devices/:deviceId", ({ relayUser, params }) => {
-    const device = getDevice(relayUser!, params.deviceId);
+  .get("/devices", ({ rcUser }) => ({ devices: listDevices(rcUser!) }))
+  .get("/devices/:deviceId", ({ rcUser, params }) => {
+    const device = getDevice(rcUser!, params.deviceId);
     if (!device) throw new HttpError(404, "device not found");
     return { device };
   }, { params: DeviceParams })
-  .delete("/devices/:deviceId", ({ relayUser, params }) => {
-    removeDevice(relayUser!, params.deviceId); return { ok: true };
+  .delete("/devices/:deviceId", ({ rcUser, params }) => {
+    removeDevice(rcUser!, params.deviceId); return { ok: true };
   }, { params: DeviceParams })
-  .patch("/devices/:deviceId", ({ relayUser, params, body }) => renameDevice(relayUser!, params.deviceId, body.name), {
+  .patch("/devices/:deviceId", ({ rcUser, params, body }) => renameDevice(rcUser!, params.deviceId, body.name), {
     params: DeviceParams, body: t.Object({ name: t.String({ minLength: 1, maxLength: 120 }) }),
   })
-  .get("/devices/:deviceId/processes", ({ relayUser, params }) => ({ processes: listProcesses(relayUser!.id, params.deviceId) }), {
+  .get("/devices/:deviceId/processes", ({ rcUser, params }) => ({ processes: listProcesses(rcUser!.id, params.deviceId) }), {
     params: DeviceParams,
   })
-  .post("/devices/:deviceId/processes", ({ relayUser, params, body }) => json(startProcess(relayUser!.id, {
+  .post("/devices/:deviceId/processes", ({ rcUser, params, body }) => json(startProcess(rcUser!.id, {
     deviceId: params.deviceId, command: body.command, cwd: body.cwd, cols: body.cols || 100, rows: body.rows || 30,
   }), 201), {
     params: DeviceParams, body: t.Object({ command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), cols: t.Optional(t.Number({ minimum: 2, maximum: 500 })), rows: t.Optional(t.Number({ minimum: 2, maximum: 500 })) }),
   })
-  .get("/processes/:id", ({ relayUser, params }) => ({ process: getProcess(relayUser!.id, params.id) }), { params: IdParams })
-  .get("/actions", ({ relayUser }) => ({ actions: listActions(relayUser!) }))
-  .post("/actions", ({ relayUser, body }) => json(createAction(relayUser!, body.workspaceId, body), 201), {
+  .get("/processes/:id", ({ rcUser, params }) => ({ process: getProcess(rcUser!.id, params.id) }), { params: IdParams })
+  .get("/actions", ({ rcUser }) => ({ actions: listActions(rcUser!) }))
+  .post("/actions", ({ rcUser, body }) => json(createAction(rcUser!, body.workspaceId, body), 201), {
     body: t.Object({ workspaceId: t.String(), name: t.String({ minLength: 1, maxLength: 120 }), description: t.Optional(t.String({ maxLength: 500 })), command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), confirm: t.Optional(t.Boolean()) }),
   })
-  .get("/actions/:id", ({ relayUser, params }) => {
-    const action = getAction(relayUser!, params.id); if (!action) throw new HttpError(404, "action not found"); return { action };
+  .get("/actions/:id", ({ rcUser, params }) => {
+    const action = getAction(rcUser!, params.id); if (!action) throw new HttpError(404, "action not found"); return { action };
   }, { params: ActionParams })
-  .patch("/actions/:id", ({ relayUser, params, body }) => {
-    updateAction(relayUser!, params.id, body); return { ok: true };
+  .patch("/actions/:id", ({ rcUser, params, body }) => {
+    updateAction(rcUser!, params.id, body); return { ok: true };
   }, { params: ActionParams, body: t.Object({ name: t.String({ minLength: 1, maxLength: 120 }), description: t.Optional(t.String({ maxLength: 500 })), command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), confirm: t.Optional(t.Boolean()) }) })
-  .delete("/actions/:id", ({ relayUser, params }) => { deleteAction(relayUser!, params.id); return { ok: true }; }, { params: ActionParams })
-  .post("/actions/:id/run", ({ relayUser, params, body }) => ({ results: runAction(relayUser!, params.id, body.deviceIds) }), {
+  .delete("/actions/:id", ({ rcUser, params }) => { deleteAction(rcUser!, params.id); return { ok: true }; }, { params: ActionParams })
+  .post("/actions/:id/run", ({ rcUser, params, body }) => ({ results: runAction(rcUser!, params.id, body.deviceIds) }), {
     params: ActionParams, body: t.Object({ deviceIds: t.Array(t.String(), { minItems: 1, maxItems: 100 }) }),
   });
