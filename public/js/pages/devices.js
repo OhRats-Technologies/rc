@@ -1,159 +1,108 @@
 import { $, api, escapeHTML, relative } from '../api.js';
-import { onRelayEvent } from '../events.js';
+import { onRelayEvent, relayRequest } from '../events.js';
 
 function deviceRows(devices) {
   return devices.length ? devices.map(device => `
     <a class="list-row" href="/devices/${device.id}">
-      <div><strong>${escapeHTML(device.name)}</strong><div class="meta">${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)} · ${escapeHTML(device.workspaces || '')}</div></div>
+      <div><strong>${escapeHTML(device.name)}</strong><div class="meta">${escapeHTML(device.workspace_name)} · ${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)}</div></div>
       <span class="status ${device.online ? 'online' : ''}">${device.online ? 'ONLINE' : `SEEN ${relative(device.last_seen)}`}</span>
-    </a>`).join('') : '<div class="list-row"><span class="muted">No devices yet. Enroll one from a fleet.</span></div>';
+    </a>`).join('') : '<div class="list-row"><span class="muted">No devices yet. Enroll one from a workspace.</span></div>';
+}
+
+function processState(process) {
+  if (process.status === 'starting') return 'STARTING';
+  if (process.status === 'running') return 'RUNNING';
+  if (process.status === 'lost') return 'LOST';
+  return process.signal || `EXIT ${process.exit_code ?? '?'}`;
+}
+
+function processRows(deviceId, processes) {
+  return processes.length ? processes.map(process => `
+    <a class="list-row" href="/devices/${deviceId}/processes/${process.id}">
+      <div><strong class="mono">${escapeHTML(process.command)}</strong><div class="meta">${escapeHTML(process.cwd || '~')} · ${relative(process.created_at)}</div></div>
+      <span class="status ${process.status === 'running' ? 'online' : ''}">${escapeHTML(processState(process))}</span>
+    </a>`).join('') : '<div class="list-row"><span class="muted">No processes yet.</span></div>';
 }
 
 export async function renderDevices() {
   const { devices } = await api('/api/v1/devices');
-  $('#page').innerHTML = `
-    <section class="page">
-      <div class="page-heading"><div><p class="eyebrow">DEVICES</p><h1>Devices</h1></div></div>
-      <div id="device-list" class="list">${deviceRows(devices)}</div>
-    </section>`;
-  onRelayEvent(event => {
-    if (!event.kind.startsWith('device.') && event.kind !== 'fleet.device_added') return;
-    api('/api/v1/devices').then(data => { $('#device-list').innerHTML = deviceRows(data.devices); }).catch(() => {});
-  });
-}
-
-function jobsHTML(jobs) {
-  return jobs.length ? jobs.map(job => `
-    <div class="job" data-job="${job.id}" data-exit="${job.exit_code ?? ''}">
-      <div class="job-command"><span class="prompt">$</span><span>${escapeHTML(job.payload.command)}</span><span class="job-state">${job.status === 'sent' ? (job.started_at ? 'RUNNING' : 'QUEUED') : escapeHTML(job.status.toUpperCase())}</span></div>
-      <div class="job-result">${job.result == null ? '' : escapeHTML(job.result)}${job.exit_code != null && job.exit_code !== 0 ? `\n[exit ${job.exit_code}]` : ''}</div>
-    </div>`).join('') : '<span class="muted">Session ready.</span>';
-}
-
-function jobElement(jobId) { return document.querySelector(`[data-job="${CSS.escape(jobId)}"]`); }
-
-function applyJobEvent(event) {
-  const job = jobElement(event.jobId);
-  if (!job) return false;
-  const state = job.querySelector('.job-state'), result = job.querySelector('.job-result');
-  if (event.kind === 'job.started') state.textContent = 'RUNNING';
-  if (event.kind === 'job.output' && event.detail?.chunk) {
-    result.textContent += event.detail.chunk;
-  }
-  if (event.kind === 'job.finished') {
-    state.textContent = String(event.detail?.status || 'finished').toUpperCase();
-    if (event.detail?.message && !result.textContent.endsWith(event.detail.message)) result.textContent += event.detail.message;
-    if (Number.isInteger(event.detail?.exitCode) && event.detail.exitCode !== 0 && job.dataset.exit !== String(event.detail.exitCode)) {
-      result.textContent += `\n[exit ${event.detail.exitCode}]`;
-      job.dataset.exit = String(event.detail.exitCode);
-    }
-  }
-  return true;
+  $('#page').innerHTML = `<section class="page"><div class="page-heading"><div><p class="eyebrow">DEVICES</p><h1>Devices</h1></div></div><div id="device-list" class="list">${deviceRows(devices)}</div></section>`;
+  const refresh = () => api('/api/v1/devices').then(data => { $('#device-list').innerHTML = deviceRows(data.devices); }).catch(() => {});
+  onRelayEvent(event => { if (event.kind === 'relay.connected' || event.kind.startsWith('device.')) refresh(); });
 }
 
 export async function renderDevice(deviceId) {
-  const [{ device }, { session }] = await Promise.all([
-    api(`/api/v1/devices/${deviceId}`), api(`/api/v1/devices/${deviceId}/sessions`),
+  const [{ device }, { processes }, status] = await Promise.all([
+    api(`/api/v1/devices/${deviceId}`), api(`/api/v1/devices/${deviceId}/processes`), api('/api/v1/status'),
   ]);
-  let sessionId = session?.id || null, syncTimer = null, historyIndex = 0;
-  const history = [];
-  $('#page').innerHTML = `
-    <section class="page">
-      <div class="page-heading">
-        <div><p class="eyebrow">DEVICE</p><h1>${escapeHTML(device.name)}</h1><div class="meta">${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)} · ${escapeHTML(device.hostname)}</div></div>
-        <span id="device-status" class="status ${device.online ? 'online' : ''}">${device.online ? 'ONLINE' : `LAST SEEN ${relative(device.last_seen)}`}</span>
-      </div>
-      <div class="device-console-grid">
-        <section class="console-panel">
-          <div class="console-bar">
-            <span>RELAY://NODE/${escapeHTML(device.name.toUpperCase())}/SHELL</span>
-            <div class="console-actions"><span id="session-state">${sessionId ? `SESSION ${sessionId.slice(0, 8)}` : 'NO SESSION'}</span><button id="new-session" class="text-button" type="button">NEW SESSION</button></div>
-          </div>
-          <div id="terminal" class="terminal"><span class="muted">${sessionId ? 'Loading session…' : device.online ? 'Ready.' : 'Offline.'}</span></div>
-          <form id="command-form" class="command-row">
-            <span class="command-prompt">$</span>
-            <input id="command" autocomplete="off" spellcheck="false" placeholder="command" ${device.online ? '' : 'disabled'} required>
-            <button class="primary-button" type="submit" ${device.online ? '' : 'disabled'}>EXEC</button>
-          </form>
-        </section>
-        <aside class="node-inspector">
-          <section><p class="eyebrow">NODE</p><dl class="fact-list">
-            <div><dt>HOST</dt><dd id="node-host">${escapeHTML(device.hostname)}</dd></div>
-            <div><dt>OS</dt><dd id="node-os">${escapeHTML(device.platform.toUpperCase())}</dd></div>
-            <div><dt>ARCH</dt><dd id="node-arch">${escapeHTML(device.arch)}</dd></div>
-            <div><dt>AGENT</dt><dd id="node-agent">${escapeHTML(device.agent_version)}</dd></div>
-          </dl></section>
-          <section><p class="eyebrow">FLEETS</p><div class="inspector-lines">${device.fleets.map(fleet => `<span>${escapeHTML(fleet.workspace_name)} / ${escapeHTML(fleet.name)}</span>`).join('') || '<span>NONE</span>'}</div></section>
-          <section><p class="eyebrow">CAPABILITIES</p><div class="inspector-lines">${device.capabilities.map(capability => `<span>${escapeHTML(capability.toUpperCase())}</span>`).join('') || '<span>NONE</span>'}</div></section>
-        </aside>
-      </div>
-    </section>`;
-  const terminal = $('#terminal');
-  async function loadJobs() {
-    if (!sessionId) return;
+  const supportsProcess = device.capabilities.includes('process'), supportsUpdate = device.capabilities.includes('update');
+  $('#page').innerHTML = `<section class="page">
+    <div class="page-heading">
+      <div><p class="eyebrow">DEVICE</p><h1>${escapeHTML(device.name)}</h1><div class="meta"><a href="/workspaces/${device.workspace_id}">${escapeHTML(device.workspace_name)}</a> · ${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)} · ${escapeHTML(device.hostname)}</div></div>
+      <span id="device-status" class="status ${device.online ? 'online' : ''}">${device.online ? 'ONLINE' : `LAST SEEN ${relative(device.last_seen)}`}</span>
+    </div>
+    <div class="device-overview-grid">
+      <section class="panel">
+        <div class="page-heading compact"><div><p class="eyebrow">NEW PROCESS</p></div></div>
+        <form id="process-launch" class="process-launch-form">
+          <label>Working directory<input id="process-cwd" spellcheck="false" placeholder="~"></label>
+          <label>Command<input id="process-command" spellcheck="false" value="sh" required></label>
+          <button class="primary-button" type="submit" ${device.online && supportsProcess ? '' : 'disabled'}>START PROCESS</button>
+        </form>
+        <p id="process-error" class="error">${supportsProcess ? '' : 'Update this node to use processes.'}</p>
+      </section>
+      <aside class="node-inspector panel">
+        <p class="eyebrow">NODE</p><dl class="fact-list">
+          <div><dt>HOST</dt><dd>${escapeHTML(device.hostname)}</dd></div><div><dt>OS</dt><dd>${escapeHTML(device.platform.toUpperCase())}</dd></div>
+          <div><dt>ARCH</dt><dd>${escapeHTML(device.arch)}</dd></div><div><dt>NODE</dt><dd id="node-agent">${escapeHTML(device.agent_version)}</dd></div>
+          <div><dt>RELAY</dt><dd>${escapeHTML(status.version)}</dd></div>
+        </dl>
+        <button id="update-node" class="primary-button secondary-button inspector-action" type="button" ${device.online && supportsUpdate ? '' : 'disabled'}>${supportsUpdate ? 'UPDATE NODE' : 'CLI UPDATE REQUIRED'}</button>
+        <p id="update-state" class="meta">${supportsUpdate ? 'Stops running processes.' : 'curl -fsSL https://relay.ohrats.party/install.sh | sh'}</p>
+      </aside>
+    </div>
+    <section class="panel process-list-panel">
+      <div class="page-heading compact"><div><p class="eyebrow">PROCESSES</p><h2>Process history</h2></div></div>
+      <div id="process-list" class="list">${processRows(deviceId, processes)}</div>
+    </section>
+  </section>`;
+
+  async function refreshDevice() {
+    const [{ device: current }, { processes: currentProcesses }] = await Promise.all([
+      api(`/api/v1/devices/${deviceId}`), api(`/api/v1/devices/${deviceId}/processes`),
+    ]);
+    const badge = $('#device-status'); badge.classList.toggle('online', current.online);
+    badge.textContent = current.online ? 'ONLINE' : `LAST SEEN ${relative(current.last_seen)}`;
+    $('#node-agent').textContent = current.agent_version;
+    const canProcess = current.online && current.capabilities.includes('process');
+    const canUpdate = current.online && current.capabilities.includes('update');
+    $('#process-launch button').disabled = !canProcess;
+    const updateButton = $('#update-node'); updateButton.disabled = !canUpdate;
+    updateButton.textContent = current.capabilities.includes('update') ? 'UPDATE NODE' : 'CLI UPDATE REQUIRED';
+    $('#update-state').textContent = current.capabilities.includes('update') ? 'Stops running processes.' : 'curl -fsSL https://relay.ohrats.party/install.sh | sh';
+    $('#process-list').innerHTML = processRows(deviceId, currentProcesses);
+  }
+
+  $('#process-launch').addEventListener('submit', async event => {
+    event.preventDefault(); $('#process-error').textContent = '';
+    const command = $('#process-command').value.trim(), cwd = $('#process-cwd').value.trim();
     try {
-      const { jobs } = await api(`/api/v1/sessions/${sessionId}/jobs`);
-      history.splice(0, history.length, ...jobs.map(job => job.payload.command));
-      historyIndex = history.length;
-      terminal.innerHTML = jobsHTML(jobs);
-      terminal.scrollTop = terminal.scrollHeight;
-    } catch {}
-  }
-  function scheduleSync() {
-    if (syncTimer) return;
-    syncTimer = setTimeout(() => { syncTimer = null; loadJobs(); }, 80);
-  }
-  $('#command-form').addEventListener('submit', async event => {
-    event.preventDefault();
-    const input = $('#command'), command = input.value.trim();
-    if (!command) return;
-    if (!sessionId) {
-      sessionId = (await api(`/api/v1/devices/${deviceId}/sessions`, { method: 'POST', body: '{}' })).id;
-      $('#session-state').textContent = `SESSION ${sessionId.slice(0, 8)}`;
-    }
-    await api(`/api/v1/sessions/${sessionId}/jobs`, { method: 'POST', body: JSON.stringify({ command }) });
-    history.push(command); historyIndex = history.length;
-    input.value = '';
-    await loadJobs();
+      const result = await relayRequest('process.start', { deviceId, command, cwd, cols: 100, rows: 30 });
+      location.href = `/devices/${deviceId}/processes/${result.processId}`;
+    } catch (error) { $('#process-error').textContent = error.message; }
   });
-  $('#command').addEventListener('keydown', event => {
-    if (!history.length || !['ArrowUp','ArrowDown'].includes(event.key)) return;
-    event.preventDefault();
-    historyIndex = event.key === 'ArrowUp' ? Math.max(0, historyIndex - 1) : Math.min(history.length, historyIndex + 1);
-    event.currentTarget.value = historyIndex === history.length ? '' : history[historyIndex];
+
+  $('#update-node').addEventListener('click', async event => {
+    const button = event.currentTarget; button.disabled = true; $('#update-state').textContent = 'Starting update…';
+    try { await relayRequest('node.update', { deviceId }); $('#update-state').textContent = 'Updating and restarting…'; }
+    catch (error) { $('#update-state').textContent = error.message; button.disabled = false; }
   });
-  $('#new-session').addEventListener('click', async () => {
-    sessionId = (await api(`/api/v1/devices/${deviceId}/sessions`, {
-      method: 'POST', body: JSON.stringify({ fresh: true }),
-    })).id;
-    history.splice(0); historyIndex = 0;
-    $('#session-state').textContent = `SESSION ${sessionId.slice(0, 8)}`;
-    terminal.innerHTML = `<span class="muted">${$('#command').disabled ? 'Offline.' : 'Ready.'}</span>`;
-  });
-  if (sessionId) await loadJobs();
+
   onRelayEvent(event => {
+    if (event.kind === 'relay.connected') { refreshDevice().catch(() => {}); return; }
     if (event.deviceId !== deviceId) return;
-    if (event.kind.startsWith('job.') && event.sessionId === sessionId) {
-      const pinned = terminal.scrollHeight - terminal.scrollTop - terminal.clientHeight < 80;
-      if (!applyJobEvent(event)) scheduleSync();
-      if (pinned) terminal.scrollTop = terminal.scrollHeight;
-      return;
-    }
-    if (event.kind === 'device.online' || event.kind === 'device.offline' || event.kind === 'device.updated') {
-      api(`/api/v1/devices/${deviceId}`).then(({ device: current }) => {
-        const status = $('#device-status');
-        status.classList.toggle('online', current.online);
-        status.textContent = current.online ? 'ONLINE' : `LAST SEEN ${relative(current.last_seen)}`;
-        $('#node-host').textContent = current.hostname;
-        $('#node-os').textContent = current.platform.toUpperCase();
-        $('#node-arch').textContent = current.arch;
-        $('#node-agent').textContent = current.agent_version;
-        $('#command').disabled = !current.online;
-        $('#command-form button').disabled = !current.online;
-        if (!sessionId && !terminal.querySelector('.job')) {
-          terminal.innerHTML = `<span class="muted">${current.online ? 'Ready.' : 'Offline.'}</span>`;
-        }
-      }).catch(() => {});
-    }
+    if (event.kind === 'node.update.error') { $('#update-state').textContent = event.detail?.error || 'Update failed.'; refreshDevice().catch(() => {}); return; }
+    if (event.kind === 'node.update.ready') { $('#update-state').textContent = 'Restarting node…'; return; }
+    if (event.kind.startsWith('device.') || event.kind.startsWith('process.')) refreshDevice().catch(() => {});
   });
 }

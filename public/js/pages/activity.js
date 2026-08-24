@@ -5,7 +5,7 @@ function detail(event) {
   if (event.detail?.name) return event.detail.name;
   if (event.detail?.command) return event.detail.command;
   if (event.detail?.deviceId) return event.detail.deviceId.slice(0, 8);
-  if (event.detail?.fleetId) return event.detail.fleetId.slice(0, 8);
+  if (event.detail?.processId) return event.detail.processId.slice(0, 8);
   if (event.device_id) return event.device_id.slice(0, 8);
   return '';
 }
@@ -27,6 +27,7 @@ export async function renderActivity(workspaceId) {
   };
   await load();
   onRelayEvent(event => {
+    if (event.kind === 'relay.connected') { load(); return; }
     if (!event.audit || event.workspaceId !== workspaceId) return;
     const list = $('#activity-list');
     if (list.querySelector('.muted')) list.innerHTML = '';

@@ -15,11 +15,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -41,7 +39,7 @@ func enroll(serverURL, token, displayName string) (state, error) {
 	payload := enrollRequest{
 		Token: token, Name: displayName, Hostname: hostname, Platform: runtime.GOOS, Arch: runtime.GOARCH,
 		PublicKey:    string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})),
-		AgentVersion: version, Capabilities: []string{"shell"},
+		AgentVersion: version, Capabilities: []string{"process", "update"},
 	}
 	data, _ := json.Marshal(payload)
 	resp, err := http.Post(strings.TrimRight(serverURL, "/")+"/api/v1/agent/enroll", "application/json", bytes.NewReader(data))
@@ -124,11 +122,14 @@ func connect(ctx context.Context, serverURL string, value state) error {
 	hostname, _ := os.Hostname()
 	if err := send(wireMessage{
 		Type: "hello", AgentVersion: version, Hostname: hostname,
-		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"shell"},
-	}); err != nil { return err }
+		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"process", "update"},
+	}); err != nil {
+		return err
+	}
 
 	readDone := make(chan error, 1)
-	jobs := make(chan wireMessage, 32)
+	manager := newProcessManager(send)
+	defer manager.shutdown()
 	go func() {
 		for {
 			var message wireMessage
@@ -136,24 +137,17 @@ func connect(ctx context.Context, serverURL string, value state) error {
 				readDone <- err
 				return
 			}
-			if message.Type != "job" || message.ID == "" {
-				continue
-			}
-			select {
-			case jobs <- message:
-			case <-connectionCtx.Done():
+			if message.Type == "node.update" {
+				if err := replaceExecutable(serverURL); err != nil {
+					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
+					continue
+				}
+				manager.shutdown()
+				_ = send(wireMessage{Type: "node.update.ready", AgentVersion: version})
+				_ = syscallExecCurrent()
 				return
 			}
-		}
-	}()
-	go func() {
-		for {
-			select {
-			case message := <-jobs:
-				runJob(connectionCtx, send, message)
-			case <-connectionCtx.Done():
-				return
-			}
+			manager.handle(message)
 		}
 	}()
 
@@ -174,11 +168,6 @@ func connect(ctx context.Context, serverURL string, value state) error {
 	}
 }
 
-type chunkWriter struct {
-	send  func(wireMessage) error
-	jobID string
-}
-
 type remoteNodeStatus struct {
 	Name         string `json:"name"`
 	Online       bool   `json:"online"`
@@ -187,9 +176,13 @@ type remoteNodeStatus struct {
 
 func fetchStatus(serverURL string, value state) (remoteNodeStatus, error) {
 	u, err := signedURL(serverURL, "/api/v1/agent/self", value)
-	if err != nil { return remoteNodeStatus{}, err }
+	if err != nil {
+		return remoteNodeStatus{}, err
+	}
 	resp, err := http.Get(u.String())
-	if err != nil { return remoteNodeStatus{}, err }
+	if err != nil {
+		return remoteNodeStatus{}, err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -198,41 +191,4 @@ func fetchStatus(serverURL string, value state) (remoteNodeStatus, error) {
 	var out remoteNodeStatus
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	return out, err
-}
-
-func (writer *chunkWriter) Write(data []byte) (int, error) {
-	for start := 0; start < len(data); start += 16 * 1024 {
-		end := min(start+16*1024, len(data))
-		if err := writer.send(wireMessage{Type: "output", ID: writer.jobID, Output: string(data[start:end])}); err != nil {
-			return start, err
-		}
-	}
-	return len(data), nil
-}
-
-func runJob(ctx context.Context, send func(wireMessage) error, message wireMessage) {
-	if err := send(wireMessage{Type: "started", ID: message.ID}); err != nil {
-		return
-	}
-	cmd := exec.CommandContext(ctx, "sh", "-lc", message.Command)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.WaitDelay = time.Second
-	cmd.Cancel = func() error {
-		if cmd.Process == nil {
-			return os.ErrProcessDone
-		}
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	writer := &chunkWriter{send: send, jobID: message.ID}
-	cmd.Stdout, cmd.Stderr = writer, writer
-	err := cmd.Run()
-	exitCode := 0
-	if err != nil {
-		exitCode = -1
-		var exitError *exec.ExitError
-		if errors.As(err, &exitError) {
-			exitCode = exitError.ExitCode()
-		}
-	}
-	_ = send(wireMessage{Type: "result", ID: message.ID, ExitCode: exitCode})
 }

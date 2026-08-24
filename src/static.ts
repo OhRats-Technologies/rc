@@ -53,7 +53,7 @@ export async function staticResponse(req: Request, pathname: string) {
     const name = pathname.slice("/downloads/".length);
     const match = name.match(/^(.*)\.([0-9a-f]{12})$/);
     const requested = match?.[1] || name;
-    const logical = requested.replace(/^relay-agent-/, "ohrats-relay-");
+    const logical = requested;
     path = join(PUBLIC, "downloads", logical);
     if (!existsSync(path)) return fail("not found", 404);
     const hash = downloadHash(path);

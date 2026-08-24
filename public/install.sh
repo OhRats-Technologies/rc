@@ -3,7 +3,6 @@ set -eu
 
 TOKEN="${1:-${RELAY_ENROLL_TOKEN:-}}"
 STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/ohrats-relay}"
-LEGACY_STATE_DIR="$HOME/.config/relay"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -29,14 +28,13 @@ if [ ! -s "$TMP" ] || [ "$(head -c 1 "$TMP" || true)" = "<" ]; then
 fi
 chmod 755 "$TMP"
 mv "$TMP" "$DIR/ohrats-relay"
-rm -f "$DIR/relay-agent"
 trap - EXIT HUP INT TERM
 echo "installed $DIR/ohrats-relay"
 if [ -n "$TOKEN" ]; then
   "$DIR/ohrats-relay" enroll "$TOKEN"
   echo ""
   echo "OhRats Relay Node installed and enrolled."
-elif [ -s "$STATE_DIR/device.json" ] || [ -s "$LEGACY_STATE_DIR/device.json" ]; then
+elif [ -s "$STATE_DIR/device.json" ]; then
   echo ""
   echo "OhRats Relay Node updated."
 else

@@ -29,6 +29,7 @@ for (const name of readdirSync(join(PUBLIC, "icons")).filter((name) => name.ends
 }
 
 let css = readFileSync(join(PUBLIC, "relay.css"), "utf8");
+css += "\n" + readFileSync(join(ROOT, "node_modules", "@xterm", "xterm", "css", "xterm.css"), "utf8");
 for (const [from, to] of iconPaths) css = css.split(from).join(to);
 const cssName = hashedName("relay.css", css);
 writeFileSync(join(ASSETS, cssName), css);

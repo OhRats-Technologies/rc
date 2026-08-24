@@ -3,17 +3,17 @@ import { auth, handleAccount, handlePublicAuth } from "./auth";
 import { VERSION } from "./config";
 import { User } from "./core";
 import { handleAgentEnroll, handleAgentUnregister, handleDevices } from "./devices";
-import { eventStream } from "./events";
 import { agentsCount } from "./gateway";
 import { checkOrigin, fail, json } from "./http-utils";
+import { handleProcesses } from "./process-api";
 import { handleWorkspaces } from "./workspaces";
 
 async function authenticated(req: Request, path: string, user: User) {
-  if (path === "/api/v1/events" && req.method === "GET") return eventStream(user.id);
   return await handleAccount(req, path, user)
     || await handleTokens(req, path, user)
     || await handleWorkspaces(req, path, user)
     || await handleDevices(req, path, user)
+    || await handleProcesses(req, path, user)
     || fail("not found", 404);
 }
 

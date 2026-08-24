@@ -99,31 +99,26 @@ pre { max-height: 260px; overflow: auto; padding: var(--or-space-sm); border: 1p
 .event-row { display: grid; grid-template-columns: 150px minmax(0,1fr) auto; gap: var(--or-space-sm); padding: 10px 12px; border-bottom: 1px solid var(--or-border); font-size: .68rem; }
 .event-row:last-child { border-bottom: 0; }
 .event-row span:nth-child(2), .event-row span:last-child { color: var(--or-text-muted); }
-.device-console-grid { display: grid; grid-template-columns: minmax(0,1fr) 260px; border: 1px solid var(--or-border); background: var(--or-bg); }
-.console-panel { min-width: 0; border-right: 1px solid var(--or-border); }
+.device-overview-grid { display: grid; grid-template-columns: minmax(0,1fr) 280px; gap: var(--or-space-md); }
 .console-bar { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: var(--or-space-sm); padding: 0 12px; border-bottom: 1px solid var(--or-border); color: var(--or-text-muted); font-family: var(--or-font-mono); font-size: .62rem; letter-spacing: .08em; }
-.console-actions { display: flex; align-items: center; gap: 12px; }
-.terminal { min-height: 52vh; max-height: 68vh; overflow: auto; padding: 14px 12px; background: var(--or-surface); font-size: .78rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
-.command-row { min-height: 46px; display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: stretch; border-top: 1px solid var(--or-border); }
-.command-prompt { display: grid; place-items: center; color: var(--or-text-muted); font-family: var(--or-font-mono); border-right: 1px solid var(--or-border); }
-.command-row input { border: 0; font-family: var(--or-font-mono); background: var(--or-bg); }
-.command-row input:focus { border: 0; box-shadow: inset 0 -1px 0 var(--or-text); }
-.command-row .primary-button { min-width: 72px; }
+.console-bar > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-actions { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.process-launch-form { display: grid; grid-template-columns: minmax(140px,.45fr) minmax(220px,1fr) auto; gap: var(--or-space-sm); align-items: end; }
+.process-launch-form label { min-width: 0; }
+.process-launch-form input { width: 100%; font-family: var(--or-font-mono); }
+.process-list-panel { margin-top: var(--or-space-md); }
+.process-title { font-size: clamp(1rem,2vw,1.5rem); overflow-wrap: anywhere; }
+.pty-panel { border: 1px solid var(--or-border); background: var(--or-surface); }
+.terminal-host { min-height: 64vh; height: 72vh; padding: 8px; background: var(--or-surface); }
+.terminal-host .xterm { height: 100%; }
 .node-inspector { min-width: 0; font-family: var(--or-font-mono); font-size: .68rem; }
-.node-inspector section { padding: 14px 12px; border-bottom: 1px solid var(--or-border); }
-.node-inspector section:last-child { border-bottom: 0; }
 .fact-list { margin: 10px 0 0; display: grid; gap: 8px; }
 .fact-list div { display: grid; grid-template-columns: 54px minmax(0,1fr); gap: 8px; }
 .fact-list dt { color: var(--or-text-muted); }
 .fact-list dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
 .inspector-lines { margin-top: 10px; display: grid; gap: 5px; }
 .inspector-lines span { overflow-wrap: anywhere; }
-.job { padding-bottom: var(--or-space-sm); border-bottom: 1px solid var(--or-border); margin-bottom: var(--or-space-sm); }
-.job:last-child { border-bottom: 0; margin-bottom: 0; }
-.job-command { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; align-items: start; font-weight: 700; }
-.prompt, .job-state { color: var(--or-text-muted); }
-.job-state { font-size: .62rem; font-weight: 400; }
-.job-result { padding-left: 18px; color: var(--or-text-muted); }
+.inspector-action { margin-top: 10px; }
 .danger-zone { border-style: dashed; }
 
 @media (max-width:760px) {
@@ -134,8 +129,8 @@ pre { max-height: 260px; overflow: auto; padding: var(--or-space-sm); border: 1p
   .page { padding: 18px; }
   .page-heading { flex-direction: column; }
   .event-row { grid-template-columns: 1fr; gap: 2px; }
-  .device-console-grid { grid-template-columns: 1fr; }
-  .console-panel { border-right: 0; border-bottom: 1px solid var(--or-border); }
-  .node-inspector { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .node-inspector section { border-right: 1px solid var(--or-border); }
+  .device-overview-grid, .process-launch-form { grid-template-columns: 1fr; }
+  .console-bar { display: grid; justify-content: stretch; padding-block: 8px; }
+  .console-actions { justify-content: flex-start; }
+  .terminal-host { min-height: 58vh; height: 66vh; }
 }

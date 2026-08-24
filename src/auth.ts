@@ -129,10 +129,8 @@ async function newUserVerify(req: Request, kind: "setup" | "register") {
     q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, ceremony.name, t);
     insertPasskey(userId, credential);
     if (kind === "setup") {
-      const fleetId = id();
       q("INSERT INTO workspaces VALUES(?,?,?,?)").run(workspaceId, "Personal", userId, t);
       q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
-      q("INSERT INTO fleets VALUES(?,?,?,?)").run(fleetId, workspaceId, "Default", t);
     } else {
       q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, invite.role, t);
       q("UPDATE workspace_invites SET used_at=? WHERE id=?").run(t, invite.id);

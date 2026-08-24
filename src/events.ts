@@ -4,8 +4,7 @@ export type RelayEvent = {
   kind: string;
   workspaceId?: string | null;
   deviceId?: string | null;
-  sessionId?: string | null;
-  jobId?: string | null;
+  processId?: string | null;
   audit?: boolean;
   detail?: unknown;
   at?: number;
@@ -32,46 +31,8 @@ export function publishEvent(event: RelayEvent) {
   }
 }
 
-export function eventStream(userId: string) {
-  const encoder = new TextEncoder();
+export function subscribeEvents(userId: string, send: (event: RelayEvent) => void) {
   const subscriberId = nextSubscriber++;
-  const queue: string[] = ["retry: 1500\n\n"];
-  let wake: (() => void) | null = null;
-  let closed = false;
-  let keepalive: ReturnType<typeof setInterval>;
-  const cleanup = () => {
-    if (closed) return;
-    closed = true;
-    subscribers.delete(subscriberId);
-    clearInterval(keepalive);
-    wake?.();
-    wake = null;
-  };
-  const push = (value: string) => {
-    if (closed) return;
-    queue.push(value);
-    wake?.();
-    wake = null;
-  };
-  subscribers.set(subscriberId, {
-    userId,
-    send: event => push(`data: ${JSON.stringify(event)}\n\n`),
-  });
-  keepalive = setInterval(() => push(": keepalive\n\n"), 15_000);
-  const stream = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      while (!queue.length && !closed) await new Promise<void>(resolve => { wake = resolve; });
-      if (queue.length) controller.enqueue(encoder.encode(queue.shift()!));
-      else if (closed) controller.close();
-    },
-    cancel: cleanup,
-  });
-  return new Response(stream, {
-    headers: {
-      "content-type": "text/event-stream; charset=utf-8",
-      "cache-control": "no-store",
-      "connection": "keep-alive",
-      "x-accel-buffering": "no",
-    },
-  });
+  subscribers.set(subscriberId, { userId, send });
+  return () => subscribers.delete(subscriberId);
 }

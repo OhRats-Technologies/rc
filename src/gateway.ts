@@ -1,7 +1,8 @@
 import { createPublicKey, verify as verifySignature } from "node:crypto";
 import { logEvent } from "./core";
-import { now, q } from "./db";
+import { q } from "./db";
 import { publishEvent } from "./events";
+import { appendProcessOutput, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
 
 export type AgentData = { kind: "agent"; deviceId: string };
 const agents = new Map<string, ServerWebSocket<AgentData>>();
@@ -15,23 +16,30 @@ export function disconnectDevice(deviceId: string) {
   agentActivity.delete(deviceId);
 }
 
-export function dispatchJob(jobId: string, deviceId: string, command: string) {
+function send(deviceId: string, message: Record<string, unknown>) {
   const ws = agents.get(deviceId);
   if (!ws) return false;
-  const claimed = q("UPDATE jobs SET status='sent' WHERE id=? AND status='pending'").run(jobId);
-  if (!claimed.changes) return false;
-  try {
-    ws.send(JSON.stringify({ type: "job", id: jobId, command }));
-    return true;
-  } catch {
-    q("UPDATE jobs SET status='pending' WHERE id=? AND status='sent' AND started_at IS NULL").run(jobId);
-    return false;
-  }
+  try { ws.send(JSON.stringify(message)); return true; } catch { return false; }
 }
 
-function sendPending(deviceId: string) {
-  const rows = q<any>("SELECT id,payload FROM jobs WHERE device_id=? AND status='pending' ORDER BY created_at LIMIT 20").all(deviceId);
-  for (const row of rows) dispatchJob(row.id, deviceId, JSON.parse(row.payload).command);
+function capabilities(deviceId: string) {
+  const raw = q<any>("SELECT capabilities FROM devices WHERE id=?").get(deviceId)?.capabilities || "[]";
+  try { return JSON.parse(raw) as string[]; } catch { return []; }
+}
+
+export function dispatchProcessStart(processId: string, deviceId: string, command: string, cwd: string | null, cols: number, rows: number) {
+  if (!capabilities(deviceId).includes("process")) return false;
+  return send(deviceId, { type: "process.start", id: processId, command, cwd, cols, rows });
+}
+
+export function sendProcessControl(deviceId: string, message: Record<string, unknown>) {
+  if (!capabilities(deviceId).includes("process")) return false;
+  return send(deviceId, message);
+}
+
+export function sendNodeUpdate(deviceId: string) {
+  if (!capabilities(deviceId).includes("update")) return false;
+  return send(deviceId, { type: "node.update" });
 }
 
 export function verifyAgent(url: URL): string | null {
@@ -46,18 +54,12 @@ export function verifyAgent(url: URL): string | null {
   } catch { return null; }
 }
 
-function workspaceForDevice(deviceId: string) {
-  return q<any>(`SELECT f.workspace_id FROM fleet_devices fd JOIN fleets f ON f.id=fd.fleet_id
-    WHERE fd.device_id=? LIMIT 1`).get(deviceId)?.workspace_id || null;
-}
-
-export function recoverInterruptedJobs() {
-  const rows = q<any>("SELECT id,device_id FROM jobs WHERE status='sent'").all();
+export function recoverInterruptedProcesses() {
+  const rows = q<any>("SELECT id,device_id FROM processes WHERE status IN ('starting','running')").all();
   if (!rows.length) return;
-  q("UPDATE jobs SET status='failed',result=coalesce(result,'') || ?,completed_at=? WHERE status='sent'")
-    .run("\n[control plane restarted during execution]", now());
   for (const row of rows) {
-    logEvent("job.interrupted", workspaceForDevice(row.device_id), null, row.device_id, { jobId: row.id, reason: "control-plane-restart" });
+    markProcessLost(row.id, "control plane restarted during execution");
+    logEvent("process.interrupted", workspaceForDevice(row.device_id), null, row.device_id, { processId: row.id, reason: "control-plane-restart" });
   }
 }
 
@@ -69,15 +71,14 @@ setInterval(() => {
   }
 }, 10_000).unref();
 
-export const websocketHandlers = {
+export const agentSocketHandlers = {
   open(ws: ServerWebSocket<AgentData>) {
     const { deviceId } = ws.data, previous = agents.get(deviceId);
     if (previous && previous !== ws) previous.close(1012, "replaced");
     agents.set(deviceId, ws);
     agentActivity.set(deviceId, Date.now());
-    q("UPDATE devices SET last_seen=? WHERE id=?").run(now(), deviceId);
+    q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
     logEvent("device.online", workspaceForDevice(deviceId), null, deviceId);
-    sendPending(deviceId);
   },
   message(ws: ServerWebSocket<AgentData>, raw: string | Buffer) {
     try {
@@ -89,41 +90,55 @@ export const websocketHandlers = {
         q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,last_seen=? WHERE id=?`).run(
           String(msg.hostname || "unknown").slice(0, 255), String(msg.platform || "unknown").slice(0, 40),
           String(msg.arch || "unknown").slice(0, 40), String(msg.agentVersion || "unknown").slice(0, 40),
-          JSON.stringify(capabilities), now(), deviceId,
+          JSON.stringify(capabilities), Date.now(), deviceId,
         );
         publishEvent({ kind: "device.updated", workspaceId: workspaceForDevice(deviceId), deviceId });
         return;
       }
       if (msg.type === "heartbeat") {
-        q("UPDATE devices SET last_seen=? WHERE id=?").run(now(), deviceId);
+        q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
         return;
       }
-      if (msg.type === "started" && msg.id) {
-        const job = q<any>("SELECT id,session_id FROM jobs WHERE id=? AND device_id=?").get(String(msg.id), deviceId);
-        if (!job) return;
-        q("UPDATE jobs SET started_at=coalesce(started_at,?) WHERE id=? AND status='sent'").run(now(), job.id);
-        publishEvent({ kind: "job.started", workspaceId: workspaceForDevice(deviceId), deviceId, sessionId: job.session_id, jobId: job.id });
+      if (msg.type === "process.started" && msg.id) {
+        const process = processRow(String(msg.id));
+        if (!process || process.device_id !== deviceId) return;
+        markProcessStarted(process.id);
+        publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
         return;
       }
-      if (msg.type === "output" && msg.id) {
-        const job = q<any>("SELECT id,session_id FROM jobs WHERE id=? AND device_id=?").get(String(msg.id), deviceId);
-        if (!job) return;
+      if (msg.type === "process.output" && msg.id) {
+        const process = processRow(String(msg.id));
+        if (!process || process.device_id !== deviceId) return;
         const chunk = String(msg.output || "").slice(0, 64 * 1024);
-        q("UPDATE jobs SET result=substr(coalesce(result,'') || ?,1,1048576) WHERE id=?").run(chunk, job.id);
-        publishEvent({ kind: "job.output", workspaceId: workspaceForDevice(deviceId), deviceId, sessionId: job.session_id, jobId: job.id, detail: { chunk } });
+        const revision = appendProcessOutput(process.id, chunk);
+        publishEvent({ kind: "process.output", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { chunk, revision } });
         return;
       }
-      if (msg.type === "result" && msg.id) {
-        const job = q<any>("SELECT id,session_id FROM jobs WHERE id=? AND device_id=?").get(String(msg.id), deviceId);
-        if (!job) return;
-        const output = String(msg.output || "").slice(0, 1024 * 1024);
-        const exitCode = Number.isInteger(msg.exitCode) ? msg.exitCode : -1;
-        if (output) q("UPDATE jobs SET result=substr(coalesce(result,'') || ?,1,1048576) WHERE id=?").run(output, job.id);
-        q("UPDATE jobs SET status=?,exit_code=?,completed_at=? WHERE id=?")
-          .run(exitCode === 0 ? "completed" : "failed", exitCode, now(), job.id);
-        q("UPDATE devices SET last_seen=? WHERE id=?").run(now(), deviceId);
-        publishEvent({ kind: "job.finished", workspaceId: workspaceForDevice(deviceId), deviceId, sessionId: job.session_id, jobId: job.id,
-          detail: { status: exitCode === 0 ? "completed" : "failed", exitCode } });
+      if (msg.type === "process.exit" && msg.id) {
+        const process = processRow(String(msg.id));
+        if (!process || process.device_id !== deviceId) return;
+        const output = String(msg.output || "").slice(0, 64 * 1024);
+        if (output) appendProcessOutput(process.id, output);
+        const exitCode = Number.isInteger(msg.exitCode) ? Number(msg.exitCode) : null;
+        const signal = msg.signal ? String(msg.signal).slice(0, 32) : null;
+        markProcessExited(process.id, exitCode, signal);
+        q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
+        publishEvent({ kind: "process.exited", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
+          detail: { exitCode, signal } });
+        return;
+      }
+      if (msg.type === "node.update.ready") {
+        const running = q<any>("SELECT id FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
+        for (const process of running) {
+          markProcessLost(process.id, "Relay Node updated during execution");
+          publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
+            detail: { error: "Relay Node updated during execution" } });
+        }
+        publishEvent({ kind: "node.update.ready", workspaceId: workspaceForDevice(deviceId), deviceId, detail: { version: msg.agentVersion || null } });
+        return;
+      }
+      if (msg.type === "node.update.error") {
+        publishEvent({ kind: "node.update.error", workspaceId: workspaceForDevice(deviceId), deviceId, detail: { error: String(msg.output || "update failed").slice(0, 1024) } });
       }
     } catch (error) { console.error("agent message", error); }
   },
@@ -132,13 +147,12 @@ export const websocketHandlers = {
     if (agents.get(deviceId) !== ws) return;
     agents.delete(deviceId);
     agentActivity.delete(deviceId);
-    const running = q<any>("SELECT id,session_id,started_at FROM jobs WHERE device_id=? AND status='sent'").all(deviceId);
-    for (const job of running) {
-      const message = job.started_at ? "\n[device disconnected during execution]" : "\n[device disconnected before acknowledgement]";
-      q("UPDATE jobs SET status='failed',result=coalesce(result,'') || ?,completed_at=? WHERE id=? AND status='sent'")
-        .run(message, now(), job.id);
-      publishEvent({ kind: "job.finished", workspaceId: workspaceForDevice(deviceId), deviceId, sessionId: job.session_id, jobId: job.id,
-        detail: { status: "failed", message } });
+    const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
+    for (const process of running) {
+      const error = process.status === "running" ? "device disconnected during execution" : "device disconnected before acknowledgement";
+      markProcessLost(process.id, error);
+      publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
+        detail: { error } });
     }
     logEvent("device.offline", workspaceForDevice(deviceId), null, deviceId);
   },
