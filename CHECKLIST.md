@@ -25,4 +25,5 @@
 - [x] Verify fleet, activity, presence, and command output update live without page refresh/polling
 - [x] Persist active console sessions across reloads with explicit fresh-session control
 - [x] Replace the generic shell card with the Relay node control surface
+- [x] Allow enrolled nodes to upgrade without minting another enrollment token
 

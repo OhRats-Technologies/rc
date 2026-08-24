@@ -2,7 +2,8 @@
 set -eu
 
 TOKEN="${1:-${RELAY_ENROLL_TOKEN:-}}"
-if [ -z "$TOKEN" ]; then
+STATE_DIR="${RELAY_STATE_DIR:-$HOME/.config/relay}"
+if [ -z "$TOKEN" ] && [ ! -s "$STATE_DIR/device.json" ]; then
   echo "usage: curl -fsSL https://relay.ohrats.party/install.sh | sh -s -- ENROLLMENT_TOKEN" >&2
   exit 1
 fi
@@ -34,4 +35,7 @@ mv "$TMP" "$DIR/ohrats-relay"
 rm -f "$DIR/relay-agent"
 trap - EXIT HUP INT TERM
 echo "installed $DIR/ohrats-relay"
-exec "$DIR/ohrats-relay" enroll "$TOKEN"
+if [ -n "$TOKEN" ]; then
+  exec "$DIR/ohrats-relay" enroll "$TOKEN"
+fi
+exec "$DIR/ohrats-relay"
