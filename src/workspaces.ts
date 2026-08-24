@@ -148,6 +148,7 @@ export async function handleWorkspaces(req: Request, path: string, user: User): 
       WHERE fd.device_id=? LIMIT 1`).get(m[2]);
     if (!current || current.workspace_id !== fleet.workspace_id) return fail("devices cannot cross workspaces", 409);
     q("INSERT OR IGNORE INTO fleet_devices VALUES(?,?,?,?)").run(m[1], m[2], JSON.stringify(["shell"]), now());
+    logEvent("fleet.device_added", fleet.workspace_id, user.id, m[2], { fleetId: m[1] });
     return json({ ok: true }, 201);
   }
   return null;

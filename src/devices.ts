@@ -1,6 +1,7 @@
 import { User, canWrite, devicePermission, deviceRole, logEvent, sessionAccess } from "./core";
 import { db, id, now, q, sha } from "./db";
-import { dispatchJob, isOnline } from "./gateway";
+import { disconnectDevice, dispatchJob, isOnline, verifyAgent } from "./gateway";
+import { publishEvent } from "./events";
 import { body, fail, json } from "./http-utils";
 
 export async function handleAgentEnroll(req: Request, path: string): Promise<Response | null> {
@@ -27,6 +28,18 @@ export async function handleAgentEnroll(req: Request, path: string): Promise<Res
   })();
   logEvent("device.enrolled", enrollment.workspace_id, enrollment.created_by, deviceId, { fleetId: enrollment.fleet_id });
   return json({ deviceId }, 201);
+}
+
+export async function handleAgentUnregister(req: Request, url: URL): Promise<Response | null> {
+  if (url.pathname !== "/api/v1/agent/self" || req.method !== "DELETE") return null;
+  const deviceId = verifyAgent(url);
+  if (!deviceId) return fail("invalid agent signature", 401);
+  const workspace = q<any>(`SELECT f.workspace_id FROM fleet_devices fd JOIN fleets f ON f.id=fd.fleet_id
+    WHERE fd.device_id=? LIMIT 1`).get(deviceId)?.workspace_id || null;
+  disconnectDevice(deviceId);
+  q("DELETE FROM devices WHERE id=?").run(deviceId);
+  logEvent("device.unenrolled", workspace, null, null, { deviceId });
+  return json({ ok: true });
 }
 
 function listDevices(user: User) {
@@ -61,6 +74,7 @@ async function createJob(req: Request, user: User, sessionId: string) {
   const workspace = q<any>(`SELECT f.workspace_id FROM fleet_devices fd JOIN fleets f ON f.id=fd.fleet_id
     WHERE fd.device_id=? LIMIT 1`).get(access.deviceId);
   logEvent("job.created", workspace?.workspace_id || null, user.id, access.deviceId, { jobId, command });
+  publishEvent({ kind: "job.updated", workspaceId: workspace?.workspace_id || null, deviceId: access.deviceId, sessionId, jobId });
   return json({ id: jobId }, 201);
 }
 

@@ -16,4 +16,6 @@ Remote device control plane for OhRats Technologies.
 - Persist server state under `/data` in production.
 - Keep every maintained source file under 300 lines. Split by responsibility before a file reaches that size.
 - Global navigation uses the persistent sidebar. Route-specific actions belong on their pages, not in global chrome or dialogs.
+- Browser live state uses authenticated SSE. Do not reintroduce timer polling for device, activity, or job updates.
+- The device binary is branded `ohrats-relay` and presented as OhRats Relay Node.
 

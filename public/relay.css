@@ -100,10 +100,14 @@ pre { max-height: 260px; overflow: auto; padding: var(--or-space-sm); border: 1p
 .event-row:last-child { border-bottom: 0; }
 .event-row span:nth-child(2), .event-row span:last-child { color: var(--or-text-muted); }
 .terminal { min-height: 380px; max-height: 60vh; overflow: auto; padding: var(--or-space-sm); border: 1px solid var(--or-border); background: var(--or-surface); font-size: .78rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.console-bar { display: flex; justify-content: space-between; gap: var(--or-space-sm); margin-bottom: 8px; color: var(--or-text-muted); font-family: var(--or-font-mono); font-size: .62rem; letter-spacing: .08em; }
 .command-row { display: grid; grid-template-columns: minmax(0,1fr) auto; margin-top: 8px; }
 .command-row input { border-right: 0; font-family: var(--or-font-mono); }
-.job { padding-bottom: var(--or-space-sm); }
-.job-command { font-weight: 700; }
+.job { padding-bottom: var(--or-space-sm); border-bottom: 1px solid var(--or-border); margin-bottom: var(--or-space-sm); }
+.job:last-child { border-bottom: 0; margin-bottom: 0; }
+.job-command { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 8px; align-items: start; font-weight: 700; }
+.prompt, .job-state { color: var(--or-text-muted); }
+.job-state { font-size: .62rem; font-weight: 400; }
 .job-result { color: var(--or-text-muted); }
 .danger-zone { border-style: dashed; }
 

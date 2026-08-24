@@ -1,4 +1,5 @@
 import { $, api, copyText, escapeHTML, relative } from '../api.js';
+import { onRelayEvent } from '../events.js';
 
 export async function renderFleets(workspaceId) {
   const { workspace, fleets } = await api(`/api/v1/workspaces/${workspaceId}`);
@@ -44,7 +45,7 @@ export async function renderFleet(workspaceId, fleetId) {
       <div class="page-heading"><div><p class="eyebrow">${escapeHTML(workspace.name.toUpperCase())} / FLEET</p><h1>${escapeHTML(fleet.name)}</h1></div></div>
       <section class="panel">
         <div class="page-heading"><div><p class="eyebrow">DEVICES</p></div>${['owner','member'].includes(workspace.role) ? '<button id="enroll-device" class="primary-button secondary-button" type="button">ENROLL DEVICE</button>' : ''}</div>
-        <div class="list">${devices.length ? devices.map(device => `
+        <div id="fleet-device-list" class="list">${devices.length ? devices.map(device => `
           <a class="list-row" href="/devices/${device.id}"><div><strong>${escapeHTML(device.name)}</strong><div class="meta">${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)}</div></div><span class="status ${device.online ? 'online' : ''}">${device.online ? 'ONLINE' : relative(device.last_seen)}</span></a>
         `).join('') : '<div class="list-row"><span class="muted">No devices in this fleet.</span></div>'}</div>
         <div id="enrollment-result" class="result" hidden></div>
@@ -56,6 +57,16 @@ export async function renderFleet(workspaceId, fleetId) {
     const result = $('#enrollment-result'); result.hidden = false;
     result.innerHTML = `<p class="muted">Run on the device. Expires in 24 hours.</p><pre>${escapeHTML(out.install)}</pre><button id="copy-enroll" class="text-button" type="button">COPY COMMAND</button>`;
     $('#copy-enroll').addEventListener('click', event => copyText(out.install, event.currentTarget));
+  });
+  const loadDevices = async () => {
+    const data = await api(`/api/v1/fleets/${fleetId}`);
+    $('#fleet-device-list').innerHTML = data.devices.length ? data.devices.map(device => `
+      <a class="list-row" href="/devices/${device.id}"><div><strong>${escapeHTML(device.name)}</strong><div class="meta">${escapeHTML(device.platform.toUpperCase())}/${escapeHTML(device.arch)}</div></div><span class="status ${device.online ? 'online' : ''}">${device.online ? 'ONLINE' : relative(device.last_seen)}</span></a>
+    `).join('') : '<div class="list-row"><span class="muted">No devices in this fleet.</span></div>';
+  };
+  onRelayEvent(event => {
+    if (event.workspaceId !== workspaceId) return;
+    if (event.kind.startsWith('device.') || event.kind === 'fleet.device_added') loadDevices().catch(() => {});
   });
 }
 

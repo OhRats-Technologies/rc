@@ -1,12 +1,14 @@
 import { handleTokens } from "./account";
 import { auth, handleAccount, handlePublicAuth } from "./auth";
 import { User } from "./core";
-import { handleAgentEnroll, handleDevices } from "./devices";
+import { handleAgentEnroll, handleAgentUnregister, handleDevices } from "./devices";
+import { eventStream } from "./events";
 import { agentsCount } from "./gateway";
 import { checkOrigin, fail, json } from "./http-utils";
 import { handleWorkspaces } from "./workspaces";
 
 async function authenticated(req: Request, path: string, user: User) {
+  if (path === "/api/v1/events" && req.method === "GET") return eventStream(user.id);
   return await handleAccount(req, path, user)
     || await handleTokens(req, path, user)
     || await handleWorkspaces(req, path, user)
@@ -22,6 +24,8 @@ export async function handleAPI(req: Request, url: URL): Promise<Response> {
   if (publicAuth) return publicAuth;
   const enroll = await handleAgentEnroll(req, path);
   if (enroll) return enroll;
+  const unregister = await handleAgentUnregister(req, url);
+  if (unregister) return unregister;
   const user = await auth(req);
   if (!user) return fail("authentication required", 401);
   return authenticated(req, path, user);

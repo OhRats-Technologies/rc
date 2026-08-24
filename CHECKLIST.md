@@ -16,4 +16,8 @@
 - [x] Deploy `relay.ohrats.party` with persistent Coolify volume
 - [x] Verify persistence across restart
 - [x] Verify production end-to-end
+- [x] Replace browser polling with authenticated SSE
+- [x] Stream command output and acknowledge job execution
+- [x] Make node shutdown cancel active command process groups
+- [x] Brand the node CLI as `ohrats-relay` with self-uninstall
 

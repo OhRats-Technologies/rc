@@ -1,4 +1,5 @@
 import { $, api, copyText, escapeHTML } from '../api.js';
+import { onRelayEvent } from '../events.js';
 
 export async function renderWorkspaces() {
   const { workspaces } = await api('/api/v1/workspaces');
@@ -40,9 +41,9 @@ export async function renderWorkspace(workspaceId) {
     <section class="page">
       <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1>${escapeHTML(workspace.name)}</h1><div class="meta">${escapeHTML(workspace.role.toUpperCase())}</div></div></div>
       <div class="card-grid">
-        <a class="card" href="/workspaces/${workspaceId}/fleets"><p class="eyebrow">FLEETS</p><h2>${fleets.length} ${fleets.length === 1 ? 'fleet' : 'fleets'}</h2><span class="muted">Manage device groups.</span></a>
+        <a class="card" href="/workspaces/${workspaceId}/fleets"><p class="eyebrow">FLEETS</p><h2 id="workspace-fleet-count">${fleets.length} ${fleets.length === 1 ? 'fleet' : 'fleets'}</h2><span class="muted">Manage device groups.</span></a>
         <a class="card" href="/workspaces/${workspaceId}/activity"><p class="eyebrow">ACTIVITY</p><h2>Audit log</h2><span class="muted">Workspace events.</span></a>
-        <a class="card" href="/devices"><p class="eyebrow">DEVICES</p><h2>${devices.length} ${devices.length === 1 ? 'device' : 'devices'}</h2><span class="muted">Open device control.</span></a>
+        <a class="card" href="/devices"><p class="eyebrow">DEVICES</p><h2 id="workspace-device-count">${devices.length} ${devices.length === 1 ? 'device' : 'devices'}</h2><span class="muted">Open device control.</span></a>
       </div>
       ${workspace.role === 'owner' ? `
       <section class="panel">
@@ -55,6 +56,14 @@ export async function renderWorkspace(workspaceId) {
         <a class="primary-button danger-button" href="/workspaces/${workspaceId}/delete"><span class="ui-icon icon-trash"></span>DELETE WORKSPACE</a>
       </section>` : ''}
     </section>`;
+  const refreshCounts = async () => {
+    const data = await api(`/api/v1/workspaces/${workspaceId}`);
+    $('#workspace-fleet-count').textContent = `${data.fleets.length} ${data.fleets.length === 1 ? 'fleet' : 'fleets'}`;
+    $('#workspace-device-count').textContent = `${data.devices.length} ${data.devices.length === 1 ? 'device' : 'devices'}`;
+  };
+  onRelayEvent(event => {
+    if (event.workspaceId === workspaceId && event.audit) refreshCounts().catch(() => {});
+  });
   if (workspace.role !== 'owner') return;
   $('#create-invite').addEventListener('click', async () => {
     const out = await api(`/api/v1/workspaces/${workspaceId}/invites`, { method: 'POST', body: JSON.stringify({ role: 'member' }) });

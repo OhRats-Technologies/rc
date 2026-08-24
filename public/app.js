@@ -2,6 +2,7 @@ import { $, api } from './js/api.js';
 import { bindAuth, showAuth } from './js/auth.js';
 import { renderRoute } from './js/router.js';
 import { initializeSidebar } from './js/sidebar.js';
+import { startEvents } from './js/events.js';
 
 bindAuth();
 
@@ -27,6 +28,7 @@ async function boot() {
   $('#auth').hidden = true;
   $('#site-shell').hidden = false;
   initializeSidebar(me);
+  startEvents();
   await renderRoute();
 }
 

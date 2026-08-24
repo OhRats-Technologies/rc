@@ -1,4 +1,5 @@
 import { q, now } from "./db";
+import { publishEvent } from "./events";
 
 export type User = { id: string; name: string };
 export type Role = "owner" | "member" | "viewer";
@@ -27,4 +28,5 @@ export function sessionAccess(userId: string, sessionId: string) {
 export function logEvent(kind: string, workspaceId: string | null, userId: string | null, deviceId: string | null, detail: unknown = {}) {
   q("INSERT INTO events(workspace_id,user_id,device_id,kind,detail,created_at) VALUES(?,?,?,?,?,?)")
     .run(workspaceId, userId, deviceId, kind, JSON.stringify(detail), now());
+  publishEvent({ kind, workspaceId, deviceId, audit: true, detail });
 }
