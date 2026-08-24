@@ -29,7 +29,7 @@ const server = Bun.serve<AgentData>({
       if (url.pathname.startsWith("/api/v1/")) return await handleAPI(req, url);
       if (url.pathname === "/healthz") return new Response("ok");
       if (url.pathname === "/robots.txt") return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } });
-      return await staticResponse(url.pathname);
+      return await staticResponse(req, url.pathname);
     } catch (error: any) {
       console.error(error);
       return fail(error?.message || "internal error", 500);

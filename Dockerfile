@@ -13,10 +13,11 @@ FROM oven/bun:1.4.0-alpine
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
-COPY server.ts ./
+COPY build.ts server.ts ./
 COPY src ./src
 COPY public ./public
 COPY --from=agent /out ./public/downloads
+RUN bun run build
 RUN mkdir -p /data
 ENV PORT=3000 DATA_DIR=/data PUBLIC_URL=https://relay.ohrats.party
 EXPOSE 3000

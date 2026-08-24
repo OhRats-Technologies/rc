@@ -2,6 +2,7 @@
 .env
 node_modules/
 /data/
+/dist/
 *.db
 *.db-shm
 *.db-wal

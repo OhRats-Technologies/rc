@@ -11,6 +11,7 @@ Remote device control plane for OhRats Technologies.
 - API tokens are for programmatic access. Passkey management requires an authenticated browser session.
 - Shared visual primitives come from `https://assets.ohrats.party/latest/ohrats.css`.
 - Product CSS must use existing `--or-*` tokens; do not invent a parallel design system.
+- Keep frontend source modular. `build.ts` fingerprints and bundles production JS/CSS/icons; hashed `/assets/*` are immutable, while the HTML shell revalidates.
 - API routes are versioned under `/api/v1`.
 - Persist server state under `/data` in production.
 - Keep every maintained source file under 300 lines. Split by responsibility before a file reaches that size.

@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "bun run server.ts"
+    "build": "bun run build.ts",
+    "start": "bun run build && bun run server.ts"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2"
