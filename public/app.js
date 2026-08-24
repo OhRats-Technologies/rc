@@ -113,9 +113,10 @@ async function boot() {
   const status = await api('/api/v1/status');
   if (status.setupRequired) {
     showAuth('setup');
-    const row = $('#setup-token-row');
-    row.hidden = !status.setupTokenRequired;
-    if (status.setupTokenRequired) setupForm.elements.setupToken.value = new URLSearchParams(location.search).get('setup') || '';
+    if (!status.setupAuthorized) {
+      setupForm.hidden = true;
+      $('#auth-copy').textContent = 'Open the setup link for this Relay instance.';
+    }
     return;
   }
   const invite = new URLSearchParams(location.search).get('invite');

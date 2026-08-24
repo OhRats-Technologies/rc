@@ -18,6 +18,7 @@ const RP_NAME = "Relay";
 const DB_PATH = join(DATA_DIR, "relay.db");
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_TTL = 24 * 60 * 60 * 1000;
+const SETUP_COOKIE_TTL = 15 * 60;
 const CEREMONY_TTL = 5 * 60 * 1000;
 
 mkdirSync(DATA_DIR, { recursive: true });
@@ -233,6 +234,16 @@ function sessionCookie(token: string, maxAge = Math.floor(SESSION_TTL / 1000)) {
   return `relay_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${PUBLIC_URL.startsWith("https://") ? "; Secure" : ""}`;
 }
 
+function setupCookie(token: string) {
+  return `relay_setup=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SETUP_COOKIE_TTL}${PUBLIC_URL.startsWith("https://") ? "; Secure" : ""}`;
+}
+
+function setupAuthorized(req: Request) {
+  if (!SETUP_TOKEN) return true;
+  const token = cookie(req, "relay_setup");
+  return !!token && sha(token) === sha(SETUP_TOKEN);
+}
+
 async function auth(req: Request): Promise<User | null> {
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (bearer) {
@@ -415,15 +426,15 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
   }
   if (path === "/api/v1/status" && req.method === "GET") {
     const count = q<any>(`SELECT count(*) count FROM users`).get()?.count || 0;
-    return json({ setupRequired: count === 0, setupTokenRequired: count === 0 && !!SETUP_TOKEN, version: "0.1.0" });
+    return json({ setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: "0.1.0" });
   }
   if (["/api/v1/auth/setup", "/api/v1/auth/login", "/api/v1/auth/register"].includes(path)) {
     return fail("Relay was updated. Refresh this page and try again.", 409);
   }
   if (path === "/api/v1/auth/setup/options" && req.method === "POST") {
     if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return fail("setup already completed", 409);
+    if (!setupAuthorized(req)) return fail("Open the Relay setup link first.", 403);
     const input = await body(req);
-    if (SETUP_TOKEN && sha(String(input.setupToken || "")) !== sha(SETUP_TOKEN)) return fail("invalid setup token", 403);
     const name = cleanName(input.name);
     if (!name) return fail("name required");
     return json(await registrationCeremony("setup", id(), name), 201);
@@ -740,6 +751,19 @@ const server = Bun.serve<AgentData>({
   async fetch(req, server) {
     const url = new URL(req.url);
     try {
+      if (req.method === "GET" && url.pathname === "/" && url.searchParams.has("setup")) {
+        if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
+        const token = url.searchParams.get("setup") || "";
+        if (!SETUP_TOKEN || sha(token) !== sha(SETUP_TOKEN)) return fail("invalid setup link", 403);
+        return new Response(null, {
+          status: 303,
+          headers: {
+            location: "/",
+            "set-cookie": setupCookie(token),
+            "cache-control": "no-store",
+          },
+        });
+      }
       if (url.pathname === "/api/v1/agent/ws") {
         const deviceId = verifyAgent(url);
         if (!deviceId) return fail("invalid agent signature", 401);
