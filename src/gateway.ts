@@ -1,12 +1,12 @@
 import { logEvent } from "./core";
-import type { ServerWebSocket } from "bun";
 import { q } from "./db";
 import { base64urlToBytes, pemPublicKeyToDer } from "./encoding";
 import { publishEvent } from "./events";
 import { appendProcessOutput, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
+import type { AgentClientMessage, AgentServerMessage } from "./protocol";
+import type { SocketWriter } from "./browser-socket";
 
-export type AgentData = { kind: "agent"; deviceId: string };
-const agents = new Map<string, ServerWebSocket<AgentData>>();
+const agents = new Map<string, SocketWriter>();
 const agentActivity = new Map<string, number>();
 
 export function agentsCount() { return agents.size; }
@@ -21,7 +21,7 @@ export function disconnectDevice(deviceId: string, remove = false) {
   agentActivity.delete(deviceId);
 }
 
-function send(deviceId: string, message: Record<string, unknown>) {
+function send(deviceId: string, message: AgentServerMessage) {
   const ws = agents.get(deviceId);
   if (!ws) return false;
   try { ws.send(JSON.stringify(message)); return true; } catch { return false; }
@@ -37,7 +37,7 @@ export function dispatchProcessStart(processId: string, deviceId: string, comman
   return send(deviceId, { type: "process.start", id: processId, command, cwd, cols, rows });
 }
 
-export function sendProcessControl(deviceId: string, message: Record<string, unknown>) {
+export function sendProcessControl(deviceId: string, message: AgentServerMessage) {
   if (!capabilities(deviceId).includes("process")) return false;
   return send(deviceId, message);
 }
@@ -78,21 +78,19 @@ setInterval(() => {
 }, 10_000).unref();
 
 export const agentSocketHandlers = {
-  open(ws: ServerWebSocket<AgentData>) {
-    const { deviceId } = ws.data, previous = agents.get(deviceId);
-    if (previous && previous !== ws) previous.close(1012, "replaced");
-    agents.set(deviceId, ws);
+  open(deviceId: string, socket: SocketWriter) {
+    const previous = agents.get(deviceId);
+    if (previous && previous !== socket) previous.close(1012, "replaced");
+    agents.set(deviceId, socket);
     agentActivity.set(deviceId, Date.now());
     q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
     logEvent("device.online", workspaceForDevice(deviceId), null, deviceId);
   },
-  message(ws: ServerWebSocket<AgentData>, raw: string | Uint8Array) {
+  message(deviceId: string, msg: AgentClientMessage) {
     try {
-      const msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw));
-      const deviceId = ws.data.deviceId;
       agentActivity.set(deviceId, Date.now());
       if (msg.type === "hello") {
-        const capabilities = Array.isArray(msg.capabilities) ? msg.capabilities.map(String).slice(0, 32) : [];
+        const capabilities = msg.capabilities;
         q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,last_seen=? WHERE id=?`).run(
           String(msg.hostname || "unknown").slice(0, 255), String(msg.platform || "unknown").slice(0, 40),
           String(msg.arch || "unknown").slice(0, 40), String(msg.agentVersion || "unknown").slice(0, 40),
@@ -105,27 +103,27 @@ export const agentSocketHandlers = {
         q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
         return;
       }
-      if (msg.type === "process.started" && msg.id) {
-        const process = processRow(String(msg.id));
+      if (msg.type === "process.started") {
+        const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
         markProcessStarted(process.id);
         publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
         return;
       }
-      if (msg.type === "process.output" && msg.id) {
-        const process = processRow(String(msg.id));
+      if (msg.type === "process.output") {
+        const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
-        const chunk = String(msg.output || "").slice(0, 64 * 1024);
+        const chunk = msg.output;
         const revision = appendProcessOutput(process.id, chunk);
         publishEvent({ kind: "process.output", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { chunk, revision } });
         return;
       }
-      if (msg.type === "process.exit" && msg.id) {
-        const process = processRow(String(msg.id));
+      if (msg.type === "process.exit") {
+        const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
-        const output = String(msg.output || "").slice(0, 64 * 1024);
+        const output = msg.output || "";
         if (output) appendProcessOutput(process.id, output);
-        const exitCode = Number.isInteger(msg.exitCode) ? Number(msg.exitCode) : null;
+        const exitCode = msg.exitCode ?? null;
         const signal = msg.signal ? String(msg.signal).slice(0, 32) : null;
         markProcessExited(process.id, exitCode, signal);
         q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
@@ -148,9 +146,8 @@ export const agentSocketHandlers = {
       }
     } catch (error) { console.error("agent message", error); }
   },
-  close(ws: ServerWebSocket<AgentData>) {
-    const { deviceId } = ws.data;
-    if (agents.get(deviceId) !== ws) return;
+  close(deviceId: string, socket: SocketWriter) {
+    if (agents.get(deviceId) !== socket) return;
     agents.delete(deviceId);
     agentActivity.delete(deviceId);
     const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);

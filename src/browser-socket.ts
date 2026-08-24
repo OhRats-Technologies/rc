@@ -1,14 +1,15 @@
 import { canWrite, deviceRole, logEvent } from "./core";
-import type { ServerWebSocket } from "bun";
 import { subscribeEvents } from "./events";
 import { isOnline, sendNodeUpdate } from "./gateway";
 import { inputProcess, resizeRemoteProcess, signalProcess, startProcess } from "./process-api";
 import { workspaceForDevice } from "./process-store";
+import type { BrowserCommand, BrowserServerMessage } from "./protocol";
 
-export type BrowserData = { kind: "browser"; userId: string; unsubscribe?: () => void };
+export type SocketWriter = { send(data: string): unknown; close(code?: number, reason?: string): void };
+type BrowserConnection = { socket: SocketWriter; unsubscribe?: () => void };
 
-function send(ws: ServerWebSocket<BrowserData>, value: unknown) {
-  try { ws.send(JSON.stringify(value)); } catch {}
+function send(connection: BrowserConnection, value: BrowserServerMessage) {
+  try { connection.socket.send(JSON.stringify(value)); } catch {}
 }
 
 function updateNode(userId: string, input: any) {
@@ -21,32 +22,31 @@ function updateNode(userId: string, input: any) {
 }
 
 export const browserSocketHandlers = {
-  open(ws: ServerWebSocket<BrowserData>) {
-    ws.data.unsubscribe = subscribeEvents(ws.data.userId, event => send(ws, { type: "event", event }));
-    send(ws, { type: "ready" });
+  open(userId: string, socket: SocketWriter) {
+    const connection: BrowserConnection = { socket };
+    connection.unsubscribe = subscribeEvents(userId, event => send(connection, { type: "event", event }));
+    send(connection, { type: "ready" });
+    return connection;
   },
-  message(ws: ServerWebSocket<BrowserData>, raw: string | Uint8Array) {
-    let message: any;
-    try { message = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw)); }
-    catch { return; }
-    const requestId = String(message.requestId || "");
+  message(userId: string, connection: BrowserConnection, message: BrowserCommand) {
+    const requestId = "requestId" in message ? String(message.requestId || "") : "";
     try {
       let result: unknown;
       switch (message.type) {
-        case "ping": send(ws, { type: "pong" }); return;
-        case "process.start": result = startProcess(ws.data.userId, message); break;
-        case "process.input": result = inputProcess(ws.data.userId, message); break;
-        case "process.resize": result = resizeRemoteProcess(ws.data.userId, message); break;
-        case "process.signal": result = signalProcess(ws.data.userId, message); break;
-        case "node.update": result = updateNode(ws.data.userId, message); break;
-        default: throw new Error("unknown realtime command");
+        case "ping": send(connection, { type: "pong" }); return;
+        case "process.start": result = startProcess(userId, message); break;
+        case "process.input": result = inputProcess(userId, message); break;
+        case "process.resize": result = resizeRemoteProcess(userId, message); break;
+        case "process.signal": result = signalProcess(userId, message); break;
+        case "node.update": result = updateNode(userId, message); break;
       }
-      if (requestId) send(ws, { type: "response", requestId, ok: true, result });
-    } catch (error: any) {
-      if (requestId) send(ws, { type: "response", requestId, ok: false, error: error?.message || "request failed" });
+      if (requestId) send(connection, { type: "response", requestId, ok: true, result });
+    } catch (error) {
+      if (requestId) send(connection, { type: "response", requestId, ok: false,
+        error: error instanceof Error ? error.message : "request failed" });
     }
   },
-  close(ws: ServerWebSocket<BrowserData>) {
-    ws.data.unsubscribe?.();
+  close(connection: BrowserConnection) {
+    connection.unsubscribe?.();
   },
 };
