@@ -12,7 +12,7 @@ button { border-radius: 0; }
 .muted,.eyebrow,.meta,.status,.error,.empty-state { transition: color var(--or-theme-transition); }
 
 .auth-shell { position: relative; min-height: 100vh; display: grid; place-items: center; padding: var(--or-space-md); overflow: hidden; }
-.auth-shell::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(var(--or-grid) 1px,transparent 1px),linear-gradient(90deg,var(--or-grid) 1px,transparent 1px); background-size: 40px 40px; mask-image: linear-gradient(to bottom,#000 35%,transparent 95%); opacity: .45; pointer-events: none; }
+.auth-grid { --or-grid-fade-start: 35%; --or-grid-fade-end: 95%; --or-grid-opacity: .45; }
 .auth-content { position: relative; width: min(100%,430px); }
 .auth-content h1 { margin: .3rem 0 .45rem; font-size: clamp(2rem,7vw,3.2rem); }
 .auth-form { margin-top: var(--or-space-lg); display: grid; gap: .75rem; }

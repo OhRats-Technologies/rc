@@ -6,7 +6,7 @@ export function authPage(mode: AuthMode, options: { invite?: string; authorized?
   const invite = options.invite || "", error = options.error || "";
   const title = mode === "setup" ? "Create Relay" : mode === "register" ? "Join Relay" : mode === "join" ? "Join workspace" : "Sign in";
   return htmlDocument({ title, scripts: mode === "join" ? [] : ["auth"], body:
-    <section className="auth-shell"><div className="auth-content">
+    <section className="auth-shell"><div className="ohrats-grid auth-grid" aria-hidden="true"/><div className="auth-content">
       <p className="eyebrow">RELAY / CONTROL PLANE</p><h1>{title}</h1>
       {mode === "setup" && <><p className="muted">Create the first account with a passkey.</p>{options.authorized
         ? <form id="setup-form" className="auth-form"><label>Name<input name="name" autoComplete="name" required autoFocus/></label><button className="primary-button" type="submit">CREATE PASSKEY</button></form>
