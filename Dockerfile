@@ -9,7 +9,7 @@ RUN mkdir -p /out \
  && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o /out/relay-agent-darwin-amd64 . \
  && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o /out/relay-agent-darwin-arm64 .
 
-FROM oven/bun:1.2.21-alpine
+FROM oven/bun:1.4.0-alpine
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
