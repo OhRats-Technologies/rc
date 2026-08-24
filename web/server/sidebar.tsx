@@ -26,7 +26,7 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
         </nav>
       </div>
       <div className="sidebar-footer"><div className="profile-row">
-        <a className="profile-link" href="/account"><span className="profile-initial">{user.name.trim().slice(0, 1).toUpperCase() || "?"}</span><span>{user.name}</span></a>
+        <a className="profile-link" href="/account"><span className="profile-initial">{user.name.trim().slice(0, 1).toUpperCase() || "?"}</span><span className="profile-name">{user.name}</span></a>
         <button className="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme"/>
         <form method="post" action="/account/logout"><button className="icon-button" type="submit" aria-label="Sign out" title="Sign out"><span className="ui-icon icon-sign-out"/></button></form>
       </div></div>
