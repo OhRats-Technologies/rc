@@ -1,14 +1,19 @@
 import {
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
   verifyAuthenticationResponse,
-  verifyRegistrationResponse,
+  type AuthenticationResponseJSON,
+  type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { CEREMONY_TTL, PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN, VERSION } from "./config";
-import { User, userWorkspaces } from "./core";
+import { PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN, VERSION } from "./config";
+import { User } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
-import { base64ToBytes, bytesToBase64 } from "./encoding";
-import { body, cookie, fail, json, sessionCookie } from "./http-utils";
+import { base64ToBytes } from "./encoding";
+import { cookie, fail, json, sessionCookie } from "./http-utils";
+import { HttpError } from "./errors";
+import {
+  authenticationCeremony, cleanName, insertPasskey, registrationCeremony, takeCeremony, verifyNewPasskey,
+} from "./webauthn";
+
+export type PasskeyView = { id: string; created_at: number; last_used: number | null };
 
 export function setupAuthorized(req: Request) {
   if (!SETUP_TOKEN) return true;
@@ -16,7 +21,7 @@ export function setupAuthorized(req: Request) {
   return !!token && sha(token) === sha(SETUP_TOKEN);
 }
 
-function apiTokenUser(token: string): User | null {
+export function apiTokenUser(token: string): User | null {
   const row = q<any>(`SELECT u.id,u.name,a.id token_id FROM api_tokens a JOIN users u ON u.id=a.user_id
     WHERE a.token_hash=?`).get(sha(token));
   if (!row) return null;
@@ -38,73 +43,88 @@ export async function cookieUser(req: Request): Promise<User | null> {
   return row ? { id: row.id, name: row.name } : null;
 }
 
-async function createLogin(userId: string) {
+export async function createLogin(userId: string) {
   const token = opaque("sess");
   q("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)")
     .run(sha(token), userId, now(), now() + SESSION_TTL);
   return token;
 }
 
-function cleanName(value: unknown) { return String(value || "").trim().slice(0, 120); }
-function passkeyDescriptors(userId: string) {
-  return q<any>("SELECT credential_id,transports FROM passkeys WHERE user_id=?").all(userId).map((row: any) => ({
-    id: row.credential_id, transports: JSON.parse(row.transports || "[]"),
-  }));
+export function relayStatus(req: Request) {
+  const count = q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0;
+  return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: VERSION };
 }
 
-async function registrationCeremony(kind: "setup" | "register" | "add-passkey", userId: string, name: string, inviteId: string | null = null) {
-  const options = await generateRegistrationOptions({
-    rpName: "Relay", rpID: RP_ID, userName: name, userDisplayName: name,
-    userID: new TextEncoder().encode(userId), attestationType: "none",
-    excludeCredentials: kind === "add-passkey" ? passkeyDescriptors(userId) : [],
-    authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
+export async function setupOptions(req: Request, value: unknown) {
+  if ((q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0) > 0) throw new HttpError(409, "setup already completed");
+  if (!setupAuthorized(req)) throw new HttpError(403, "Open the Relay setup link first.");
+  const name = cleanName(value);
+  if (!name) throw new HttpError(400, "name required");
+  return registrationCeremony("setup", id(), name);
+}
+
+export async function loginOptions() {
+  if ((q<{ count: number }>("SELECT count(*) count FROM passkeys").get()?.count || 0) === 0) throw new HttpError(409, "no passkeys registered");
+  return authenticationCeremony();
+}
+
+export async function tokenLogin(value: unknown) {
+  const user = apiTokenUser(String(value || "").trim());
+  if (!user) throw new HttpError(401, "invalid API token");
+  return createLogin(user.id);
+}
+
+export async function registerOptions(inviteValue: unknown, nameValue: unknown) {
+  const invite = String(inviteValue || "").trim(), name = cleanName(nameValue);
+  const row = q<{ id: string }>("SELECT id FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?").get(sha(invite), now());
+  if (!row) throw new HttpError(401, "invalid or expired invite");
+  if (!name) throw new HttpError(400, "name required");
+  return registrationCeremony("register", id(), name, row.id);
+}
+
+export function logout(req: Request) {
+  const token = cookie(req, "relay_session");
+  if (token) q("DELETE FROM auth_sessions WHERE token_hash=?").run(sha(token));
+}
+
+function requireHuman(req: Request, user: User) {
+  return cookieUser(req).then(human => {
+    if (!human || human.id !== user.id) throw new HttpError(401, "browser session required");
   });
-  const ceremonyId = id(), t = now();
-  q(`INSERT INTO webauthn_challenges(id,challenge,kind,user_id,name,invite_id,created_at,expires_at)
-    VALUES(?,?,?,?,?,?,?,?)`).run(ceremonyId, options.challenge, kind, userId, name, inviteId, t, t + CEREMONY_TTL);
-  return { ceremonyId, options };
 }
 
-async function authenticationCeremony() {
-  const options = await generateAuthenticationOptions({ rpID: RP_ID, userVerification: "required" });
-  const ceremonyId = id(), t = now();
-  q("INSERT INTO webauthn_challenges(id,challenge,kind,created_at,expires_at) VALUES(?,?,?,?,?)")
-    .run(ceremonyId, options.challenge, "login", t, t + CEREMONY_TTL);
-  return { ceremonyId, options };
+export async function listPasskeys(req: Request, user: User): Promise<PasskeyView[]> {
+  await requireHuman(req, user);
+  return q<PasskeyView>("SELECT id,created_at,last_used FROM passkeys WHERE user_id=? ORDER BY created_at").all(user.id);
 }
 
-function takeCeremony(value: unknown, kind: string) {
-  const key = String(value || "");
-  const row = q<any>("SELECT * FROM webauthn_challenges WHERE id=? AND kind=? AND expires_at>?").get(key, kind, now());
-  if (key) q("DELETE FROM webauthn_challenges WHERE id=?").run(key);
-  return row || null;
+export async function addPasskeyOptions(req: Request, user: User) {
+  await requireHuman(req, user);
+  return registrationCeremony("add-passkey", user.id, user.name);
 }
 
-async function verifyNewPasskey(ceremony: any, response: any) {
-  const result = await verifyRegistrationResponse({
-    response, expectedChallenge: ceremony.challenge, expectedOrigin: PUBLIC_URL,
-    expectedRPID: RP_ID, requireUserVerification: true,
-  });
-  if (!result.verified || !result.registrationInfo) throw new Error("passkey verification failed");
-  return result.registrationInfo.credential;
+export async function verifyAddedPasskey(req: Request, user: User, ceremonyId: string, response: RegistrationResponseJSON) {
+  await requireHuman(req, user);
+  const ceremony = takeCeremony(ceremonyId, "add-passkey");
+  if (!ceremony || ceremony.user_id !== user.id) throw new HttpError(410, "registration expired");
+  try { insertPasskey(user.id, await verifyNewPasskey(ceremony, response)); }
+  catch { throw new HttpError(401, "passkey verification failed"); }
 }
 
-function insertPasskey(userId: string, credential: any) {
-  q(`INSERT INTO passkeys(id,user_id,credential_id,public_key,counter,transports,created_at) VALUES(?,?,?,?,?,?,?)`).run(
-    id(), userId, credential.id, bytesToBase64(credential.publicKey), Number(credential.counter || 0),
-    JSON.stringify(credential.transports || []), now()
-  );
+export async function deletePasskey(req: Request, user: User, passkeyId: string) {
+  await requireHuman(req, user);
+  if (!q("DELETE FROM passkeys WHERE id=? AND user_id=?").run(passkeyId, user.id).changes) throw new HttpError(404, "passkey not found");
 }
 
-async function loginVerify(req: Request) {
-  const input = await body(req), ceremony = takeCeremony(input.ceremonyId, "login");
+export async function verifyLogin(ceremonyId: string, response: AuthenticationResponseJSON) {
+  const ceremony = takeCeremony(ceremonyId, "login");
   if (!ceremony) return fail("authentication expired", 410);
   const row = q<any>(`SELECT p.*,u.name FROM passkeys p JOIN users u ON u.id=p.user_id WHERE p.credential_id=?`)
-    .get(String(input.response?.id || ""));
+    .get(String(response.id || ""));
   if (!row) return fail("unknown passkey", 401);
   try {
     const result = await verifyAuthenticationResponse({
-      response: input.response, expectedChallenge: ceremony.challenge, expectedOrigin: PUBLIC_URL,
+      response, expectedChallenge: ceremony.challenge, expectedOrigin: PUBLIC_URL,
       expectedRPID: RP_ID, requireUserVerification: true,
       credential: { id: row.credential_id, publicKey: base64ToBytes(row.public_key),
         counter: Number(row.counter || 0), transports: JSON.parse(row.transports || "[]") },
@@ -116,17 +136,18 @@ async function loginVerify(req: Request) {
   } catch { return fail("passkey verification failed", 401); }
 }
 
-async function newUserVerify(req: Request, kind: "setup" | "register") {
-  const input = await body(req), ceremony = takeCeremony(input.ceremonyId, kind);
+export async function verifyNewUser(kind: "setup" | "register", ceremonyId: string, response: RegistrationResponseJSON) {
+  const ceremony = takeCeremony(ceremonyId, kind);
   if (!ceremony) return fail("registration expired", 410);
+  if (!ceremony.user_id || !ceremony.name) return fail("registration expired", 410);
   if (kind === "setup" && (q<any>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return fail("setup already completed", 409);
   const invite = kind === "register"
     ? q<any>("SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?").get(ceremony.invite_id, now()) : null;
   if (kind === "register" && !invite) return fail("invalid or expired invite", 401);
   let credential;
-  try { credential = await verifyNewPasskey(ceremony, input.response); }
+  try { credential = await verifyNewPasskey(ceremony, response); }
   catch { return fail("passkey verification failed", 401); }
-  const userId = ceremony.user_id, t = now(), workspaceId = kind === "setup" ? id() : invite.workspace_id;
+  const userId = ceremony.user_id, t = now(), workspaceId = kind === "setup" ? id() : String(invite.workspace_id);
   db.transaction(() => {
     q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, ceremony.name, t);
     insertPasskey(userId, credential);
@@ -140,72 +161,4 @@ async function newUserVerify(req: Request, kind: "setup" | "register") {
   })();
   const token = await createLogin(userId);
   return json({ ok: true }, 201, { "set-cookie": sessionCookie(token) });
-}
-
-export async function handlePublicAuth(req: Request, path: string): Promise<Response | null> {
-  if (path === "/api/v1/status" && req.method === "GET") {
-    const count = q<any>("SELECT count(*) count FROM users").get()?.count || 0;
-    return json({ setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: VERSION });
-  }
-  if (["/api/v1/auth/setup", "/api/v1/auth/login", "/api/v1/auth/register"].includes(path)) {
-    return fail("Relay was updated. Refresh this page and try again.", 409);
-  }
-  if (path === "/api/v1/auth/setup/options" && req.method === "POST") {
-    if ((q<any>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return fail("setup already completed", 409);
-    if (!setupAuthorized(req)) return fail("Open the Relay setup link first.", 403);
-    const input = await body(req), name = cleanName(input.name);
-    return name ? json(await registrationCeremony("setup", id(), name), 201) : fail("name required");
-  }
-  if (path === "/api/v1/auth/setup/verify" && req.method === "POST") return newUserVerify(req, "setup");
-  if (path === "/api/v1/auth/login/options" && req.method === "POST") {
-    if ((q<any>("SELECT count(*) count FROM passkeys").get()?.count || 0) === 0) return fail("no passkeys registered", 409);
-    return json(await authenticationCeremony(), 201);
-  }
-  if (path === "/api/v1/auth/login/verify" && req.method === "POST") return loginVerify(req);
-  if (path === "/api/v1/auth/token" && req.method === "POST") {
-    const input = await body(req), user = apiTokenUser(String(input.token || "").trim());
-    if (!user) return fail("invalid API token", 401);
-    const token = await createLogin(user.id);
-    return json({ ok: true }, 200, { "set-cookie": sessionCookie(token) });
-  }
-  if (path === "/api/v1/auth/register/options" && req.method === "POST") {
-    const input = await body(req), invite = String(input.invite || "").trim(), name = cleanName(input.name);
-    const row = q<any>("SELECT * FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?").get(sha(invite), now());
-    if (!row) return fail("invalid or expired invite", 401);
-    return name ? json(await registrationCeremony("register", id(), name, row.id), 201) : fail("name required");
-  }
-  if (path === "/api/v1/auth/register/verify" && req.method === "POST") return newUserVerify(req, "register");
-  if (path === "/api/v1/auth/logout" && req.method === "POST") {
-    const token = cookie(req, "relay_session");
-    if (token) q("DELETE FROM auth_sessions WHERE token_hash=?").run(sha(token));
-    return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0) });
-  }
-  return null;
-}
-
-export async function handleAccount(req: Request, path: string, user: User): Promise<Response | null> {
-  const human = await cookieUser(req);
-  if (path === "/api/v1/me" && req.method === "GET") return json({ user, workspaces: userWorkspaces(user.id) });
-  if (path === "/api/v1/passkeys" && req.method === "GET") {
-    if (!human || human.id !== user.id) return fail("browser session required", 401);
-    return json({ passkeys: q<any>("SELECT id,created_at,last_used FROM passkeys WHERE user_id=? ORDER BY created_at").all(user.id) });
-  }
-  if (path === "/api/v1/passkeys/options" && req.method === "POST") {
-    if (!human || human.id !== user.id) return fail("browser session required", 401);
-    return json(await registrationCeremony("add-passkey", user.id, user.name), 201);
-  }
-  if (path === "/api/v1/passkeys/verify" && req.method === "POST") {
-    if (!human || human.id !== user.id) return fail("browser session required", 401);
-    const input = await body(req), ceremony = takeCeremony(input.ceremonyId, "add-passkey");
-    if (!ceremony || ceremony.user_id !== user.id) return fail("registration expired", 410);
-    try { insertPasskey(user.id, await verifyNewPasskey(ceremony, input.response)); return json({ ok: true }, 201); }
-    catch { return fail("passkey verification failed", 401); }
-  }
-  const match = path.match(/^\/api\/v1\/passkeys\/([^/]+)$/);
-  if (match && req.method === "DELETE") {
-    if (!human || human.id !== user.id) return fail("browser session required", 401);
-    const removed = q("DELETE FROM passkeys WHERE id=? AND user_id=?").run(match[1], user.id);
-    return removed.changes ? json({ ok: true }) : fail("passkey not found", 404);
-  }
-  return null;
 }
