@@ -7,11 +7,13 @@ import { now, q, sha } from "./src/db";
 import { AgentData, agentSocketHandlers, agentsCount, recoverInterruptedProcesses, verifyAgent } from "./src/gateway";
 import { fail, json, setupCookie } from "./src/http-utils";
 import { handleAPI } from "./src/router";
-import { download, installScript } from "./src/artifacts";
+import { download, frontendAsset, frontendHTML, installScript } from "./src/artifacts";
 
 recoverInterruptedProcesses();
 
 type SocketData = AgentData | BrowserData;
+const production = Bun.env.NODE_ENV === "production";
+const spa = production ? () => frontendHTML(import.meta.dir) : app;
 
 function setupRoute(req: Request & { params: { token: string } }) {
   if ((q<any>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
@@ -29,13 +31,16 @@ const server = Bun.serve<SocketData>({
   idleTimeout: 60,
   development: Bun.env.NODE_ENV === "development",
   routes: {
-    "/": app,
-    "/devices": app,
-    "/devices/*": app,
-    "/workspaces": app,
-    "/workspaces/*": app,
-    "/account": app,
-    "/api": app,
+    "/": spa,
+    "/devices": spa,
+    "/devices/*": spa,
+    "/workspaces": spa,
+    "/workspaces/*": spa,
+    "/account": spa,
+    "/api": spa,
+    ...(production ? {
+      "/assets/:name": (req: Request & { params: { name: string } }) => frontendAsset(import.meta.dir, req.params.name),
+    } : {}),
     "/setup/:token": setupRoute,
     "/install.sh": installScript,
     "/downloads/*": (req: Request) => download(new URL(req.url).pathname.slice("/downloads/".length)),
