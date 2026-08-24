@@ -417,6 +417,9 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
     const count = q<any>(`SELECT count(*) count FROM users`).get()?.count || 0;
     return json({ setupRequired: count === 0, setupTokenRequired: count === 0 && !!SETUP_TOKEN, version: "0.1.0" });
   }
+  if (["/api/v1/auth/setup", "/api/v1/auth/login", "/api/v1/auth/register"].includes(path)) {
+    return fail("Relay was updated. Refresh this page and try again.", 409);
+  }
   if (path === "/api/v1/auth/setup/options" && req.method === "POST") {
     if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return fail("setup already completed", 409);
     const input = await body(req);
@@ -720,7 +723,15 @@ async function staticResponse(pathname: string) {
   const path = join(import.meta.dir, "public", relative);
   if (!existsSync(path)) return fail("not found", 404);
   const immutable = pathname.startsWith("/downloads/");
-  return new Response(Bun.file(path), { headers: { "content-type": contentType(path), "cache-control": immutable ? "public, max-age=3600" : "no-cache" } });
+  const headers: Record<string, string> = {
+    "content-type": contentType(path),
+    "cache-control": immutable ? "public, max-age=3600" : "no-store, max-age=0",
+  };
+  if (!immutable) {
+    headers["cdn-cache-control"] = "no-store";
+    headers["cloudflare-cdn-cache-control"] = "no-store";
+  }
+  return new Response(Bun.file(path), { headers });
 }
 
 const server = Bun.serve<AgentData>({
