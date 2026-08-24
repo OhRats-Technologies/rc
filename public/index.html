@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="color-scheme" content="light dark">
+  <title>Relay | OhRats</title>
+  <link rel="icon" href="https://assets.ohrats.party/latest/logo.png">
+  <link rel="stylesheet" href="https://assets.ohrats.party/latest/ohrats.css">
+  <link rel="stylesheet" href="/relay.css">
+  <script src="https://assets.ohrats.party/latest/theme.js"></script>
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-container">
+      <div class="nav-left">
+        <a class="logo" href="https://ohrats.party" aria-label="OhRats">
+          <img class="logo-image" src="https://assets.ohrats.party/latest/logo.png" alt="">
+          <span class="logo-text">Relay</span>
+        </a>
+      </div>
+      <div class="relay-nav-actions">
+        <span id="connection-state" class="connection-state" hidden>CONNECTED</span>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme"></button>
+        <button id="logout" class="text-button" type="button" hidden>LOG OUT</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="auth" class="auth-shell" hidden>
+      <div class="auth-panel">
+        <p class="eyebrow">RELAY / CONTROL PLANE</p>
+        <h1 id="auth-title">Sign in</h1>
+        <p id="auth-copy" class="muted">Connect to your devices.</p>
+
+        <form id="setup-form" class="form-stack" hidden>
+          <label>Name<input name="name" autocomplete="name" required></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+          <button class="primary-button" type="submit">CREATE RELAY</button>
+        </form>
+
+        <form id="login-form" class="form-stack" hidden>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+          <button class="primary-button" type="submit">SIGN IN</button>
+        </form>
+
+        <form id="register-form" class="form-stack" hidden>
+          <label>Name<input name="name" autocomplete="name" required></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+          <label>Password<input name="password" type="password" autocomplete="new-password" minlength="10" required></label>
+          <input name="invite" type="hidden">
+          <button class="primary-button" type="submit">JOIN WORKSPACE</button>
+        </form>
+        <p id="auth-error" class="error" role="alert"></p>
+      </div>
+    </section>
+
+    <section id="dashboard" class="dashboard" hidden>
+      <div class="workspace-bar">
+        <div>
+          <p class="eyebrow">WORKSPACE</p>
+          <select id="workspace-select" aria-label="Workspace"></select>
+        </div>
+        <div class="workspace-actions">
+          <button id="new-workspace" class="text-button" type="button">NEW WORKSPACE</button>
+          <button id="invite-member" class="text-button" type="button">INVITE</button>
+          <button id="api-token" class="text-button" type="button">API TOKEN</button>
+        </div>
+      </div>
+
+      <div class="control-grid">
+        <aside class="panel fleets-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">FLEETS</p><h2>Networks</h2></div>
+            <button id="new-fleet" class="icon-button" type="button" aria-label="New fleet">+</button>
+          </div>
+          <div id="fleets" class="fleet-list"></div>
+        </aside>
+
+        <section class="panel devices-panel">
+          <div class="panel-heading">
+            <div><p class="eyebrow">DEVICES</p><h2 id="device-count">0 devices</h2></div>
+            <span id="online-count" class="muted mono">0 ONLINE</span>
+          </div>
+          <div id="devices" class="device-list"></div>
+        </section>
+
+        <section class="panel console-panel">
+          <div id="empty-console" class="empty-state">
+            <p class="eyebrow">SESSION</p>
+            <h2>Select a device</h2>
+            <p class="muted">Choose an online device to open a shell session.</p>
+          </div>
+          <div id="active-console" hidden>
+            <div class="panel-heading console-heading">
+              <div>
+                <p class="eyebrow">SESSION</p>
+                <h2 id="console-device"></h2>
+              </div>
+              <span id="console-status" class="status-label"></span>
+            </div>
+            <div id="terminal" class="terminal" aria-live="polite"></div>
+            <form id="command-form" class="command-row">
+              <span class="prompt">$</span>
+              <input id="command" name="command" autocomplete="off" spellcheck="false" placeholder="uname -a" required>
+              <button type="submit" class="primary-button">RUN</button>
+            </form>
+          </div>
+        </section>
+      </div>
+
+      <section class="events-section">
+        <p class="eyebrow">ACTIVITY</p>
+        <div id="events" class="events"></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="token-dialog">
+    <form method="dialog" class="dialog-panel">
+      <div class="panel-heading"><h2 id="dialog-title">Token</h2><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
+      <p id="dialog-copy" class="muted"></p>
+      <pre id="dialog-value"></pre>
+      <button id="copy-dialog" class="primary-button" type="button">COPY</button>
+    </form>
+  </dialog>
+
+  <dialog id="input-dialog">
+    <form method="dialog" class="dialog-panel" id="input-dialog-form">
+      <div class="panel-heading"><h2 id="input-dialog-title">Create</h2><button class="icon-button" value="cancel" aria-label="Close">×</button></div>
+      <label class="dialog-label"><span id="input-dialog-label">Name</span><input id="input-dialog-value" autocomplete="off"></label>
+      <button class="primary-button" value="default">CREATE</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
+

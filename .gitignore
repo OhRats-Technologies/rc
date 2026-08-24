@@ -1,0 +1,7 @@
+.DS_Store
+.env
+/data/
+*.db
+*.db-shm
+*.db-wal
+agent/device.json
