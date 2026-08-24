@@ -11,12 +11,13 @@ Remote device control plane for OhRats Technologies.
 - API tokens are hashed server-side, shown once, and grant the same account authority as their owner. Keep token management visible under the API route.
 - Shared visual primitives come from `https://assets.ohrats.party/current/ohrats.css`.
 - Product CSS must use existing `--or-*` tokens; do not invent a parallel design system.
-- Keep browser source typed under `web/`. Bun's HTML imports and production bundler own TypeScript/CSS/assets; do not add a custom asset pipeline or untyped `public/js` tree.
+- Keep browser source typed under `web/`. Bun remains the runtime and bundler; do not add a custom asset pipeline or untyped `public/js` tree.
 - API routes are versioned under `/api/v1`.
 - Persist server state under `/data` in production.
 - Keep every maintained source file under 300 lines. Split by responsibility before a file reaches that size.
 - Global navigation uses the persistent sidebar. Route-specific actions belong on their pages, not in global chrome or dialogs.
-- Use History API navigation inside the authenticated app so the persistent sidebar never remounts between pages.
+- Authenticated routes are ordinary server-rendered URLs. Do not require client-side routing for navigation. JavaScript may enhance individual pages but must not own primary page rendering.
+- Prefer normal links, forms, POST/redirect flows, and server-rendered snapshots. JavaScript is reserved for capabilities that inherently require it or materially benefit from live enhancement.
 - Keep authenticated pages visually flat: natural sections, typography, rows, and dividers. Do not turn every section into a bordered panel/card.
 - Browser live state and interactive PTY control use one authenticated WebSocket. HTTP remains for snapshots and ordinary CRUD. Do not reintroduce timer polling.
 - The device binary is branded `ohrats-relay` and presented as OhRats Relay Node.
