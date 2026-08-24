@@ -22,7 +22,7 @@ export function apiPage(user: User, workspaces: WorkspaceView[], tokens: ApiToke
   return htmlDocument({ title: "API access", user, workspaces, path: "/api", sidebar, scripts: createdToken ? ["workspace"] : [], body:
     <div className="page"><header className="page-header"><div><p className="eyebrow">API</p><h1>API access</h1><p className="page-copy">Tokens have full account access and can also sign into the web app.</p></div></header>
       <section className="content-section"><div className="section-heading"><div><SectionBadge index="01">New token</SectionBadge><h2>Create credential</h2></div></div>
-        <form method="post" action="/api/tokens" className="inline-form"><label>Name<input name="name" placeholder="Automation" required/></label><button className="primary-button" type="submit">CREATE TOKEN</button></form>
+        <form method="post" action="/api/tokens" className="inline-form"><label>Name<input name="name" placeholder="Automation" required/></label><button className="or-button" type="submit">CREATE TOKEN</button></form>
         {createdToken && <div className="credential-result" data-copy-value={createdToken}><span className="meta">SHOWN ONCE</span><code>{createdToken}</code><button className="text-button copy-value" type="button">COPY</button></div>}<p className="error">{error}</p>
       </section>
       <section className="content-section"><div className="section-heading"><div><SectionBadge index="02">Tokens</SectionBadge><h2>Active credentials</h2></div></div>

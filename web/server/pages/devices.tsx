@@ -59,7 +59,7 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
         <form id="process-launch" className="process-form">
           <label>Working directory<input id="process-cwd" name="cwd" spellCheck={false} placeholder="~"/></label>
           <label>Command<input id="process-command" name="command" spellCheck={false} defaultValue="sh" required/></label>
-          <button className="primary-button" type="submit" disabled={!device.online || !supportsProcess}>START</button>
+          <button className="or-button" type="submit" disabled={!device.online || !supportsProcess}>START</button>
         </form>
         <p id="process-error" className="error">{supportsProcess ? "" : "Update this node to start PTY processes."}</p>
       </section>

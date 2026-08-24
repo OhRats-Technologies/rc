@@ -19,10 +19,10 @@
       <p id="auth-copy" class="muted">Use a passkey to continue.</p>
       <form id="setup-form" class="auth-form" hidden>
         <label>Name<input name="name" autocomplete="name" required autofocus></label>
-        <button class="primary-button" type="submit">CREATE PASSKEY</button>
+        <button class="or-button" type="submit">CREATE PASSKEY</button>
       </form>
       <div id="login-options" hidden>
-        <form id="login-form" class="auth-form"><button class="primary-button" type="submit">SIGN IN WITH PASSKEY</button></form>
+        <form id="login-form" class="auth-form"><button class="or-button" type="submit">SIGN IN WITH PASSKEY</button></form>
         <div class="auth-divider"><span>OR</span></div>
         <form id="token-login-form" class="auth-form compact-form">
           <label>API token<input name="token" type="password" autocomplete="off" spellcheck="false" required></label>
@@ -32,7 +32,7 @@
       <form id="register-form" class="auth-form" hidden>
         <label>Name<input name="name" autocomplete="name" required></label>
         <input name="invite" type="hidden">
-        <button class="primary-button" type="submit">CREATE PASSKEY</button>
+        <button class="or-button" type="submit">CREATE PASSKEY</button>
         <button id="existing-account" class="text-button" type="button">SIGN IN INSTEAD</button>
       </form>
       <p id="auth-error" class="error" role="alert"></p>

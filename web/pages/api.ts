@@ -14,7 +14,7 @@ export async function renderApi() {
     <header class="page-header"><div><p class="eyebrow">API</p><h1>API access</h1><p class="page-copy">Tokens have full account access and can also sign into the web app.</p></div></header>
     <section class="content-section">
       <div class="section-heading"><div><p class="eyebrow">NEW TOKEN</p><h2>Create credential</h2></div></div>
-      <form id="token-form" class="inline-form"><label>Name<input name="name" placeholder="Automation" required></label><button class="primary-button" type="submit">CREATE TOKEN</button></form>
+      <form id="token-form" class="inline-form"><label>Name<input name="name" placeholder="Automation" required></label><button class="or-button" type="submit">CREATE TOKEN</button></form>
       <div id="token-result" class="credential-result" hidden></div>
     </section>
     <section class="content-section">

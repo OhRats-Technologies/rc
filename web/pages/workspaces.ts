@@ -14,7 +14,7 @@ function deviceRows(devices: Device[]) {
 export async function renderWorkspaces() {
   const { workspaces } = await api<{ workspaces: Workspace[] }>("/api/v1/workspaces");
   qs<HTMLElement>("#page").innerHTML = `<div class="page">
-    <header class="page-header"><div><p class="eyebrow">WORKSPACES</p><h1>Workspaces</h1></div><a class="text-action" href="/workspaces/new">NEW WORKSPACE</a></header>
+    <header class="page-header"><div><p class="eyebrow">WORKSPACES</p><h1>Workspaces</h1></div><a class="or-button" href="/workspaces/new">NEW WORKSPACE</a></header>
     <div class="data-list">${workspaces.length ? workspaces.map(workspace => `<a class="data-row" href="/workspaces/${workspace.id}"><div><strong>${escapeHTML(workspace.name)}</strong><div class="meta">${workspace.role.toUpperCase()}</div></div><span>→</span></a>`).join("") : '<p class="empty-state">No workspaces.</p>'}</div>
   </div>`;
 }
@@ -22,7 +22,7 @@ export async function renderWorkspaces() {
 export async function renderNewWorkspace() {
   qs<HTMLElement>("#page").innerHTML = `<div class="page narrow-form-page">
     <header class="page-header"><div><p class="eyebrow">WORKSPACES</p><h1>New workspace</h1></div></header>
-    <form id="workspace-form" class="simple-form"><label>Name<input name="name" required autofocus></label><button class="primary-button" type="submit">CREATE</button><p id="form-error" class="error"></p></form>
+    <form id="workspace-form" class="simple-form"><label>Name<input name="name" required autofocus></label><button class="or-button" type="submit">CREATE</button><p id="form-error" class="error"></p></form>
   </div>`;
   qs<HTMLFormElement>("#workspace-form").addEventListener("submit", async event => {
     event.preventDefault();
@@ -42,12 +42,12 @@ export async function renderWorkspace(workspaceId: string) {
   qs<HTMLElement>("#page").innerHTML = `<div class="page">
     <header class="page-header"><div><p class="eyebrow">WORKSPACE</p><h1>${escapeHTML(workspace.name)}</h1><p class="meta">${workspace.role.toUpperCase()}</p></div></header>
     <section class="content-section">
-      <div class="section-heading"><div><p class="eyebrow">DEVICES</p><h2 id="workspace-device-count">${devices.length} ${devices.length === 1 ? "device" : "devices"}</h2></div>${writable ? '<button id="enroll-device" class="text-button" type="button">ENROLL DEVICE</button>' : ""}</div>
+      <div class="section-heading"><div><p class="eyebrow">DEVICES</p><h2 id="workspace-device-count">${devices.length} ${devices.length === 1 ? "device" : "devices"}</h2></div>${writable ? '<button id="enroll-device" class="or-button" type="button">ENROLL DEVICE</button>' : ""}</div>
       <div id="workspace-device-list" class="data-list">${deviceRows(devices)}</div>
       <div id="enrollment-result" class="credential-result" hidden></div>
     </section>
-    <section class="content-section"><a class="section-link" href="/workspaces/${workspaceId}/activity"><span><span class="eyebrow">ACTIVITY</span><strong>Audit log</strong></span><span>→</span></a></section>
-    ${workspace.role === "owner" ? `<section class="content-section"><div class="section-heading"><div><p class="eyebrow">INVITE</p><h2>Workspace access</h2></div><button id="create-invite" class="text-button" type="button">CREATE INVITE</button></div><div id="invite-result" class="credential-result" hidden></div></section>
+    <section class="content-section"><p class="eyebrow">ACTIVITY</p><a class="or-button" href="/workspaces/${workspaceId}/activity">VIEW AUDIT LOG <span aria-hidden="true">→</span></a></section>
+    ${workspace.role === "owner" ? `<section class="content-section"><div class="section-heading"><div><p class="eyebrow">INVITE</p><h2>Workspace access</h2></div><button id="create-invite" class="or-button" type="button">CREATE INVITE</button></div><div id="invite-result" class="credential-result" hidden></div></section>
     <section class="content-section danger-section"><p class="eyebrow">DELETE WORKSPACE</p><a class="text-action danger-text" href="/workspaces/${workspaceId}/delete">DELETE WORKSPACE</a></section>` : ""}
   </div>`;
 

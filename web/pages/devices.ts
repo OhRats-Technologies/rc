@@ -77,7 +77,7 @@ export async function renderDevice(deviceId: string) {
       <form id="process-launch" class="process-form">
         <label class="cwd-field">Working directory<input id="process-cwd" spellcheck="false" placeholder="~"></label>
         <label class="command-field">Command<input id="process-command" spellcheck="false" value="sh" required></label>
-        <button class="primary-button" type="submit" ${device.online && supportsProcess ? "" : "disabled"}>START</button>
+        <button class="or-button" type="submit" ${device.online && supportsProcess ? "" : "disabled"}>START</button>
       </form>
       <p id="process-error" class="error">${supportsProcess ? "" : "Update this node to start PTY processes."}</p>
     </section>

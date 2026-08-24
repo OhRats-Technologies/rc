@@ -14,7 +14,7 @@ function DeviceRows({ devices }: { devices: DeviceView[] }) {
 
 export function workspacesPage(user: User, workspaces: WorkspaceView[], sidebar: "open" | "closed") {
   return htmlDocument({ title: "Workspaces", user, workspaces, path: "/workspaces", sidebar, body:
-    <div className="page"><header className="page-header"><div><p className="eyebrow">WORKSPACES</p><h1>Workspaces</h1></div><a className="text-action" href="/workspaces/new">NEW WORKSPACE</a></header>
+    <div className="page"><header className="page-header"><div><p className="eyebrow">WORKSPACES</p><h1>Workspaces</h1></div><a className="or-button" href="/workspaces/new">NEW WORKSPACE</a></header>
       <div className="data-list workspace-list">{workspaces.length ? workspaces.map((workspace, index) => <a className="data-row workspace-row" key={workspace.id} href={`/workspaces/${workspace.id}`}>
         <SectionBadge index={String(index + 1).padStart(2, "0")}>{workspace.name}</SectionBadge><span className="meta workspace-role">{workspace.role.toUpperCase()}</span>
       </a>) : <p className="empty-state">No workspaces.</p>}</div>
@@ -24,7 +24,7 @@ export function workspacesPage(user: User, workspaces: WorkspaceView[], sidebar:
 export function newWorkspacePage(user: User, workspaces: WorkspaceView[], sidebar: "open" | "closed", error = "", value = "") {
   return htmlDocument({ title: "New workspace", user, workspaces, path: "/workspaces/new", sidebar, body:
     <div className="page narrow-form-page"><header className="page-header"><div><p className="eyebrow">WORKSPACES</p><h1>New workspace</h1></div></header>
-      <form method="post" action="/workspaces" className="simple-form"><label>Name<input name="name" defaultValue={value} required autoFocus/></label><button className="primary-button" type="submit">CREATE</button><p className="error">{error}</p></form>
+      <form method="post" action="/workspaces" className="simple-form"><label>Name<input name="name" defaultValue={value} required autoFocus/></label><button className="or-button" type="submit">CREATE</button><p className="error">{error}</p></form>
     </div> });
 }
 
@@ -34,10 +34,10 @@ export function workspacePage(user: User, workspaces: WorkspaceView[], workspace
     <div className="page" data-workspace-page={workspace.id}><header className="page-header"><div><p className="eyebrow">WORKSPACE</p><h1>{workspace.name}</h1><p className="meta">{workspace.role.toUpperCase()}</p></div></header>
       <section className="content-section"><div className="section-heading"><div><SectionBadge index="01">Devices</SectionBadge><h2>{devices.length} {devices.length === 1 ? "device" : "devices"}</h2></div></div><DeviceRows devices={devices}/>
         {result && <div className="credential-result" data-copy-value={result.value}><span className="meta">{result.kind.toUpperCase()}</span><code>{result.value}</code><button className="text-button copy-value" type="button">COPY</button></div>}
-        {writable && <form method="post" action={`/workspaces/${workspace.id}/enrollments`} className="inline-action-form"><button className="text-button" type="submit">ENROLL DEVICE</button></form>}
+        {writable && <form method="post" action={`/workspaces/${workspace.id}/enrollments`} className="inline-action-form"><button className="or-button" type="submit">ENROLL DEVICE</button></form>}
       </section>
-      <section className="content-section"><a className="section-link" href={`/workspaces/${workspace.id}/activity`}><span><SectionBadge index="02">Activity</SectionBadge><strong>Audit log</strong></span><span>→</span></a></section>
-      {workspace.role === "owner" && <><section className="content-section"><div className="section-heading"><div><SectionBadge index="03">Invite</SectionBadge><h2>Workspace access</h2></div></div><form method="post" action={`/workspaces/${workspace.id}/invites`} className="inline-action-form"><input type="hidden" name="role" value="member"/><button className="text-button" type="submit">CREATE INVITE</button></form></section>
+      <section className="content-section"><SectionBadge index="02">Activity</SectionBadge><a className="or-button" href={`/workspaces/${workspace.id}/activity`}>VIEW AUDIT LOG <span aria-hidden="true">→</span></a></section>
+      {workspace.role === "owner" && <><section className="content-section"><div className="section-heading"><div><SectionBadge index="03">Invite</SectionBadge><h2>Workspace access</h2></div></div><form method="post" action={`/workspaces/${workspace.id}/invites`} className="inline-action-form"><input type="hidden" name="role" value="member"/><button className="or-button" type="submit">CREATE INVITE</button></form></section>
       <section className="content-section danger-section"><SectionBadge index="04">Workspace</SectionBadge><a className="text-action danger-text" href={`/workspaces/${workspace.id}/delete`}>DELETE WORKSPACE</a></section></>}
     </div> });
 }
