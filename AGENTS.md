@@ -13,4 +13,6 @@ Remote device control plane for OhRats Technologies.
 - Product CSS must use existing `--or-*` tokens; do not invent a parallel design system.
 - API routes are versioned under `/api/v1`.
 - Persist server state under `/data` in production.
+- Keep every maintained source file under 300 lines. Split by responsibility before a file reaches that size.
+- Global navigation uses the persistent sidebar. Route-specific actions belong on their pages, not in global chrome or dialogs.
 

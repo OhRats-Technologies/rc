@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 COPY server.ts ./
+COPY src ./src
 COPY public ./public
 COPY --from=agent /out ./public/downloads
 RUN mkdir -p /data
