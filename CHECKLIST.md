@@ -13,7 +13,7 @@
 - [x] Replace prototype UI with OhRats design system
 - [x] Build downloadable Linux/macOS agents
 - [x] Test multiple agents end-to-end
-- [ ] Deploy `relay.ohrats.party` with persistent Coolify volume
-- [ ] Verify persistence across restart
-- [ ] Verify production end-to-end
+- [x] Deploy `relay.ohrats.party` with persistent Coolify volume
+- [x] Verify persistence across restart
+- [x] Verify production end-to-end
 

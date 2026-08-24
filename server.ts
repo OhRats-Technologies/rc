@@ -6,6 +6,7 @@ import { extname, join } from "node:path";
 const PORT = Number(process.env.PORT || 3000);
 const DATA_DIR = process.env.DATA_DIR || "./data";
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
+const SETUP_TOKEN = String(process.env.RELAY_SETUP_TOKEN || "").trim();
 const DB_PATH = join(DATA_DIR, "relay.db");
 const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 const TOKEN_TTL = 24 * 60 * 60 * 1000;
@@ -303,11 +304,12 @@ async function handleAPI(req: Request, url: URL): Promise<Response> {
   }
   if (path === "/api/v1/status" && req.method === "GET") {
     const count = q<any>(`SELECT count(*) count FROM users`).get()?.count || 0;
-    return json({ setupRequired: count === 0, version: "0.1.0" });
+    return json({ setupRequired: count === 0, setupTokenRequired: count === 0 && !!SETUP_TOKEN, version: "0.1.0" });
   }
   if (path === "/api/v1/auth/setup" && req.method === "POST") {
     if ((q<any>(`SELECT count(*) count FROM users`).get()?.count || 0) > 0) return fail("setup already completed", 409);
     const input = await body(req);
+    if (SETUP_TOKEN && sha(String(input.setupToken || "")) !== sha(SETUP_TOKEN)) return fail("invalid setup token", 403);
     const email = String(input.email || "").trim().toLowerCase();
     const name = String(input.name || "").trim() || email.split("@")[0];
     const password = String(input.password || "");

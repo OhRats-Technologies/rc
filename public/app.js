@@ -41,7 +41,13 @@ function showAuth(mode, invite = '') {
 
 async function boot() {
   const status = await api('/api/v1/status');
-  if (status.setupRequired) return showAuth('setup');
+  if (status.setupRequired) {
+    showAuth('setup');
+    const row = $('#setup-token-row');
+    row.hidden = !status.setupTokenRequired;
+    if (status.setupTokenRequired) setupForm.elements.setupToken.value = new URLSearchParams(location.search).get('setup') || '';
+    return;
+  }
   const invite = new URLSearchParams(location.search).get('invite');
   try {
     await loadDashboard();
