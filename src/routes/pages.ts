@@ -4,15 +4,16 @@ import { listApiTokens } from "../account";
 import { listPasskeys, rcStatus } from "../auth";
 import { cliAuthorizationPreview } from "../cli-auth";
 import { PUBLIC_URL, SETUP_TOKEN, VERSION } from "../config";
-import { q, sha } from "../db";
+import { sha } from "../db";
 import { getDevice, listDevices } from "../devices";
 import { HttpError } from "../errors";
 import { fail, setupCookie } from "../http-utils";
 import { pageContext, safeNext } from "../page-context";
 import { getProcess, listProcesses } from "../process-api";
-import { invitePreview, workspaceActivity, workspaceDetail, workspaceDevices, workspaceFor } from "../workspaces";
+import { invitePreview, workspaceActivity, workspaceDevices, workspaceFor } from "../workspaces";
 import { workspaceAccess } from "../workspace-access";
-import { accountPage, apiPage } from "../../web/server/pages/account";
+import { activeUserCount } from "../users";
+import { accountPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
 import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
@@ -20,14 +21,14 @@ import { deleteDevicePage, devicePage, devicesPage } from "../../web/server/page
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 import { processPage } from "../../web/server/pages/process";
 import {
-  activityPage, deleteWorkspacePage, newWorkspacePage, workspacePage, workspacesPage,
+  activityPage, deleteWorkspacePage,
 } from "../../web/server/pages/workspaces";
 
 const loginRedirect = () => Response.redirect("/", 303);
 
 export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } })
   .get("/setup/:token", ({ params }) => {
-    if ((q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return Response.redirect(PUBLIC_URL + "/", 303);
+    if (activeUserCount() > 0) return Response.redirect(PUBLIC_URL + "/", 303);
     if (!SETUP_TOKEN || sha(params.token) !== sha(SETUP_TOKEN)) return fail("invalid setup link", 403);
     return new Response(null, { status: 303, headers: { location: "/", "set-cookie": setupCookie(params.token), "cache-control": "no-store" } });
   })
@@ -54,9 +55,11 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     const context = await pageContext(request); if (!context) return loginRedirect();
     return devicesPage(context.user, context.workspaces, listDevices(context.user), context.sidebar);
   })
-  .get("/devices/enroll", async ({ request }) => {
+  .get("/devices/enroll", async ({ request, query }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
-    return enrollDevicePage(context.user, context.workspaces, context.sidebar);
+    const workspaceId = String(query.workspace || "");
+    const workspace = workspaceId ? workspaceFor(context.user, workspaceId) : null;
+    return enrollDevicePage(context.user, context.workspaces, context.sidebar, "", workspace?.role === "owner" ? workspace.id : "");
   })
   .get("/devices/:deviceId", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
@@ -77,19 +80,6 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
       return processPage(context.user, context.workspaces, device, process, context.sidebar);
     } catch { return notFoundPage(context.user, context.workspaces, context.sidebar); }
   })
-  .get("/workspaces", async ({ request }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    return workspacesPage(context.user, context.workspaces, context.sidebar);
-  })
-  .get("/workspaces/new", async ({ request }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    return newWorkspacePage(context.user, context.workspaces, context.sidebar);
-  })
-  .get("/workspaces/:workspaceId", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const detail = workspaceDetail(context.user, params.workspaceId); if (!detail) return notFoundPage(context.user, context.workspaces, context.sidebar);
-    return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, listActions(context.user, detail.workspace.id), context.sidebar);
-  })
   .get("/workspaces/:workspaceId/access", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
     const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace || workspace.role !== "owner") return notFoundPage(context.user, context.workspaces, context.sidebar);
@@ -109,6 +99,10 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
   .get("/account", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
     return accountPage(context.user, context.workspaces, await listPasskeys(request, context.user), context.sidebar);
+  })
+  .get("/account/delete", async ({ request }) => {
+    const context = await pageContext(request); if (!context) return loginRedirect();
+    return deleteAccountPage(context.user, context.workspaces, context.sidebar);
   })
   .get("/api", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();

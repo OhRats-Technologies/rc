@@ -19,6 +19,7 @@ function Document({ title, body, user, workspaces = [], path = "/", scripts = []
       <title>{`${title} | RC`}</title>
       <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/ohrats.7911fd35d5d3.css"/>
+      <link rel="stylesheet" href="https://assets.ohrats.party/assets/states.33cc8d6b4653.css"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/copy.e4c6bbb26b56.css"/>
       {css && <link rel="stylesheet" href={css}/>} {styles.map(name => assetUrl(name, "css")).filter(Boolean).map(src => <link key={src} rel="stylesheet" href={src}/>)}<script src="https://assets.ohrats.party/assets/theme.b6e0fe408633.js"/>
     </head>

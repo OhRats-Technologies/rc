@@ -8,16 +8,17 @@ import { HttpError } from "../errors";
 import { checkOrigin, sessionCookie } from "../http-utils";
 import { pageContext, safeNext } from "../page-context";
 import {
-  createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceDetail, workspaceDevices, workspaceFor,
+  createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor,
 } from "../workspaces";
 import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvite, workspaceAccess } from "../workspace-access";
-import { accountPage, apiPage } from "../../web/server/pages/account";
+import { deleteUser, renameUser } from "../users";
+import { accountPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
 import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
 import { deleteDevicePage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
-import { deleteWorkspacePage, newWorkspacePage, workspacePage } from "../../web/server/pages/workspaces";
+import { deleteWorkspacePage } from "../../web/server/pages/workspaces";
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
 
@@ -32,42 +33,49 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   .post("/account/logout", ({ request }) => {
     logout(request); return new Response(null, { status: 303, headers: { location: "/", "set-cookie": sessionCookie("", 0) } });
   })
+  .post("/account/name", async ({ request }) => {
+    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
+    try { renameUser(context.user, (await form(request)).name); return Response.redirect("/account", 303); }
+    catch (error) {
+      return accountPage(context.user, context.workspaces, await import("../auth").then(m => m.listPasskeys(request, context.user)), context.sidebar, "", error instanceof Error ? error.message : "Rename failed.");
+    }
+  })
+  .post("/account/delete", async ({ request }) => {
+    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
+    try {
+      deleteUser(context.user);
+      return new Response(null, { status: 303, headers: { location: "/", "set-cookie": sessionCookie("", 0) } });
+    } catch (error) {
+      return deleteAccountPage(context.user, context.workspaces, context.sidebar, error instanceof Error ? error.message : "Could not delete account.");
+    }
+  })
   .post("/workspaces", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const input = await form(request);
-    try { return Response.redirect(`/workspaces/${createWorkspace(context.user, input.name).id}`, 303); }
-    catch (error) { return newWorkspacePage(context.user, context.workspaces, context.sidebar, error instanceof Error ? error.message : "Could not create workspace.", String(input.name || "")); }
+    createWorkspace(context.user, input.name);
+    return Response.redirect(safeNext(input.next || "/devices"), 303);
   })
   .post("/workspaces/join", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    try { return Response.redirect(`/workspaces/${joinWorkspace(context.user, (await form(request)).token).workspaceId}`, 303); }
+    try { joinWorkspace(context.user, (await form(request)).token); return Response.redirect("/devices", 303); }
     catch (error) { return authPage("join", { error: error instanceof Error ? error.message : "Could not join workspace." }); }
   })
   .post("/workspaces/:workspaceId/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 });
-    try { deleteWorkspace(context.user, workspace.id); return Response.redirect("/workspaces", 303); }
+    try { deleteWorkspace(context.user, workspace.id); return Response.redirect("/devices", 303); }
     catch (error) { return deleteWorkspacePage(context.user, context.workspaces, workspace, context.sidebar, error instanceof Error ? error.message : "Delete failed."); }
   })
   .post("/workspaces/:workspaceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace || workspace.role !== "owner") return new Response("not found", { status: 404 });
     const input = await form(request); renameWorkspace(context.user, params.workspaceId, input.name);
-    return Response.redirect(safeNext(input.next || `/workspaces/${params.workspaceId}`), 303);
+    return Response.redirect(safeNext(input.next || "/devices"), 303);
   })
   .post("/workspaces/:workspaceId/leave", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    try { leaveWorkspace(context.user, params.workspaceId); return Response.redirect("/workspaces", 303); }
-    catch (error) {
-      const detail = workspaceDetail(context.user, params.workspaceId); if (!detail) return Response.redirect("/workspaces", 303);
-      return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, listActions(context.user, params.workspaceId), context.sidebar, undefined, error instanceof Error ? error.message : "Could not leave workspace.");
-    }
-  })
-  .post("/workspaces/:workspaceId/enrollments", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const detail = workspaceDetail(context.user, params.workspaceId); if (!detail) return new Response("not found", { status: 404 });
-    try { const result = createEnrollment(context.user, params.workspaceId); return workspacePage(context.user, context.workspaces, detail.workspace, detail.devices, listActions(context.user, params.workspaceId), context.sidebar, { kind: "enrollment", install: result.install }); }
-    catch (error) { throw error; }
+    try { leaveWorkspace(context.user, params.workspaceId); return Response.redirect("/devices", 303); }
+    catch (error) { return new Response(error instanceof Error ? error.message : "Could not leave workspace.", { status: 409 }); }
   })
   .post("/devices/enroll", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
@@ -105,7 +113,7 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   .post("/devices/:deviceId/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const device = getDevice(context.user, params.deviceId); if (!device) return new Response("not found", { status: 404 });
-    try { removeDevice(context.user, device.id); return Response.redirect(`/workspaces/${device.workspace_id}`, 303); }
+    try { removeDevice(context.user, device.id); return Response.redirect("/devices", 303); }
     catch (error) { return deleteDevicePage(context.user, context.workspaces, device, context.sidebar, error instanceof Error ? error.message : "Remove failed."); }
   })
   .post("/devices/:deviceId/rename", async ({ request, params }) => {

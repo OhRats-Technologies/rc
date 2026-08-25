@@ -1,11 +1,11 @@
 import { onEvent, request } from "./socket";
 
 const root = document.documentElement;
-document.querySelector<HTMLButtonElement>("#sidebar-toggle")?.addEventListener("click", () => {
-  const next = root.dataset.sidebar === "closed" ? "open" : "closed";
+function setSidebar(next: "open" | "closed") {
   root.dataset.sidebar = next;
   document.cookie = `rc_sidebar=${next}; Path=/; SameSite=Lax; Max-Age=31536000${location.protocol === "https:" ? "; Secure" : ""}`;
-});
+}
+document.querySelector<HTMLButtonElement>("#sidebar-toggle")?.addEventListener("click", () => setSidebar(root.dataset.sidebar === "closed" ? "open" : "closed"));
 
 if (matchMedia("(max-width:760px)").matches && !document.cookie.includes("rc_sidebar=")) root.dataset.sidebar = "closed";
 
@@ -52,34 +52,41 @@ function setupInlineRename(scope: HTMLElement, viewSelector: string, formSelecto
   renameInput?.addEventListener("blur", () => { window.setTimeout(() => { if (document.activeElement !== renameInput) cancel(); }); });
 }
 
-function setNameMarquee(head: HTMLElement, active: boolean) {
-  const viewport = head.querySelector<HTMLElement>("[data-sidebar-name-viewport]");
-  const text = viewport?.querySelector<HTMLElement>("[data-sidebar-name-text]");
-  if (!viewport || !text) return;
-  viewport.classList.remove("marquee");
-  viewport.style.removeProperty("--sidebar-marquee-distance");
-  if (!active) return;
-  requestAnimationFrame(() => {
-    const style = getComputedStyle(viewport);
-    const available = viewport.clientWidth - parseFloat(style.paddingInlineStart || "0") - parseFloat(style.paddingInlineEnd || "0");
-    const distance = Math.ceil(text.scrollWidth - available);
-    if (distance > 1) {
-      viewport.style.setProperty("--sidebar-marquee-distance", `${distance}px`);
-      viewport.classList.add("marquee");
-    }
-  });
-}
-
 function setupCompositeHead(head: HTMLElement) {
-  head.addEventListener("pointerenter", () => setNameMarquee(head, true));
-  head.addEventListener("pointerleave", () => { if (!head.matches(":focus-within")) setNameMarquee(head, false); });
-  head.addEventListener("focusin", () => { head.classList.add("focused"); setNameMarquee(head, true); });
+  head.addEventListener("focusin", () => head.classList.add("focused"));
   head.addEventListener("focusout", event => {
     if ((event.relatedTarget instanceof Node) && head.contains(event.relatedTarget)) return;
     head.classList.remove("focused");
-    if (!head.matches(":hover")) setNameMarquee(head, false);
   });
 }
+
+const workspaceCreateForm = document.querySelector<HTMLFormElement>("[data-workspace-create-form]");
+const workspaceCreateInput = workspaceCreateForm?.querySelector<HTMLInputElement>('input[name="name"]');
+const workspaceEmpty = document.querySelector<HTMLElement>("[data-workspace-empty]");
+function cancelWorkspaceCreate() {
+  if (!workspaceCreateForm || !workspaceCreateInput) return;
+  workspaceCreateForm.hidden = true; workspaceCreateInput.value = "";
+  if (workspaceEmpty) workspaceEmpty.hidden = false;
+}
+function beginWorkspaceCreate() {
+  if (!workspaceCreateForm || !workspaceCreateInput) return;
+  setSidebar("open"); workspaceCreateForm.hidden = false;
+  if (workspaceEmpty) workspaceEmpty.hidden = true;
+  workspaceCreateInput.focus(); workspaceCreateInput.select();
+}
+document.querySelectorAll<HTMLButtonElement>("[data-workspace-create-trigger]").forEach(button => button.addEventListener("click", beginWorkspaceCreate));
+workspaceCreateForm?.addEventListener("submit", event => {
+  if (!workspaceCreateInput) return;
+  const name = workspaceCreateInput.value.trim();
+  if (!name) { event.preventDefault(); cancelWorkspaceCreate(); return; }
+  workspaceCreateInput.value = name;
+});
+workspaceCreateForm?.addEventListener("keydown", event => {
+  if (event.key === "Escape") { event.preventDefault(); cancelWorkspaceCreate(); }
+});
+workspaceCreateInput?.addEventListener("blur", () => window.setTimeout(() => {
+  if (document.activeElement !== workspaceCreateInput) cancelWorkspaceCreate();
+}));
 
 document.querySelectorAll<HTMLElement>("[data-workspace-folder]").forEach(folder => {
   const id = folder.dataset.workspaceFolder!, toggle = folder.querySelector<HTMLButtonElement>("[data-workspace-toggle]")!;
@@ -135,7 +142,6 @@ document.addEventListener("pointerdown", event => {
     trigger?.blur();
     const head = menu.closest<HTMLElement>(".workspace-folder-head,.workspace-device-head");
     head?.classList.remove("focused");
-    if (head) setNameMarquee(head, false);
   });
 });
 document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll<HTMLDetailsElement>(".workspace-menu[open]").forEach(menu => menu.open = false); });

@@ -14,7 +14,7 @@ function DeviceItem({ device, owner, current, overflow, path }: {
     <div className={`workspace-device-head${owner ? " has-menu" : ""}`}>
       <a className="workspace-device-link" href={`/devices/${device.id}`} data-device-name-view>
         <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
-        <span className="workspace-device-name" data-sidebar-name-viewport><span data-sidebar-name-text>{device.name}</span></span>
+        <span className="workspace-device-name">{device.name}</span>
       </a>
       {owner && <form className="device-inline-rename" method="post" action={`/devices/${device.id}/rename`} hidden data-device-rename-form>
         <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
@@ -25,9 +25,9 @@ function DeviceItem({ device, owner, current, overflow, path }: {
         <summary className="workspace-menu-trigger" aria-label={`Actions for ${device.name}`} title="Device actions"><span className="ui-icon icon-ellipsis" aria-hidden="true"/></summary>
         <div className="workspace-menu-popover">
           <div className="workspace-menu-actions">
-            <button type="button" data-device-rename>Rename device</button>
+            <button type="button" data-device-rename><span className="ui-icon icon-pencil" aria-hidden="true"/>Rename device</button>
             {canUpdate && <button type="button" data-sidebar-device-update={device.id} disabled={!device.online}>Update node</button>}
-            <a className="danger-text" href={`/devices/${device.id}/delete`}>Delete device</a>
+            <a className="danger-text" href={`/devices/${device.id}/delete`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete device</a>
           </div>
         </div>
       </details>}
@@ -42,7 +42,7 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
   return <div className={`workspace-folder${open ? " active" : ""}`} data-workspace-folder={workspace.id} data-default-open={open ? "true" : "false"}>
     <div className="workspace-folder-head has-menu">
       <button className="workspace-toggle" type="button" aria-expanded={open} data-workspace-toggle={workspace.id} data-workspace-name-view>
-        <span className="ui-icon icon-folder" aria-hidden="true"/><span className="workspace-name" data-sidebar-name-viewport><span data-sidebar-name-text>{workspace.name}</span></span>
+        <span className="ui-icon icon-folder" aria-hidden="true"/><span className="workspace-name">{workspace.name}</span>
       </button>
       {workspace.role === "owner" && <form className="workspace-inline-rename" method="post" action={`/workspaces/${workspace.id}/rename`} hidden data-workspace-rename-form>
         <span className="ui-icon icon-folder" aria-hidden="true"/>
@@ -53,10 +53,13 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
         <summary className="workspace-menu-trigger" aria-label={`Actions for ${workspace.name}`} title="Workspace actions"><span className="ui-icon icon-ellipsis" aria-hidden="true"/></summary>
         <div className="workspace-menu-popover">
           <div className="workspace-menu-actions" data-workspace-menu-actions>
-            {workspace.role === "owner" && <a href={`/workspaces/${workspace.id}/access`}><span className="ui-icon icon-share" aria-hidden="true"/>Share workspace</a>}
-            {workspace.role === "owner" && <button type="button" data-workspace-rename>Rename workspace</button>}
-            <a href={`/workspaces/${workspace.id}/activity`}>Audit log</a>
-            {workspace.role === "owner" && <a className="danger-text" href={`/workspaces/${workspace.id}/delete`}>Delete workspace</a>}
+            {workspace.role === "owner" && <a href={`/devices/enroll?workspace=${workspace.id}`}><span className="ui-icon icon-enroll" aria-hidden="true"/>Enroll device</a>}
+            <a href={`/actions?workspace=${workspace.id}`}><span className="ui-icon icon-bolt" aria-hidden="true"/>Actions</a>
+            {workspace.role === "owner" && <a href={`/workspaces/${workspace.id}/access`}><span className="ui-icon icon-access" aria-hidden="true"/>Manage access</a>}
+            <a href={`/workspaces/${workspace.id}/activity`}><span className="ui-icon icon-audit" aria-hidden="true"/>Audit log</a>
+            {workspace.role === "owner" && <button type="button" data-workspace-rename><span className="ui-icon icon-pencil" aria-hidden="true"/>Rename workspace</button>}
+            {workspace.role !== "owner" && <form method="post" action={`/workspaces/${workspace.id}/leave`}><button type="submit">Leave workspace</button></form>}
+            {workspace.role === "owner" && <a className="danger-text" href={`/workspaces/${workspace.id}/delete`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete workspace</a>}
           </div>
         </div>
       </details>
@@ -82,15 +85,19 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
           <section className="sidebar-section">
             <h2>Navigation</h2>
             <a className={`nav-link${active(path, "/devices")}`} href="/devices"><span className="ui-icon icon-devices"/><span>Devices</span></a>
-            <a className={`nav-link${active(path, "/workspaces")}`} href="/workspaces"><span className="ui-icon icon-workspaces"/><span>Workspaces</span></a>
             <a className={`nav-link${active(path, "/actions")}`} href="/actions"><span className="ui-icon icon-actions"/><span>Actions</span></a>
             <a className={`nav-link${path === "/api" ? " active" : ""}`} href="/api"><span className="ui-icon icon-api"/><span>API</span></a>
           </section>
           <section className="sidebar-section workspace-section">
-            <div className="sidebar-section-title"><h2>Workspaces</h2><a className="workspace-add" href="/workspaces/new" aria-label="New workspace" title="New workspace"><span className="ui-icon icon-plus" aria-hidden="true"/></a></div>
+            <div className="sidebar-section-title"><h2>Workspaces</h2><button className="workspace-add" type="button" aria-label="New workspace" title="New workspace" data-workspace-create-trigger><span className="ui-icon icon-plus" aria-hidden="true"/></button></div>
+            <form className="workspace-create-form workspace-folder-head" method="post" action="/workspaces" hidden data-workspace-create-form>
+              <span className="ui-icon icon-folder" aria-hidden="true"/>
+              <input className="workspace-create-input" name="name" aria-label="Workspace name" required maxLength={120}/>
+              <input type="hidden" name="next" value={path}/>
+            </form>
             {workspaces.length ? workspaces.map(workspace => <WorkspaceFolder key={workspace.id} workspace={workspace}
               devices={devices.filter(device => device.workspace_id === workspace.id)} currentDeviceId={currentDeviceId} open={workspace.id === workspaceId} path={path}/>)
-              : <span className="sidebar-empty">NO WORKSPACES</span>}
+              : <span className="sidebar-empty" data-workspace-empty>NO WORKSPACES</span>}
           </section>
         </nav>
       </div>

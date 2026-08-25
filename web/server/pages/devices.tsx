@@ -39,11 +39,11 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
   const canOperate = device.role === "owner" || device.role === "operator";
   return htmlDocument({ title: device.name, user, workspaces, path: `/devices/${device.id}`, sidebar, scripts: ["live", "device"], body:
     <div className="page" data-device-page={device.id} data-supports-process={supportsProcess ? "true" : "false"}>
-      <header className="page-header device-header">
-        <div><p className="eyebrow">DEVICE</p><h1>{device.name}</h1><p className="meta"><a href={`/workspaces/${device.workspace_id}`}>{device.workspace_name}</a> · {device.platform.toUpperCase()}/{device.arch}</p></div>
-        <span id="device-status" className={`status${device.online ? " online" : ""}`}>{device.online ? "ONLINE" : `LAST SEEN ${relative(device.last_seen)}`}</span>
-      </header>
-      <section className="device-summary">
+      <section className="device-overview">
+        <header className="page-header device-header">
+          <div><p className="eyebrow">DEVICE</p><h1>{device.name}</h1><p className="meta">{device.workspace_name} · {device.platform.toUpperCase()}/{device.arch}</p></div>
+          <span id="device-status" className={`status${device.online ? " online" : ""}`}>{device.online ? "ONLINE" : `LAST SEEN ${relative(device.last_seen)}`}</span>
+        </header>
         <dl className="facts">
           <div><dt>HOST</dt><dd>{device.hostname}</dd></div><div><dt>NODE</dt><dd id="node-agent">{device.agent_version}</dd></div>
           <div><dt>RC</dt><dd>{rcVersion}</dd></div>

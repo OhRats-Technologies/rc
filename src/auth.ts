@@ -10,6 +10,7 @@ import { base64ToBytes } from "./encoding";
 import { cookie, fail, json, sessionCookie } from "./http-utils";
 import { HttpError } from "./errors";
 import { cliTokenUser } from "./cli-auth";
+import { activeUserCount } from "./users";
 import {
   authenticationCeremony, cleanName, insertPasskey, registrationCeremony, takeCeremony, verifyNewPasskey,
 } from "./webauthn";
@@ -52,12 +53,12 @@ export async function createLogin(userId: string) {
 }
 
 export function rcStatus(req: Request) {
-  const count = q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0;
+  const count = activeUserCount();
   return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: VERSION };
 }
 
 export async function setupOptions(req: Request, value: unknown) {
-  if ((q<{ count: number }>("SELECT count(*) count FROM users").get()?.count || 0) > 0) throw new HttpError(409, "setup already completed");
+  if (activeUserCount() > 0) throw new HttpError(409, "setup already completed");
   if (!setupAuthorized(req)) throw new HttpError(403, "Open the RC setup link first.");
   const name = cleanName(value);
   if (!name) throw new HttpError(400, "name required");
@@ -137,7 +138,7 @@ export async function verifyNewUser(kind: "setup" | "register", ceremonyId: stri
   const ceremony = takeCeremony(ceremonyId, kind);
   if (!ceremony) return fail("registration expired", 410);
   if (!ceremony.user_id || !ceremony.name) return fail("registration expired", 410);
-  if (kind === "setup" && (q<any>("SELECT count(*) count FROM users").get()?.count || 0) > 0) return fail("setup already completed", 409);
+  if (kind === "setup" && activeUserCount() > 0) return fail("setup already completed", 409);
   const invite = kind === "register"
     ? q<any>("SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?").get(ceremony.invite_id, now()) : null;
   if (kind === "register" && !invite) return fail("invalid or expired invite", 401);
