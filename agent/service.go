@@ -75,6 +75,35 @@ func startService(stateDir string) error {
 	}
 }
 
+func serviceInstalled() bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	var path string
+	switch runtime.GOOS {
+	case "darwin":
+		path = filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist")
+	case "linux":
+		path = filepath.Join(home, ".config", "systemd", "user", "ohrats-rc.service")
+	default:
+		return false
+	}
+	_, err = os.Stat(path)
+	return err == nil
+}
+
+func restartService() error {
+	switch runtime.GOOS {
+	case "darwin":
+		return command("launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/%s", os.Getuid(), serviceLabel))
+	case "linux":
+		return command("systemctl", "--user", "restart", "ohrats-rc.service")
+	default:
+		return nil
+	}
+}
+
 func stopService() error {
 	switch runtime.GOOS {
 	case "darwin":

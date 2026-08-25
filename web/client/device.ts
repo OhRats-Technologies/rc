@@ -1,4 +1,4 @@
-import { copyText, qs } from "./http";
+import { qs } from "./http";
 import { request } from "./socket";
 
 const page = document.querySelector<HTMLElement>("[data-device-page]");
@@ -19,17 +19,4 @@ document.querySelector<HTMLFormElement>("#process-launch")?.addEventListener("su
   const command = qs<HTMLInputElement>("#process-command").value.trim(), cwd = qs<HTMLInputElement>("#process-cwd").value.trim();
   try { await start(command, cwd); }
   catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
-});
-
-document.querySelector<HTMLButtonElement>("#update-node")?.addEventListener("click", async event => {
-  const button = event.currentTarget as HTMLButtonElement; button.disabled = true; qs<HTMLElement>("#update-state").textContent = "Starting update…";
-  try {
-    const result = await request<{ targetVersion: string }>({ type: "node.update", deviceId });
-    qs<HTMLElement>("#update-state").textContent = `Installing ${result.targetVersion} and restarting…`;
-  }
-  catch (error) { qs<HTMLElement>("#update-state").textContent = error instanceof Error ? error.message : String(error); button.disabled = false; }
-});
-
-document.querySelector<HTMLButtonElement>("#copy-update")?.addEventListener("click", event => {
-  void copyText(qs<HTMLElement>("#update-command").textContent || "", event.currentTarget as HTMLButtonElement);
 });

@@ -25,7 +25,6 @@ function setPresence(deviceId: string, online: boolean) {
   document.querySelectorAll<HTMLElement>(`[data-device-status="${CSS.escape(deviceId)}"]`).forEach(element => {
     element.classList.toggle("online", online); element.textContent = online ? "ONLINE" : "OFFLINE";
   });
-  document.querySelectorAll<HTMLElement>(`[data-sidebar-device-status="${CSS.escape(deviceId)}"]`).forEach(element => element.classList.toggle("online", online));
   const page = document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(deviceId)}"]`);
   if (page) {
     const status = page.querySelector<HTMLElement>("#device-status");
@@ -34,7 +33,6 @@ function setPresence(deviceId: string, online: boolean) {
     const terminal = page.querySelector<HTMLButtonElement>("#open-terminal"), start = page.querySelector<HTMLButtonElement>("#process-launch button[type=submit]");
     if (terminal) terminal.disabled = !online || !supportsProcess;
     if (start) start.disabled = !online || !supportsProcess;
-    const update = page.querySelector<HTMLButtonElement>("#update-node"); if (update) update.disabled = !online;
     if (online) void refreshDevice(deviceId);
   }
 }
@@ -48,12 +46,6 @@ async function refreshDevice(deviceId: string) {
   if (terminal) terminal.disabled = !device.online || !supportsProcess;
   if (start) start.disabled = !device.online || !supportsProcess;
   const processError = page.querySelector<HTMLElement>("#process-error"); if (processError && supportsProcess) processError.textContent = "";
-  const update = page.querySelector<HTMLButtonElement>("#update-node"), updateState = page.querySelector<HTMLElement>("#update-state");
-  if (update) update.disabled = !device.online;
-  if (update && updateState && device.agent_version === page.dataset.rcVersion) {
-    update.hidden = true;
-    updateState.textContent = `Updated to ${device.agent_version}.`;
-  }
 }
 
 function activity(event: RCEvent) {
@@ -82,14 +74,6 @@ onEvent(event => {
   if (event.kind === "device.offline" && event.deviceId) setPresence(event.deviceId, false);
   if (event.kind === "device.updated" && event.deviceId) void refreshDevice(event.deviceId);
   if (event.kind.startsWith("process.") && event.deviceId) void refreshProcessList(event.deviceId);
-  if (event.kind === "node.update.ready" && event.deviceId) document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(event.deviceId)}"] #update-state`)!.textContent = "Restarting node…";
-  if (event.kind === "node.update.complete" && event.deviceId) {
-    const page = document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(event.deviceId)}"]`);
-    const state = page?.querySelector<HTMLElement>("#update-state"), button = page?.querySelector<HTMLButtonElement>("#update-node");
-    if (state) state.textContent = `Updated to ${String(event.detail?.version || "current version")}.`;
-    if (button) button.hidden = true;
-  }
-  if (event.kind === "node.update.error" && event.deviceId) document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(event.deviceId)}"] #update-state`)!.textContent = String(event.detail?.error || "Update failed.");
   activity(event);
 });
 

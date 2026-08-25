@@ -135,6 +135,13 @@ func updateCommand(args []string) error {
 	if err := replaceExecutable(server); err != nil {
 		return err
 	}
+	if serviceInstalled() {
+		if err := restartService(); err != nil {
+			return fmt.Errorf("updated, but could not restart RC Node: %w", err)
+		}
+		fmt.Println("OhRats RC Node updated and restarted")
+		return nil
+	}
 	fmt.Println("OhRats RC Node updated")
 	return nil
 }

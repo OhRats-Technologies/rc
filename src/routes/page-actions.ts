@@ -110,7 +110,8 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/devices/:deviceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    renameDevice(context.user, params.deviceId, (await form(request)).name); return Response.redirect(`/devices/${params.deviceId}`, 303);
+    const input = await form(request); renameDevice(context.user, params.deviceId, input.name);
+    return Response.redirect(safeNext(input.next || `/devices/${params.deviceId}`), 303);
   })
   .post("/actions", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

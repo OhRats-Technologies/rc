@@ -17,6 +17,16 @@ export type AgentEnrollInput = {
   agentVersion?: string; capabilities?: string[];
 };
 
+export function nodeUpdateAvailable(agent: string, rc: string) {
+  const parse = (value: string) => value.match(/^(\d+)\.(\d+)\.(\d+)/)?.slice(1).map(Number);
+  const current = parse(agent), target = parse(rc);
+  if (!current || !target) return agent !== rc;
+  for (let index = 0; index < 3; index++) {
+    if (current[index] !== target[index]) return current[index] < target[index];
+  }
+  return false;
+}
+
 export function enrollAgent(input: AgentEnrollInput) {
   const token = input.token.trim();
   const enrollment = q<any>(`SELECT * FROM enrollment_tokens

@@ -1,8 +1,39 @@
 import type { User } from "../../src/core";
-import { listDevices, type DeviceView } from "../../src/devices";
+import { listDevices, nodeUpdateAvailable, type DeviceView } from "../../src/devices";
+import { VERSION } from "../../src/config";
 import type { WorkspaceView } from "../../src/workspaces";
 
 function active(path: string, prefix: string) { return path.startsWith(prefix) ? " active" : ""; }
+
+function DeviceItem({ device, owner, current, overflow, path }: {
+  device: DeviceView; owner: boolean; current: boolean; overflow: boolean; path: string;
+}) {
+  const canUpdate = owner && device.capabilities.includes("update") && nodeUpdateAvailable(device.agent_version, VERSION);
+  return <div className={`workspace-device-row${current ? " active" : ""}${overflow ? " workspace-device-overflow" : ""}`}
+    data-sidebar-device={device.id} hidden={overflow}>
+    <div className="workspace-device-head">
+      <a className="workspace-device-link" href={`/devices/${device.id}`} data-device-name-view>
+        <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
+        <span className="workspace-device-name">{device.name}</span>
+      </a>
+      {owner && <form className="device-inline-rename" method="post" action={`/devices/${device.id}/rename`} hidden data-device-rename-form>
+        <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
+        <input className="device-rename-input" name="name" defaultValue={device.name} aria-label={`Rename ${device.name}`} required maxLength={120}/>
+        <input type="hidden" name="next" value={path}/>
+      </form>}
+      {owner && <details className="workspace-menu device-menu">
+        <summary className="workspace-menu-trigger" aria-label={`Actions for ${device.name}`} title="Device actions"><span className="ui-icon icon-ellipsis" aria-hidden="true"/></summary>
+        <div className="workspace-menu-popover">
+          <div className="workspace-menu-actions">
+            <button type="button" data-device-rename>Rename device</button>
+            {canUpdate && <button type="button" data-sidebar-device-update={device.id} disabled={!device.online}>Update node</button>}
+            <a className="danger-text" href={`/devices/${device.id}/delete`}>Delete device</a>
+          </div>
+        </div>
+      </details>}
+    </div>
+  </div>;
+}
 
 function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
   workspace: WorkspaceView; devices: DeviceView[]; currentDeviceId: string; open: boolean; path: string;
@@ -32,9 +63,8 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
     </div>
     <div className="workspace-children" data-workspace-children={workspace.id} data-open={open ? "true" : "false"} hidden={!open}>
       {devices.length ? <>
-        {[...visible, ...overflow].map((device, index) => <a key={device.id} className={`workspace-device${device.id === currentDeviceId ? " active" : ""}${index >= 5 ? " workspace-device-overflow" : ""}`} href={`/devices/${device.id}`} hidden={index >= 5}>
-          <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/><span>{device.name}</span>
-        </a>)}
+        {[...visible, ...overflow].map((device, index) => <DeviceItem key={device.id} device={device} owner={workspace.role === "owner"}
+          current={device.id === currentDeviceId} overflow={index >= 5} path={path}/>)}
         {overflow.length > 0 && <button className="workspace-show-more" type="button" data-workspace-show-more={workspace.id}>Show more</button>}
       </> : <span className="workspace-empty">No devices</span>}
     </div>
