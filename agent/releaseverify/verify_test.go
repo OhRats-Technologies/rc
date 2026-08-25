@@ -28,7 +28,7 @@ func TestCommittedReleaseSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != "0.8.2" {
+	if manifest.Version != "0.8.3" {
 		t.Fatalf("unexpected version %s", manifest.Version)
 	}
 	if len(manifest.Artifacts) != 4 {

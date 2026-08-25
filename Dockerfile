@@ -16,7 +16,7 @@ COPY --from=agent-build /out /
 FROM agent-build AS agent-verified
 COPY release/manifest.json /release/manifest.json
 COPY release/manifest.sig /release/manifest.sig
-RUN go run ./cmd/verify-release /release/manifest.json /release/manifest.sig /out 0.8.2
+RUN go run ./cmd/verify-release /release/manifest.json /release/manifest.sig /out 0.8.3
 
 FROM oven/bun:1.4.0-alpine AS app
 WORKDIR /app
