@@ -80,11 +80,14 @@ func replaceExecutable(serverURL string) error {
 
 func downloadSignedManifest(base string) (releaseverify.Manifest, error) {
 	var lastErr error
-	for attempt := 0; attempt < 4; attempt++ {
-		manifestBytes, err := downloadSmall(base+"release.json", 64<<10)
+	retryDelays := []time.Duration{250 * time.Millisecond, 750 * time.Millisecond, 2 * time.Second, 5 * time.Second,
+		10 * time.Second, 15 * time.Second, 20 * time.Second, 30 * time.Second}
+	for attempt := 0; ; attempt++ {
+		cacheKey := fmt.Sprintf("?pair=%d-%d", attempt, time.Now().UnixNano())
+		manifestBytes, err := downloadSmall(base+"release.json"+cacheKey, 64<<10)
 		if err == nil {
 			var signatureBytes []byte
-			signatureBytes, err = downloadSmall(base+"release.json.sig", 4<<10)
+			signatureBytes, err = downloadSmall(base+"release.json.sig"+cacheKey, 4<<10)
 			if err == nil {
 				var manifest releaseverify.Manifest
 				manifest, err = releaseverify.Verify(manifestBytes, signatureBytes)
@@ -94,9 +97,10 @@ func downloadSignedManifest(base string) (releaseverify.Manifest, error) {
 			}
 		}
 		lastErr = err
-		if attempt < 3 {
-			time.Sleep(250 * time.Millisecond)
+		if attempt >= len(retryDelays) {
+			break
 		}
+		time.Sleep(retryDelays[attempt])
 	}
 	return releaseverify.Manifest{}, fmt.Errorf("release manifest: %w", lastErr)
 }

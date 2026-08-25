@@ -22,7 +22,11 @@ func TestDownloadSignedManifestRetriesMismatchedPair(t *testing.T) {
 		t.Fatal(err)
 	}
 	var signatureRequests atomic.Int32
+	var sawCacheBuster atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Query().Get("pair") != "" {
+			sawCacheBuster.Store(true)
+		}
 		switch request.URL.Path {
 		case "/release.json":
 			_, _ = writer.Write(manifest)
@@ -47,5 +51,8 @@ func TestDownloadSignedManifestRetriesMismatchedPair(t *testing.T) {
 	}
 	if signatureRequests.Load() < 2 {
 		t.Fatal("release pair was not retried after signature mismatch")
+	}
+	if !sawCacheBuster.Load() {
+		t.Fatal("release pair requests did not bypass intermediary caches")
 	}
 }
