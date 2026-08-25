@@ -2,9 +2,9 @@ import { Elysia, t } from "elysia";
 import { openapi } from "@elysia/openapi";
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
 import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
-import { createApiToken, deleteApiToken, listApiTokens } from "../account";
+import { createApiToken, deleteApiToken, listApiTokens, requiredApiScope } from "../account";
 import {
-  addPasskeyOptions, auth, deletePasskey, loginOptions, registerOptions, rcStatus,
+  addPasskeyOptions, apiTokenScopes, auth, cookieUser, deletePasskey, loginOptions, registerOptions, rcStatus,
   setupOptions, verifyAddedPasskey, verifyLogin, verifyNewUser,
 } from "../auth";
 import { exchangeCliAuthorization, revokeCliToken, startCliAuthorization } from "../cli-auth";
@@ -14,7 +14,7 @@ import {
   enrollAgent, getDevice, handleAgentUnregister, listDevices, removeDevice, renameDevice, type AgentEnrollInput,
 } from "../devices";
 import { HttpError } from "../errors";
-import { agentsCount } from "../gateway";
+import { createAgentChallenge } from "../gateway";
 import { checkOrigin, fail, json } from "../http-utils";
 import { getProcess, listProcesses, startProcess } from "../process-api";
 import {
@@ -27,7 +27,7 @@ const WorkspaceParams = t.Object({ workspaceId: t.String({ minLength: 1, maxLeng
 const DeviceParams = t.Object({ deviceId: t.String({ minLength: 1, maxLength: 100 }) });
 const ActionParams = t.Object({ id: t.String({ minLength: 1, maxLength: 100 }) });
 const WebAuthnVerify = t.Object({ ceremonyId: t.String(), response: t.Unknown() });
-const AgentQuery = t.Object({ device: t.String(), ts: t.String(), sig: t.String() });
+const AgentQuery = t.Object({ device: t.String({ minLength: 1, maxLength: 100 }) });
 const AgentEnroll = t.Object({
   token: t.String(), name: t.Optional(t.String()), hostname: t.Optional(t.String()), platform: t.Optional(t.String()),
   arch: t.Optional(t.String()), publicKey: t.String(), agentVersion: t.Optional(t.String()),
@@ -45,7 +45,7 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     },
   }))
   .derive(async ({ request }) => ({ rcUser: await auth(request) }))
-  .onBeforeHandle(({ request, set, rcUser }) => {
+  .onBeforeHandle(async ({ request, set, rcUser }) => {
     set.headers["cache-control"] = "no-store";
     if (!checkOrigin(request)) return fail("invalid origin", 403);
     const path = new URL(request.url).pathname;
@@ -53,13 +53,21 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
       || ["/api/v1/auth/setup/options", "/api/v1/auth/setup/verify", "/api/v1/auth/login/options", "/api/v1/auth/login/verify",
         "/api/v1/auth/register/options", "/api/v1/auth/register/verify", "/api/v1/auth/cli/start", "/api/v1/auth/cli/poll"].includes(path);
     if (!publicRoute && !rcUser) return fail("authentication required", 401);
+    if (!publicRoute && rcUser) {
+      const scopes = apiTokenScopes(request);
+      if (scopes) {
+        const required = requiredApiScope(request.method, path);
+        if (required === "human") return fail("browser session required", 401);
+        if (required && !scopes.includes(required)) return fail(`API key requires ${required} scope`, 403);
+      }
+    }
   })
   .onError(({ error, code, status }) => {
     if (error instanceof HttpError) return status(error.status, { error: error.message });
     if (code === "VALIDATION") return status(400, { error: "invalid request" });
   })
-  .get("/health", () => ({ ok: true as const, version: VERSION, agents: agentsCount() }), {
-    response: t.Object({ ok: t.Literal(true), version: t.String(), agents: t.Number() }),
+  .get("/health", () => ({ ok: true as const }), {
+    response: t.Object({ ok: t.Literal(true) }),
     detail: { hide: true },
   })
   .get("/status", ({ request }) => rcStatus(request), { detail: { hide: true } })
@@ -89,6 +97,11 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .post("/auth/register/verify", ({ body }) => verifyNewUser("register", body.ceremonyId, body.response as RegistrationResponseJSON), {
     body: WebAuthnVerify, detail: { hide: true },
   })
+  .post("/agent/challenge", ({ body }) => {
+    const challenge = createAgentChallenge(body.device);
+    if (!challenge) throw new HttpError(404, "device not found");
+    return challenge;
+  }, { body: t.Object({ device: t.String({ minLength: 1, maxLength: 100 }) }), detail: { hide: true } })
   .post("/agent/enroll", ({ body }) => json(enrollAgent(body as AgentEnrollInput), 201), { body: AgentEnroll, detail: { hide: true } })
   .get("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
@@ -101,11 +114,18 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .delete("/passkeys/:id", async ({ request, rcUser, params }) => {
     await deletePasskey(request, rcUser!, params.id); return { ok: true };
   }, { params: IdParams, detail: { hide: true } })
-  .get("/tokens", ({ rcUser }) => ({ tokens: listApiTokens(rcUser!.id) }))
-  .post("/tokens", ({ rcUser, body }) => json(createApiToken(rcUser!.id, body.name), 201), {
-    body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })) }),
+  .get("/tokens", async ({ request, rcUser }) => {
+    if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
+    return { tokens: listApiTokens(rcUser!.id) };
   })
-  .delete("/tokens/:id", ({ rcUser, params }) => {
+  .post("/tokens", async ({ request, rcUser, body }) => {
+    if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
+    return json(createApiToken(rcUser!.id, body.name, body.scopes), 201);
+  }, {
+    body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })), scopes: t.Optional(t.Array(t.String(), { maxItems: 4 })) }),
+  })
+  .delete("/tokens/:id", async ({ request, rcUser, params }) => {
+    if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
     if (!deleteApiToken(rcUser!.id, params.id)) throw new HttpError(404, "token not found");
     return { ok: true };
   }, { params: IdParams })

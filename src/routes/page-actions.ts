@@ -145,8 +145,8 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/api/tokens", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const input = await form(request);
-    try { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, createApiToken(context.user.id, input.name).token); }
+    const data = await request.formData(), name = data.get("name"), scopes = data.getAll("scope").map(String);
+    try { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, createApiToken(context.user.id, name, scopes).token); }
     catch (error) { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, "", error instanceof Error ? error.message : "Key creation failed."); }
   })
   .post("/api/tokens/:id/delete", async ({ request, params }) => {

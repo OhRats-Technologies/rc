@@ -60,7 +60,7 @@ func enroll(serverURL, token, displayName string) (state, error) {
 	return state{DeviceID: out.DeviceID, PrivateKey: base64.RawStdEncoding.EncodeToString(priv)}, nil
 }
 
-func signedURL(serverURL, path string, value state) (*url.URL, error) {
+func signedAgentRequest(serverURL, method, path string, value state) (*http.Request, error) {
 	privateBytes, err := base64.RawStdEncoding.DecodeString(value.PrivateKey)
 	if err != nil || len(privateBytes) != ed25519.PrivateKeySize {
 		return nil, errors.New("invalid stored private key")
@@ -69,23 +69,40 @@ func signedURL(serverURL, path string, value state) (*url.URL, error) {
 	if err != nil {
 		return nil, err
 	}
+	challengeBody, _ := json.Marshal(map[string]string{"device": value.DeviceID})
+	challengeResp, err := http.Post(strings.TrimRight(serverURL, "/")+"/api/v1/agent/challenge", "application/json", bytes.NewReader(challengeBody))
+	if err != nil {
+		return nil, err
+	}
+	defer challengeResp.Body.Close()
+	if challengeResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(challengeResp.Body, 4096))
+		return nil, fmt.Errorf("agent challenge: %s: %s", challengeResp.Status, strings.TrimSpace(string(body)))
+	}
+	var auth struct{ Challenge string `json:"challenge"` }
+	if err := json.NewDecoder(challengeResp.Body).Decode(&auth); err != nil || auth.Challenge == "" {
+		return nil, errors.New("invalid agent challenge")
+	}
 	u.Path = path
-	ts := fmt.Sprintf("%d", time.Now().Unix())
-	signature := ed25519.Sign(ed25519.PrivateKey(privateBytes), []byte("rc:"+value.DeviceID+":"+ts))
 	query := u.Query()
 	query.Set("device", value.DeviceID)
-	query.Set("ts", ts)
-	query.Set("sig", base64.RawURLEncoding.EncodeToString(signature))
 	u.RawQuery = query.Encode()
-	return u, nil
+	payload := "rc-auth-v2\n" + value.DeviceID + "\n" + auth.Challenge + "\n" + method + "\n" + path
+	signature := ed25519.Sign(ed25519.PrivateKey(privateBytes), []byte(payload))
+	req, err := http.NewRequest(method, u.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-RC-Challenge", auth.Challenge)
+	req.Header.Set("X-RC-Signature", base64.RawURLEncoding.EncodeToString(signature))
+	return req, nil
 }
 
 func unregister(serverURL string, value state) error {
-	u, err := signedURL(serverURL, "/api/v1/agent/self", value)
+	req, err := signedAgentRequest(serverURL, http.MethodDelete, "/api/v1/agent/self", value)
 	if err != nil {
 		return err
 	}
-	req, _ := http.NewRequest(http.MethodDelete, u.String(), nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return err
@@ -101,16 +118,17 @@ func unregister(serverURL string, value state) error {
 func connect(ctx context.Context, serverURL string, value state, stateDir string, manager *processManager) error {
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	u, err := signedURL(serverURL, "/api/v1/agent/ws", value)
+	req, err := signedAgentRequest(serverURL, http.MethodGet, "/api/v1/agent/ws", value)
 	if err != nil {
 		return err
 	}
+	u := req.URL
 	if u.Scheme == "https" {
 		u.Scheme = "wss"
 	} else {
 		u.Scheme = "ws"
 	}
-	conn, response, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, response, err := websocket.DefaultDialer.Dial(u.String(), req.Header)
 	if err != nil {
 		if response != nil && response.StatusCode == http.StatusNotFound {
 			_ = os.Remove(statePath(stateDir))
@@ -193,11 +211,11 @@ type remoteNodeStatus struct {
 }
 
 func fetchStatus(serverURL string, value state) (remoteNodeStatus, error) {
-	u, err := signedURL(serverURL, "/api/v1/agent/self", value)
+	req, err := signedAgentRequest(serverURL, http.MethodGet, "/api/v1/agent/self", value)
 	if err != nil {
 		return remoteNodeStatus{}, err
 	}
-	resp, err := http.Get(u.String())
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return remoteNodeStatus{}, err
 	}

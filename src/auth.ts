@@ -3,7 +3,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN, VERSION } from "./config";
+import { PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN } from "./config";
 import { User } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
 import { base64ToBytes } from "./encoding";
@@ -11,6 +11,7 @@ import { cookie, fail, json, sessionCookie } from "./http-utils";
 import { HttpError } from "./errors";
 import { cliTokenUser } from "./cli-auth";
 import { activeUserCount } from "./users";
+import { apiTokenGrant, type ApiScope } from "./account";
 import {
   authenticationCeremony, cleanName, insertPasskey, registrationCeremony, takeCeremony, verifyNewPasskey,
 } from "./webauthn";
@@ -24,11 +25,13 @@ export function setupAuthorized(req: Request) {
 }
 
 export function apiTokenUser(token: string): User | null {
-  const row = q<any>(`SELECT u.id,u.name,a.id token_id FROM api_tokens a JOIN users u ON u.id=a.user_id
-    WHERE a.token_hash=?`).get(sha(token));
-  if (!row) return null;
-  q("UPDATE api_tokens SET last_used=? WHERE id=?").run(now(), row.token_id);
-  return { id: row.id, name: row.name };
+  return apiTokenGrant(token)?.user || null;
+}
+
+export function apiTokenScopes(req: Request): ApiScope[] | null {
+  const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!bearer || bearer.startsWith("rc_cli_")) return null;
+  return apiTokenGrant(bearer)?.scopes || null;
 }
 
 export async function auth(req: Request): Promise<User | null> {
@@ -54,7 +57,7 @@ export async function createLogin(userId: string) {
 
 export function rcStatus(req: Request) {
   const count = activeUserCount();
-  return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), version: VERSION };
+  return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req) };
 }
 
 export async function setupOptions(req: Request, value: unknown) {

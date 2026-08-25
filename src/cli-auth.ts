@@ -1,10 +1,9 @@
-import { PUBLIC_URL } from "./config";
+import { CLI_SESSION_TTL, PUBLIC_URL } from "./config";
 import type { User } from "./core";
 import { id, now, opaque, q, sha } from "./db";
 import { HttpError } from "./errors";
 
 const REQUEST_TTL = 10 * 60 * 1000;
-const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 
 export function startCliAuthorization() {
   q("DELETE FROM cli_authorizations WHERE expires_at<=? OR exchanged_at IS NOT NULL").run(now());
@@ -40,10 +39,10 @@ export function exchangeCliAuthorization(requestIdValue: unknown, deviceCodeValu
   if (!row.approved_at || !row.user_id) return { pending: true as const };
   const token = opaque("rc_cli"), t = now();
   q("INSERT INTO cli_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)")
-    .run(sha(token), row.user_id, t, t + SESSION_TTL);
+    .run(sha(token), row.user_id, t, t + CLI_SESSION_TTL);
   q("UPDATE cli_authorizations SET exchanged_at=? WHERE id=?").run(t, row.id);
   const user = q<User>("SELECT id,name FROM users WHERE id=?").get(row.user_id);
-  return { pending: false as const, token, expiresAt: t + SESSION_TTL, user };
+  return { pending: false as const, token, expiresAt: t + CLI_SESSION_TTL, user };
 }
 
 export function cliTokenUser(token: string): User | null {

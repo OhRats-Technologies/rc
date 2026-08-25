@@ -7,8 +7,10 @@ import { agentSocketRoute } from "./routes/websocket-agent";
 import { browserSocketRoute } from "./routes/websocket-browser";
 import { pageContext } from "./page-context";
 import { notFoundPage } from "../web/server/pages/auth";
+import { security } from "./security";
 
 export const app = new Elysia({ name: "rc" })
+  .use(security)
   .use(pageRoutes)
   .use(pageActions)
   .use(artifactRoutes)

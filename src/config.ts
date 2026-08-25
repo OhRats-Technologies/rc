@@ -1,12 +1,23 @@
 export const PORT = Number(Bun.env.PORT || 3000);
-export const VERSION = "0.6.3";
+export const VERSION = "0.7.0";
 export const DATA_DIR = Bun.env.DATA_DIR || "./data";
 export const STATIC_DIR = Bun.env.STATIC_DIR || `${import.meta.dir}/../static`;
 export const PUBLIC_URL = (Bun.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 export const SETUP_TOKEN = String(Bun.env.RC_SETUP_TOKEN || "").trim();
 export const RP_ID = new URL(PUBLIC_URL).hostname;
 export const DB_PATH = `${DATA_DIR.replace(/\/$/, "")}/rc.db`;
-export const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
-export const TOKEN_TTL = 24 * 60 * 60 * 1000;
+const positiveInt = (name: string, fallback: number) => {
+  const value = Number(Bun.env[name]);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+};
+export const SESSION_TTL = positiveInt("RC_SESSION_TTL_HOURS", 24 * 7) * 60 * 60 * 1000;
+export const CLI_SESSION_TTL = positiveInt("RC_CLI_SESSION_TTL_HOURS", 24 * 7) * 60 * 60 * 1000;
+export const INVITE_TTL = positiveInt("RC_INVITE_TTL_HOURS", 4) * 60 * 60 * 1000;
+export const ENROLLMENT_TTL = positiveInt("RC_ENROLLMENT_TTL_MINUTES", 30) * 60 * 1000;
 export const SETUP_COOKIE_TTL = 15 * 60;
 export const CEREMONY_TTL = 5 * 60 * 1000;
+export const AGENT_CHALLENGE_TTL = 30 * 1000;
+export const MAX_WORKSPACES_PER_USER = positiveInt("RC_MAX_WORKSPACES_PER_USER", 10);
+export const MAX_DEVICES_PER_WORKSPACE = positiveInt("RC_MAX_DEVICES_PER_WORKSPACE", 25);
+export const MAX_CONCURRENT_PROCESSES_PER_USER = positiveInt("RC_MAX_CONCURRENT_PROCESSES_PER_USER", 10);
+export const MAX_API_KEYS_PER_USER = positiveInt("RC_MAX_API_KEYS_PER_USER", 10);

@@ -5,9 +5,14 @@ import { inputProcess, resizeRemoteProcess, signalProcess, startProcess } from "
 import { workspaceForDevice } from "./process-store";
 import type { BrowserCommand, BrowserServerMessage } from "./protocol";
 import { VERSION } from "./config";
+import type { ApiScope } from "./account";
 
 export type SocketWriter = { send(data: string): unknown; close(code?: number, reason?: string): void };
-type BrowserConnection = { socket: SocketWriter; unsubscribe?: () => void };
+type BrowserConnection = { socket: SocketWriter; scopes: ApiScope[] | null; unsubscribe?: () => void };
+
+function requireScope(connection: BrowserConnection, scope: ApiScope) {
+  if (connection.scopes && !connection.scopes.includes(scope)) throw new Error(`API key requires ${scope} scope`);
+}
 
 function send(connection: BrowserConnection, value: BrowserServerMessage) {
   try { connection.socket.send(JSON.stringify(value)); } catch {}
@@ -23,8 +28,8 @@ function updateNode(userId: string, input: any) {
 }
 
 export const browserSocketHandlers = {
-  open(userId: string, socket: SocketWriter) {
-    const connection: BrowserConnection = { socket };
+  open(userId: string, socket: SocketWriter, scopes: ApiScope[] | null = null) {
+    const connection: BrowserConnection = { socket, scopes };
     connection.unsubscribe = subscribeEvents(userId, event => send(connection, { type: "event", event }));
     send(connection, { type: "ready" });
     return connection;
@@ -35,11 +40,11 @@ export const browserSocketHandlers = {
       let result: unknown;
       switch (message.type) {
         case "ping": send(connection, { type: "pong" }); return;
-        case "process.start": result = startProcess(userId, message); break;
-        case "process.input": result = inputProcess(userId, message); break;
-        case "process.resize": result = resizeRemoteProcess(userId, message); break;
-        case "process.signal": result = signalProcess(userId, message); break;
-        case "node.update": result = updateNode(userId, message); break;
+        case "process.start": requireScope(connection, "execute"); result = startProcess(userId, message); break;
+        case "process.input": requireScope(connection, "execute"); result = inputProcess(userId, message); break;
+        case "process.resize": requireScope(connection, "execute"); result = resizeRemoteProcess(userId, message); break;
+        case "process.signal": requireScope(connection, "execute"); result = signalProcess(userId, message); break;
+        case "node.update": requireScope(connection, "manage-devices"); result = updateNode(userId, message); break;
       }
       if (requestId) send(connection, { type: "response", requestId, ok: true, result });
     } catch (error) {

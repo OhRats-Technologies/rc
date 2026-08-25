@@ -174,6 +174,10 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .account-title-error { margin-top:.25rem; }
 .token-row-main { min-width:0; display:grid; grid-template-columns:22px minmax(0,1fr); align-items:center; gap:10px; }
 .token-row-main .ui-icon { width:16px; height:16px; color:var(--or-text-muted); }
+.scope-fields { border:0; padding:0; margin:0; display:grid; gap:.45rem; }
+.scope-fields legend { margin-bottom:.35rem; font:600 .72rem/1.2 var(--or-font-mono); text-transform:uppercase; letter-spacing:.06em; }
+.scope-fields label { display:flex; align-items:center; gap:.55rem; font-size:.9rem; }
+.scope-fields input { width:auto; }
 .form-dialog { position:fixed; inset:0; width:min(calc(100% - 32px),560px); max-height:calc(100dvh - 32px); margin:auto; padding:0; border:1px solid var(--or-border); background:var(--or-surface); color:var(--or-text); }
 .form-dialog::backdrop { background:rgba(0,0,0,.58); }
 .dialog-content { display:flex; flex-direction:column; gap:22px; padding:28px; }

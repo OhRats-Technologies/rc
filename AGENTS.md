@@ -8,7 +8,7 @@ Remote device control plane for OhRats Technologies.
 - Treat disconnects, stale devices, and interrupted processes as normal states.
 - Never store agent private keys or plaintext auth/enrollment tokens server-side.
 - Passkeys are the human credential; there is no email/password or recovery flow. Human CLI login uses the passkey-backed browser authorization flow.
-- API tokens are automation credentials only. They are hashed server-side, shown once, and grant the same account authority as their owner. Keep token management visible under the API route and do not offer tokens as browser-login substitutes.
+- API tokens are automation credentials only. They are hashed server-side, shown once, and explicitly scoped to read, execute, device management, and/or workspace management. Keep token management visible under the API route and do not offer tokens as browser-login substitutes. Token administration itself requires a human browser session.
 - Shared visual primitives use content-fingerprinted immutable URLs under `https://assets.ohrats.party/assets/`.
 - Follow cross-product UI guidance in `../handbook/design/ui.md`; when review feedback generalizes, promote it there/shared UI instead of keeping a one-off local fix.
 - Product CSS must use existing `--or-*` tokens; do not invent a parallel design system.
@@ -37,4 +37,6 @@ Remote device control plane for OhRats Technologies.
 - Keep the product model `User → Workspace → Device → Process`. Do not add fleets or browser shell-session wrappers without a concrete need.
 - Every remote process owns a PTY and is at-most-once. If execution becomes ambiguous after disconnect/restart, mark it lost instead of replaying it.
 - RC Node shutdown, crash, and update must tear down all PTY process trees; never leave detached remote work behind.
+- RC Node authentication uses a server-issued one-time challenge signed by the device Ed25519 identity. Never put reusable signatures or authentication secrets in WebSocket URLs.
+- RC Node updates must verify the signed release manifest with the embedded OhRats Ed25519 release public key, verify the selected binary hash, and refuse signed downgrades. The release private key never belongs in the repository, runtime image, or RC server data.
 

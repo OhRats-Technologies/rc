@@ -40,7 +40,8 @@ form.addEventListener("submit", async event => {
   event.preventDefault(); const name = input.value.trim(); if (!name) { input.focus(); return; }
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!; submit.disabled = true; error.textContent = "";
   try {
-    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", body: JSON.stringify({ name }) });
+    const scopes = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="scope"]:checked')).map(item => item.value);
+    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", body: JSON.stringify({ name, scopes }) });
     addKey(created.id, name); secret.textContent = created.token; copy.dataset.copyValue = created.token;
     createView.hidden = true; resultView.hidden = false; requestAnimationFrame(() => copy.focus());
   } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }

@@ -10,6 +10,7 @@ app.listen({
   port: PORT,
   hostname: "0.0.0.0",
   idleTimeout: 60,
+  maxRequestBodySize: 1024 * 1024,
   development: Bun.env.NODE_ENV === "development",
 });
 
@@ -20,6 +21,7 @@ setInterval(() => {
   q("DELETE FROM webauthn_challenges WHERE expires_at<?").run(now());
   q("DELETE FROM cli_authorizations WHERE expires_at<? OR exchanged_at IS NOT NULL").run(now());
   q("DELETE FROM cli_sessions WHERE expires_at<?").run(now());
+  q("DELETE FROM agent_auth_challenges WHERE expires_at<?").run(now());
 }, 60_000).unref();
 
 console.log(`RC ${PUBLIC_URL} listening on :${app.server?.port || PORT}`);

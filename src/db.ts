@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS auth_sessions(
 );
 CREATE TABLE IF NOT EXISTS api_tokens(
   id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL,last_used INTEGER
+  name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,scopes TEXT NOT NULL DEFAULT '["read","execute"]',
+  created_at INTEGER NOT NULL,last_used INTEGER
 );
 CREATE TABLE IF NOT EXISTS cli_authorizations(
   id TEXT PRIMARY KEY,device_code_hash TEXT NOT NULL UNIQUE,user_code_hash TEXT NOT NULL UNIQUE,
@@ -69,6 +70,10 @@ CREATE TABLE IF NOT EXISTS enrollment_tokens(
   id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE,created_by TEXT NOT NULL REFERENCES users(id),
   created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,used_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS agent_auth_challenges(
+  challenge_hash TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS events(
   id INTEGER PRIMARY KEY AUTOINCREMENT,workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
@@ -90,6 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_events_workspace ON events(workspace_id,created_a
 CREATE INDEX IF NOT EXISTS idx_actions_workspace ON actions(workspace_id,name);
 CREATE INDEX IF NOT EXISTS idx_cli_authorizations_expiry ON cli_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_cli_sessions_user ON cli_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_agent_auth_challenges_expiry ON agent_auth_challenges(expires_at);
 `);
 
 function migrateRoleVocabulary() {
@@ -116,6 +122,13 @@ function migrateRoleVocabulary() {
 }
 
 migrateRoleVocabulary();
+
+function migrateApiTokenScopes() {
+  const columns = db.query<{ name: string }, []>("PRAGMA table_info(api_tokens)").all().map(row => row.name);
+  if (!columns.includes("scopes")) db.exec(`ALTER TABLE api_tokens ADD COLUMN scopes TEXT NOT NULL DEFAULT '["read","execute"]'`);
+}
+
+migrateApiTokenScopes();
 
 export const q = <T = any>(sql: string) => db.query<T, any[]>(sql);
 export const now = () => Date.now();

@@ -3,6 +3,7 @@ import { db, id, now, q, sha } from "./db";
 import { disconnectDevice, isOnline, verifyAgent } from "./gateway";
 import { fail, json } from "./http-utils";
 import { HttpError } from "./errors";
+import { MAX_DEVICES_PER_WORKSPACE } from "./config";
 
 export type DeviceView = {
   id: string; workspace_id: string; name: string; hostname: string; platform: string; arch: string;
@@ -32,6 +33,8 @@ export function enrollAgent(input: AgentEnrollInput) {
   const enrollment = q<any>(`SELECT * FROM enrollment_tokens
     WHERE token_hash=? AND used_at IS NULL AND expires_at>?`).get(sha(token), now());
   if (!enrollment) throw new HttpError(401, "invalid or expired enrollment token");
+  const deviceCount = q<{ count: number }>("SELECT count(*) count FROM devices WHERE workspace_id=?").get(enrollment.workspace_id)?.count || 0;
+  if (deviceCount >= MAX_DEVICES_PER_WORKSPACE) throw new HttpError(409, `device limit reached (${MAX_DEVICES_PER_WORKSPACE})`);
   const publicKey = input.publicKey;
   if (!publicKey.includes("BEGIN PUBLIC KEY")) throw new HttpError(400, "invalid public key");
   if (q("SELECT id FROM devices WHERE public_key=?").get(publicKey)) throw new HttpError(409, "device key already enrolled");
@@ -54,7 +57,7 @@ export async function handleAgentUnregister(req: Request, url: URL): Promise<Res
   if (url.pathname !== "/api/v1/agent/self" || !["GET", "DELETE"].includes(req.method)) return null;
   const requestedDevice = url.searchParams.get("device") || "";
   if (!requestedDevice || !q("SELECT 1 FROM devices WHERE id=?").get(requestedDevice)) return fail("device not found", 404);
-  const deviceId = await verifyAgent(url);
+  const deviceId = await verifyAgent(req, requestedDevice);
   if (!deviceId) return fail("invalid agent signature", 401);
   const device = q<any>("SELECT workspace_id,name,agent_version FROM devices WHERE id=?").get(deviceId);
   if (!device) return fail("device not found", 404);

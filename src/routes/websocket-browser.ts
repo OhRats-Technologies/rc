@@ -1,5 +1,5 @@
 import { Elysia } from "elysia";
-import { auth } from "../auth";
+import { apiTokenScopes, auth } from "../auth";
 import { browserSocketHandlers } from "../browser-socket";
 import { PUBLIC_URL } from "../config";
 import { fail } from "../http-utils";
@@ -16,11 +16,13 @@ export const browserSocketRoute = new Elysia({ name: "rc.websocket.browser", det
       const origin = request.headers.get("origin");
       if (origin && origin !== new URL(request.url).origin && origin !== PUBLIC_URL) return fail("invalid origin", 403);
       if (!rcUser) return fail("authentication required", 401);
+      const scopes = apiTokenScopes(request);
+      if (scopes && !scopes.includes("execute")) return fail("API key requires execute scope", 403);
     },
     open(ws) {
       const user = ws.data.rcUser;
       if (!user) return ws.close(1008, "authentication required");
-      connections.set(ws.raw, browserSocketHandlers.open(user.id, ws.raw));
+      connections.set(ws.raw, browserSocketHandlers.open(user.id, ws.raw, apiTokenScopes(ws.data.request)));
     },
     message(ws, message) {
       const user = ws.data.rcUser, connection = connections.get(ws.raw);

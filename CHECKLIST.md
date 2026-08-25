@@ -3,7 +3,7 @@
 - [x] Fresh product repository
 - [x] Keep the domain model to users, workspaces, devices, and processes
 - [x] Persistent SQLite state
-- [x] Passkey authentication plus full-account API-token browser login
+- [x] Passkey authentication plus scoped automation API keys
 - [x] Workspace membership and invite links
 - [x] Signed device identity and workspace enrollment tokens
 - [x] Agent heartbeat, reconnect, and capability advertisement
@@ -22,6 +22,9 @@
 - [x] Node state/config under `~/.config/ohrats-rc`
 - [x] Installer exits after install/enrollment
 - [x] Remote RC Node updates from the web UI
+- [x] Replay-resistant one-time challenge authentication for RC Nodes
+- [x] Signed release manifest + SHA-256 verification + downgrade protection for RC Node updates
+- [x] Application rate limits, security headers, quotas, shorter credential lifetimes, and non-root runtime
 - [x] Device removal from web, API, and CLI with remote node cleanup
 - [x] Immutable fingerprinted frontend assets
 - [x] Bun-native HTML/TypeScript/CSS production build with no custom asset pipeline

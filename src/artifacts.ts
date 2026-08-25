@@ -57,6 +57,17 @@ export async function installScript() {
 }
 
 export async function download(name: string) {
+  if (name === "release.json" || name === "release.json.sig") {
+    const file = Bun.file(`${STATIC_DIR}/downloads/${name}`);
+    if (!await file.exists()) return fail("not found", 404);
+    return new Response(file, {
+      headers: {
+        "content-type": name.endsWith(".json") ? "application/json; charset=utf-8" : "text/plain; charset=utf-8",
+        "cache-control": "no-store",
+        "cloudflare-cdn-cache-control": "no-store",
+      },
+    });
+  }
   if (!/^ohrats-rc-(linux|darwin)-(amd64|arm64)(\.[0-9a-f]{12})?$/.test(name)) return fail("not found", 404);
   const match = name.match(/^(ohrats-rc-(?:linux|darwin)-(?:amd64|arm64))(?:\.([0-9a-f]{12}))?$/);
   if (!match) return fail("not found", 404);

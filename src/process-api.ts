@@ -3,6 +3,7 @@ import { id, now, q } from "./db";
 import { dispatchProcessStart, isOnline, sendProcessControl } from "./gateway";
 import { processJSON, processRow, resizeProcess, workspaceForDevice } from "./process-store";
 import { HttpError } from "./errors";
+import { MAX_CONCURRENT_PROCESSES_PER_USER } from "./config";
 
 export type StartProcessInput = { deviceId: string; command: string; cwd?: string; cols: number; rows: number };
 export type ProcessInput = { processId: string; data: string };
@@ -30,6 +31,12 @@ export function startProcess(userId: string, input: StartProcessInput) {
   const deviceId = input.deviceId, role = deviceRole(userId, deviceId);
   if (!canOperate(role)) throw new HttpError(403, "operator required");
   if (!isOnline(deviceId)) throw new HttpError(409, "device is offline");
+  const activeCount = q<{ count: number }>(
+    "SELECT count(*) count FROM processes WHERE created_by=? AND status IN ('starting','running')"
+  ).get(userId)?.count || 0;
+  if (activeCount >= MAX_CONCURRENT_PROCESSES_PER_USER) {
+    throw new HttpError(409, `concurrent process limit reached (${MAX_CONCURRENT_PROCESSES_PER_USER})`);
+  }
   const command = input.command.trim(), cwd = String(input.cwd || "").trim().slice(0, 4096) || null;
   if (!command) throw new HttpError(400, "command required");
   if (command.length > 8192) throw new HttpError(400, "command too long");
