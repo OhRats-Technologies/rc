@@ -52,12 +52,40 @@ function setupInlineRename(scope: HTMLElement, viewSelector: string, formSelecto
   renameInput?.addEventListener("blur", () => { window.setTimeout(() => { if (document.activeElement !== renameInput) cancel(); }); });
 }
 
+function setNameMarquee(head: HTMLElement, active: boolean) {
+  const viewport = head.querySelector<HTMLElement>("[data-sidebar-name-viewport]");
+  const text = viewport?.querySelector<HTMLElement>("[data-sidebar-name-text]");
+  if (!viewport || !text) return;
+  viewport.classList.remove("marquee");
+  viewport.style.removeProperty("--sidebar-marquee-distance");
+  if (!active) return;
+  requestAnimationFrame(() => {
+    const style = getComputedStyle(viewport);
+    const available = viewport.clientWidth - parseFloat(style.paddingInlineStart || "0") - parseFloat(style.paddingInlineEnd || "0");
+    const distance = Math.ceil(text.scrollWidth - available);
+    if (distance > 1) {
+      viewport.style.setProperty("--sidebar-marquee-distance", `${distance}px`);
+      viewport.classList.add("marquee");
+    }
+  });
+}
+
+function setupCompositeHead(head: HTMLElement) {
+  head.addEventListener("pointerenter", () => setNameMarquee(head, true));
+  head.addEventListener("pointerleave", () => { if (!head.matches(":focus-within")) setNameMarquee(head, false); });
+  head.addEventListener("focusin", () => { head.classList.add("focused"); setNameMarquee(head, true); });
+  head.addEventListener("focusout", event => {
+    if ((event.relatedTarget instanceof Node) && head.contains(event.relatedTarget)) return;
+    head.classList.remove("focused");
+    if (!head.matches(":hover")) setNameMarquee(head, false);
+  });
+}
+
 document.querySelectorAll<HTMLElement>("[data-workspace-folder]").forEach(folder => {
   const id = folder.dataset.workspaceFolder!, toggle = folder.querySelector<HTMLButtonElement>("[data-workspace-toggle]")!;
   const children = folder.querySelector<HTMLElement>("[data-workspace-children]")!;
   const head = folder.querySelector<HTMLElement>(".workspace-folder-head")!;
-  head.addEventListener("focusin", () => head.classList.add("focused"));
-  head.addEventListener("focusout", event => { if (!(event.relatedTarget instanceof Node) || !head.contains(event.relatedTarget)) head.classList.remove("focused"); });
+  setupCompositeHead(head);
   const stored = localStorage.getItem(`rc_workspace_${id}`), initial = stored !== null ? stored === "open" : folder.dataset.defaultOpen === "true";
   setFolderOpen(folder, initial, false);
   toggle.addEventListener("click", () => {
@@ -76,8 +104,7 @@ document.querySelectorAll<HTMLElement>("[data-workspace-folder]").forEach(folder
 
 document.querySelectorAll<HTMLElement>("[data-sidebar-device]").forEach(device => {
   const head = device.querySelector<HTMLElement>(".workspace-device-head");
-  head?.addEventListener("focusin", () => head.classList.add("focused"));
-  head?.addEventListener("focusout", event => { if (!(event.relatedTarget instanceof Node) || !head.contains(event.relatedTarget)) head.classList.remove("focused"); });
+  if (head) setupCompositeHead(head);
   setupInlineRename(device, "[data-device-name-view]", "[data-device-rename-form]", "[data-device-rename]");
 });
 
@@ -106,7 +133,9 @@ document.addEventListener("pointerdown", event => {
     menu.open = false;
     const trigger = menu.querySelector<HTMLElement>("summary");
     trigger?.blur();
-    menu.closest<HTMLElement>(".workspace-folder-head")?.classList.remove("focused");
+    const head = menu.closest<HTMLElement>(".workspace-folder-head,.workspace-device-head");
+    head?.classList.remove("focused");
+    if (head) setNameMarquee(head, false);
   });
 });
 document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll<HTMLDetailsElement>(".workspace-menu[open]").forEach(menu => menu.open = false); });

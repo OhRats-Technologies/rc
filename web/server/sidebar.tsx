@@ -11,10 +11,10 @@ function DeviceItem({ device, owner, current, overflow, path }: {
   const canUpdate = owner && device.capabilities.includes("update") && nodeUpdateAvailable(device.agent_version, VERSION);
   return <div className={`workspace-device-row${current ? " active" : ""}${overflow ? " workspace-device-overflow" : ""}`}
     data-sidebar-device={device.id} hidden={overflow}>
-    <div className="workspace-device-head">
+    <div className={`workspace-device-head${owner ? " has-menu" : ""}`}>
       <a className="workspace-device-link" href={`/devices/${device.id}`} data-device-name-view>
         <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
-        <span className="workspace-device-name">{device.name}</span>
+        <span className="workspace-device-name" data-sidebar-name-viewport><span data-sidebar-name-text>{device.name}</span></span>
       </a>
       {owner && <form className="device-inline-rename" method="post" action={`/devices/${device.id}/rename`} hidden data-device-rename-form>
         <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
@@ -40,9 +40,9 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
 }) {
   const visible = devices.slice(0, 5), overflow = devices.slice(5);
   return <div className={`workspace-folder${open ? " active" : ""}`} data-workspace-folder={workspace.id} data-default-open={open ? "true" : "false"}>
-    <div className="workspace-folder-head">
+    <div className="workspace-folder-head has-menu">
       <button className="workspace-toggle" type="button" aria-expanded={open} data-workspace-toggle={workspace.id} data-workspace-name-view>
-        <span className="ui-icon icon-folder" aria-hidden="true"/><span className="workspace-name">{workspace.name}</span>
+        <span className="ui-icon icon-folder" aria-hidden="true"/><span className="workspace-name" data-sidebar-name-viewport><span data-sidebar-name-text>{workspace.name}</span></span>
       </button>
       {workspace.role === "owner" && <form className="workspace-inline-rename" method="post" action={`/workspaces/${workspace.id}/rename`} hidden data-workspace-rename-form>
         <span className="ui-icon icon-folder" aria-hidden="true"/>
