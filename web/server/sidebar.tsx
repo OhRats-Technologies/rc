@@ -14,7 +14,7 @@ function DeviceItem({ device, owner, current, overflow, path }: {
     <div className={`workspace-device-head${owner ? " has-menu" : ""}`}>
       <a className="workspace-device-link" href={`/devices/${device.id}`} data-device-name-view>
         <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
-        <span className="workspace-device-name">{device.name}</span>
+        <span className="workspace-device-name"><span>{device.name}</span></span>
       </a>
       {owner && <form className="device-inline-rename" method="post" action={`/devices/${device.id}/rename`} hidden data-device-rename-form>
         <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/>
@@ -27,7 +27,8 @@ function DeviceItem({ device, owner, current, overflow, path }: {
           <div className="workspace-menu-actions">
             <button type="button" data-device-rename><span className="ui-icon icon-pencil" aria-hidden="true"/>Rename device</button>
             {canUpdate && <button type="button" data-sidebar-device-update={device.id} disabled={!device.online}>Update node</button>}
-            <a className="danger-text" href={`/devices/${device.id}/delete`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete device</a>
+            <button className="danger-text" type="button" data-delete-kind="device" data-delete-name={device.name}
+              data-delete-endpoint={`/api/v1/devices/${device.id}`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete device</button>
           </div>
         </div>
       </details>}
@@ -59,7 +60,8 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
             <a href={`/workspaces/${workspace.id}/activity`}><span className="ui-icon icon-audit" aria-hidden="true"/>Audit log</a>
             {workspace.role === "owner" && <button type="button" data-workspace-rename><span className="ui-icon icon-pencil" aria-hidden="true"/>Rename workspace</button>}
             {workspace.role !== "owner" && <form method="post" action={`/workspaces/${workspace.id}/leave`}><button type="submit">Leave workspace</button></form>}
-            {workspace.role === "owner" && <a className="danger-text" href={`/workspaces/${workspace.id}/delete`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete workspace</a>}
+            {workspace.role === "owner" && <button className="danger-text" type="button" data-delete-kind="workspace" data-delete-name={workspace.name}
+              data-delete-endpoint={`/api/v1/workspaces/${workspace.id}`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete workspace</button>}
           </div>
         </div>
       </details>
@@ -107,6 +109,17 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
         <form method="post" action="/account/logout"><button className="icon-button" type="submit" aria-label="Sign out" title="Sign out"><span className="ui-icon icon-sign-out"/></button></form>
       </div></div>
     </aside>
+    <dialog className="delete-dialog" data-delete-dialog aria-labelledby="delete-dialog-title">
+      <div className="delete-dialog-content">
+        <h2 id="delete-dialog-title" data-delete-title>Delete?</h2>
+        <p>This will delete <strong data-delete-name>this item</strong>.</p>
+        <p className="error" data-delete-error/>
+        <div className="delete-dialog-actions">
+          <button className="or-button secondary" type="button" data-delete-cancel>Cancel</button>
+          <button className="or-button delete-confirm" type="button" data-delete-confirm>Delete</button>
+        </div>
+      </div>
+    </dialog>
     <button id="sidebar-toggle" className="sidebar-toggle" type="button" aria-label="Toggle sidebar"><span className="ui-icon icon-sidebar"/></button>
   </>;
 }

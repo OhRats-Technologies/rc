@@ -17,12 +17,10 @@ import { accountPage, apiPage, deleteAccountPage } from "../../web/server/pages/
 import { accessPage } from "../../web/server/pages/access";
 import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
-import { deleteDevicePage, devicePage, devicesPage } from "../../web/server/pages/devices";
+import { devicePage, devicesPage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 import { processPage } from "../../web/server/pages/process";
-import {
-  activityPage, deleteWorkspacePage,
-} from "../../web/server/pages/workspaces";
+import { activityPage } from "../../web/server/pages/workspaces";
 
 const loginRedirect = () => Response.redirect("/", 303);
 
@@ -66,11 +64,6 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     const device = getDevice(context.user, params.deviceId); if (!device) return notFoundPage(context.user, context.workspaces, context.sidebar);
     return devicePage(context.user, context.workspaces, device, device.role === "viewer" ? [] : listProcesses(context.user.id, device.id), VERSION, context.sidebar);
   })
-  .get("/devices/:deviceId/delete", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const device = getDevice(context.user, params.deviceId); if (!device) return notFoundPage(context.user, context.workspaces, context.sidebar);
-    return deleteDevicePage(context.user, context.workspaces, device, context.sidebar);
-  })
   .get("/devices/:deviceId/processes/:processId", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
     const device = getDevice(context.user, params.deviceId); if (!device) return notFoundPage(context.user, context.workspaces, context.sidebar);
@@ -90,11 +83,6 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     const context = await pageContext(request); if (!context) return loginRedirect();
     const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return notFoundPage(context.user, context.workspaces, context.sidebar);
     return activityPage(context.user, context.workspaces, workspace, workspaceActivity(context.user, workspace.id), context.sidebar);
-  })
-  .get("/workspaces/:workspaceId/delete", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return notFoundPage(context.user, context.workspaces, context.sidebar);
-    return deleteWorkspacePage(context.user, context.workspaces, workspace, context.sidebar);
   })
   .get("/account", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();

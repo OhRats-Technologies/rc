@@ -56,7 +56,9 @@ html[data-sidebar="closed"] .site-shell { grid-template-columns: 52px minmax(0,1
 .workspace-toggle { min-width:0; min-height:38px; display:grid; grid-template-columns:22px minmax(0,1fr); align-items:center; gap:8px; padding:0 8px; border:0; background:transparent; color:inherit; cursor:pointer; text-align:left; font:inherit; font-size:.72rem; font-weight:700; transition:padding-inline-end .12s ease; }
 .workspace-toggle[hidden] { display:none; }
 .workspace-toggle:focus-visible,.workspace-menu-trigger:focus-visible { outline:0; }
-.workspace-name,.workspace-device-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.workspace-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.workspace-device-name { min-width:0; overflow:hidden; white-space:nowrap; }
+.workspace-device-name > span { display:inline-block; min-width:max-content; transform:translateX(0); }
 .workspace-toggle .icon-folder { width:18px; height:18px; }
 .workspace-create-form,.workspace-inline-rename { min-width:0; min-height:38px; display:grid; grid-template-columns:22px minmax(0,1fr); align-items:center; gap:8px; padding:0 8px; color:inherit; }
 .workspace-create-form { outline:1px solid var(--or-text); outline-offset:-1px; }
@@ -64,8 +66,17 @@ html[data-sidebar="closed"] .site-shell { grid-template-columns: 52px minmax(0,1
 .workspace-create-input,.workspace-rename-input { min-width:0; width:100%; padding:0; border:0; border-radius:0; background:transparent; color:inherit; outline:0; font:inherit; font-size:.72rem; font-weight:700; }
 .workspace-inline-rename[hidden] { display:none; }
 .workspace-folder.editing .workspace-menu,.workspace-device-row.editing .workspace-menu { visibility:hidden; }
-.workspace-device-link,.device-inline-rename { min-width:0; min-height:38px; display:grid; grid-template-columns:8px minmax(0,1fr); align-items:center; gap:7px; padding-block:0; padding-inline:36px 8px; color:inherit; font:inherit; font-size:.72rem; font-weight:700; text-align:left; transition:padding-inline-end .12s ease; }
+.workspace-device-link,.device-inline-rename { min-width:0; min-height:38px; display:grid; grid-template-columns:8px minmax(0,1fr); align-items:center; gap:7px; padding-block:0; padding-inline:8px; color:inherit; font:inherit; font-size:.72rem; font-weight:700; text-align:left; transition:padding-inline-end .12s ease; }
 .workspace-device-link { cursor:pointer; }
+.workspace-device-row.marquee-overflow .workspace-device-head:hover .workspace-device-name > span,
+.workspace-device-row.marquee-overflow .workspace-device-head:focus-within .workspace-device-name > span,
+.workspace-device-row.marquee-overflow .workspace-device-head.focused .workspace-device-name > span {
+  animation:device-name-marquee var(--device-marquee-duration,3s) linear .35s alternate infinite;
+}
+@keyframes device-name-marquee { to { transform:translateX(calc(-1 * var(--device-marquee-distance,0px))); } }
+@media (prefers-reduced-motion:reduce) {
+  .workspace-device-row.marquee-overflow .workspace-device-name > span { animation:none !important; }
+}
 .device-inline-rename[hidden] { display:none; }
 .device-rename-input { min-width:0; width:100%; padding:0; border:0; border-radius:0; background:transparent; color:inherit; outline:0; font:inherit; font-size:.72rem; font-weight:700; }
 .workspace-menu { position:absolute; z-index:18; top:6px; right:1px; }
@@ -84,6 +95,15 @@ html[data-sidebar="closed"] .site-shell { grid-template-columns: 52px minmax(0,1
 .workspace-menu-popover a:hover,.workspace-menu-popover a:focus-visible,.workspace-menu-popover .workspace-menu-actions > button:hover,.workspace-menu-popover .workspace-menu-actions > button:focus-visible,.workspace-menu-popover .workspace-menu-actions > form > button:hover,.workspace-menu-popover .workspace-menu-actions > form > button:focus-visible { background:var(--or-surface-hover); }
 .workspace-menu-popover .workspace-menu-actions > button:disabled { opacity:.5; cursor:not-allowed; background:transparent; }
 .workspace-menu-popover .ui-icon { width:16px; height:16px; }
+.delete-dialog { width:min(calc(100% - 32px),560px); padding:0; border:1px solid var(--or-border); background:var(--or-surface); color:var(--or-text); }
+.delete-dialog::backdrop { background:rgba(0,0,0,.58); }
+.delete-dialog-content { display:flex; flex-direction:column; gap:28px; padding:28px; }
+.delete-dialog h2,.delete-dialog p { margin:0; }
+.delete-dialog h2 { font-size:1.5rem; }
+.delete-dialog-actions { display:flex; justify-content:flex-end; gap:12px; }
+.delete-dialog-actions .or-button { min-width:96px; justify-content:center; }
+.delete-dialog-actions .secondary { background:transparent; color:var(--or-text); border:1px solid var(--or-border); }
+.delete-dialog-actions .delete-confirm { background:var(--or-negative); color:var(--or-on-negative); }
 .workspace-children[hidden] { display:none; }
 .workspace-children { height:auto; overflow:hidden; opacity:1; display:flex; flex-direction:column; gap:2px; padding:3px 0 6px; transition:height .22s ease,opacity .16s ease; }
 .workspace-children[data-open="true"]:not(.animating) { overflow:visible; }

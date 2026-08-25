@@ -1,4 +1,5 @@
 import { onEvent, request } from "./socket";
+import { api } from "./http";
 
 const root = document.documentElement;
 function setSidebar(next: "open" | "closed") {
@@ -60,6 +61,15 @@ function setupCompositeHead(head: HTMLElement) {
   });
 }
 
+function syncDeviceMarquee(device: HTMLElement) {
+  const viewport = device.querySelector<HTMLElement>(".workspace-device-name"), text = viewport?.firstElementChild as HTMLElement | null;
+  if (!viewport || !text) return;
+  const distance = Math.max(0, text.scrollWidth - viewport.clientWidth);
+  device.classList.toggle("marquee-overflow", distance > 1);
+  device.style.setProperty("--device-marquee-distance", `${distance}px`);
+  device.style.setProperty("--device-marquee-duration", `${Math.max(2.5, distance / 26).toFixed(2)}s`);
+}
+
 const workspaceCreateForm = document.querySelector<HTMLFormElement>("[data-workspace-create-form]");
 const workspaceCreateInput = workspaceCreateForm?.querySelector<HTMLInputElement>('input[name="name"]');
 const workspaceEmpty = document.querySelector<HTMLElement>("[data-workspace-empty]");
@@ -113,6 +123,41 @@ document.querySelectorAll<HTMLElement>("[data-sidebar-device]").forEach(device =
   const head = device.querySelector<HTMLElement>(".workspace-device-head");
   if (head) setupCompositeHead(head);
   setupInlineRename(device, "[data-device-name-view]", "[data-device-rename-form]", "[data-device-rename]");
+  const refresh = () => requestAnimationFrame(() => syncDeviceMarquee(device));
+  refresh(); head?.addEventListener("pointerenter", refresh); head?.addEventListener("focusin", refresh);
+  const name = device.querySelector<HTMLElement>(".workspace-device-name");
+  if (name && "ResizeObserver" in window) new ResizeObserver(refresh).observe(name);
+});
+
+const deleteDialog = document.querySelector<HTMLDialogElement>("[data-delete-dialog]");
+const deleteTitle = deleteDialog?.querySelector<HTMLElement>("[data-delete-title]");
+const deleteName = deleteDialog?.querySelector<HTMLElement>("[data-delete-name]");
+const deleteError = deleteDialog?.querySelector<HTMLElement>("[data-delete-error]");
+const deleteConfirm = deleteDialog?.querySelector<HTMLButtonElement>("[data-delete-confirm]");
+let deleteEndpoint = "", deleteTrigger: HTMLElement | null = null;
+
+document.querySelectorAll<HTMLButtonElement>("[data-delete-endpoint]").forEach(button => button.addEventListener("click", () => {
+  if (!deleteDialog || !deleteTitle || !deleteName || !deleteConfirm) return;
+  const menu = button.closest<HTMLDetailsElement>("details");
+  deleteEndpoint = button.dataset.deleteEndpoint || ""; deleteTrigger = menu?.querySelector<HTMLElement>("summary") || button;
+  const kind = button.dataset.deleteKind || "item", name = button.dataset.deleteName || "this item";
+  deleteTitle.textContent = `Delete ${kind}?`; deleteName.textContent = name;
+  if (deleteError) deleteError.textContent = "";
+  if (menu) menu.open = false;
+  deleteDialog.showModal();
+}));
+
+deleteDialog?.querySelector<HTMLButtonElement>("[data-delete-cancel]")?.addEventListener("click", () => deleteDialog.close());
+deleteDialog?.addEventListener("click", event => { if (event.target === deleteDialog) deleteDialog.close(); });
+deleteDialog?.addEventListener("close", () => { deleteEndpoint = ""; deleteTrigger?.focus(); deleteTrigger = null; });
+deleteConfirm?.addEventListener("click", async () => {
+  if (!deleteEndpoint || !deleteConfirm) return;
+  deleteConfirm.disabled = true; deleteConfirm.textContent = "Deleting…";
+  try { await api(deleteEndpoint, { method: "DELETE" }); location.href = "/devices"; }
+  catch (error) {
+    if (deleteError) deleteError.textContent = error instanceof Error ? error.message : String(error);
+    deleteConfirm.disabled = false; deleteConfirm.textContent = "Delete";
+  }
 });
 
 function deviceOnline(deviceId: string) {

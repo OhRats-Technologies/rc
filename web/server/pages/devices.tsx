@@ -59,11 +59,3 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
       <section className="content-section"><div className="section-heading"><div><SectionBadge index="02">Processes</SectionBadge><h2>History</h2></div></div>{device.role === "viewer" ? <p className="empty-state">Process history is available to operators and owners.</p> : <ProcessRows deviceId={device.id} processes={processes}/>}</section>
     </div> });
 }
-
-export function deleteDevicePage(user: User, workspaces: WorkspaceView[], device: DeviceView, sidebar: "open" | "closed", error = "") {
-  return htmlDocument({ title: "Remove device", user, workspaces, path: `/devices/${device.id}/delete`, sidebar, body:
-    <div className="page narrow-form-page"><header className="page-header"><div><p className="eyebrow">{device.workspace_name.toUpperCase()}</p><h1>Remove device</h1></div></header>
-      <section className="content-section danger-section"><p>Remove <strong>{device.name}</strong> from this workspace?</p><p className="page-copy">The node is disconnected and its process history is deleted.</p>
-        <form method="post" action={`/devices/${device.id}/delete`} className="actions"><button className="text-action danger-text" type="submit">REMOVE</button><a className="text-action" href={`/devices/${device.id}`}>CANCEL</a></form><p className="error">{error}</p>
-      </section></div> });
-}

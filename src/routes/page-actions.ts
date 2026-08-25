@@ -3,22 +3,18 @@ import { createAction, deleteAction, getAction, listActions, runAction, updateAc
 import { createApiToken, deleteApiToken, listApiTokens } from "../account";
 import { deletePasskey, logout } from "../auth";
 import { approveCliAuthorization } from "../cli-auth";
-import { removeDevice, getDevice, renameDevice } from "../devices";
+import { renameDevice } from "../devices";
 import { HttpError } from "../errors";
 import { checkOrigin, sessionCookie } from "../http-utils";
 import { pageContext, safeNext } from "../page-context";
-import {
-  createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor,
-} from "../workspaces";
+import { createEnrollment, createInvite, createWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor } from "../workspaces";
 import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvite, workspaceAccess } from "../workspace-access";
 import { deleteUser, renameUser } from "../users";
 import { accountPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
 import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
-import { deleteDevicePage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
-import { deleteWorkspacePage } from "../../web/server/pages/workspaces";
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
 
@@ -59,12 +55,6 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try { joinWorkspace(context.user, (await form(request)).token); return Response.redirect("/devices", 303); }
     catch (error) { return authPage("join", { error: error instanceof Error ? error.message : "Could not join workspace." }); }
-  })
-  .post("/workspaces/:workspaceId/delete", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 });
-    try { deleteWorkspace(context.user, workspace.id); return Response.redirect("/devices", 303); }
-    catch (error) { return deleteWorkspacePage(context.user, context.workspaces, workspace, context.sidebar, error instanceof Error ? error.message : "Delete failed."); }
   })
   .post("/workspaces/:workspaceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
@@ -109,12 +99,6 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try { removeWorkspaceMember(context.user, params.workspaceId, params.memberId); return Response.redirect(`/workspaces/${params.workspaceId}/access`, 303); }
     catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "member", memberId: params.memberId, message: error instanceof Error ? error.message : "Could not remove member." }); }
-  })
-  .post("/devices/:deviceId/delete", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const device = getDevice(context.user, params.deviceId); if (!device) return new Response("not found", { status: 404 });
-    try { removeDevice(context.user, device.id); return Response.redirect("/devices", 303); }
-    catch (error) { return deleteDevicePage(context.user, context.workspaces, device, context.sidebar, error instanceof Error ? error.message : "Remove failed."); }
   })
   .post("/devices/:deviceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
