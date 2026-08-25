@@ -60,6 +60,8 @@ func run(args []string) error {
 		return devicesCommand(args[1:])
 	case "device":
 		return deviceCommand(args[1:])
+	case "service":
+		return serviceCommand(args[1:])
 	case "update":
 		return updateCommand(args[1:])
 	case "config":

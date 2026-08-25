@@ -104,6 +104,9 @@ func runNode(args []string) error {
 	for {
 		if err := connect(ctx, server, value, dir, manager); err != nil && ctx.Err() == nil {
 			if errors.Is(err, errNodeRemoved) {
+				if serviceErr := disarmService(); serviceErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: could not remove background service: %v\n", serviceErr)
+				}
 				fmt.Println("This device was removed from RC; local enrollment cleared.")
 				fmt.Println("Enroll it again from RC to reconnect.")
 				return nil
@@ -144,6 +147,7 @@ func uninstallCommand(args []string) error {
 		return err
 	}
 	dir, server, _ := commandDefaults(*stateDir, *serverFlag)
+	_ = removeService()
 	if value, err := loadState(dir); err == nil {
 		if err := unregister(server, value); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: server unregister failed: %v\n", err)

@@ -17,7 +17,7 @@ import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
 import { deleteDevicePage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
-import { deleteWorkspacePage, newWorkspacePage, workspacePage } from "../../web/server/pages/workspaces";
+import { deleteWorkspacePage, newWorkspacePage, renameWorkspacePage, workspacePage } from "../../web/server/pages/workspaces";
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
 
@@ -51,8 +51,9 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/workspaces/:workspaceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    renameWorkspace(context.user, params.workspaceId, (await form(request)).name);
-    return Response.redirect(`/workspaces/${params.workspaceId}`, 303);
+    const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace || workspace.role !== "owner") return new Response("not found", { status: 404 });
+    try { renameWorkspace(context.user, params.workspaceId, (await form(request)).name); return Response.redirect(`/workspaces/${params.workspaceId}`, 303); }
+    catch (error) { return renameWorkspacePage(context.user, context.workspaces, workspace, context.sidebar, error instanceof Error ? error.message : "Rename failed."); }
   })
   .post("/workspaces/:workspaceId/leave", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
@@ -70,9 +71,9 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/devices/enroll", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const input = await form(request);
-    try { return enrollDevicePage(context.user, context.workspaces, context.sidebar, createEnrollment(context.user, String(input.workspaceId || "")).install); }
-    catch (error) { return enrollDevicePage(context.user, context.workspaces, context.sidebar, "", error instanceof Error ? error.message : "Could not create enrollment."); }
+    const input = await form(request), workspaceId = String(input.workspaceId || "");
+    try { return enrollDevicePage(context.user, context.workspaces, context.sidebar, createEnrollment(context.user, workspaceId).install, workspaceId); }
+    catch (error) { return enrollDevicePage(context.user, context.workspaces, context.sidebar, "", workspaceId, error instanceof Error ? error.message : "Could not create enrollment."); }
   })
   .post("/workspaces/:workspaceId/invites", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

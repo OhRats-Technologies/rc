@@ -40,6 +40,7 @@ func printHelp() {
 	helpRow("35;1", "actions", "List saved actions")
 	helpRow("35;1", "action run", "Run a saved action")
 	fmt.Println()
+	helpRow("34;1", "service", "Manage the background RC Node")
 	helpRow("34;1", "update", "Update this RC Node")
 	helpRow("34;1", "device delete ID", "Remove a device from RC")
 	helpRow("34;1", "config", "Read or change node configuration")
@@ -164,6 +165,8 @@ func commandHelp(command string) error {
 		return nil
 	case "device":
 		return deviceCommand([]string{"--help"})
+	case "service":
+		return serviceCommand([]string{"--help"})
 	case "update":
 		return updateCommand([]string{"--help"})
 	case "uninstall":

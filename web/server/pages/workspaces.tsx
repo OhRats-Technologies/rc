@@ -32,6 +32,13 @@ export function newWorkspacePage(user: User, workspaces: WorkspaceView[], sideba
     </div> });
 }
 
+export function renameWorkspacePage(user: User, workspaces: WorkspaceView[], workspace: WorkspaceView, sidebar: "open" | "closed", error = "") {
+  return htmlDocument({ title: `Rename ${workspace.name}`, user, workspaces, path: `/workspaces/${workspace.id}/rename`, sidebar, body:
+    <div className="page narrow-form-page"><header className="page-header"><div><p className="eyebrow">{workspace.name.toUpperCase()} / WORKSPACE</p><h1>Rename workspace</h1></div></header>
+      <form method="post" action={`/workspaces/${workspace.id}/rename`} className="simple-form"><label>Name<input name="name" defaultValue={workspace.name} required autoFocus/></label><div className="actions"><button className="or-button" type="submit">RENAME</button><a className="text-action" href={`/workspaces/${workspace.id}`}>CANCEL</a></div><p className="error">{error}</p></form>
+    </div> });
+}
+
 export function workspacePage(user: User, workspaces: WorkspaceView[], workspace: WorkspaceView, devices: DeviceView[], actions: ActionView[], sidebar: "open" | "closed", result?: WorkspaceResult, error = "") {
   return htmlDocument({ title: workspace.name, user, workspaces, path: `/workspaces/${workspace.id}`, sidebar, scripts: ["live", "copy"], body:
     <div className="page" data-workspace-page={workspace.id}><header className="page-header"><div><p className="eyebrow">WORKSPACE</p><h1>{workspace.name}</h1><p className="meta">{workspace.role.toUpperCase()}</p></div></header>

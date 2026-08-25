@@ -50,7 +50,7 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
   const hasUpdate = supportsUpdate && updateAvailable(device.agent_version, rcVersion);
   const updateCommand = "curl -fsSL https://rc.ohrats.party/install.sh | sh";
   return htmlDocument({ title: device.name, user, workspaces, path: `/devices/${device.id}`, sidebar, scripts: ["live", "device"], body:
-    <div className="page" data-device-page={device.id} data-rc-version={rcVersion}>
+    <div className="page" data-device-page={device.id} data-rc-version={rcVersion} data-supports-process={supportsProcess ? "true" : "false"}>
       <header className="page-header device-header">
         <div><p className="eyebrow">DEVICE</p><h1>{device.name}</h1><p className="meta"><a href={`/workspaces/${device.workspace_id}`}>{device.workspace_name}</a> · {device.platform.toUpperCase()}/{device.arch}</p></div>
         <span id="device-status" className={`status${device.online ? " online" : ""}`}>{device.online ? "ONLINE" : `LAST SEEN ${relative(device.last_seen)}`}</span>

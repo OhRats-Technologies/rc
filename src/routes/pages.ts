@@ -20,7 +20,7 @@ import { deleteDevicePage, devicePage, devicesPage } from "../../web/server/page
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 import { processPage } from "../../web/server/pages/process";
 import {
-  activityPage, deleteWorkspacePage, newWorkspacePage, workspacePage, workspacesPage,
+  activityPage, deleteWorkspacePage, newWorkspacePage, renameWorkspacePage, workspacePage, workspacesPage,
 } from "../../web/server/pages/workspaces";
 
 const loginRedirect = () => Response.redirect("/", 303);
@@ -100,6 +100,11 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     const context = await pageContext(request); if (!context) return loginRedirect();
     const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return notFoundPage(context.user, context.workspaces, context.sidebar);
     return activityPage(context.user, context.workspaces, workspace, workspaceActivity(context.user, workspace.id), context.sidebar);
+  })
+  .get("/workspaces/:workspaceId/rename", async ({ request, params }) => {
+    const context = await pageContext(request); if (!context) return loginRedirect();
+    const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace || workspace.role !== "owner") return notFoundPage(context.user, context.workspaces, context.sidebar);
+    return renameWorkspacePage(context.user, context.workspaces, workspace, context.sidebar);
   })
   .get("/workspaces/:workspaceId/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
