@@ -46,7 +46,6 @@ export function workspacePage(user: User, workspaces: WorkspaceView[], workspace
       <section className="content-section"><SectionBadge index="03">Activity</SectionBadge><a className="or-button" href={`/workspaces/${workspace.id}/activity`}>VIEW AUDIT LOG <span aria-hidden="true">→</span></a></section>
       {workspace.role === "owner" && <section className="content-section"><SectionBadge index="04">Access</SectionBadge><a className="or-button" href={`/workspaces/${workspace.id}/access`}>MANAGE ACCESS <span aria-hidden="true">→</span></a></section>}
       <section className="content-section danger-section"><div className="section-heading"><div><SectionBadge index={workspace.role === "owner" ? "05" : "04"}>Workspace</SectionBadge><h2>Settings</h2></div></div>
-        {workspace.role === "owner" && <form method="post" action={`/workspaces/${workspace.id}/rename`} className="inline-form compact-inline-form"><label>Name<input name="name" defaultValue={workspace.name} required/></label><button className="or-button" type="submit">RENAME</button></form>}
         <div className="actions"><form method="post" action={`/workspaces/${workspace.id}/leave`}><button className="text-action" type="submit">LEAVE WORKSPACE</button></form>{workspace.role === "owner" && <a className="text-action danger-text" href={`/workspaces/${workspace.id}/delete`}>DELETE WORKSPACE</a>}</div>
         <p className="error">{error}</p>
       </section>

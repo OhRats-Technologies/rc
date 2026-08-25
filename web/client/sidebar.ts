@@ -52,16 +52,20 @@ document.querySelectorAll<HTMLElement>("[data-workspace-folder]").forEach(folder
       button.dataset.expanded = expanded ? "false" : "true"; button.textContent = expanded ? "Show more" : "Show less";
     });
   });
-  const menu = folder.querySelector<HTMLDetailsElement>(".workspace-menu"), actions = folder.querySelector<HTMLElement>("[data-workspace-menu-actions]");
+  const menu = folder.querySelector<HTMLDetailsElement>(".workspace-menu"), nameView = folder.querySelector<HTMLElement>("[data-workspace-name-view]");
   const rename = folder.querySelector<HTMLFormElement>("[data-workspace-rename-form]");
+  const renameInput = rename?.querySelector<HTMLInputElement>('input[name="name"]');
+  const cancelRename = () => {
+    if (!rename || !nameView || !renameInput) return;
+    rename.hidden = true; nameView.hidden = false; folder.classList.remove("editing"); renameInput.value = renameInput.defaultValue;
+  };
   folder.querySelector<HTMLButtonElement>("[data-workspace-rename]")?.addEventListener("click", () => {
-    if (!rename || !actions) return; actions.hidden = true; rename.hidden = false;
-    const input = rename.querySelector<HTMLInputElement>('input[name="name"]')!; input.focus(); input.select();
+    if (!rename || !nameView || !renameInput) return;
+    menu!.open = false; nameView.hidden = true; rename.hidden = false; folder.classList.add("editing");
+    renameInput.focus(); renameInput.select();
   });
-  const cancelRename = () => { if (!rename || !actions) return; rename.hidden = true; actions.hidden = false; menu?.querySelector<HTMLElement>("summary")?.focus(); };
-  folder.querySelector<HTMLButtonElement>("[data-workspace-rename-cancel]")?.addEventListener("click", cancelRename);
   rename?.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); cancelRename(); } });
-  menu?.addEventListener("toggle", () => { if (!menu.open && rename && actions) { rename.hidden = true; actions.hidden = false; } });
+  renameInput?.addEventListener("blur", () => { window.setTimeout(() => { if (document.activeElement !== renameInput) cancelRename(); }); });
 });
 
 document.querySelectorAll<HTMLDetailsElement>(".workspace-menu").forEach(menu => menu.addEventListener("toggle", () => {

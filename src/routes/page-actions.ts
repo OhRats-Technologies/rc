@@ -84,23 +84,23 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
       return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, { url: result.url, role });
     } catch (error) {
       const access = workspaceAccess(context.user, params.workspaceId);
-      return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, error instanceof Error ? error.message : "Invite failed.");
+      return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "invite", message: error instanceof Error ? error.message : "Invite failed." });
     }
   })
   .post("/workspaces/:workspaceId/invites/:inviteId/revoke", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try { revokeInvite(context.user, params.workspaceId, params.inviteId); return Response.redirect(`/workspaces/${params.workspaceId}/access`, 303); }
-    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, error instanceof Error ? error.message : "Could not revoke invite."); }
+    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "pending", message: error instanceof Error ? error.message : "Could not revoke invite." }); }
   })
   .post("/workspaces/:workspaceId/members/:memberId/role", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try { changeWorkspaceRole(context.user, params.workspaceId, params.memberId, (await form(request)).role); return Response.redirect(`/workspaces/${params.workspaceId}/access`, 303); }
-    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, error instanceof Error ? error.message : "Could not change role."); }
+    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "member", memberId: params.memberId, message: error instanceof Error ? error.message : "Could not change role." }); }
   })
   .post("/workspaces/:workspaceId/members/:memberId/remove", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try { removeWorkspaceMember(context.user, params.workspaceId, params.memberId); return Response.redirect(`/workspaces/${params.workspaceId}/access`, 303); }
-    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, error instanceof Error ? error.message : "Could not remove member."); }
+    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "member", memberId: params.memberId, message: error instanceof Error ? error.message : "Could not remove member." }); }
   })
   .post("/devices/:deviceId/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

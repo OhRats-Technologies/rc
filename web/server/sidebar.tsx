@@ -10,9 +10,14 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
   const visible = devices.slice(0, 5), overflow = devices.slice(5);
   return <div className={`workspace-folder${open ? " active" : ""}`} data-workspace-folder={workspace.id} data-default-open={open ? "true" : "false"}>
     <div className="workspace-folder-head">
-      <button className="workspace-toggle" type="button" aria-expanded={open} data-workspace-toggle={workspace.id}>
+      <button className="workspace-toggle" type="button" aria-expanded={open} data-workspace-toggle={workspace.id} data-workspace-name-view>
         <span className="ui-icon icon-folder" aria-hidden="true"/><span className="workspace-name">{workspace.name}</span>
       </button>
+      {workspace.role === "owner" && <form className="workspace-inline-rename" method="post" action={`/workspaces/${workspace.id}/rename`} hidden data-workspace-rename-form>
+        <span className="ui-icon icon-folder" aria-hidden="true"/>
+        <input className="workspace-rename-input" name="name" defaultValue={workspace.name} aria-label={`Rename ${workspace.name}`} required maxLength={120}/>
+        <input type="hidden" name="next" value={path}/>
+      </form>}
       <details className="workspace-menu">
         <summary className="workspace-menu-trigger" aria-label={`Actions for ${workspace.name}`} title="Workspace actions"><span className="ui-icon icon-ellipsis" aria-hidden="true"/></summary>
         <div className="workspace-menu-popover">
@@ -22,11 +27,6 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
             <a href={`/workspaces/${workspace.id}/activity`}>Audit log</a>
             {workspace.role === "owner" && <a className="danger-text" href={`/workspaces/${workspace.id}/delete`}>Delete workspace</a>}
           </div>
-          {workspace.role === "owner" && <form className="workspace-rename-form" method="post" action={`/workspaces/${workspace.id}/rename`} hidden data-workspace-rename-form>
-            <label>Workspace name<input name="name" defaultValue={workspace.name} required maxLength={120}/></label>
-            <input type="hidden" name="next" value={path}/>
-            <div className="workspace-rename-actions"><button className="text-button" type="submit">SAVE</button><button className="text-button" type="button" data-workspace-rename-cancel>CANCEL</button></div>
-          </form>}
         </div>
       </details>
     </div>
