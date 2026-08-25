@@ -30,7 +30,17 @@ export function setupCookie(token: string) {
 export function checkOrigin(req: Request) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method) || req.headers.has("authorization")) return true;
   const origin = req.headers.get("origin");
-  if (origin) return origin === new URL(req.url).origin || origin === PUBLIC_URL;
+  if (origin === "null") {
+    return req.headers.get("sec-fetch-site") === "same-origin"
+      && req.headers.get("sec-fetch-mode") === "navigate"
+      && req.headers.get("sec-fetch-dest") === "document";
+  }
+  if (origin) {
+    try {
+      const normalized = new URL(origin).origin;
+      return normalized === new URL(req.url).origin || normalized === new URL(PUBLIC_URL).origin;
+    } catch { return false; }
+  }
   const cookies = req.headers.get("cookie") || "";
   if (/(?:^|;\s*)(?:rc_session|rc_setup)=/.test(cookies)) return req.headers.get("sec-fetch-site") === "same-origin";
   return true;

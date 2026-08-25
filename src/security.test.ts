@@ -94,6 +94,18 @@ describe("HTTP hardening", () => {
     expect(checkOrigin(new Request("http://localhost:3000/account/name", {
       ...base, headers: { cookie: "rc_session=test", origin: "http://localhost:3000" },
     }))).toBe(true);
+    expect(checkOrigin(new Request("http://localhost:3000/devices/enroll", {
+      ...base, headers: { cookie: "rc_session=test", origin: "null", "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+    }))).toBe(true);
+    expect(checkOrigin(new Request("http://localhost:3000/devices/enroll", {
+      ...base, headers: { cookie: "rc_session=test", origin: "null", "sec-fetch-site": "cross-site",
+        "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+    }))).toBe(false);
+    expect(checkOrigin(new Request("http://localhost:3000/devices/enroll", {
+      ...base, headers: { cookie: "rc_session=test", origin: "https://evil.example", "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" },
+    }))).toBe(false);
   });
 
   test("requests cannot mix bearer and proof-of-possession identities", async () => {
