@@ -79,6 +79,12 @@ export function controlProof(userId: string, clientId: string): ControlProof | n
   return { grant: String(row.grant), credentialId: String(row.credential_id), assertion: String(row.assertion) };
 }
 
+export function freshControlProof(userId: string, clientId: string, maxAgeMs = 2 * 60_000): ControlProof | null {
+  const row = q<any>(`SELECT grant,credential_id,assertion FROM control_clients
+    WHERE id=? AND user_id=? AND expires_at>? AND created_at>=?`).get(clientId, userId, now(), now() - maxAgeMs);
+  return row ? { grant: String(row.grant), credentialId: String(row.credential_id), assertion: String(row.assertion) } : null;
+}
+
 export function controlClientStatus(userId: string, clientId: string) {
   const row = q<{ expires_at: number }>("SELECT expires_at FROM control_clients WHERE id=? AND user_id=? AND expires_at>?")
     .get(clientId, userId, now());

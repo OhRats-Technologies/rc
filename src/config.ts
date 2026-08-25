@@ -1,5 +1,5 @@
 export const PORT = Number(Bun.env.PORT || 3000);
-export const VERSION = "0.8.3";
+export const VERSION = "0.9.0";
 export const DATA_DIR = Bun.env.DATA_DIR || "./data";
 export const STATIC_DIR = Bun.env.STATIC_DIR || `${import.meta.dir}/../static`;
 export const PUBLIC_URL = (Bun.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
@@ -13,6 +13,8 @@ const positiveInt = (name: string, fallback: number) => {
 export const SESSION_TTL = positiveInt("RC_SESSION_TTL_HOURS", 24 * 30) * 60 * 60 * 1000;
 export const CLI_SESSION_TTL = positiveInt("RC_CLI_SESSION_TTL_HOURS", 24 * 30) * 60 * 60 * 1000;
 export const CONTROL_GRANT_TTL = positiveInt("RC_CONTROL_GRANT_TTL_HOURS", 24 * 30) * 60 * 60 * 1000;
+export const MCP_GRANT_TTL = positiveInt("RC_MCP_GRANT_TTL_HOURS", 24 * 30) * 60 * 60 * 1000;
+export const MCP_ACCESS_TTL = positiveInt("RC_MCP_ACCESS_TTL_MINUTES", 15) * 60 * 1000;
 export const INVITE_TTL = positiveInt("RC_INVITE_TTL_HOURS", 4) * 60 * 60 * 1000;
 export const ENROLLMENT_TTL = positiveInt("RC_ENROLLMENT_TTL_MINUTES", 30) * 60 * 1000;
 export const SETUP_COOKIE_TTL = 15 * 60;

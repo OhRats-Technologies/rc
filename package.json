@@ -1,11 +1,11 @@
 {
   "name": "rc",
   "private": true,
-  "version": "0.8.3",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "bun run build:client && bun --hot server.ts",
-    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name]-[hash].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name]-[hash].[ext]' ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/action-run.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/copy.ts ./web/client/sidebar.ts ./web/styles.css ./web/social-card.png",
+    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name]-[hash].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name]-[hash].[ext]' ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/action-run.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/copy.ts ./web/client/sidebar.ts ./web/styles.css ./web/social-card.png",
     "build:server": "rm -rf dist/server && bun build --target=bun --production --outdir=dist/server ./server.ts",
     "build": "rm -rf dist && bun run build:client && bun run build:server",
     "start": "bun server.ts",

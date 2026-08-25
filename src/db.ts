@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS processes(
   id TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
   command TEXT NOT NULL,cwd TEXT,status TEXT NOT NULL DEFAULT 'starting'
     CHECK(status IN ('starting','running','exited','lost')),
-  encrypted INTEGER NOT NULL DEFAULT 0,
+  encrypted INTEGER NOT NULL DEFAULT 0,mcp INTEGER NOT NULL DEFAULT 0,
   output_head TEXT NOT NULL DEFAULT '',output_tail TEXT NOT NULL DEFAULT '',output_chars INTEGER NOT NULL DEFAULT 0,
   revision INTEGER NOT NULL DEFAULT 0,cols INTEGER NOT NULL DEFAULT 80,rows INTEGER NOT NULL DEFAULT 24,
   exit_code INTEGER,signal TEXT,error TEXT,created_by TEXT NOT NULL REFERENCES users(id),
@@ -74,6 +74,36 @@ CREATE TABLE IF NOT EXISTS control_clients(
   id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   signing_public_key TEXT NOT NULL,credential_id TEXT NOT NULL,grant TEXT NOT NULL,assertion TEXT NOT NULL,
   created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_used INTEGER
+);
+CREATE TABLE IF NOT EXISTS mcp_clients(
+  id TEXT PRIMARY KEY,name TEXT NOT NULL,redirect_uris TEXT NOT NULL,created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mcp_oauth_requests(
+  id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,redirect_uri TEXT NOT NULL,
+  state TEXT NOT NULL DEFAULT '',requested_scope TEXT NOT NULL,code_challenge TEXT NOT NULL,resource TEXT NOT NULL,
+  prepared_grant TEXT,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mcp_grants(
+  id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,name TEXT NOT NULL,
+  grant TEXT NOT NULL,control_client_id TEXT NOT NULL,grant_signature TEXT NOT NULL,
+  credential_id TEXT NOT NULL,control_grant TEXT NOT NULL,control_assertion TEXT NOT NULL,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_used INTEGER,revoked_at INTEGER
+);
+CREATE TABLE IF NOT EXISTS mcp_codes(
+  code_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,
+  redirect_uri TEXT NOT NULL,code_challenge TEXT NOT NULL,resource TEXT NOT NULL,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mcp_access_tokens(
+  token_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mcp_refresh_tokens(
+  token_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mcp_confirmations(
+  id TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,
+  action_id TEXT NOT NULL,device_ids TEXT NOT NULL,expires_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS cli_authorizations(
   id TEXT PRIMARY KEY,device_code_hash TEXT NOT NULL UNIQUE,user_code_hash TEXT NOT NULL UNIQUE,
@@ -123,6 +153,10 @@ CREATE INDEX IF NOT EXISTS idx_agent_auth_challenges_expiry ON agent_auth_challe
 CREATE INDEX IF NOT EXISTS idx_api_request_nonces_expiry ON api_request_nonces(expires_at);
 CREATE INDEX IF NOT EXISTS idx_control_authorizations_expiry ON control_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_control_clients_user ON control_clients(user_id,expires_at);
+CREATE INDEX IF NOT EXISTS idx_mcp_grants_user ON mcp_grants(user_id,expires_at);
+CREATE INDEX IF NOT EXISTS idx_mcp_oauth_expiry ON mcp_oauth_requests(expires_at);
+CREATE INDEX IF NOT EXISTS idx_mcp_access_expiry ON mcp_access_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_mcp_refresh_expiry ON mcp_refresh_tokens(expires_at);
 `);
 
 function migrateRoleVocabulary() {
@@ -171,6 +205,7 @@ migrateDeviceTransportKeys();
 function migrateEncryptedProcesses() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(processes)").all().map(row => row.name);
   if (!columns.includes("encrypted")) db.exec("ALTER TABLE processes ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0");
+  if (!columns.includes("mcp")) db.exec("ALTER TABLE processes ADD COLUMN mcp INTEGER NOT NULL DEFAULT 0");
 }
 
 migrateEncryptedProcesses();

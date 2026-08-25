@@ -35,4 +35,7 @@
 - [x] Persistent SPA sidebar navigation with no page-remount blink
 - [x] Flat responsive device/process UI without panel stacking
 - [x] First-class API signing-key management route
+- [x] Stateless `/mcp` endpoint with OAuth discovery, PKCE, short-lived access tokens, and rotating refresh tokens
+- [x] Device-scoped MCP Observe / Actions / Terminal grants with fresh passkey approval and Node-side RC Lock enforcement
+- [x] MCP saved-Action definition binding, in-band confirmation, and non-persistent terminal output relay
 - [x] Keep maintained source files under 300 LOC

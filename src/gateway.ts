@@ -7,6 +7,8 @@ import type { AgentClientMessage, AgentServerMessage } from "./protocol";
 import type { SocketWriter } from "./browser-socket";
 import { AGENT_CHALLENGE_TTL } from "./config";
 import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-relay";
+import { handleMcpProcessMessage } from "./mcp/process";
+import { registerMcpSender } from "./mcp/relay";
 
 const agents = new Map<string, SocketWriter>();
 const agentActivity = new Map<string, number>();
@@ -31,6 +33,7 @@ function send(deviceId: string, message: AgentServerMessage) {
 }
 
 registerAgentSender(send);
+registerMcpSender(send);
 
 export function createAgentChallenge(deviceId: string) {
   if (!q("SELECT 1 FROM devices WHERE id=?").get(deviceId)) return null;
@@ -132,12 +135,14 @@ export const agentSocketHandlers = {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
         markProcessStarted(process.id);
+        if (handleMcpProcessMessage(process, msg)) return;
         publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
         return;
       }
       if (msg.type === "process.output") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
+        if (handleMcpProcessMessage(process, msg)) return;
         if (process.encrypted) return;
         const chunk = msg.output;
         const revision = appendProcessOutput(process.id, chunk);
@@ -147,6 +152,7 @@ export const agentSocketHandlers = {
       if (msg.type === "process.exit") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
+        const mcp = handleMcpProcessMessage(process, msg);
         const output = process.encrypted ? "" : msg.output || "";
         if (output) appendProcessOutput(process.id, output);
         const exitCode = msg.exitCode ?? null;
@@ -154,7 +160,7 @@ export const agentSocketHandlers = {
         markProcessExited(process.id, exitCode, signal);
         q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
         publishEvent({ kind: "process.exited", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
-          detail: { exitCode, signal } });
+          detail: { exitCode, signal, ...(mcp ? { mcp: true } : {}) } });
         return;
       }
       if (msg.type === "node.update.ready") {

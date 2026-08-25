@@ -27,6 +27,8 @@ function policy(request: Request) {
   if (path.startsWith("/assets/") || path.startsWith("/downloads/") || path === "/install.sh") return null;
   if (path === "/api/v1/agent/challenge") return { name: "agent-challenge", limit: 60, windowMs: 60_000 };
   if (path === "/api/v1/agent/enroll") return { name: "agent-enroll", limit: 20, windowMs: 10 * 60_000 };
+  if (path === "/oauth/register") return { name: "mcp-register", limit: 20, windowMs: 10 * 60_000 };
+  if (path === "/oauth/token") return { name: "mcp-token", limit: 120, windowMs: 5 * 60_000 };
   if (path.startsWith("/api/v1/auth/")) return { name: `auth:${path.split("/").slice(4, 6).join(":")}`, limit: 30, windowMs: 5 * 60_000 };
   if (path === "/api/v1/agent/ws" || path === "/api/v1/ws") return { name: "ws-connect", limit: 30, windowMs: 60_000 };
   if (path.startsWith("/api/v1/") || request.method !== "GET") return { name: "api", limit: 600, windowMs: 60_000 };

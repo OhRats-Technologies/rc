@@ -5,8 +5,9 @@ export type AuthorityMember = {
   userId: string; role: "owner" | "operator" | "viewer"; credentials: AuthorityCredential[];
 };
 export type AuthorityApiKey = { id: string; userId: string; publicKey: string; scopes: string[] };
+export type AuthorityMcpGrant = { id: string; userId: string; hash: string };
 export type AuthoritySnapshot = {
-  v: 1; workspaceId: string; members: AuthorityMember[]; apiKeys: AuthorityApiKey[];
+  v: 1; workspaceId: string; members: AuthorityMember[]; apiKeys: AuthorityApiKey[]; mcpGrants?: AuthorityMcpGrant[];
 };
 
 export function authoritySnapshot(workspaceId: string): AuthoritySnapshot {
@@ -28,7 +29,13 @@ export function authoritySnapshot(workspaceId: string): AuthoritySnapshot {
       id: String(row.id), userId: String(row.userId), publicKey: String(row.publicKey),
       scopes: JSON.parse(String(row.scopes || "[]")) as string[],
     }));
-  return { v: 1, workspaceId, members: [...grouped.values()], apiKeys };
+  const mcpGrants = q<{ id: string; user_id: string; grant: string }>(`SELECT DISTINCT g.id,g.user_id,g.grant FROM mcp_grants g
+    JOIN json_each(json_extract(g.grant,'$.deviceIds')) granted JOIN devices d ON d.id=granted.value
+    WHERE d.workspace_id=? AND g.revoked_at IS NULL AND g.expires_at>? AND EXISTS (
+      SELECT 1 FROM json_each(json_extract(g.grant,'$.scopes')) scope WHERE scope.value IN ('mcp:actions','mcp:terminal')
+    ) ORDER BY g.id`).all(workspaceId, Date.now())
+    .map(row => ({ id: row.id, userId: row.user_id, hash: new Bun.CryptoHasher("sha256").update(row.grant).digest("hex") }));
+  return { v: 1, workspaceId, members: [...grouped.values()], apiKeys, ...(mcpGrants.length ? { mcpGrants } : {}) };
 }
 
 export function canonicalAuthority(snapshot: AuthoritySnapshot) {

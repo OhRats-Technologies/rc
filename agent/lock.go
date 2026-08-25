@@ -31,11 +31,17 @@ type authorityAPIKey struct {
 	PublicKey string   `json:"publicKey"`
 	Scopes    []string `json:"scopes"`
 }
+type authorityMcpGrant struct {
+	ID     string `json:"id"`
+	UserID string `json:"userId"`
+	Hash   string `json:"hash"`
+}
 type authoritySnapshot struct {
-	V           int               `json:"v"`
-	WorkspaceID string            `json:"workspaceId"`
-	Members     []authorityMember `json:"members"`
-	APIKeys     []authorityAPIKey `json:"apiKeys"`
+	V           int                 `json:"v"`
+	WorkspaceID string              `json:"workspaceId"`
+	Members     []authorityMember   `json:"members"`
+	APIKeys     []authorityAPIKey   `json:"apiKeys"`
+	MCPGrants   []authorityMcpGrant `json:"mcpGrants,omitempty"`
 }
 type lockState struct {
 	Snapshot   string `json:"snapshot"`

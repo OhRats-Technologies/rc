@@ -3,6 +3,7 @@ import { app } from "./src/app";
 import { PORT, PUBLIC_URL } from "./src/config";
 import { now, q } from "./src/db";
 import { recoverInterruptedProcesses } from "./src/gateway";
+import { cleanupMcpOAuth } from "./src/mcp/oauth";
 
 recoverInterruptedProcesses();
 
@@ -24,6 +25,7 @@ setInterval(() => {
   q("DELETE FROM cli_authorizations WHERE expires_at<? OR exchanged_at IS NOT NULL").run(now());
   q("DELETE FROM cli_sessions WHERE expires_at<?").run(now());
   q("DELETE FROM agent_auth_challenges WHERE expires_at<?").run(now());
+  cleanupMcpOAuth();
 }, 60_000).unref();
 
 console.log(`RC ${PUBLIC_URL} listening on :${app.server?.port || PORT}`);

@@ -194,6 +194,12 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 				_ = control.handle(message)
 				continue
 			}
+			if message.Type == "mcp.process.start" {
+				if err := handleMcpProcess(stateDir, value.DeviceID, manager, message); err != nil {
+					_ = send(wireMessage{Type: "process.exit", ID: message.ID, Output: err.Error()})
+				}
+				continue
+			}
 			if strings.HasPrefix(message.Type, "process.") || message.Type == "node.update" || message.Type == "node.remove" {
 				continue
 			}

@@ -8,6 +8,7 @@ let app: typeof import("./app").app;
 let q: typeof import("./db").q;
 let createAgentChallenge: typeof import("./gateway").createAgentChallenge;
 let verifyAgent: typeof import("./gateway").verifyAgent;
+let agentSocketHandlers: typeof import("./gateway").agentSocketHandlers;
 let checkOrigin: typeof import("./http-utils").checkOrigin;
 let runAction: typeof import("./actions").runAction;
 let consumeStepUp: typeof import("./step-up").consumeStepUp;
@@ -18,7 +19,7 @@ beforeAll(async () => {
   Bun.env.DATA_DIR = dataDir;
   Bun.env.PUBLIC_URL = "http://localhost:3000";
   ({ q, sha } = await import("./db"));
-  ({ createAgentChallenge, verifyAgent } = await import("./gateway"));
+  ({ createAgentChallenge, verifyAgent, agentSocketHandlers } = await import("./gateway"));
   ({ checkOrigin } = await import("./http-utils"));
   ({ runAction } = await import("./actions"));
   ({ consumeStepUp } = await import("./step-up"));
@@ -166,5 +167,69 @@ describe("fresh passkey step-up", () => {
     expect(() => consumeStepUp(request(), { id: otherId, name: "Other User" })).toThrow("fresh passkey verification required");
     expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).not.toThrow();
     expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).toThrow("fresh passkey verification required");
+  });
+});
+
+function mcpRpc(method: string, id = 1, params?: Record<string, unknown>, token = "") {
+  const headers: Record<string, string> = { "content-type": "application/json", "mcp-protocol-version": "2026-07-28", "mcp-method": method };
+  if (method === "tools/call") headers["mcp-name"] = String(params?.name || "");
+  if (token) headers.authorization = `Bearer ${token}`;
+  return new Request("http://localhost:3000/mcp", { method: "POST", headers,
+    body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) }) });
+}
+
+function seededMcpCode(scopes: string[]) {
+  const userId = crypto.randomUUID(), clientId = `mcp_client_${crypto.randomUUID()}`, grantId = crypto.randomUUID(), t = Date.now();
+  const code = `mcp_code_${crypto.randomUUID()}`, verifier = "a".repeat(43);
+  const digest = new Bun.CryptoHasher("sha256").update(verifier).digest();
+  const challenge = Buffer.from(digest).toString("base64url"), redirect = "http://127.0.0.1:49152/callback";
+  const grant = JSON.stringify({ v: 1, id: grantId, userId, clientId, clientName: "MCP Test", deviceIds: [], scopes,
+    actions: [], issuedAt: t, expiresAt: t + 60 * 60_000 });
+  q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "MCP User", t);
+  q("INSERT INTO mcp_clients(id,name,redirect_uris,created_at) VALUES(?,?,?,?)").run(clientId, "MCP Test", JSON.stringify([redirect]), t);
+  q(`INSERT INTO mcp_grants(id,user_id,client_id,name,grant,control_client_id,grant_signature,credential_id,control_grant,control_assertion,created_at,expires_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(grantId, userId, clientId, "MCP Test", grant, "control", "sig", "credential", "grant", "assertion", t, t + 60 * 60_000);
+  q("INSERT INTO mcp_codes(code_hash,grant_id,redirect_uri,code_challenge,resource,expires_at) VALUES(?,?,?,?,?,?)")
+    .run(sha(code), grantId, redirect, challenge, "http://localhost:3000/mcp", t + 60_000);
+  return { clientId, code, verifier, redirect };
+}
+
+describe("MCP transport and OAuth", () => {
+  test("publishes discovery, challenges protected calls, and rejects mismatched method headers", async () => {
+    const metadata = await app.handle(new Request("http://localhost:3000/.well-known/oauth-protected-resource"));
+    expect((await metadata.json() as any).resource).toBe("http://localhost:3000/mcp");
+    const denied = await app.handle(mcpRpc("tools/list"));
+    expect(denied.status).toBe(401); expect(denied.headers.get("www-authenticate")).toContain("mcp:actions");
+    const mismatched = mcpRpc("server/discover"); mismatched.headers.set("mcp-method", "tools/list");
+    expect((await app.handle(mismatched)).status).toBe(400);
+  });
+
+  test("PKCE codes and refresh tokens are one-time and scopes filter tools", async () => {
+    const seeded = seededMcpCode(["mcp:observe", "mcp:actions"]);
+    const form = new URLSearchParams({ grant_type: "authorization_code", client_id: seeded.clientId, code: seeded.code,
+      redirect_uri: seeded.redirect, code_verifier: seeded.verifier, resource: "http://localhost:3000/mcp" });
+    const token = await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: form }));
+    expect(token.status).toBe(200);
+    const credentials = await token.json() as any;
+    expect(credentials.access_token).toStartWith("mcp_access_"); expect(credentials.refresh_token).toStartWith("mcp_refresh_");
+    expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: form }))).status).toBe(400);
+    const listed = await app.handle(mcpRpc("tools/list", 2, undefined, credentials.access_token));
+    const names = (await listed.json() as any).result.tools.map((tool: any) => tool.name);
+    expect(names).toContain("machines_list"); expect(names).toContain("action_run"); expect(names).not.toContain("process_run");
+    const terminal = await app.handle(mcpRpc("tools/call", 3, { name: "process_run", arguments: { deviceId: "x", command: "id" } }, credentials.access_token));
+    expect(terminal.status).toBe(403); expect(terminal.headers.get("www-authenticate")).toContain("mcp:terminal");
+    const refresh = new URLSearchParams({ grant_type: "refresh_token", client_id: seeded.clientId,
+      refresh_token: credentials.refresh_token, resource: "http://localhost:3000/mcp" });
+    expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: refresh }))).status).toBe(200);
+    expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: refresh }))).status).toBe(400);
+  });
+
+  test("MCP process output is relayed without being retained in SQLite", async () => {
+    const { userId, deviceId } = await enrolledDevice(), processId = crypto.randomUUID(), t = Date.now();
+    q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
+      VALUES(?,?,?,NULL,'running',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", userId, t);
+    agentSocketHandlers.message(deviceId, { type: "process.output", id: processId, output: "mcp-secret-output" });
+    const row = q<any>("SELECT output_head,output_tail,output_chars FROM processes WHERE id=?").get(processId);
+    expect(row.output_head).toBe(""); expect(row.output_tail).toBe(""); expect(row.output_chars).toBe(0);
   });
 });
