@@ -7,10 +7,18 @@ import { SectionBadge } from "../components";
 
 type RemoteProcess = ReturnType<typeof import("../../../src/process-store").processJSON>;
 
+function platformIcon(platform: string) {
+  const value = platform.toLowerCase();
+  if (value === "darwin" || value === "macos") return "icon-platform-macos";
+  if (value === "linux") return "icon-platform-linux";
+  if (value === "windows" || value === "win32") return "icon-platform-windows";
+  return "icon-devices";
+}
+
 function DeviceRows({ devices }: { devices: DeviceView[] }) {
   return <div className="data-list" id="device-list">
     {devices.length ? devices.map(device => <a className="data-row" key={device.id} href={`/devices/${device.id}`} data-device-row={device.id}>
-      <div><strong>{device.name}</strong><div className="meta">{device.workspace_name} · {device.platform.toUpperCase()}/{device.arch}{device.active_processes ? ` · ${device.active_processes} ACTIVE` : ""}</div></div>
+      <div className="device-row-main"><span className={`ui-icon device-platform-icon ${platformIcon(device.platform)}`} aria-hidden="true"/><div><strong>{device.name}</strong><div className="meta">{device.workspace_name} · {device.platform.toUpperCase()}/{device.arch}{device.active_processes ? ` · ${device.active_processes} ACTIVE` : ""}</div></div></div>
       <span className={`status${device.online ? " online" : ""}`} data-device-status={device.id}>{device.online ? "ONLINE" : `SEEN ${relative(device.last_seen)}`}</span>
     </a>) : <p className="empty-state">No devices yet. Enroll one from a workspace.</p>}
   </div>;
@@ -29,7 +37,7 @@ export function devicesPage(user: User, workspaces: WorkspaceView[], devices: De
   const canEnroll = workspaces.some(workspace => workspace.role === "owner");
   return htmlDocument({ title: "Devices", user, workspaces, path: "/devices", sidebar, scripts: ["live"], body:
     <div className="page" data-live-page="devices">
-      <header className="page-header"><div><p className="eyebrow">DEVICES</p><h1>Devices</h1></div>{canEnroll && <a className="or-button" href="/devices/enroll">ENROLL DEVICE</a>}</header>
+      <header className="page-header"><div><h1>Devices</h1></div>{canEnroll && <a className="header-icon-button" href="/devices/enroll" aria-label="Enroll device" title="Enroll device"><span className="ui-icon icon-plus" aria-hidden="true"/></a>}</header>
       <DeviceRows devices={devices}/>
     </div> });
 }

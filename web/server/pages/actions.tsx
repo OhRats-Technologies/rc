@@ -10,7 +10,7 @@ type Prefill = { workspaceId?: string; name?: string; description?: string; comm
 export function actionsPage(user: User, workspaces: WorkspaceView[], actions: ActionView[], sidebar: "open" | "closed") {
   const ownerWorkspace = workspaces.find(workspace => workspace.role === "owner");
   return htmlDocument({ title: "Actions", user, workspaces, path: "/actions", sidebar, body:
-    <div className="page"><header className="page-header"><div><p className="eyebrow">ACTIONS</p><h1>Actions</h1></div>{ownerWorkspace && <a className="header-icon-button" href={`/actions/new?workspace=${ownerWorkspace.id}`} aria-label="New action" title="New action"><span className="ui-icon icon-plus" aria-hidden="true"/></a>}</header>
+    <div className="page"><header className="page-header"><div><h1>Actions</h1></div>{ownerWorkspace && <a className="header-icon-button" href={`/actions/new?workspace=${ownerWorkspace.id}`} aria-label="New action" title="New action"><span className="ui-icon icon-plus" aria-hidden="true"/></a>}</header>
       <div className="data-list">{actions.length ? actions.map((action, index) => <a className="data-row workspace-row" href={`/actions/${action.id}`} key={action.id}><div><SectionBadge index={String(index + 1).padStart(2, "0")}>{action.name}</SectionBadge><div className="meta">{action.workspace_name}</div></div><span className="meta">{action.role.toUpperCase()}</span></a>) : <p className="empty-state">No saved actions yet.</p>}</div>
     </div> });
 }

@@ -132,16 +132,19 @@ document.querySelectorAll<HTMLElement>("[data-sidebar-device]").forEach(device =
 const deleteDialog = document.querySelector<HTMLDialogElement>("[data-delete-dialog]");
 const deleteTitle = deleteDialog?.querySelector<HTMLElement>("[data-delete-title]");
 const deleteName = deleteDialog?.querySelector<HTMLElement>("[data-delete-name]");
+const deleteDescription = deleteDialog?.querySelector<HTMLElement>("[data-delete-description]");
 const deleteError = deleteDialog?.querySelector<HTMLElement>("[data-delete-error]");
 const deleteConfirm = deleteDialog?.querySelector<HTMLButtonElement>("[data-delete-confirm]");
-let deleteEndpoint = "", deleteRedirect = "/devices", deleteTrigger: HTMLElement | null = null;
+let deleteEndpoint = "", deleteRedirect = "/devices", deleteMethod = "DELETE", deleteTrigger: HTMLElement | null = null;
 
-document.querySelectorAll<HTMLButtonElement>("[data-delete-endpoint]").forEach(button => button.addEventListener("click", () => {
+document.querySelectorAll<HTMLElement>("[data-delete-endpoint]").forEach(button => button.addEventListener("click", event => {
+  event.preventDefault();
   if (!deleteDialog || !deleteTitle || !deleteName || !deleteConfirm) return;
   const menu = button.closest<HTMLDetailsElement>("details");
-  deleteEndpoint = button.dataset.deleteEndpoint || ""; deleteRedirect = button.dataset.deleteRedirect || "/devices"; deleteTrigger = menu?.querySelector<HTMLElement>("summary") || button;
+  deleteEndpoint = button.dataset.deleteEndpoint || ""; deleteRedirect = button.dataset.deleteRedirect || "/devices"; deleteMethod = button.dataset.deleteMethod || "DELETE"; deleteTrigger = menu?.querySelector<HTMLElement>("summary") || button;
   const kind = button.dataset.deleteKind || "item", name = button.dataset.deleteName || "this item";
   deleteTitle.textContent = `Delete ${kind}?`; deleteName.textContent = name;
+  if (deleteDescription) { deleteDescription.textContent = button.dataset.deleteDescription || ""; deleteDescription.hidden = !deleteDescription.textContent; }
   if (deleteError) deleteError.textContent = "";
   if (menu) menu.open = false;
   deleteDialog.showModal();
@@ -149,11 +152,11 @@ document.querySelectorAll<HTMLButtonElement>("[data-delete-endpoint]").forEach(b
 
 deleteDialog?.querySelector<HTMLButtonElement>("[data-delete-cancel]")?.addEventListener("click", () => deleteDialog.close());
 deleteDialog?.addEventListener("click", event => { if (event.target === deleteDialog) deleteDialog.close(); });
-deleteDialog?.addEventListener("close", () => { deleteEndpoint = ""; deleteRedirect = "/devices"; deleteTrigger?.focus(); deleteTrigger = null; });
+deleteDialog?.addEventListener("close", () => { deleteEndpoint = ""; deleteRedirect = "/devices"; deleteMethod = "DELETE"; deleteTrigger?.focus(); deleteTrigger = null; });
 deleteConfirm?.addEventListener("click", async () => {
   if (!deleteEndpoint || !deleteConfirm) return;
   deleteConfirm.disabled = true; deleteConfirm.textContent = "Deleting…";
-  try { await api(deleteEndpoint, { method: "DELETE" }); location.href = deleteRedirect; }
+  try { await api(deleteEndpoint, { method: deleteMethod, headers: { accept: "application/json" } }); location.href = deleteRedirect; }
   catch (error) {
     if (deleteError) deleteError.textContent = error instanceof Error ? error.message : String(error);
     deleteConfirm.disabled = false; deleteConfirm.textContent = "Delete";

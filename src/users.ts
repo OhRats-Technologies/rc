@@ -19,19 +19,9 @@ export function renameUser(user: User, value: unknown) {
 }
 
 export function deleteUser(user: User) {
-  const blockers = q<{ name: string }>(`SELECT w.name FROM workspaces w
-    JOIN workspace_members me ON me.workspace_id=w.id AND me.user_id=? AND me.role='owner'
-    WHERE (SELECT count(*) FROM workspace_members owners WHERE owners.workspace_id=w.id AND owners.role='owner')=1
-      AND (SELECT count(*) FROM workspace_members members WHERE members.workspace_id=w.id)>1
-    ORDER BY w.name`).all(user.id);
-  if (blockers.length) {
-    throw new HttpError(409, `Promote another owner before deleting your account: ${blockers.map(row => row.name).join(", ")}`);
-  }
-
-  const privateWorkspaces = q<{ id: string }>(`SELECT w.id FROM workspaces w
-    JOIN workspace_members me ON me.workspace_id=w.id AND me.user_id=? AND me.role='owner'
-    WHERE (SELECT count(*) FROM workspace_members members WHERE members.workspace_id=w.id)=1`).all(user.id);
-  for (const workspace of privateWorkspaces) deleteWorkspace(user, workspace.id);
+  const ownedWorkspaces = q<{ id: string }>(`SELECT workspace_id id FROM workspace_members
+    WHERE user_id=? AND role='owner'`).all(user.id);
+  for (const workspace of ownedWorkspaces) deleteWorkspace(user, workspace.id);
 
   db.transaction(() => {
     q("INSERT OR IGNORE INTO users(id,name,created_at) VALUES(?,?,?)").run(DELETED_USER_ID, "Deleted account", now());

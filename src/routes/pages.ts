@@ -13,7 +13,7 @@ import { getProcess, listProcesses } from "../process-api";
 import { invitePreview, workspaceActivity, workspaceDevices, workspaceFor } from "../workspaces";
 import { workspaceAccess } from "../workspace-access";
 import { activeUserCount } from "../users";
-import { accountPage, apiKeyFormPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
+import { accountPage, apiKeyFormPage, apiPage, deleteAccountFallbackPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
 import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
@@ -94,7 +94,7 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
   })
   .get("/account/delete", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
-    return deleteAccountPage(context.user, context.workspaces, context.sidebar);
+    return deleteAccountFallbackPage(context.user, context.workspaces, context.sidebar);
   })
   .get("/api", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();

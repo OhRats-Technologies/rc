@@ -113,6 +113,7 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
       <div className="delete-dialog-content">
         <h2 id="delete-dialog-title" data-delete-title>Delete?</h2>
         <p>This will delete <strong data-delete-name>this item</strong>.</p>
+        <p className="page-copy" data-delete-description hidden/>
         <p className="error" data-delete-error/>
         <div className="delete-dialog-actions">
           <button className="or-button secondary" type="button" data-delete-cancel>Cancel</button>

@@ -10,7 +10,7 @@ import { pageContext, safeNext } from "../page-context";
 import { createEnrollment, createInvite, createWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor } from "../workspaces";
 import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvite, workspaceAccess } from "../workspace-access";
 import { deleteUser, renameUser } from "../users";
-import { accountPage, apiKeyFormPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
+import { accountPage, apiKeyFormPage, apiPage, deleteAccountFallbackPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
 import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
@@ -40,9 +40,15 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try {
       deleteUser(context.user);
+      if (request.headers.get("accept")?.includes("application/json")) {
+        return Response.json({ ok: true }, { headers: { "set-cookie": sessionCookie("", 0), "cache-control": "no-store" } });
+      }
       return new Response(null, { status: 303, headers: { location: "/", "set-cookie": sessionCookie("", 0) } });
     } catch (error) {
-      return deleteAccountPage(context.user, context.workspaces, context.sidebar, error instanceof Error ? error.message : "Could not delete account.");
+      if (request.headers.get("accept")?.includes("application/json")) {
+        return Response.json({ error: error instanceof Error ? error.message : "Could not delete account." }, { status: 409, headers: { "cache-control": "no-store" } });
+      }
+      return deleteAccountFallbackPage(context.user, context.workspaces, context.sidebar, error instanceof Error ? error.message : "Could not delete account.");
     }
   })
   .post("/workspaces", async ({ request }) => {
