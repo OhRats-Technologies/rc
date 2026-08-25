@@ -4,7 +4,7 @@ import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simp
 import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
 import { createApiToken, deleteApiToken, listApiTokens } from "../account";
 import {
-  addPasskeyOptions, auth, deletePasskey, listPasskeys, loginOptions, logout, registerOptions, rcStatus,
+  addPasskeyOptions, auth, deletePasskey, loginOptions, registerOptions, rcStatus,
   setupOptions, verifyAddedPasskey, verifyLogin, verifyNewUser,
 } from "../auth";
 import { exchangeCliAuthorization, revokeCliToken, startCliAuthorization } from "../cli-auth";
@@ -15,7 +15,7 @@ import {
 } from "../devices";
 import { HttpError } from "../errors";
 import { agentsCount } from "../gateway";
-import { checkOrigin, fail, json, sessionCookie } from "../http-utils";
+import { checkOrigin, fail, json } from "../http-utils";
 import { getProcess, listProcesses, startProcess } from "../process-api";
 import {
   createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceActivity, workspaceDetail,
@@ -63,9 +63,6 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     detail: { hide: true },
   })
   .get("/status", ({ request }) => rcStatus(request), { detail: { hide: true } })
-  .all("/auth/setup", () => fail("RC was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
-  .all("/auth/login", () => fail("RC was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
-  .all("/auth/register", () => fail("RC was updated. Refresh this page and try again.", 409), { detail: { hide: true } })
   .post("/auth/setup/options", ({ request, body }) => setupOptions(request, body.name), {
     body: t.Object({ name: t.String({ maxLength: 120 }) }), detail: { hide: true },
   })
@@ -92,12 +89,10 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .post("/auth/register/verify", ({ body }) => verifyNewUser("register", body.ceremonyId, body.response as RegistrationResponseJSON), {
     body: WebAuthnVerify, detail: { hide: true },
   })
-  .post("/auth/logout", ({ request }) => { logout(request); return json({ ok: true }, 200, { "set-cookie": sessionCookie("", 0) }); }, { detail: { hide: true } })
   .post("/agent/enroll", ({ body }) => json(enrollAgent(body as AgentEnrollInput), 201), { body: AgentEnroll, detail: { hide: true } })
   .get("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .get("/me", ({ rcUser }) => ({ user: rcUser!, workspaces: userWorkspaces(rcUser!.id) }))
-  .get("/passkeys", ({ request, rcUser }) => listPasskeys(request, rcUser!).then(passkeys => ({ passkeys })), { detail: { hide: true } })
   .post("/passkeys/options", ({ request, rcUser }) => addPasskeyOptions(request, rcUser!), { body: t.Optional(t.Object({})), detail: { hide: true } })
   .post("/passkeys/verify", async ({ request, rcUser, body }) => {
     await verifyAddedPasskey(request, rcUser!, body.ceremonyId, body.response as RegistrationResponseJSON);
