@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
@@ -37,9 +38,10 @@ type authoritySnapshot struct {
 	APIKeys     []authorityAPIKey `json:"apiKeys"`
 }
 type lockState struct {
-	Snapshot string `json:"snapshot"`
-	Origin   string `json:"origin"`
-	RPID     string `json:"rpId"`
+	Snapshot   string `json:"snapshot"`
+	Origin     string `json:"origin"`
+	RPID       string `json:"rpId"`
+	Generation uint64 `json:"generation"`
 }
 type controlGrant struct {
 	V                int    `json:"v"`
@@ -95,7 +97,7 @@ func loadLock(dir string) (lockState, error) {
 	return value, err
 }
 
-func saveLock(dir, snapshot, origin, rpID string) error {
+func saveLockGeneration(dir, snapshot, origin, rpID string, generation uint64) error {
 	var parsed authoritySnapshot
 	if json.Unmarshal([]byte(snapshot), &parsed) != nil || parsed.V != 1 || parsed.WorkspaceID == "" {
 		return errors.New("invalid RC Lock authority snapshot")
@@ -103,8 +105,12 @@ func saveLock(dir, snapshot, origin, rpID string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	data, _ := json.MarshalIndent(lockState{Snapshot: snapshot, Origin: origin, RPID: rpID}, "", "  ")
+	data, _ := json.MarshalIndent(lockState{Snapshot: snapshot, Origin: origin, RPID: rpID, Generation: generation}, "", "  ")
 	return os.WriteFile(lockPath(dir), data, 0600)
+}
+
+func saveLock(dir, snapshot, origin, rpID string) error {
+	return saveLockGeneration(dir, snapshot, origin, rpID, 0)
 }
 
 func lockHash(dir string) string {
@@ -185,7 +191,7 @@ func verifyControlProof(snapshot authoritySnapshot, proof controlProof, origin, 
 	return grant, member.Role, nil
 }
 
-func syncLock(dir, snapshotJSON string, proof controlProof, signature string) error {
+func syncLock(dir, snapshotJSON, previousHash string, previousGeneration uint64, proof controlProof, signature string) error {
 	current, err := loadLock(dir)
 	if err != nil {
 		return errors.New("RC Lock is not initialized")
@@ -197,6 +203,11 @@ func syncLock(dir, snapshotJSON string, proof controlProof, signature string) er
 	if oldSnapshot.WorkspaceID != nextSnapshot.WorkspaceID {
 		return errors.New("workspace authority mismatch")
 	}
+	currentDigest := sha256.Sum256([]byte(current.Snapshot))
+	currentHash := hex.EncodeToString(currentDigest[:])
+	if previousHash != currentHash || previousGeneration != current.Generation {
+		return errors.New("stale RC Lock authority transition")
+	}
 	grant, role, err := verifyControlProof(oldSnapshot, proof, current.Origin, current.RPID)
 	if err != nil || role != "owner" {
 		return errors.New("owner authorization required for RC Lock sync")
@@ -206,10 +217,13 @@ func syncLock(dir, snapshotJSON string, proof controlProof, signature string) er
 		return errors.New("invalid client public key")
 	}
 	digest := sha256.Sum256([]byte(snapshotJSON))
-	payload := "rc-authority-v1\n" + hex.EncodeToString(digest[:])
+	payload := "rc-authority-v3\n" + strconv.FormatUint(current.Generation, 10) + "\n" + currentHash + "\n" + hex.EncodeToString(digest[:])
 	sig, err := base64.RawURLEncoding.DecodeString(signature)
 	if err != nil || !ed25519.Verify(ed25519.PublicKey(publicKey), []byte(payload), sig) {
 		return errors.New("invalid RC Lock authority signature")
 	}
-	return saveLock(dir, snapshotJSON, current.Origin, current.RPID)
+	if current.Generation == ^uint64(0) {
+		return errors.New("RC Lock generation exhausted")
+	}
+	return saveLockGeneration(dir, snapshotJSON, current.Origin, current.RPID, current.Generation+1)
 }

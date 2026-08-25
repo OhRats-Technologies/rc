@@ -7,6 +7,7 @@ import { renameDevice } from "../devices";
 import { HttpError } from "../errors";
 import { checkOrigin, sessionCookie } from "../http-utils";
 import { pageContext, safeNext } from "../page-context";
+import { consumeStepUp } from "../step-up";
 import { createEnrollment, createInvite, createWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor } from "../workspaces";
 import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvite, workspaceAccess } from "../workspace-access";
 import { deleteUser, renameUser } from "../users";
@@ -17,14 +18,15 @@ import { authPage, cliLoginPage } from "../../web/server/pages/auth";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
+const lockClientRequired = () => new Response("JavaScript and passkey authorization are required for RC Lock authority changes.", {
+  status: 409, headers: { "cache-control": "no-store" },
+});
 
 export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide: true } })
   .onBeforeHandle(({ request }) => { if (!checkOrigin(request)) return new Response("invalid origin", { status: 403 }); })
   .post("/cli/login", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const input = await form(request);
-    try { approveCliAuthorization(context.user, input.code); return cliLoginPage(context.user, "", true); }
-    catch (error) { return cliLoginPage(context.user, String(input.code || ""), false, error instanceof Error ? error.message : "Could not authorize CLI."); }
+    return lockClientRequired();
   })
   .post("/account/logout", ({ request }) => {
     logout(request); return new Response(null, { status: 303, headers: { location: "/", "set-cookie": sessionCookie("", 0) } });
@@ -44,6 +46,7 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   .post("/account/delete", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     try {
+      consumeStepUp(request, context.user);
       deleteUser(context.user);
       if (request.headers.get("accept")?.includes("application/json")) {
         return Response.json({ ok: true }, { headers: { "set-cookie": sessionCookie("", 0), "cache-control": "no-store" } });
@@ -103,13 +106,11 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/workspaces/:workspaceId/members/:memberId/role", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    try { changeWorkspaceRole(context.user, params.workspaceId, params.memberId, (await form(request)).role); return Response.redirect(`/workspaces/${params.workspaceId}/access`, 303); }
-    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "member", memberId: params.memberId, message: error instanceof Error ? error.message : "Could not change role." }); }
+    return lockClientRequired();
   })
   .post("/workspaces/:workspaceId/members/:memberId/remove", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    try { removeWorkspaceMember(context.user, params.workspaceId, params.memberId); return Response.redirect(`/workspaces/${params.workspaceId}/access`, 303); }
-    catch (error) { const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace) return new Response("not found", { status: 404 }); const access = workspaceAccess(context.user, params.workspaceId); return accessPage(context.user, context.workspaces, workspace, access.members, access.invites, context.sidebar, null, { scope: "member", memberId: params.memberId, message: error instanceof Error ? error.message : "Could not remove member." }); }
+    return lockClientRequired();
   })
   .post("/devices/:deviceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
@@ -139,8 +140,7 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/account/passkeys/:id/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    try { await deletePasskey(request, context.user, params.id); return Response.redirect("/account", 303); }
-    catch (error) { return accountPage(context.user, context.workspaces, await import("../auth").then(m => m.listPasskeys(request, context.user)), context.sidebar, error instanceof Error ? error.message : "Remove failed."); }
+    return lockClientRequired();
   })
   .post("/api/tokens", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
@@ -148,6 +148,5 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/api/tokens/:id/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    if (!deleteApiToken(context.user.id, params.id)) throw new HttpError(404, "token not found");
-    return Response.redirect("/api", 303);
+    return lockClientRequired();
   });

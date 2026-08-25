@@ -34,8 +34,6 @@ export function enrollAgent(input: AgentEnrollInput) {
   const enrollment = q<any>(`SELECT * FROM enrollment_tokens
     WHERE token_hash=? AND used_at IS NULL AND expires_at>?`).get(sha(token), now());
   if (!enrollment) throw new HttpError(401, "invalid or expired enrollment token");
-  const deviceCount = q<{ count: number }>("SELECT count(*) count FROM devices WHERE workspace_id=?").get(enrollment.workspace_id)?.count || 0;
-  if (deviceCount >= MAX_DEVICES_PER_WORKSPACE) throw new HttpError(409, `device limit reached (${MAX_DEVICES_PER_WORKSPACE})`);
   const publicKey = input.publicKey;
   if (!publicKey.includes("BEGIN PUBLIC KEY")) throw new HttpError(400, "invalid public key");
   const transportPublicKey = String(input.transportPublicKey || "");
@@ -43,6 +41,11 @@ export function enrollAgent(input: AgentEnrollInput) {
   if (q("SELECT id FROM devices WHERE public_key=?").get(publicKey)) throw new HttpError(409, "device key already enrolled");
   const deviceId = id(), t = now();
   db.transaction(() => {
+    const consumed = q("UPDATE enrollment_tokens SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>?")
+      .run(t, enrollment.id, t).changes;
+    if (consumed !== 1) throw new HttpError(401, "invalid or expired enrollment token");
+    const deviceCount = q<{ count: number }>("SELECT count(*) count FROM devices WHERE workspace_id=?").get(enrollment.workspace_id)?.count || 0;
+    if (deviceCount >= MAX_DEVICES_PER_WORKSPACE) throw new HttpError(409, `device limit reached (${MAX_DEVICES_PER_WORKSPACE})`);
     q(`INSERT INTO devices(id,workspace_id,name,hostname,platform,arch,public_key,transport_public_key,agent_version,capabilities,last_seen,created_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       deviceId, enrollment.workspace_id, String(input.name || input.hostname || "Device").slice(0, 120),
@@ -50,7 +53,6 @@ export function enrollAgent(input: AgentEnrollInput) {
       String(input.arch || "unknown").slice(0, 40), publicKey, transportPublicKey, String(input.agentVersion || "unknown").slice(0, 40),
       JSON.stringify(input.capabilities || []), t, t,
     );
-    q("UPDATE enrollment_tokens SET used_at=? WHERE id=?").run(t, enrollment.id);
   })();
   logEvent("device.enrolled", enrollment.workspace_id, enrollment.created_by, deviceId);
   return { deviceId };

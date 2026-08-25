@@ -35,8 +35,8 @@ export async function passkeyAssertion(options: any) {
   return credentialJSON(credential);
 }
 
-export async function createPasskey(path: string, verifyPath: string, data: Record<string, unknown>) {
-  requirePasskeys(); const start = await api<{ ceremonyId: string; options: any }>(path, { method: "POST", body: JSON.stringify(data) });
+export async function createPasskey(path: string, verifyPath: string, data: Record<string, unknown>, headers: Record<string, string> = {}) {
+  requirePasskeys(); const start = await api<{ ceremonyId: string; options: any }>(path, { method: "POST", headers, body: JSON.stringify(data) });
   const credential = await navigator.credentials.create({ publicKey: creationOptions(start.options) }) as PublicKeyCredential | null;
   if (!credential) throw new Error("Passkey creation was cancelled.");
   return api(verifyPath, { method: "POST", body: JSON.stringify({ ceremonyId: start.ceremonyId, response: credentialJSON(credential) }) });

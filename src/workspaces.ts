@@ -72,11 +72,15 @@ export function invitePreview(value: unknown) {
 
 export function joinWorkspace(user: User, value: unknown) {
   const token = String(value || "").trim();
-  const invite = q<any>("SELECT * FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?").get(sha(token), now());
-  if (!invite) throw new HttpError(401, "invalid or expired invite");
+  let invite: any = null;
   db.transaction(() => {
+    const t = now();
+    invite = q<any>("SELECT * FROM workspace_invites WHERE token_hash=? AND used_at IS NULL AND expires_at>?").get(sha(token), t);
+    if (!invite) throw new HttpError(401, "invalid or expired invite");
+    const consumed = q("UPDATE workspace_invites SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>?")
+      .run(t, invite.id, t).changes;
+    if (consumed !== 1) throw new HttpError(401, "invalid or expired invite");
     q("INSERT OR IGNORE INTO workspace_members VALUES(?,?,?,?)").run(invite.workspace_id, user.id, invite.role, now());
-    q("UPDATE workspace_invites SET used_at=? WHERE id=?").run(now(), invite.id);
   })();
   logEvent("workspace.member.joined", invite.workspace_id, user.id, null, { role: invite.role });
   return { workspaceId: String(invite.workspace_id) };

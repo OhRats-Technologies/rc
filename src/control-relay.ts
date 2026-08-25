@@ -56,15 +56,30 @@ export function releaseControlSocket(socket: RelaySocket) {
   }
 }
 
-export async function syncWorkspaceAuthority(userId: string, workspaceId: string, clientId: string, signature: string) {
+export async function syncWorkspaceAuthority(userId: string, workspaceId: string, clientId: string,
+  transitions: Array<{ fromHash: string; generation: number; signature: string }>) {
   const proof = controlProof(userId, clientId); if (!proof) throw new Error("control client authorization expired");
   const snapshot = canonicalAuthority(authoritySnapshot(workspaceId));
   const digest = new Bun.CryptoHasher("sha256").update(snapshot).digest("hex");
-  if (!await verifyClientSignature(userId, clientId, `rc-authority-v1\n${digest}`, signature)) throw new Error("invalid authority signature");
-  const devices = q<{ id: string }>("SELECT id FROM devices WHERE workspace_id=?").all(workspaceId);
+  const signatures = new Map<string, string>();
+  for (const transition of transitions) {
+    const fromHash = String(transition.fromHash || "").toLowerCase(), generation = Number(transition.generation), signature = String(transition.signature || "");
+    const key = `${generation}:${fromHash}`;
+    if (!/^[0-9a-f]{64}$/.test(fromHash) || !Number.isSafeInteger(generation) || generation < 0 || signatures.has(key)) throw new Error("invalid authority transition");
+    if (!await verifyClientSignature(userId, clientId, `rc-authority-v3\n${generation}\n${fromHash}\n${digest}`, signature)) {
+      throw new Error("invalid authority transition signature");
+    }
+    signatures.set(key, signature);
+  }
+  const devices = q<{ id: string; lock_hash: string; lock_generation: number }>("SELECT id,lock_hash,lock_generation FROM devices WHERE workspace_id=?").all(workspaceId);
   let sent = 0;
-  for (const device of devices) if (sendAgent(device.id, { type: "lock.sync", snapshot, grant: proof.grant,
-    credentialId: proof.credentialId, assertion: proof.assertion, signature })) sent++;
+  for (const device of devices) {
+    const previousHash = String(device.lock_hash || "").toLowerCase(), previousGeneration = Number(device.lock_generation || 0);
+    const signature = signatures.get(`${previousGeneration}:${previousHash}`);
+    if (!signature) continue;
+    if (sendAgent(device.id, { type: "lock.sync", snapshot, previousHash, previousGeneration, grant: proof.grant,
+      credentialId: proof.credentialId, assertion: proof.assertion, signature })) sent++;
+  }
   return { ok: true, devices: devices.length, online: sent, lockHash: digest };
 }
 
@@ -96,7 +111,8 @@ export function handleControlAgentMessage(deviceId: string, message: AgentClient
       { type: "control.frame", sessionId: message.sessionId, sequence: message.sequence, ciphertext: message.ciphertext }); return true;
   }
   if (message.type === "lock.state") {
-    q("UPDATE devices SET lock_hash=? WHERE id=?").run(String(message.lockHash || "").slice(0, 64), deviceId); return true;
+    q("UPDATE devices SET lock_hash=?,lock_generation=? WHERE id=?")
+      .run(String(message.lockHash || "").slice(0, 64), Number(message.lockGeneration || 0), deviceId); return true;
   }
   return false;
 }

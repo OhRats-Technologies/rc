@@ -44,6 +44,10 @@ type wireMessage struct {
 	TransportPublicKey string   `json:"transportPublicKey,omitempty"`
 	EphemeralPublicKey string   `json:"ephemeralPublicKey,omitempty"`
 	LockHash           string   `json:"lockHash,omitempty"`
+	LockGeneration     uint64   `json:"lockGeneration,omitempty"`
+	PreviousHash       string   `json:"previousHash,omitempty"`
+	PreviousGeneration uint64   `json:"previousGeneration,omitempty"`
+	UserID             string   `json:"userId,omitempty"`
 	RequestID          string   `json:"requestId,omitempty"`
 	Challenge          string   `json:"challenge,omitempty"`
 	ClientID           string   `json:"clientId,omitempty"`

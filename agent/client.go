@@ -160,10 +160,11 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 		return conn.WriteJSON(message)
 	}
 	hostname, _ := os.Hostname()
+	lock, _ := loadLock(stateDir)
 	if err := send(wireMessage{
 		Type: "hello", AgentVersion: version, Hostname: hostname,
 		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"process", "update", "lock", "e2e"},
-		TransportPublicKey: value.TransportPublicKey, LockHash: lockHash(stateDir),
+		TransportPublicKey: value.TransportPublicKey, LockHash: lockHash(stateDir), LockGeneration: lock.Generation,
 	}); err != nil {
 		return err
 	}
@@ -187,6 +188,10 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 					}
 					_ = send(wireMessage{Type: "control.error", RequestID: message.RequestID, Output: err.Error()})
 				}
+				continue
+			}
+			if message.Type == "process.permit" {
+				_ = control.handle(message)
 				continue
 			}
 			if strings.HasPrefix(message.Type, "process.") || message.Type == "node.update" || message.Type == "node.remove" {

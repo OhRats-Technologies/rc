@@ -8,13 +8,20 @@ let app: typeof import("./app").app;
 let q: typeof import("./db").q;
 let createAgentChallenge: typeof import("./gateway").createAgentChallenge;
 let verifyAgent: typeof import("./gateway").verifyAgent;
+let checkOrigin: typeof import("./http-utils").checkOrigin;
+let runAction: typeof import("./actions").runAction;
+let consumeStepUp: typeof import("./step-up").consumeStepUp;
+let sha: typeof import("./db").sha;
 
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "rc-security-test-"));
   Bun.env.DATA_DIR = dataDir;
   Bun.env.PUBLIC_URL = "http://localhost:3000";
-  ({ q } = await import("./db"));
+  ({ q, sha } = await import("./db"));
   ({ createAgentChallenge, verifyAgent } = await import("./gateway"));
+  ({ checkOrigin } = await import("./http-utils"));
+  ({ runAction } = await import("./actions"));
+  ({ consumeStepUp } = await import("./step-up"));
   ({ app } = await import("./app"));
 });
 
@@ -68,6 +75,27 @@ describe("HTTP hardening", () => {
     expect(response.status).toBe(429);
     expect(Number(response.headers.get("retry-after"))).toBeGreaterThan(0);
   });
+
+  test("cookie-authenticated mutations require browser same-origin evidence", () => {
+    const base = { method: "POST", headers: { cookie: "rc_session=test" } } as RequestInit;
+    expect(checkOrigin(new Request("http://localhost:3000/account/name", base))).toBe(false);
+    expect(checkOrigin(new Request("http://localhost:3000/account/name", {
+      ...base, headers: { cookie: "rc_session=test", "sec-fetch-site": "cross-site" },
+    }))).toBe(false);
+    expect(checkOrigin(new Request("http://localhost:3000/account/name", {
+      ...base, headers: { cookie: "rc_session=test", "sec-fetch-site": "same-origin" },
+    }))).toBe(true);
+    expect(checkOrigin(new Request("http://localhost:3000/account/name", {
+      ...base, headers: { cookie: "rc_session=test", origin: "http://localhost:3000" },
+    }))).toBe(true);
+  });
+
+  test("requests cannot mix bearer and proof-of-possession identities", async () => {
+    const response = await app.handle(new Request("http://localhost:3000/api/v1/workspaces", {
+      headers: { authorization: "Bearer rc_cli_invalid", "x-rc-key-id": "also-invalid" },
+    }));
+    expect(response.status).toBe(400);
+  });
 });
 
 describe("API key scopes", () => {
@@ -112,5 +140,31 @@ describe("API key scopes", () => {
     } });
     expect((await app.handle(request())).status).toBe(200);
     expect((await app.handle(request())).status).toBe(401);
+  });
+});
+
+describe("action integrity", () => {
+  test("confirmation-required actions cannot be allocated without explicit confirmation", () => {
+    const userId = crypto.randomUUID(), workspaceId = crypto.randomUUID(), actionId = crypto.randomUUID(), t = Date.now();
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Action User", t);
+    q("INSERT INTO workspaces(id,name,created_by,created_at) VALUES(?,?,?,?)").run(workspaceId, "Action Workspace", userId, t);
+    q("INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
+    q(`INSERT INTO actions(id,workspace_id,name,description,command,cwd,confirm,created_by,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(actionId, workspaceId, "Dangerous", "", "echo guarded", null, 1, userId, t, t);
+    expect(() => runAction({ id: userId, name: "Action User" }, actionId, ["missing-device"])).toThrow("explicit confirmation required");
+    expect(runAction({ id: userId, name: "Action User" }, actionId, ["missing-device"], true)[0]?.error).toContain("not in this workspace");
+  });
+});
+
+describe("fresh passkey step-up", () => {
+  test("step-up tokens are user-bound and consumed exactly once", () => {
+    const userId = crypto.randomUUID(), otherId = crypto.randomUUID(), token = `step_${crypto.randomUUID()}`, t = Date.now();
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Step User", t);
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(otherId, "Other User", t);
+    q("INSERT INTO step_up_tokens(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)").run(sha(token), userId, t, t + 120_000);
+    const request = () => new Request("http://localhost:3000/api/v1/tokens", { method: "POST", headers: { "x-rc-step-up": token } });
+    expect(() => consumeStepUp(request(), { id: otherId, name: "Other User" })).toThrow("fresh passkey verification required");
+    expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).not.toThrow();
+    expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).toThrow("fresh passkey verification required");
   });
 });

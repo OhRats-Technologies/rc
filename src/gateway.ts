@@ -107,10 +107,11 @@ export const agentSocketHandlers = {
       if (handleControlAgentMessage(deviceId, msg)) return;
       if (msg.type === "hello") {
         const capabilities = msg.capabilities;
-        q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,transport_public_key=?,last_seen=? WHERE id=?`).run(
+        q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,transport_public_key=?,lock_hash=?,lock_generation=?,last_seen=? WHERE id=?`).run(
           String(msg.hostname || "unknown").slice(0, 255), String(msg.platform || "unknown").slice(0, 40),
           String(msg.arch || "unknown").slice(0, 40), String(msg.agentVersion || "unknown").slice(0, 40),
-          JSON.stringify(capabilities), String(msg.transportPublicKey || "").slice(0, 100), Date.now(), deviceId,
+          JSON.stringify(capabilities), String(msg.transportPublicKey || "").slice(0, 100), String(msg.lockHash || "").slice(0, 64),
+          Number(msg.lockGeneration || 0), Date.now(), deviceId,
         );
         bootstrapAuthority(deviceId, String(msg.lockHash || ""));
         publishEvent({ kind: "device.updated", workspaceId: workspaceForDevice(deviceId), deviceId });
@@ -118,6 +119,13 @@ export const agentSocketHandlers = {
       }
       if (msg.type === "heartbeat") {
         q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
+        return;
+      }
+      if (msg.type === "process.start.request") {
+        const process = processRow(msg.id);
+        if (process && process.device_id === deviceId && process.encrypted && process.status === "starting" && process.created_by === msg.userId) {
+          send(deviceId, { type: "process.permit", id: process.id, userId: msg.userId });
+        }
         return;
       }
       if (msg.type === "process.started") {

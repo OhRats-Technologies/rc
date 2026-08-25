@@ -174,9 +174,10 @@ func actionsCommand(args []string) error {
 
 func actionCommand(args []string) error {
 	if len(args) == 0 || args[0] != "run" {
-		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE [--token TOKEN]")
+		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
 	}
 	var actionValue, deviceValue, server, token string
+	confirmed := false
 	server = defaultServer
 	token = os.Getenv("RC_API_TOKEN")
 	for i := 1; i < len(args); i++ {
@@ -196,6 +197,8 @@ func actionCommand(args []string) error {
 			if i < len(args) {
 				token = args[i]
 			}
+		case "--confirm":
+			confirmed = true
 		default:
 			if actionValue == "" {
 				actionValue = args[i]
@@ -205,7 +208,7 @@ func actionCommand(args []string) error {
 		}
 	}
 	if actionValue == "" || deviceValue == "" {
-		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE")
+		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE [--confirm]")
 	}
 	actions, err := listAccountActions(server, token)
 	if err != nil {
@@ -225,11 +228,15 @@ func actionCommand(args []string) error {
 	if !found {
 		return fmt.Errorf("action %q not found", actionValue)
 	}
+	if action.Confirm != 0 && !confirmed {
+		return fmt.Errorf("action %q requires explicit confirmation; rerun with --confirm", action.Name)
+	}
 	device, err := resolveAccountDevice(server, token, deviceValue)
 	if err != nil {
 		return err
 	}
-	resp, err := accountJSONRequest(server, token, http.MethodPost, "/api/v1/actions/"+url.PathEscape(action.ID)+"/run", map[string]any{"deviceIds": []string{device.ID}})
+	resp, err := accountJSONRequest(server, token, http.MethodPost, "/api/v1/actions/"+url.PathEscape(action.ID)+"/run",
+		map[string]any{"deviceIds": []string{device.ID}, "confirm": confirmed})
 	if err != nil {
 		return err
 	}

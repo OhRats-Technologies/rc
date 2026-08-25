@@ -30,5 +30,8 @@ export function setupCookie(token: string) {
 export function checkOrigin(req: Request) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method) || req.headers.has("authorization")) return true;
   const origin = req.headers.get("origin");
-  return !origin || origin === new URL(req.url).origin || origin === PUBLIC_URL;
+  if (origin) return origin === new URL(req.url).origin || origin === PUBLIC_URL;
+  const cookies = req.headers.get("cookie") || "";
+  if (/(?:^|;\s*)(?:rc_session|rc_setup)=/.test(cookies)) return req.headers.get("sec-fetch-site") === "same-origin";
+  return true;
 }

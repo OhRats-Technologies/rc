@@ -8,7 +8,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"os"
 	"testing"
@@ -80,13 +79,26 @@ func TestEncryptedProcessOutputOnlyLeavesAsCiphertext(t *testing.T) {
 	defer processes.shutdown()
 	manager := &controlManager{processes: processes, send: func(message wireMessage) error { outbound <- message; return nil },
 		sessions:   map[string]*controlSession{"session": {aead: nodeAEAD, clientID: "client", userID: "user", role: "owner", canExecute: true}},
-		challenges: map[string]time.Time{}}
+		challenges: map[string]time.Time{}, pendingStarts: map[string]pendingSecureStart{}}
 	processes.setSecureSender(manager.sendFrame)
 	command := wireMessage{Type: "process.start", ID: "secret-process", Command: "printf 'phase34-secret'", Cols: 80, Rows: 24}
 	plain, _ := json.Marshal(command)
 	ciphertext := clientAEAD.Seal(nil, frameNonce(1, 1), plain, frameAAD("session", 1, "c2n"))
 	if err := manager.receiveFrame(wireMessage{Type: "control.frame", SessionID: "session", Sequence: 1,
 		Ciphertext: base64.RawURLEncoding.EncodeToString(ciphertext)}); err != nil {
+		t.Fatal(err)
+	}
+	request := <-outbound
+	if request.Type != "process.start.request" || request.ID != "secret-process" || request.UserID != "user" {
+		t.Fatalf("unexpected process permit request: %+v", request)
+	}
+	processes.mu.Lock()
+	startedBeforePermit := len(processes.processes) != 0
+	processes.mu.Unlock()
+	if startedBeforePermit {
+		t.Fatal("encrypted process started before server metadata permit")
+	}
+	if err := manager.handle(wireMessage{Type: "process.permit", ID: "secret-process", UserID: "user"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -220,9 +232,9 @@ func TestPasskeyGrantAndOwnerSignedLockSync(t *testing.T) {
 	next := snapshot
 	next.APIKeys = []authorityAPIKey{{ID: "api", UserID: "user", PublicKey: base64.RawURLEncoding.EncodeToString(clientPrivate.Public().(ed25519.PublicKey)), Scopes: []string{"read"}}}
 	nextJSON, _ := json.Marshal(next)
-	digest := sha256.Sum256(nextJSON)
-	signature := ed25519.Sign(clientPrivate, []byte("rc-authority-v1\n"+hex.EncodeToString(digest[:])))
-	if err := syncLock(dir, string(nextJSON), proof, base64.RawURLEncoding.EncodeToString(signature)); err != nil {
+	previousHash := authorityJSONHash(current)
+	signature := signAuthorityTransition(0, previousHash, nextJSON, clientPrivate)
+	if err := syncLock(dir, string(nextJSON), previousHash, 0, proof, signature); err != nil {
 		t.Fatal(err)
 	}
 	locked, err := loadLock(dir)
@@ -244,9 +256,9 @@ func TestLockRejectsNonOwnerAndBootstrapIsTOFUOnly(t *testing.T) {
 	mutated := snapshot
 	mutated.Members[0].Role = "owner"
 	nextJSON, _ := json.Marshal(mutated)
-	digest := sha256.Sum256(nextJSON)
-	signature := ed25519.Sign(clientPrivate, []byte("rc-authority-v1\n"+hex.EncodeToString(digest[:])))
-	if err := syncLock(dir, string(nextJSON), proof, base64.RawURLEncoding.EncodeToString(signature)); err == nil {
+	previousHash := authorityJSONHash(original)
+	signature := signAuthorityTransition(0, previousHash, nextJSON, clientPrivate)
+	if err := syncLock(dir, string(nextJSON), previousHash, 0, proof, signature); err == nil {
 		t.Fatal("operator changed RC Lock authority")
 	}
 	if err := bootstrapLock(dir, string(nextJSON), "https://evil.invalid"); err != nil {

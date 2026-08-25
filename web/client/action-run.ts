@@ -5,12 +5,14 @@ const page = document.querySelector<HTMLElement>("[data-action-run]");
 const actionId = page?.dataset.actionRun || "", command = page?.dataset.actionCommand || "", cwd = page?.dataset.actionCwd || "";
 
 document.querySelector<HTMLFormElement>(`.action-run-form, form[action="/actions/${CSS.escape(actionId)}/run"]`)?.addEventListener("submit", async event => {
-  event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form);
+  const form = event.currentTarget as HTMLFormElement, data = new FormData(form), confirmed = data.get("confirm") === "1";
+  if (form.classList.contains("action-run-form") && page?.dataset.actionConfirm === "true" && !confirmed) return;
+  event.preventDefault();
   const deviceIds = data.getAll("deviceId").map(String).filter(Boolean); if (!deviceIds.length) return;
   const button = form.querySelector<HTMLButtonElement>('button[type="submit"]'); if (button) button.disabled = true;
   try {
     const result = await api<{ results: Array<{ deviceId: string; deviceName: string; processId?: string; error?: string }> }>(`/api/v1/actions/${encodeURIComponent(actionId)}/run`, {
-      method: "POST", body: JSON.stringify({ deviceIds }),
+      method: "POST", body: JSON.stringify({ deviceIds, confirm: confirmed }),
     });
     const started = result.results.filter(item => item.processId && !item.error);
     if (started.length === 1) {

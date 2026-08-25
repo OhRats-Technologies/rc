@@ -1,5 +1,6 @@
 import { api } from "./http";
 import { syncWorkspaceAuthority } from "./control-client";
+import { freshPasskey, stepHeader } from "./step-up";
 
 const workspaceId = document.querySelector<HTMLElement>("[data-authority-workspace]")?.dataset.authorityWorkspace || "";
 
@@ -27,11 +28,14 @@ if (workspaceId) {
     event.preventDefault();
     try {
       const parts = new URL(form.action).pathname.split("/"), memberId = parts[4];
+      const step = await freshPasskey();
       if (form.classList.contains("role-form")) {
         const role = String(new FormData(form).get("role") || "");
-        await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberId)}`, { method: "PATCH", body: JSON.stringify({ role }) });
+        await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberId)}`,
+          { method: "PATCH", headers: stepHeader(step), body: JSON.stringify({ role }) });
       } else {
-        await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberId)}`, { method: "DELETE" });
+        await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(memberId)}`,
+          { method: "DELETE", headers: stepHeader(step) });
       }
       await syncWorkspaceAuthority(workspaceId); location.reload();
     } catch (error) {

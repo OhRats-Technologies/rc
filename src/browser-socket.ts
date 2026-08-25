@@ -41,7 +41,7 @@ export const browserSocketHandlers = {
         case "control.open": requireControlScope(connection); requestControlOpen(userId, message, connection.socket, connection.apiKeyId); return;
         case "control.frame": requireControlScope(connection); relayControlFrame(userId, message, connection.socket); return;
         case "control.close": closeControlSession(message, connection.socket); return;
-        case "lock.sync": result = await syncWorkspaceAuthority(userId, message.workspaceId, message.clientId, message.signature); break;
+        case "lock.sync": result = await syncWorkspaceAuthority(userId, message.workspaceId, message.clientId, message.transitions); break;
       }
       if (requestId) send(connection, { type: "response", requestId, ok: true, result });
     } catch (error) {

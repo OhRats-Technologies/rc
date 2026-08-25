@@ -20,6 +20,7 @@ import { authorityHash } from "../authority";
 import { q } from "../db";
 import { checkOrigin, fail, json } from "../http-utils";
 import { allocateProcess, getProcess, listProcesses } from "../process-api";
+import { consumeStepUp, stepUpOptions, verifyStepUp } from "../step-up";
 import {
   createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceActivity, workspaceDetail,
 } from "../workspaces";
@@ -49,6 +50,9 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     },
   }))
   .onRequest(async ({ request }) => {
+    if (request.headers.has("authorization") && request.headers.has("x-rc-key-id")) {
+      return fail("multiple authentication credentials are not allowed", 400);
+    }
     if (request.headers.has("x-rc-key-id")) await apiKeyGrant(request);
   })
   .derive(async ({ request }) => ({ rcUser: await auth(request) }))
@@ -88,6 +92,14 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .post("/auth/login/verify", ({ body }) => verifyLogin(body.ceremonyId, body.response as AuthenticationResponseJSON), {
     body: WebAuthnVerify, detail: { hide: true },
   })
+  .post("/auth/step-up/options", async ({ request, rcUser }) => {
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
+    return stepUpOptions(rcUser!);
+  }, { body: t.Optional(t.Object({})), detail: { hide: true } })
+  .post("/auth/step-up/verify", async ({ request, rcUser, body }) => {
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
+    return verifyStepUp(rcUser!, body.authorizationId, body.response as AuthenticationResponseJSON);
+  }, { body: t.Object({ authorizationId: t.String(), response: t.Unknown() }), detail: { hide: true } })
   .post("/auth/cli/start", ({ body }) => startCliAuthorization(body.clientId, body.signingPublicKey), {
     body: t.Object({ clientId: t.String(), signingPublicKey: t.String() }), detail: { hide: true },
   })
@@ -96,6 +108,7 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   })
   .post("/auth/cli/approve", async ({ request, rcUser, body }) => {
     const human = await cookieUser(request); if (!human || !rcUser || human.id !== rcUser.id) throw new HttpError(401, "browser session required");
+    consumeStepUp(request, rcUser);
     approveCliAuthorization(rcUser, body.code); return { ok: true };
   }, { body: t.Object({ code: t.String() }), detail: { hide: true } })
   .delete("/auth/cli/session", ({ request, rcUser }) => {
@@ -119,12 +132,15 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .get("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .get("/me", ({ rcUser }) => ({ user: rcUser!, workspaces: userWorkspaces(rcUser!.id) }))
-  .post("/passkeys/options", ({ request, rcUser }) => addPasskeyOptions(request, rcUser!), { body: t.Optional(t.Object({})), detail: { hide: true } })
+  .post("/passkeys/options", ({ request, rcUser }) => {
+    consumeStepUp(request, rcUser!); return addPasskeyOptions(request, rcUser!);
+  }, { body: t.Optional(t.Object({})), detail: { hide: true } })
   .post("/passkeys/verify", async ({ request, rcUser, body }) => {
     await verifyAddedPasskey(request, rcUser!, body.ceremonyId, body.response as RegistrationResponseJSON);
     return json({ ok: true }, 201);
   }, { body: WebAuthnVerify, detail: { hide: true } })
   .delete("/passkeys/:id", async ({ request, rcUser, params }) => {
+    consumeStepUp(request, rcUser!);
     await deletePasskey(request, rcUser!, params.id); return { ok: true };
   }, { params: IdParams, detail: { hide: true } })
   .post("/control/authorize/options", async ({ request, rcUser, body }) => {
@@ -140,17 +156,19 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     return controlClientStatus(rcUser!.id, params.id);
   }, { params: IdParams, detail: { hide: true } })
   .get("/tokens", async ({ request, rcUser }) => {
-    if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
     return { tokens: listApiTokens(rcUser!.id) };
   })
   .post("/tokens", async ({ request, rcUser, body }) => {
-    if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
+    consumeStepUp(request, rcUser!);
     return json(createApiToken(rcUser!.id, body.name, body.scopes, body.publicKey), 201);
   }, {
     body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })), scopes: t.Optional(t.Array(t.String(), { maxItems: 4 })), publicKey: t.String() }),
   })
   .delete("/tokens/:id", async ({ request, rcUser, params }) => {
-    if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
+    consumeStepUp(request, rcUser!);
     if (!deleteApiToken(rcUser!.id, params.id)) throw new HttpError(404, "token not found");
     return { ok: true };
   }, { params: IdParams })
@@ -185,13 +203,19 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .get("/workspaces/:workspaceId/authority", ({ rcUser, params }) => {
     if (!workspaceDetail(rcUser!, params.workspaceId)) throw new HttpError(404, "workspace not found");
     const value = authorityHash(params.workspaceId);
-    const devices = q<{ lock_hash: string }>("SELECT lock_hash FROM devices WHERE workspace_id=?").all(params.workspaceId);
-    return { hash: value.hash, devices: devices.length, synced: devices.filter(device => device.lock_hash === value.hash).length };
+    const devices = q<{ lock_hash: string; lock_generation: number }>("SELECT lock_hash,lock_generation FROM devices WHERE workspace_id=?").all(params.workspaceId);
+    return { hash: value.hash, devices: devices.length, synced: devices.filter(device => device.lock_hash === value.hash).length,
+      parents: [...new Map(devices.map(device => ({ hash: String(device.lock_hash || "").toLowerCase(), generation: Number(device.lock_generation || 0) }))
+        .filter(parent => /^[0-9a-f]{64}$/.test(parent.hash) && parent.hash !== value.hash)
+        .map(parent => [`${parent.generation}:${parent.hash}`, parent])).values()] };
   }, { params: WorkspaceParams, detail: { hide: true } })
-  .patch("/workspaces/:workspaceId/members/:id", ({ rcUser, params, body }) => changeWorkspaceRole(rcUser!, params.workspaceId, params.id, body.role), {
+  .patch("/workspaces/:workspaceId/members/:id", ({ request, rcUser, params, body }) => {
+    consumeStepUp(request, rcUser!); return changeWorkspaceRole(rcUser!, params.workspaceId, params.id, body.role);
+  }, {
     params: t.Object({ workspaceId: t.String(), id: t.String() }), body: t.Object({ role: t.Union([t.Literal("owner"), t.Literal("operator"), t.Literal("viewer")]) }),
   })
-  .delete("/workspaces/:workspaceId/members/:id", ({ rcUser, params }) => {
+  .delete("/workspaces/:workspaceId/members/:id", ({ request, rcUser, params }) => {
+    consumeStepUp(request, rcUser!);
     removeWorkspaceMember(rcUser!, params.workspaceId, params.id); return { ok: true };
   }, { params: t.Object({ workspaceId: t.String(), id: t.String() }) })
   .delete("/workspaces/:workspaceId/invites/:id", ({ rcUser, params }) => {
@@ -232,6 +256,6 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     updateAction(rcUser!, params.id, body); return { ok: true };
   }, { params: ActionParams, body: t.Object({ name: t.String({ minLength: 1, maxLength: 120 }), description: t.Optional(t.String({ maxLength: 500 })), command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), confirm: t.Optional(t.Boolean()) }) })
   .delete("/actions/:id", ({ rcUser, params }) => { deleteAction(rcUser!, params.id); return { ok: true }; }, { params: ActionParams })
-  .post("/actions/:id/run", ({ rcUser, params, body }) => ({ results: runAction(rcUser!, params.id, body.deviceIds) }), {
-    params: ActionParams, body: t.Object({ deviceIds: t.Array(t.String(), { minItems: 1, maxItems: 100 }) }),
+  .post("/actions/:id/run", ({ rcUser, params, body }) => ({ results: runAction(rcUser!, params.id, body.deviceIds, body.confirm === true) }), {
+    params: ActionParams, body: t.Object({ deviceIds: t.Array(t.String(), { minItems: 1, maxItems: 100 }), confirm: t.Optional(t.Boolean()) }),
   });

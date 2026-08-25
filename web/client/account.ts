@@ -2,10 +2,12 @@ import { qs } from "./http";
 import { createPasskey } from "./webauthn";
 import { api } from "./http";
 import { syncOwnedAuthorities } from "./control-client";
+import { freshPasskey, stepHeader } from "./step-up";
 
 document.querySelector<HTMLButtonElement>("#add-passkey")?.addEventListener("click", async () => {
   try {
-    await createPasskey("/api/v1/passkeys/options", "/api/v1/passkeys/verify", {});
+    const step = await freshPasskey();
+    await createPasskey("/api/v1/passkeys/options", "/api/v1/passkeys/verify", {}, stepHeader(step));
     await syncOwnedAuthorities();
     location.reload();
   } catch (error) { qs<HTMLElement>("#passkey-error").textContent = error instanceof Error ? error.message : String(error); }
@@ -15,7 +17,8 @@ document.querySelectorAll<HTMLFormElement>('form[action^="/account/passkeys/"][a
   event.preventDefault();
   try {
     const passkeyId = form.action.split("/").at(-2) || "";
-    await api(`/api/v1/passkeys/${encodeURIComponent(passkeyId)}`, { method: "DELETE" });
+    const step = await freshPasskey();
+    await api(`/api/v1/passkeys/${encodeURIComponent(passkeyId)}`, { method: "DELETE", headers: stepHeader(step) });
     await syncOwnedAuthorities(); location.reload();
   } catch (error) { qs<HTMLElement>("#passkey-error").textContent = error instanceof Error ? error.message : String(error); }
 }));

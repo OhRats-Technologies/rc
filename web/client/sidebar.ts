@@ -1,6 +1,7 @@
 import { onEvent, request } from "./socket";
 import { api } from "./http";
 import { openControlSession } from "./control-session";
+import { freshPasskey, stepHeader } from "./step-up";
 
 const root = document.documentElement;
 function setSidebar(next: "open" | "closed") {
@@ -162,7 +163,9 @@ deleteConfirm?.addEventListener("click", async () => {
       const deviceId = deleteEndpoint.split("/").at(-1) || "", control = await openControlSession(deviceId);
       try { await control.request({ type: "node.remove" }); } finally { control.close(); }
     }
-    await api(deleteEndpoint, { method: deleteMethod, headers: { accept: "application/json" } }); location.href = deleteRedirect;
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (deleteEndpoint === "/account/delete") Object.assign(headers, stepHeader(await freshPasskey()));
+    await api(deleteEndpoint, { method: deleteMethod, headers }); location.href = deleteRedirect;
   }
   catch (error) {
     if (deleteError) deleteError.textContent = error instanceof Error ? error.message : String(error);

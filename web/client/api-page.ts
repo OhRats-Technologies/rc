@@ -1,5 +1,6 @@
 import { api, copyText, qs } from "./http";
 import { bytesToB64url, syncOwnedAuthorities } from "./control-client";
+import { freshPasskey, stepHeader } from "./step-up";
 
 type CreatedKey = { id: string; publicKey: string; scopes: string[] };
 
@@ -45,7 +46,8 @@ form.addEventListener("submit", async event => {
     const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
     const publicKey = bytesToB64url(await crypto.subtle.exportKey("raw", pair.publicKey));
     const privateKey = bytesToB64url(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
-    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", body: JSON.stringify({ name, scopes, publicKey }) });
+    const step = await freshPasskey();
+    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", headers: stepHeader(step), body: JSON.stringify({ name, scopes, publicKey }) });
     const apiSecret = `rcsk_${created.id}_${privateKey}`;
     addKey(created.id, name, created.scopes); secret.textContent = apiSecret; copy.dataset.copyValue = apiSecret;
     await syncOwnedAuthorities();
@@ -60,7 +62,8 @@ list.querySelectorAll<HTMLFormElement>('form[action^="/api/tokens/"][action$="/d
   event.preventDefault();
   try {
     const id = revoke.action.split("/").at(-2) || "";
-    await api(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: "DELETE" });
+    const step = await freshPasskey();
+    await api(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: "DELETE", headers: stepHeader(step) });
     await syncOwnedAuthorities(); revoke.closest(".token-row")?.remove();
     if (!list.querySelector(".token-row")) { const empty = document.createElement("p"); empty.className = "empty-state"; empty.textContent = "No API keys yet."; list.append(empty); }
   } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }

@@ -41,6 +41,7 @@ type accountAction struct {
 	Workspace string `json:"workspace_name"`
 	Command   string `json:"command"`
 	Cwd       string `json:"cwd"`
+	Confirm   int    `json:"confirm"`
 }
 
 func accountRequest(server, token, method, path string) (*http.Response, error) {

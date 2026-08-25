@@ -60,8 +60,6 @@ func (manager *processManager) detachSecureSession(sessionID string) {
 
 func (manager *processManager) secureHandle(sessionID, userID, role string, message wireMessage) {
 	switch message.Type {
-	case "process.start":
-		manager.start(message, sessionID, userID)
 	case "process.attach", "process.input", "process.resize", "process.signal":
 		manager.mu.Lock()
 		process := manager.processes[message.ID]

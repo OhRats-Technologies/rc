@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS devices(
   id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   name TEXT NOT NULL,hostname TEXT NOT NULL,platform TEXT NOT NULL,arch TEXT NOT NULL,
   public_key TEXT NOT NULL UNIQUE,transport_public_key TEXT NOT NULL DEFAULT '',lock_hash TEXT NOT NULL DEFAULT '',agent_version TEXT NOT NULL,capabilities TEXT NOT NULL DEFAULT '[]',
-  last_seen INTEGER,created_at INTEGER NOT NULL
+  lock_generation INTEGER NOT NULL DEFAULT 0,last_seen INTEGER,created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS processes(
   id TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
@@ -45,6 +45,14 @@ CREATE TABLE IF NOT EXISTS processes(
   created_at INTEGER NOT NULL,started_at INTEGER,completed_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS auth_sessions(
+  token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS step_up_authorizations(
+  id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  challenge TEXT NOT NULL UNIQUE,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS step_up_tokens(
   token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
 );
@@ -155,6 +163,7 @@ function migrateDeviceTransportKeys() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(devices)").all().map(row => row.name);
   if (!columns.includes("transport_public_key")) db.exec("ALTER TABLE devices ADD COLUMN transport_public_key TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("lock_hash")) db.exec("ALTER TABLE devices ADD COLUMN lock_hash TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("lock_generation")) db.exec("ALTER TABLE devices ADD COLUMN lock_generation INTEGER NOT NULL DEFAULT 0");
 }
 
 migrateDeviceTransportKeys();

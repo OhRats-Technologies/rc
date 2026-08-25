@@ -142,25 +142,35 @@ export async function verifyNewUser(kind: "setup" | "register", ceremonyId: stri
   const ceremony = takeCeremony(ceremonyId, kind);
   if (!ceremony) return fail("registration expired", 410);
   if (!ceremony.user_id || !ceremony.name) return fail("registration expired", 410);
-  if (kind === "setup" && activeUserCount() > 0) return fail("setup already completed", 409);
-  const invite = kind === "register"
-    ? q<any>("SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?").get(ceremony.invite_id, now()) : null;
-  if (kind === "register" && !invite) return fail("invalid or expired invite", 401);
   let credential;
   try { credential = await verifyNewPasskey(ceremony, response); }
   catch { return fail("passkey verification failed", 401); }
-  const userId = ceremony.user_id, t = now(), workspaceId = kind === "setup" ? id() : String(invite.workspace_id);
-  db.transaction(() => {
-    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, ceremony.name, t);
-    insertPasskey(userId, credential);
-    if (kind === "setup") {
-      q("INSERT INTO workspaces VALUES(?,?,?,?)").run(workspaceId, "Personal", userId, t);
-      q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
-    } else {
-      q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, invite.role, t);
-      q("UPDATE workspace_invites SET used_at=? WHERE id=?").run(t, invite.id);
-    }
-  })();
+  const userId = ceremony.user_id, t = now();
+  try {
+    db.transaction(() => {
+      if (kind === "setup") {
+        if (activeUserCount() > 0) throw new HttpError(409, "setup already completed");
+        const workspaceId = id();
+        q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, ceremony.name, t);
+        insertPasskey(userId, credential);
+        q("INSERT INTO workspaces VALUES(?,?,?,?)").run(workspaceId, "Personal", userId, t);
+        q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
+        return;
+      }
+      const invite = q<any>("SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?")
+        .get(ceremony.invite_id, t);
+      if (!invite) throw new HttpError(401, "invalid or expired invite");
+      const consumed = q("UPDATE workspace_invites SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>?")
+        .run(t, invite.id, t).changes;
+      if (consumed !== 1) throw new HttpError(401, "invalid or expired invite");
+      q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, ceremony.name, t);
+      insertPasskey(userId, credential);
+      q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(invite.workspace_id, userId, invite.role, t);
+    })();
+  } catch (error) {
+    if (error instanceof HttpError) return fail(error.message, error.status);
+    throw error;
+  }
   const token = await createLogin(userId);
   return json({ ok: true }, 201, { "set-cookie": sessionCookie(token) });
 }

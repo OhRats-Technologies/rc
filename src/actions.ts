@@ -62,9 +62,10 @@ export function deleteAction(user: User, actionId: string) {
 
 export type ActionRunResult = { deviceId: string; deviceName: string; processId?: string; error?: string };
 
-export function runAction(user: User, actionId: string, deviceIds: string[]): ActionRunResult[] {
+export function runAction(user: User, actionId: string, deviceIds: string[], confirmed = false): ActionRunResult[] {
   const action = getAction(user, actionId); if (!action) throw new HttpError(404, "action not found");
   if (!canOperate(action.role)) throw new HttpError(403, "operator required");
+  if (action.confirm && !confirmed) throw new HttpError(409, "explicit confirmation required for this action");
   const unique = [...new Set(deviceIds.map(String).filter(Boolean))].slice(0, 100);
   if (!unique.length) throw new HttpError(400, "select at least one device");
   const results = unique.map(deviceId => {

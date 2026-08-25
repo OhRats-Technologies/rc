@@ -16,6 +16,8 @@ app.listen({
 
 setInterval(() => {
   q("DELETE FROM auth_sessions WHERE expires_at<?").run(now());
+  q("DELETE FROM step_up_authorizations WHERE expires_at<?").run(now());
+  q("DELETE FROM step_up_tokens WHERE expires_at<?").run(now());
   q("DELETE FROM workspace_invites WHERE expires_at<? AND used_at IS NULL").run(now());
   q("DELETE FROM enrollment_tokens WHERE expires_at<? AND used_at IS NULL").run(now());
   q("DELETE FROM webauthn_challenges WHERE expires_at<?").run(now());

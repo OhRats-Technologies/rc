@@ -25,19 +25,20 @@ type controlSession struct {
 }
 
 type controlManager struct {
-	mu         sync.Mutex
-	device     state
-	stateDir   string
-	serverURL  string
-	processes  *processManager
-	send       func(wireMessage) error
-	challenges map[string]time.Time
-	sessions   map[string]*controlSession
+	mu            sync.Mutex
+	device        state
+	stateDir      string
+	serverURL     string
+	processes     *processManager
+	send          func(wireMessage) error
+	challenges    map[string]time.Time
+	sessions      map[string]*controlSession
+	pendingStarts map[string]pendingSecureStart
 }
 
 func newControlManager(device state, stateDir, serverURL string, processes *processManager, send func(wireMessage) error) *controlManager {
 	manager := &controlManager{device: device, stateDir: stateDir, serverURL: serverURL, processes: processes,
-		send: send, challenges: map[string]time.Time{}, sessions: map[string]*controlSession{}}
+		send: send, challenges: map[string]time.Time{}, sessions: map[string]*controlSession{}, pendingStarts: map[string]pendingSecureStart{}}
 	processes.setSecureSender(manager.sendFrame)
 	return manager
 }
@@ -180,6 +181,10 @@ func (manager *controlManager) receiveFrame(message wireMessage) error {
 	if !canExecute {
 		return errors.New("execute scope required")
 	}
+	if command.Type == "process.start" {
+		manager.queueSecureStart(message.SessionID, userID, command)
+		return nil
+	}
 	manager.processes.secureHandle(message.SessionID, userID, role, command)
 	return nil
 }
@@ -225,7 +230,8 @@ func (manager *controlManager) handle(message wireMessage) error {
 		}
 		return manager.sendLockState()
 	case "lock.sync":
-		if err := syncLock(manager.stateDir, message.Snapshot, controlProof{Grant: message.Grant, CredentialID: message.CredentialID, Assertion: message.Assertion}, message.Signature); err != nil {
+		if err := syncLock(manager.stateDir, message.Snapshot, message.PreviousHash, message.PreviousGeneration,
+			controlProof{Grant: message.Grant, CredentialID: message.CredentialID, Assertion: message.Assertion}, message.Signature); err != nil {
 			return err
 		}
 		manager.invalidateSessions()
@@ -236,11 +242,14 @@ func (manager *controlManager) handle(message wireMessage) error {
 		manager.open(message)
 	case "control.frame":
 		return manager.receiveFrame(message)
+	case "process.permit":
+		manager.permitSecureStart(message)
 	case "control.close":
 		manager.mu.Lock()
 		delete(manager.sessions, message.SessionID)
 		manager.mu.Unlock()
 		manager.processes.detachSecureSession(message.SessionID)
+		manager.discardPendingSession(message.SessionID)
 	}
 	return nil
 }
@@ -260,9 +269,11 @@ func (manager *controlManager) invalidateSessions() {
 	manager.mu.Unlock()
 	for _, sessionID := range ids {
 		manager.processes.detachSecureSession(sessionID)
+		manager.discardPendingSession(sessionID)
 	}
 }
 
 func (manager *controlManager) sendLockState() error {
-	return manager.send(wireMessage{Type: "lock.state", LockHash: lockHash(manager.stateDir)})
+	state, _ := loadLock(manager.stateDir)
+	return manager.send(wireMessage{Type: "lock.state", LockHash: lockHash(manager.stateDir), LockGeneration: state.Generation})
 }

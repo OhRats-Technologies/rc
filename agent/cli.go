@@ -174,7 +174,7 @@ func commandHelp(command string) error {
 	case "actions":
 		return actionsCommand([]string{"--help"})
 	case "action":
-		fmt.Println("Usage: ohrats-rc action run ACTION --device DEVICE [--token TOKEN]")
+		fmt.Println("Usage: ohrats-rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
 		return nil
 	case "device":
 		return deviceCommand([]string{"--help"})
