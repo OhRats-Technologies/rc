@@ -12,6 +12,7 @@ let agentSocketHandlers: typeof import("./gateway").agentSocketHandlers;
 let checkOrigin: typeof import("./http-utils").checkOrigin;
 let runAction: typeof import("./actions").runAction;
 let consumeStepUp: typeof import("./step-up").consumeStepUp;
+let consumeStepUpOrRecentSession: typeof import("./step-up").consumeStepUpOrRecentSession;
 let createOAuthRequest: typeof import("./mcp/oauth").createOAuthRequest;
 let denyOAuthRequest: typeof import("./mcp/oauth").denyOAuthRequest;
 let restartOAuthRequest: typeof import("./mcp/oauth").restartOAuthRequest;
@@ -25,7 +26,7 @@ beforeAll(async () => {
   ({ createAgentChallenge, verifyAgent, agentSocketHandlers } = await import("./gateway"));
   ({ checkOrigin } = await import("./http-utils"));
   ({ runAction } = await import("./actions"));
-  ({ consumeStepUp } = await import("./step-up"));
+  ({ consumeStepUp, consumeStepUpOrRecentSession } = await import("./step-up"));
   ({ createOAuthRequest, denyOAuthRequest, restartOAuthRequest } = await import("./mcp/oauth"));
   ({ app } = await import("./app"));
 });
@@ -171,6 +172,19 @@ describe("fresh passkey step-up", () => {
     expect(() => consumeStepUp(request(), { id: otherId, name: "Other User" })).toThrow("fresh passkey verification required");
     expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).not.toThrow();
     expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).toThrow("fresh passkey verification required");
+  });
+
+  test("recent WebAuthn browser sessions can add a passkey but stale sessions still need step-up", () => {
+    const userId = crypto.randomUUID(), fresh = `sess_${crypto.randomUUID()}`, stale = `sess_${crypto.randomUUID()}`, t = Date.now();
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Passkey User", t);
+    q("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)").run(sha(fresh), userId, t, t + 60_000);
+    q("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)").run(sha(stale), userId, t - 10 * 60_000, t + 60_000);
+    const user = { id: userId, name: "Passkey User" };
+    const request = (token: string) => new Request("http://localhost:3000/api/v1/passkeys/options", {
+      method: "POST", headers: { cookie: `rc_session=${encodeURIComponent(token)}` },
+    });
+    expect(() => consumeStepUpOrRecentSession(request(fresh), user)).not.toThrow();
+    expect(() => consumeStepUpOrRecentSession(request(stale), user)).toThrow("fresh passkey verification required");
   });
 });
 

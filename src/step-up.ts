@@ -4,9 +4,11 @@ import type { User } from "./core";
 import { id, now, opaque, q, sha } from "./db";
 import { base64ToBytes } from "./encoding";
 import { HttpError } from "./errors";
+import { cookie } from "./http-utils";
 
 const AUTH_TTL = 5 * 60_000;
 const TOKEN_TTL = 2 * 60_000;
+const RECENT_SESSION_TTL = 5 * 60_000;
 
 function descriptors(userId: string) {
   return q<{ credential_id: string; transports: string }>("SELECT credential_id,transports FROM passkeys WHERE user_id=?")
@@ -50,4 +52,17 @@ export function consumeStepUp(request: Request, user: User) {
   const token = request.headers.get("x-rc-step-up") || "";
   if (!token || q("DELETE FROM step_up_tokens WHERE token_hash=? AND user_id=? AND expires_at>?")
     .run(sha(token), user.id, now()).changes !== 1) throw new HttpError(401, "fresh passkey verification required");
+}
+
+export function recentPasskeySession(request: Request, user: User) {
+  const token = cookie(request, "rc_session");
+  if (!token) return false;
+  const t = now();
+  return Boolean(q("SELECT 1 ok FROM auth_sessions WHERE token_hash=? AND user_id=? AND created_at>? AND expires_at>?")
+    .get(sha(token), user.id, t - RECENT_SESSION_TTL, t));
+}
+
+export function consumeStepUpOrRecentSession(request: Request, user: User) {
+  if (recentPasskeySession(request, user)) return;
+  consumeStepUp(request, user);
 }

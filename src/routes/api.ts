@@ -20,7 +20,7 @@ import { authorityHash } from "../authority";
 import { q } from "../db";
 import { checkOrigin, fail, json } from "../http-utils";
 import { allocateProcess, getProcess, listProcesses } from "../process-api";
-import { consumeStepUp, stepUpOptions, verifyStepUp } from "../step-up";
+import { consumeStepUp, consumeStepUpOrRecentSession, stepUpOptions, verifyStepUp } from "../step-up";
 import {
   createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceActivity, workspaceDetail,
 } from "../workspaces";
@@ -133,7 +133,7 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .delete("/agent/self", ({ request }) => handleAgentUnregister(request, new URL(request.url)), { query: AgentQuery, detail: { hide: true } })
   .get("/me", ({ rcUser }) => ({ user: rcUser!, workspaces: userWorkspaces(rcUser!.id) }))
   .post("/passkeys/options", ({ request, rcUser }) => {
-    consumeStepUp(request, rcUser!); return addPasskeyOptions(request, rcUser!);
+    consumeStepUpOrRecentSession(request, rcUser!); return addPasskeyOptions(request, rcUser!);
   }, { body: t.Optional(t.Object({})), detail: { hide: true } })
   .post("/passkeys/verify", async ({ request, rcUser, body }) => {
     await verifyAddedPasskey(request, rcUser!, body.ceremonyId, body.response as RegistrationResponseJSON);

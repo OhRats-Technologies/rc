@@ -1,16 +1,37 @@
-import { qs } from "./http";
+import { ApiError, qs } from "./http";
 import { createPasskey } from "./webauthn";
 import { api } from "./http";
 import { syncOwnedAuthorities } from "./control-client";
 import { freshPasskey, stepHeader } from "./step-up";
 
-document.querySelector<HTMLButtonElement>("#add-passkey")?.addEventListener("click", async () => {
+const addPasskeyButton = document.querySelector<HTMLButtonElement>("#add-passkey");
+const nextPaint = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+
+addPasskeyButton?.addEventListener("click", async () => {
+  const output = qs<HTMLElement>("#passkey-error");
+  addPasskeyButton.disabled = true;
   try {
-    const step = await freshPasskey();
-    await createPasskey("/api/v1/passkeys/options", "/api/v1/passkeys/verify", {}, stepHeader(step));
+    output.textContent = "";
+    addPasskeyButton.textContent = "CREATE NEW PASSKEY…";
+    try {
+      await createPasskey("/api/v1/passkeys/options", "/api/v1/passkeys/verify", {});
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401 || !error.message.includes("fresh passkey")) throw error;
+      output.textContent = "Verify one of your existing passkeys first. RC will then ask where to save the new passkey.";
+      addPasskeyButton.textContent = "VERIFY CURRENT PASSKEY…";
+      await nextPaint();
+      const step = await freshPasskey();
+      output.textContent = "Existing passkey verified. Create the new passkey now.";
+      addPasskeyButton.textContent = "CREATE NEW PASSKEY…";
+      await nextPaint();
+      await createPasskey("/api/v1/passkeys/options", "/api/v1/passkeys/verify", {}, stepHeader(step));
+    }
     await syncOwnedAuthorities();
     location.reload();
-  } catch (error) { qs<HTMLElement>("#passkey-error").textContent = error instanceof Error ? error.message : String(error); }
+  } catch (error) {
+    output.textContent = error instanceof Error ? error.message : String(error);
+    addPasskeyButton.disabled = false; addPasskeyButton.textContent = "ADD PASSKEY";
+  }
 });
 
 document.querySelectorAll<HTMLFormElement>('form[action^="/account/passkeys/"][action$="/delete"]').forEach(form => form.addEventListener("submit", async event => {
