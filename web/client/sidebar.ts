@@ -7,25 +7,74 @@ document.querySelector<HTMLButtonElement>("#sidebar-toggle")?.addEventListener("
 
 if (matchMedia("(max-width:760px)").matches && !document.cookie.includes("rc_sidebar=")) root.dataset.sidebar = "closed";
 
+function setFolderOpen(folder: HTMLElement, open: boolean, animate = true) {
+  const toggle = folder.querySelector<HTMLButtonElement>("[data-workspace-toggle]")!;
+  const children = folder.querySelector<HTMLElement>("[data-workspace-children]")!;
+  toggle.ariaExpanded = String(open); children.dataset.open = String(open);
+  if (!animate) { children.hidden = !open; children.style.height = ""; return; }
+  if (open) {
+    children.hidden = false; children.style.height = "0px";
+    void children.offsetHeight;
+    requestAnimationFrame(() => { children.style.height = `${children.scrollHeight}px`; });
+    window.setTimeout(() => { if (children.dataset.open === "true") children.style.height = ""; }, 240);
+  } else {
+    children.style.height = `${children.scrollHeight}px`;
+    void children.offsetHeight;
+    requestAnimationFrame(() => { children.style.height = "0px"; });
+    window.setTimeout(() => { if (children.dataset.open === "false") { children.hidden = true; children.style.height = ""; } }, 240);
+  }
+}
+
+function animateChildrenResize(folder: HTMLElement, mutate: () => void) {
+  const children = folder.querySelector<HTMLElement>("[data-workspace-children]")!;
+  if (children.hidden) { mutate(); return; }
+  children.style.height = `${children.scrollHeight}px`; void children.offsetHeight; mutate();
+  requestAnimationFrame(() => { children.style.height = `${children.scrollHeight}px`; });
+  window.setTimeout(() => { if (!children.hidden) children.style.height = ""; }, 240);
+}
+
 document.querySelectorAll<HTMLElement>("[data-workspace-folder]").forEach(folder => {
   const id = folder.dataset.workspaceFolder!, toggle = folder.querySelector<HTMLButtonElement>("[data-workspace-toggle]")!;
   const children = folder.querySelector<HTMLElement>("[data-workspace-children]")!;
-  if (folder.dataset.defaultOpen !== "true" && localStorage.getItem(`rc_workspace_${id}`) === "open") {
-    children.hidden = false; toggle.ariaExpanded = "true";
-  }
+  const head = folder.querySelector<HTMLElement>(".workspace-folder-head")!;
+  head.addEventListener("focusin", () => head.classList.add("focused"));
+  head.addEventListener("focusout", event => { if (!(event.relatedTarget instanceof Node) || !head.contains(event.relatedTarget)) head.classList.remove("focused"); });
+  const stored = localStorage.getItem(`rc_workspace_${id}`), initial = stored !== null ? stored === "open" : folder.dataset.defaultOpen === "true";
+  setFolderOpen(folder, initial, false);
   toggle.addEventListener("click", () => {
-    children.hidden = !children.hidden; toggle.ariaExpanded = String(!children.hidden);
-    localStorage.setItem(`rc_workspace_${id}`, children.hidden ? "closed" : "open");
+    const open = Boolean(children.hidden); setFolderOpen(folder, open);
+    localStorage.setItem(`rc_workspace_${id}`, open ? "open" : "closed");
   });
   folder.querySelector<HTMLButtonElement>("[data-workspace-show-more]")?.addEventListener("click", event => {
     const button = event.currentTarget as HTMLButtonElement, expanded = button.dataset.expanded === "true";
-    folder.querySelectorAll<HTMLElement>(".workspace-device-overflow").forEach(item => item.hidden = expanded);
-    button.dataset.expanded = expanded ? "false" : "true"; button.textContent = expanded ? "Show more" : "Show less";
+    animateChildrenResize(folder, () => {
+      folder.querySelectorAll<HTMLElement>(".workspace-device-overflow").forEach(item => item.hidden = expanded);
+      button.dataset.expanded = expanded ? "false" : "true"; button.textContent = expanded ? "Show more" : "Show less";
+    });
   });
+  const menu = folder.querySelector<HTMLDetailsElement>(".workspace-menu"), actions = folder.querySelector<HTMLElement>("[data-workspace-menu-actions]");
+  const rename = folder.querySelector<HTMLFormElement>("[data-workspace-rename-form]");
+  folder.querySelector<HTMLButtonElement>("[data-workspace-rename]")?.addEventListener("click", () => {
+    if (!rename || !actions) return; actions.hidden = true; rename.hidden = false;
+    const input = rename.querySelector<HTMLInputElement>('input[name="name"]')!; input.focus(); input.select();
+  });
+  const cancelRename = () => { if (!rename || !actions) return; rename.hidden = true; actions.hidden = false; menu?.querySelector<HTMLElement>("summary")?.focus(); };
+  folder.querySelector<HTMLButtonElement>("[data-workspace-rename-cancel]")?.addEventListener("click", cancelRename);
+  rename?.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); cancelRename(); } });
+  menu?.addEventListener("toggle", () => { if (!menu.open && rename && actions) { rename.hidden = true; actions.hidden = false; } });
 });
 
 document.querySelectorAll<HTMLDetailsElement>(".workspace-menu").forEach(menu => menu.addEventListener("toggle", () => {
   if (!menu.open) return;
   document.querySelectorAll<HTMLDetailsElement>(".workspace-menu[open]").forEach(other => { if (other !== menu) other.open = false; });
 }));
+document.addEventListener("pointerdown", event => {
+  document.querySelectorAll<HTMLDetailsElement>(".workspace-menu[open]").forEach(menu => {
+    if (event.target instanceof Node && menu.contains(event.target)) return;
+    menu.open = false;
+    const trigger = menu.querySelector<HTMLElement>("summary");
+    trigger?.blur();
+    menu.closest<HTMLElement>(".workspace-folder-head")?.classList.remove("focused");
+  });
+});
 document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll<HTMLDetailsElement>(".workspace-menu[open]").forEach(menu => menu.open = false); });

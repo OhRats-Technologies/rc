@@ -4,8 +4,8 @@ import type { WorkspaceView } from "../../src/workspaces";
 
 function active(path: string, prefix: string) { return path.startsWith(prefix) ? " active" : ""; }
 
-function WorkspaceFolder({ workspace, devices, currentDeviceId, open }: {
-  workspace: WorkspaceView; devices: DeviceView[]; currentDeviceId: string; open: boolean;
+function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
+  workspace: WorkspaceView; devices: DeviceView[]; currentDeviceId: string; open: boolean; path: string;
 }) {
   const visible = devices.slice(0, 5), overflow = devices.slice(5);
   return <div className={`workspace-folder${open ? " active" : ""}`} data-workspace-folder={workspace.id} data-default-open={open ? "true" : "false"}>
@@ -16,14 +16,21 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open }: {
       <details className="workspace-menu">
         <summary className="workspace-menu-trigger" aria-label={`Actions for ${workspace.name}`} title="Workspace actions"><span className="ui-icon icon-ellipsis" aria-hidden="true"/></summary>
         <div className="workspace-menu-popover">
-          {workspace.role === "owner" && <a href={`/workspaces/${workspace.id}/access`}><span className="ui-icon icon-share" aria-hidden="true"/>Share workspace</a>}
-          {workspace.role === "owner" && <a href={`/workspaces/${workspace.id}/rename`}>Rename workspace</a>}
-          <a href={`/workspaces/${workspace.id}/activity`}>Audit log</a>
-          {workspace.role === "owner" && <a className="danger-text" href={`/workspaces/${workspace.id}/delete`}>Delete workspace</a>}
+          <div className="workspace-menu-actions" data-workspace-menu-actions>
+            {workspace.role === "owner" && <a href={`/workspaces/${workspace.id}/access`}><span className="ui-icon icon-share" aria-hidden="true"/>Share workspace</a>}
+            {workspace.role === "owner" && <button type="button" data-workspace-rename>Rename workspace</button>}
+            <a href={`/workspaces/${workspace.id}/activity`}>Audit log</a>
+            {workspace.role === "owner" && <a className="danger-text" href={`/workspaces/${workspace.id}/delete`}>Delete workspace</a>}
+          </div>
+          {workspace.role === "owner" && <form className="workspace-rename-form" method="post" action={`/workspaces/${workspace.id}/rename`} hidden data-workspace-rename-form>
+            <label>Workspace name<input name="name" defaultValue={workspace.name} required maxLength={120}/></label>
+            <input type="hidden" name="next" value={path}/>
+            <div className="workspace-rename-actions"><button className="text-button" type="submit">SAVE</button><button className="text-button" type="button" data-workspace-rename-cancel>CANCEL</button></div>
+          </form>}
         </div>
       </details>
     </div>
-    <div className="workspace-children" data-workspace-children={workspace.id} hidden={!open}>
+    <div className="workspace-children" data-workspace-children={workspace.id} data-open={open ? "true" : "false"} hidden={!open}>
       {devices.length ? <>
         {[...visible, ...overflow].map((device, index) => <a key={device.id} className={`workspace-device${device.id === currentDeviceId ? " active" : ""}${index >= 5 ? " workspace-device-overflow" : ""}`} href={`/devices/${device.id}`} hidden={index >= 5}>
           <span className={`workspace-device-presence${device.online ? " online" : ""}`} data-sidebar-device-status={device.id}/><span>{device.name}</span>
@@ -52,7 +59,7 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
           <section className="sidebar-section workspace-section">
             <div className="sidebar-section-title"><h2>Workspaces</h2><a className="workspace-add" href="/workspaces/new" aria-label="New workspace" title="New workspace"><span className="ui-icon icon-plus" aria-hidden="true"/></a></div>
             {workspaces.length ? workspaces.map(workspace => <WorkspaceFolder key={workspace.id} workspace={workspace}
-              devices={devices.filter(device => device.workspace_id === workspace.id)} currentDeviceId={currentDeviceId} open={workspace.id === workspaceId}/>)
+              devices={devices.filter(device => device.workspace_id === workspace.id)} currentDeviceId={currentDeviceId} open={workspace.id === workspaceId} path={path}/>)
               : <span className="sidebar-empty">NO WORKSPACES</span>}
           </section>
         </nav>

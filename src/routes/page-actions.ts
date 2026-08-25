@@ -6,7 +6,7 @@ import { approveCliAuthorization } from "../cli-auth";
 import { removeDevice, getDevice, renameDevice } from "../devices";
 import { HttpError } from "../errors";
 import { checkOrigin, sessionCookie } from "../http-utils";
-import { pageContext } from "../page-context";
+import { pageContext, safeNext } from "../page-context";
 import {
   createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceDetail, workspaceDevices, workspaceFor,
 } from "../workspaces";
@@ -17,7 +17,7 @@ import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
 import { deleteDevicePage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
-import { deleteWorkspacePage, newWorkspacePage, renameWorkspacePage, workspacePage } from "../../web/server/pages/workspaces";
+import { deleteWorkspacePage, newWorkspacePage, workspacePage } from "../../web/server/pages/workspaces";
 
 async function form(request: Request) { return Object.fromEntries(await request.formData()); }
 
@@ -52,8 +52,8 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   .post("/workspaces/:workspaceId/rename", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const workspace = workspaceFor(context.user, params.workspaceId); if (!workspace || workspace.role !== "owner") return new Response("not found", { status: 404 });
-    try { renameWorkspace(context.user, params.workspaceId, (await form(request)).name); return Response.redirect(`/workspaces/${params.workspaceId}`, 303); }
-    catch (error) { return renameWorkspacePage(context.user, context.workspaces, workspace, context.sidebar, error instanceof Error ? error.message : "Rename failed."); }
+    const input = await form(request); renameWorkspace(context.user, params.workspaceId, input.name);
+    return Response.redirect(safeNext(input.next || `/workspaces/${params.workspaceId}`), 303);
   })
   .post("/workspaces/:workspaceId/leave", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
