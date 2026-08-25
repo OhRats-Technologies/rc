@@ -17,7 +17,10 @@ case "$OS" in
 esac
 
 DIR="$HOME/.local/bin"
+LEGACY_BIN="$DIR/ohrats-relay"
+LEGACY_STATE="$HOME/.config/ohrats-relay"
 mkdir -p "$DIR"
+
 URL="https://rc.ohrats.party/downloads/ohrats-rc-${OS}-${ARCH}"
 TMP="$DIR/.ohrats-rc.$$"
 trap 'rm -f "$TMP"' EXIT HUP INT TERM
@@ -27,6 +30,20 @@ if [ ! -s "$TMP" ] || [ "$(head -c 1 "$TMP" || true)" = "<" ]; then
   exit 1
 fi
 chmod 755 "$TMP"
+
+# Greenfield Relay → RC cutover. Remove only an installation that identifies
+# itself as the former OhRats Relay Node; do not preserve legacy state/env.
+# Do this only after the replacement binary has downloaded and validated.
+if [ -x "$LEGACY_BIN" ] && "$LEGACY_BIN" version 2>/dev/null | grep -q '^OhRats Relay Node '; then
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -TERM -x ohrats-relay 2>/dev/null || true
+    sleep 1
+  fi
+  rm -f "$LEGACY_BIN"
+  rm -rf "$LEGACY_STATE"
+  echo "removed obsolete OhRats Relay installation"
+fi
+
 mv "$TMP" "$DIR/ohrats-rc"
 trap - EXIT HUP INT TERM
 echo "installed $DIR/ohrats-rc"
