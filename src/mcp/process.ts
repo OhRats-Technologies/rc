@@ -6,18 +6,72 @@ import { sendMcpAgent } from "./relay";
 import type { McpToolContext } from "./types";
 
 const OUTPUT_LIMIT = 256 * 1024;
-type Result = { processId: string; status: "exited" | "running" | "lost"; output: string; exitCode: number | null; signal: string | null };
-type Waiter = { output: string; resolve: (value: Result) => void; timer: ReturnType<typeof setTimeout> };
-const waiters = new Map<string, Waiter>();
+const COMPLETED_TTL = 5 * 60_000;
+const ACTIVE_TTL = 30 * 60_000;
+const MAX_STATES = 128;
 
-function safeOutput(value: string, chunk: string) {
-  if (value.length >= OUTPUT_LIMIT) return value;
-  return (value + chunk).slice(0, OUTPUT_LIMIT);
+export type McpProcessResult = {
+  processId: string;
+  status: "exited" | "running" | "lost";
+  output: string;
+  exitCode: number | null;
+  signal: string | null;
+  error: string | null;
+  nextOffset: number;
+  outputTruncated: boolean;
+};
+
+type Listener = () => void;
+type State = {
+  processId: string; grantId: string; userId: string; deviceId: string; status: McpProcessResult["status"];
+  output: string; outputTruncated: boolean; exitCode: number | null; signal: string | null; error: string | null;
+  createdAt: number; updatedAt: number; initial?: { resolve: (value: McpProcessResult) => void; timer: ReturnType<typeof setTimeout> };
+  listeners: Set<Listener>;
+};
+
+const states = new Map<string, State>();
+
+function appendOutput(state: State, chunk: string) {
+  if (!chunk || state.output.length >= OUTPUT_LIMIT) {
+    if (chunk) state.outputTruncated = true;
+    return;
+  }
+  const room = OUTPUT_LIMIT - state.output.length;
+  state.output += chunk.slice(0, room);
+  if (chunk.length > room) state.outputTruncated = true;
+}
+
+function result(state: State, offset = 0): McpProcessResult {
+  const start = Math.min(Math.max(0, offset), state.output.length);
+  return { processId: state.processId, status: state.status, output: state.output.slice(start), exitCode: state.exitCode,
+    signal: state.signal, error: state.error, nextOffset: state.output.length, outputTruncated: state.outputTruncated };
+}
+
+function notify(state: State) {
+  state.updatedAt = now();
+  for (const listener of [...state.listeners]) listener();
+}
+
+function cleanupStates() {
+  const t = now();
+  for (const [processId, state] of states) {
+    const ttl = state.status === "running" ? ACTIVE_TTL : COMPLETED_TTL;
+    if (state.updatedAt + ttl < t) states.delete(processId);
+  }
+  if (states.size < MAX_STATES) return;
+  const removable = [...states.values()].sort((a, b) => a.updatedAt - b.updatedAt);
+  while (states.size >= MAX_STATES && removable.length) states.delete(removable.shift()!.processId);
+}
+
+function settleInitial(state: State) {
+  if (!state.initial) return;
+  const initial = state.initial; delete state.initial; clearTimeout(initial.timer); initial.resolve(result(state));
 }
 
 export function runMcpProcess(context: McpToolContext, input: {
   deviceId: string; command: string; cwd?: string; kind: "terminal" | "action"; actionId?: string; actionHash?: string; timeoutSeconds?: number;
 }) {
+  cleanupStates();
   const { grant, payload } = context, deviceId = String(input.deviceId || "");
   if (!payload.deviceIds.includes(deviceId)) throw new Error("device is outside this MCP grant");
   if (!canOperate(deviceRole(payload.userId, deviceId))) throw new Error("operator access is no longer available for this device");
@@ -28,38 +82,55 @@ export function runMcpProcess(context: McpToolContext, input: {
     VALUES(?,?,?,NULL,'starting',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", payload.userId, t);
   logEvent("mcp.process.created", workspaceForDevice(deviceId), payload.userId, deviceId,
     { grantId: payload.id, client: payload.clientName, processId, kind: input.kind, actionId: input.actionId || null });
+  const state: State = { processId, grantId: payload.id, userId: payload.userId, deviceId, status: "running", output: "",
+    outputTruncated: false, exitCode: null, signal: null, error: null, createdAt: t, updatedAt: t, listeners: new Set() };
+  states.set(processId, state);
   const timeout = Math.min(60, Math.max(1, Number(input.timeoutSeconds || 20))) * 1000;
-  return new Promise<Result>((resolve) => {
-    const timer = setTimeout(() => {
-      const waiter = waiters.get(processId); waiters.delete(processId);
-      resolve({ processId, status: "running", output: waiter?.output || "", exitCode: null, signal: null });
-    }, timeout);
-    waiters.set(processId, { output: "", resolve, timer });
+  return new Promise<McpProcessResult>((resolve) => {
+    state.initial = { resolve, timer: setTimeout(() => { delete state.initial; resolve(result(state)); }, timeout) };
     const sent = sendMcpAgent(deviceId, {
       type: "mcp.process.start", id: processId, command, cwd, userId: payload.userId, mcpKind: input.kind,
       actionId: input.actionId || "", mcpGrant: grant.grant, mcpSignature: grant.grant_signature,
       grant: grant.control_grant, credentialId: grant.credential_id, assertion: grant.control_assertion,
     });
     if (!sent) {
-      clearTimeout(timer); waiters.delete(processId); markProcessLost(processId, "RC Node is offline");
-      resolve({ processId, status: "lost", output: "", exitCode: null, signal: null });
+      markMcpProcessLost(processId, "RC Node is offline"); markProcessLost(processId, "RC Node is offline");
     }
+  });
+}
+
+export function markMcpProcessLost(processId: string, error: string) {
+  const state = states.get(processId); if (!state || state.status !== "running") return;
+  state.status = "lost"; state.error = String(error || "process lost").slice(0, 1024); settleInitial(state); notify(state);
+}
+
+export async function mcpProcessStatus(context: McpToolContext, processId: string, offset = 0, waitSeconds = 0) {
+  cleanupStates();
+  const state = states.get(processId);
+  if (!state || state.grantId !== context.payload.id || state.userId !== context.payload.userId || !context.payload.deviceIds.includes(state.deviceId)) {
+    throw new Error("process status is unavailable for this MCP grant");
+  }
+  const startOffset = Math.min(Math.max(0, Number(offset) || 0), state.output.length);
+  const wait = Math.min(60, Math.max(0, Number(waitSeconds) || 0)) * 1000;
+  if (!wait || state.status !== "running" || state.output.length > startOffset) return result(state, startOffset);
+  return await new Promise<McpProcessResult>((resolve) => {
+    const done = () => { clearTimeout(timer); state.listeners.delete(done); resolve(result(state, startOffset)); };
+    const timer = setTimeout(done, wait);
+    state.listeners.add(done);
   });
 }
 
 export function handleMcpProcessMessage(process: any, message: AgentClientMessage) {
   if (!process?.mcp) return false;
-  const waiter = waiters.get(process.id);
+  const state = states.get(process.id);
   if (message.type === "process.output") {
-    if (waiter) waiter.output = safeOutput(waiter.output, message.output || "");
+    if (state) { appendOutput(state, message.output || ""); notify(state); }
     return true;
   }
   if (message.type === "process.exit") {
-    if (waiter) {
-      if (message.output) waiter.output = safeOutput(waiter.output, message.output);
-      clearTimeout(waiter.timer); waiters.delete(process.id);
-      waiter.resolve({ processId: process.id, status: "exited", output: waiter.output,
-        exitCode: message.exitCode ?? null, signal: message.signal || null });
+    if (state) {
+      appendOutput(state, message.output || ""); state.status = "exited"; state.exitCode = message.exitCode ?? null;
+      state.signal = message.signal || null; state.error = null; settleInitial(state); notify(state);
     }
     return false;
   }

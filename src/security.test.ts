@@ -276,8 +276,10 @@ describe("MCP transport and OAuth", () => {
     expect(credentials.access_token).toStartWith("mcp_access_"); expect(credentials.refresh_token).toStartWith("mcp_refresh_");
     expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: form }))).status).toBe(400);
     const listed = await app.handle(mcpRpc("tools/list", 2, undefined, credentials.access_token));
-    const names = (await listed.json() as any).result.tools.map((tool: any) => tool.name);
-    expect(names).toContain("machines_list"); expect(names).toContain("action_run"); expect(names).not.toContain("process_run");
+    const descriptors = (await listed.json() as any).result.tools, names = descriptors.map((tool: any) => tool.name);
+    expect(names).toContain("machines_list"); expect(names).toContain("action_run"); expect(names).toContain("process_status"); expect(names).not.toContain("process_run");
+    const machines = descriptors.find((tool: any) => tool.name === "machines_list");
+    expect(machines.annotations.readOnlyHint).toBe(true); expect(machines.outputSchema.properties.machines.type).toBe("array");
     const terminal = await app.handle(mcpRpc("tools/call", 3, { name: "process_run", arguments: { deviceId: "x", command: "id" } }, credentials.access_token));
     expect(terminal.status).toBe(403); expect(terminal.headers.get("www-authenticate")).toContain("mcp:terminal");
     const refresh = new URLSearchParams({ grant_type: "refresh_token", client_id: seeded.clientId,

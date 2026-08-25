@@ -6,12 +6,19 @@ export type McpTool = {
   description: string;
   scope: McpScope;
   inputSchema: Record<string, unknown>;
+  outputSchema?: Record<string, unknown>;
+  annotations?: {
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
   run: (context: McpToolContext, args: Record<string, unknown>, params: Record<string, unknown>) => unknown | Promise<unknown>;
 };
 
-export function complete(value: unknown, isError = false) {
-  return { resultType: "complete", content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
-    structuredContent: value, ...(isError ? { isError: true } : {}) };
+export function complete(value: unknown, text: string, isError = false) {
+  return { resultType: "complete", content: [{ type: "text", text }], structuredContent: value,
+    ...(isError ? { isError: true } : {}) };
 }
 
 export function hasScope(scopes: string[], required: McpScope) {

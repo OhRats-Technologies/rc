@@ -7,7 +7,7 @@ import type { AgentClientMessage, AgentServerMessage } from "./protocol";
 import type { SocketWriter } from "./browser-socket";
 import { AGENT_CHALLENGE_TTL } from "./config";
 import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-relay";
-import { handleMcpProcessMessage } from "./mcp/process";
+import { handleMcpProcessMessage, markMcpProcessLost } from "./mcp/process";
 import { registerMcpSender } from "./mcp/relay";
 
 const agents = new Map<string, SocketWriter>();
@@ -71,6 +71,7 @@ function scheduleDisconnect(deviceId: string, startup = false) {
     const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
     for (const process of running) {
       const error = startup ? "control plane restarted and device did not reconnect" : process.status === "running" ? "device disconnected beyond reconnect grace" : "device disconnected before acknowledgement";
+      markMcpProcessLost(process.id, error);
       markProcessLost(process.id, error);
       publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { error } });
     }
@@ -166,6 +167,7 @@ export const agentSocketHandlers = {
       if (msg.type === "node.update.ready") {
         const running = q<any>("SELECT id FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
         for (const process of running) {
+          markMcpProcessLost(process.id, "RC Node updated during execution");
           markProcessLost(process.id, "RC Node updated during execution");
           publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id,
             detail: { error: "RC Node updated during execution" } });
