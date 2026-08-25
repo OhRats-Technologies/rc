@@ -75,6 +75,37 @@ export function oauthRequest(userId: string, requestId: string) {
     WHERE r.id=? AND r.user_id=? AND r.expires_at>?`).get(requestId, userId, now()) || null;
 }
 
+function authorizationUrl(request: OAuthRequestRow) {
+  const url = new URL(`${PUBLIC_URL}/oauth/authorize`);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("client_id", request.client_id);
+  url.searchParams.set("redirect_uri", request.redirect_uri);
+  url.searchParams.set("scope", request.requested_scope);
+  url.searchParams.set("state", request.state);
+  url.searchParams.set("code_challenge", request.code_challenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("resource", request.resource);
+  return `${url.pathname}${url.search}`;
+}
+
+export function denyOAuthRequest(userId: string, requestId: string) {
+  const request = oauthRequest(userId, requestId); if (!request) throw new HttpError(410, "MCP authorization expired");
+  q("DELETE FROM mcp_oauth_requests WHERE id=?").run(request.id);
+  const redirect = new URL(request.redirect_uri);
+  redirect.searchParams.set("error", "access_denied");
+  redirect.searchParams.set("error_description", "The user declined this MCP authorization request.");
+  if (request.state) redirect.searchParams.set("state", request.state);
+  redirect.searchParams.set("iss", PUBLIC_URL);
+  return redirect.toString();
+}
+
+export function restartOAuthRequest(userId: string, requestId: string) {
+  const request = oauthRequest(userId, requestId); if (!request) throw new HttpError(410, "MCP authorization expired");
+  const next = authorizationUrl(request);
+  q("DELETE FROM mcp_oauth_requests WHERE id=?").run(request.id);
+  return next;
+}
+
 export function prepareOAuthGrant(user: User, requestId: string, deviceIds: unknown, requestedScopes: unknown) {
   const request = oauthRequest(user.id, requestId); if (!request) throw new HttpError(410, "MCP authorization expired");
   const selected = Array.isArray(requestedScopes) ? requestedScopes.map(String) : [];

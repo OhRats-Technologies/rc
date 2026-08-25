@@ -12,6 +12,9 @@ let agentSocketHandlers: typeof import("./gateway").agentSocketHandlers;
 let checkOrigin: typeof import("./http-utils").checkOrigin;
 let runAction: typeof import("./actions").runAction;
 let consumeStepUp: typeof import("./step-up").consumeStepUp;
+let createOAuthRequest: typeof import("./mcp/oauth").createOAuthRequest;
+let denyOAuthRequest: typeof import("./mcp/oauth").denyOAuthRequest;
+let restartOAuthRequest: typeof import("./mcp/oauth").restartOAuthRequest;
 let sha: typeof import("./db").sha;
 
 beforeAll(async () => {
@@ -23,6 +26,7 @@ beforeAll(async () => {
   ({ checkOrigin } = await import("./http-utils"));
   ({ runAction } = await import("./actions"));
   ({ consumeStepUp } = await import("./step-up"));
+  ({ createOAuthRequest, denyOAuthRequest, restartOAuthRequest } = await import("./mcp/oauth"));
   ({ app } = await import("./app"));
 });
 
@@ -195,6 +199,24 @@ function seededMcpCode(scopes: string[]) {
 }
 
 describe("MCP transport and OAuth", () => {
+  test("consent cancellation preserves state and account switching restarts the same OAuth request", () => {
+    const userId = crypto.randomUUID(), clientId = `mcp_client_${crypto.randomUUID()}`, t = Date.now();
+    const redirect = "http://127.0.0.1:49153/callback", challenge = "b".repeat(43), state = "oauth-state";
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Consent User", t);
+    q("INSERT INTO mcp_clients(id,name,redirect_uris,created_at) VALUES(?,?,?,?)").run(clientId, "Consent Test", JSON.stringify([redirect]), t);
+    const url = new URL("http://localhost:3000/oauth/authorize");
+    Object.entries({ response_type: "code", client_id: clientId, redirect_uri: redirect, scope: "mcp:observe mcp:terminal",
+      state, code_challenge: challenge, code_challenge_method: "S256", resource: "http://localhost:3000/mcp" })
+      .forEach(([key, value]) => url.searchParams.set(key, value));
+    const user = { id: userId, name: "Consent User" };
+    const cancelled = createOAuthRequest(user, url);
+    const denied = new URL(denyOAuthRequest(userId, cancelled.requestId));
+    expect(denied.searchParams.get("error")).toBe("access_denied"); expect(denied.searchParams.get("state")).toBe(state);
+    const restarted = createOAuthRequest(user, url), next = new URL(restartOAuthRequest(userId, restarted.requestId), "http://localhost:3000");
+    expect(next.searchParams.get("client_id")).toBe(clientId); expect(next.searchParams.get("code_challenge")).toBe(challenge);
+    expect(next.searchParams.get("resource")).toBe("http://localhost:3000/mcp");
+  });
+
   test("publishes discovery, challenges protected calls, and rejects mismatched method headers", async () => {
     const metadata = await app.handle(new Request("http://localhost:3000/.well-known/oauth-protected-resource"));
     expect((await metadata.json() as any).resource).toBe("http://localhost:3000/mcp");

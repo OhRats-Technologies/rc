@@ -1,14 +1,14 @@
 import { Elysia } from "elysia";
-import { cookieUser } from "../auth";
+import { cookieUser, logout } from "../auth";
 import { PUBLIC_URL } from "../config";
 import { deviceRole } from "../core";
 import { listDevices } from "../devices";
 import { HttpError } from "../errors";
-import { checkOrigin, fail, json } from "../http-utils";
+import { checkOrigin, fail, json, sessionCookie } from "../http-utils";
 import { listMcpGrants, revokeMcpGrant } from "../mcp/grants";
 import {
-  approveOAuthGrant, createOAuthRequest, exchangeOAuthToken, MCP_RESOURCE, MCP_RESOURCE_METADATA,
-  prepareOAuthGrant, registerMcpClient,
+  approveOAuthGrant, createOAuthRequest, denyOAuthRequest, exchangeOAuthToken, MCP_RESOURCE, MCP_RESOURCE_METADATA,
+  prepareOAuthGrant, registerMcpClient, restartOAuthRequest,
 } from "../mcp/oauth";
 import { MCP_SCOPES } from "../mcp/types";
 import { pageContext } from "../page-context";
@@ -67,6 +67,25 @@ export const oauthRoutes = new Elysia({ name: "rc.oauth", detail: { hide: true }
     try {
       const body = await request.json() as any;
       return json(await approveOAuthGrant(user, String(body.requestId || ""), String(body.controlClientId || ""), String(body.signature || "")));
+    } catch (error) { return error instanceof HttpError ? fail(error.message, error.status) : fail("authorization failed", 400); }
+  })
+  .post("/oauth/authorize/cancel", async ({ request }) => {
+    if (!checkOrigin(request)) return fail("invalid origin", 403);
+    const user = await cookieUser(request); if (!user) return fail("authentication required", 401);
+    try {
+      const body = await request.json() as any;
+      return json({ redirect: denyOAuthRequest(user.id, String(body.requestId || "")) });
+    } catch (error) { return error instanceof HttpError ? fail(error.message, error.status) : fail("authorization failed", 400); }
+  })
+  .post("/oauth/authorize/switch-account", async ({ request }) => {
+    if (!checkOrigin(request)) return fail("invalid origin", 403);
+    const user = await cookieUser(request); if (!user) return fail("authentication required", 401);
+    try {
+      const body = await request.json() as any, next = restartOAuthRequest(user.id, String(body.requestId || ""));
+      logout(request);
+      return new Response(JSON.stringify({ redirect: `/?next=${encodeURIComponent(next)}` }), {
+        headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "set-cookie": sessionCookie("", 0) },
+      });
     } catch (error) { return error instanceof HttpError ? fail(error.message, error.status) : fail("authorization failed", 400); }
   })
   .post("/oauth/token", async ({ request }) => {

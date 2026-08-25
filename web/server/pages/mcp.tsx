@@ -8,11 +8,12 @@ type ConsentDevice = { id: string; name: string; workspace_name: string; role: s
 
 export function mcpAuthorizePage(user: User, requestId: string, clientName: string, callback: string, requestedScopes: McpScope[], devices: ConsentDevice[]) {
   const scope = (value: McpScope, title: string, copy: string, checked: boolean) => requestedScopes.includes(value) ?
-    <label className="mcp-scope"><input type="checkbox" name="scope" value={value} defaultChecked={checked}/><span><strong>{title}</strong><small>{copy}</small></span></label> : null;
+    <label className="mcp-choice"><input type="checkbox" name="scope" value={value} defaultChecked={checked}/><span className="mcp-choice-copy"><strong>{title}</strong><small>{copy}</small></span></label> : null;
   return htmlDocument({ title: "Connect agent", scripts: ["mcp-authorize"], body:
     <section className="auth-shell" data-mcp-request={requestId}><div className="ohrats-grid auth-grid" aria-hidden="true"/><div className="auth-content mcp-consent">
       <p className="eyebrow">OHRATS RC / MCP</p><h1>Connect {clientName}</h1>
-      <p className="page-copy">Choose exactly which machines and capabilities this AI agent may use as <strong>{user.name}</strong>.</p>
+      <div className="mcp-identity"><span>Signed in as <strong>{user.name}</strong></span><button className="text-button" type="button" data-mcp-switch-account>NOT YOU?</button></div>
+      <p className="page-copy">Choose exactly which machines and capabilities this AI agent may use.</p>
       <p className="meta">OAUTH CALLBACK · <code>{callback}</code></p>
       <form className="auth-form" data-mcp-form>
         <fieldset className="scope-fields"><legend>Permissions</legend>
@@ -21,9 +22,9 @@ export function mcpAuthorizePage(user: User, requestId: string, clientName: stri
           {scope("mcp:terminal", "Terminal", "Run arbitrary commands. Command and output plaintext pass through RC.", false)}
         </fieldset>
         <fieldset className="scope-fields"><legend>Machines</legend>{devices.length ? devices.map(device =>
-          <label key={device.id}><input type="checkbox" name="device" value={device.id}/><span>{device.name} <small>{device.workspace_name} · {device.role.toUpperCase()}{device.online ? " · ONLINE" : " · OFFLINE"}</small></span></label>)
+          <label className="mcp-choice" key={device.id}><input type="checkbox" name="device" value={device.id}/><span className="mcp-choice-copy"><strong>{device.name}</strong><small>{device.workspace_name} · {device.role.toUpperCase()}{device.online ? " · ONLINE" : " · OFFLINE"}</small></span></label>)
           : <p className="empty-state">No machines are available.</p>}</fieldset>
-        <button className="or-button" type="submit" disabled={!devices.length}>AUTHORIZE WITH PASSKEY</button>
+        <div className="mcp-consent-actions"><button className="or-button" type="submit" disabled={!devices.length}>AUTHORIZE WITH PASSKEY</button><button className="or-button secondary" type="button" data-mcp-cancel>CANCEL</button></div>
         <p className="muted">Access expires after 30 days and can be revoked from RC at any time.</p><p className="error" data-mcp-error/>
       </form>
     </div></section> });
