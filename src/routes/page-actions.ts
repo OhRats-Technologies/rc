@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
-import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
-import { createApiToken, deleteApiToken, listApiTokens } from "../account";
+import { createAction, getAction, listActions, runAction, updateAction } from "../actions";
+import { createApiToken, deleteApiToken } from "../account";
 import { deletePasskey, logout } from "../auth";
 import { approveCliAuthorization } from "../cli-auth";
 import { renameDevice } from "../devices";
@@ -10,7 +10,7 @@ import { pageContext, safeNext } from "../page-context";
 import { createEnrollment, createInvite, createWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor } from "../workspaces";
 import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvite, workspaceAccess } from "../workspace-access";
 import { deleteUser, renameUser } from "../users";
-import { accountPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
+import { accountPage, apiKeyFormPage, apiPage, deleteAccountPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
 import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
@@ -118,10 +118,6 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
     try { updateAction(context.user, action.id, input); return Response.redirect(`/actions/${action.id}`, 303); }
     catch (error) { return actionFormPage(context.user, context.workspaces, context.sidebar, action, {}, error instanceof Error ? error.message : "Could not update action."); }
   })
-  .post("/actions/:id/delete", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    deleteAction(context.user, params.id); return Response.redirect("/actions", 303);
-  })
   .post("/actions/:id/run", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const action = getAction(context.user, params.id); if (!action) return new Response("not found", { status: 404 });
@@ -139,8 +135,8 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   .post("/api/tokens", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const input = await form(request);
-    try { const created = createApiToken(context.user.id, input.name); return apiPage(context.user, context.workspaces, listApiTokens(context.user.id), context.sidebar, created.token); }
-    catch (error) { return apiPage(context.user, context.workspaces, listApiTokens(context.user.id), context.sidebar, "", error instanceof Error ? error.message : "Token creation failed."); }
+    try { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, createApiToken(context.user.id, input.name).token); }
+    catch (error) { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, "", error instanceof Error ? error.message : "Key creation failed."); }
   })
   .post("/api/tokens/:id/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

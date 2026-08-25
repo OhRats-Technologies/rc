@@ -17,7 +17,7 @@ The device-side program and human CLI are both **OhRats RC Node** (`ohrats-rc`).
 
 The product model is `User → Workspace → Device → Process`, with saved `Action` definitions scoped to a workspace and executed through the same Process system. Devices belong directly to one workspace. There are no fleet or browser-session abstractions.
 
-Passkeys are the human sign-in method. Browser sessions are created from passkeys; API tokens live under `/api` and are automation credentials only. CLI login uses a one-time browser approval flow and stores a separate expiring human CLI session rather than reusing an API token.
+Passkeys are the human sign-in method. Browser sessions are created from passkeys; API keys live under `/api` and are automation credentials only. The API page keeps only the active-key list and docs access in its normal layout: a header `+` opens a short name dialog, then reveals the new key once with the shared copy control. A normal `/api/keys/new` form preserves the same creation flow without JavaScript. CLI login uses a one-time browser approval flow and stores a separate expiring human CLI session rather than reusing an API key.
 
 Workspaces have three roles: **Owner** manages access, workspace settings, Actions, and device lifecycle; **Operator** can open terminals and run Actions; **Viewer** can inspect inventory, Actions, and audit metadata without process output or execution. A workspace may have multiple owners and RC will not allow its last owner to leave/demote themselves.
 
