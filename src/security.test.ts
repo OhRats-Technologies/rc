@@ -13,6 +13,8 @@ let checkOrigin: typeof import("./http-utils").checkOrigin;
 let runAction: typeof import("./actions").runAction;
 let consumeStepUp: typeof import("./step-up").consumeStepUp;
 let consumeStepUpOrRecentSession: typeof import("./step-up").consumeStepUpOrRecentSession;
+let controlAuthorizationOptions: typeof import("./control-auth").controlAuthorizationOptions;
+let controlGrantChallenge: typeof import("./control-auth").controlGrantChallenge;
 let createOAuthRequest: typeof import("./mcp/oauth").createOAuthRequest;
 let denyOAuthRequest: typeof import("./mcp/oauth").denyOAuthRequest;
 let restartOAuthRequest: typeof import("./mcp/oauth").restartOAuthRequest;
@@ -27,6 +29,7 @@ beforeAll(async () => {
   ({ checkOrigin } = await import("./http-utils"));
   ({ runAction } = await import("./actions"));
   ({ consumeStepUp, consumeStepUpOrRecentSession } = await import("./step-up"));
+  ({ controlAuthorizationOptions, controlGrantChallenge } = await import("./control-auth"));
   ({ createOAuthRequest, denyOAuthRequest, restartOAuthRequest } = await import("./mcp/oauth"));
   ({ app } = await import("./app"));
 });
@@ -197,6 +200,17 @@ describe("fresh passkey step-up", () => {
     });
     expect(() => consumeStepUpOrRecentSession(request(fresh), user)).not.toThrow();
     expect(() => consumeStepUpOrRecentSession(request(stale), user)).toThrow("fresh passkey verification required");
+  });
+
+  test("control authorization stores the exact challenge sent to the browser", async () => {
+    const userId = crypto.randomUUID(), t = Date.now();
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Control User", t);
+    const start = await controlAuthorizationOptions({ id: userId, name: "Control User" }, {
+      clientId: crypto.randomUUID(), signingPublicKey: Buffer.alloc(32, 7).toString("base64url"),
+    });
+    const row = q<{ challenge: string }>("SELECT challenge FROM control_authorizations WHERE id=?").get(start.authorizationId)!;
+    expect(start.options.challenge).toBe(row.challenge);
+    expect(start.options.challenge).toBe(controlGrantChallenge(start.grant));
   });
 });
 

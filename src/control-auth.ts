@@ -35,7 +35,7 @@ export async function controlAuthorizationOptions(user: User, input: { clientId?
   });
   const challenge = controlGrantChallenge(grant);
   const options = await generateAuthenticationOptions({
-    rpID: RP_ID, userVerification: "required", challenge, allowCredentials: passkeyDescriptors(user.id),
+    rpID: RP_ID, userVerification: "required", challenge: base64urlToBytes(challenge), allowCredentials: passkeyDescriptors(user.id),
   });
   const authorizationId = id();
   q(`INSERT INTO control_authorizations(id,user_id,client_id,signing_public_key,grant,challenge,created_at,expires_at)
