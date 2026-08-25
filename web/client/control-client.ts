@@ -55,12 +55,13 @@ export async function controlIdentity() {
   return await stored<ControlIdentity>("control-identity") || await createIdentity();
 }
 
-export async function ensureControlAuthorized(force = false) {
+export async function ensureControlAuthorized(force = false, lifetime = "30d") {
   const identity = await controlIdentity();
   const status = await api<{ authorized: boolean; expiresAt?: number }>(`/api/v1/control/clients/${encodeURIComponent(identity.id)}`);
-  if (!force && status.authorized && Number(status.expiresAt || 0) > Date.now() + 60_000) return identity;
+  const expiresAt = Number(status.expiresAt ?? -1);
+  if (!force && status.authorized && (expiresAt === 0 || expiresAt > Date.now() + 60_000)) return identity;
   const start = await api<{ authorizationId: string; options: any }>("/api/v1/control/authorize/options", {
-    method: "POST", body: JSON.stringify({ clientId: identity.id, signingPublicKey: identity.publicKey }),
+    method: "POST", body: JSON.stringify({ clientId: identity.id, signingPublicKey: identity.publicKey, lifetime }),
   });
   const response = await passkeyAssertion(start.options);
   await api("/api/v1/control/authorize/verify", {

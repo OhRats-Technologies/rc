@@ -1,8 +1,8 @@
 import { deviceRole, logEvent, type User } from "../core";
 import { id, now, q } from "../db";
 import { freshControlProof, verifyClientSignature } from "../control-auth";
-import { MCP_GRANT_TTL } from "../config";
 import { HttpError } from "../errors";
+import { MCP_DEFAULT_LIFETIME, MAX_FINITE_AUTH_LIFETIME_MS, authLifetime, expiresAt } from "../lifetimes";
 import { MCP_SCOPES, type McpGrantPayload, type McpGrantRecord, type McpScope } from "./types";
 
 export function actionHash(command: string, cwd: string | null) {
@@ -34,8 +34,9 @@ function allowedDeviceIds(user: User, values: unknown, scopes: McpScope[]) {
   return requested.sort();
 }
 
-export function prepareGrant(user: User, clientId: string, clientName: string, deviceIdsValue: unknown, scopesValue: unknown) {
+export function prepareGrant(user: User, clientId: string, clientName: string, deviceIdsValue: unknown, scopesValue: unknown, lifetimeValue?: unknown) {
   const scopes = normalizedScopes(scopesValue), deviceIds = allowedDeviceIds(user, deviceIdsValue, scopes), issuedAt = now();
+  const lifetime = authLifetime(lifetimeValue, MCP_DEFAULT_LIFETIME);
   const placeholders = deviceIds.map(() => "?").join(",");
   const workspaces = q<{ workspace_id: string }>(`SELECT DISTINCT workspace_id FROM devices WHERE id IN (${placeholders})`)
     .all(...deviceIds).map(row => row.workspace_id);
@@ -46,7 +47,7 @@ export function prepareGrant(user: User, clientId: string, clientName: string, d
   if (actions.length > 400) throw new HttpError(409, "too many saved Actions for one MCP grant");
   const payload: McpGrantPayload = {
     v: 1, id: id(), userId: user.id, clientId, clientName, deviceIds, scopes, actions,
-    issuedAt, expiresAt: issuedAt + MCP_GRANT_TTL,
+    issuedAt, expiresAt: expiresAt(lifetime, issuedAt),
   };
   return JSON.stringify(payload);
 }
@@ -58,7 +59,8 @@ export function grantSignaturePayload(grant: string) {
 
 export async function persistGrant(user: User, grant: string, controlClientId: string, signature: string) {
   const payload = JSON.parse(grant) as McpGrantPayload;
-  if (payload.v !== 1 || payload.userId !== user.id || payload.expiresAt <= now()) throw new HttpError(400, "invalid MCP grant");
+  const t = now(), finiteInvalid = payload.expiresAt !== 0 && (payload.expiresAt <= t || payload.expiresAt <= payload.issuedAt || payload.expiresAt - payload.issuedAt > MAX_FINITE_AUTH_LIFETIME_MS);
+  if (payload.v !== 1 || payload.userId !== user.id || payload.issuedAt > t + 60_000 || finiteInvalid) throw new HttpError(400, "invalid MCP grant");
   if (!await verifyClientSignature(user.id, controlClientId, grantSignaturePayload(grant), signature)) {
     throw new HttpError(401, "invalid MCP grant signature");
   }
@@ -76,7 +78,7 @@ export async function persistGrant(user: User, grant: string, controlClientId: s
 export function parseGrant(record: McpGrantRecord) { return JSON.parse(record.grant) as McpGrantPayload; }
 
 export function listMcpGrants(userId: string) {
-  return q<McpGrantRecord>("SELECT * FROM mcp_grants WHERE user_id=? AND revoked_at IS NULL AND expires_at>? ORDER BY created_at DESC")
+  return q<McpGrantRecord>("SELECT * FROM mcp_grants WHERE user_id=? AND revoked_at IS NULL AND (expires_at=0 OR expires_at>?) ORDER BY created_at DESC")
     .all(userId, now()).map(record => ({ record, payload: parseGrant(record) }));
 }
 

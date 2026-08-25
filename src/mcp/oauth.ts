@@ -1,5 +1,5 @@
 import type { User } from "../core";
-import { MCP_ACCESS_TTL, MCP_GRANT_TTL, PUBLIC_URL } from "../config";
+import { MCP_ACCESS_TTL, PUBLIC_URL } from "../config";
 import { id, now, opaque, q, sha } from "../db";
 import { HttpError } from "../errors";
 import { grantWorkspaceIds, parseGrant, persistGrant, prepareGrant } from "./grants";
@@ -106,13 +106,13 @@ export function restartOAuthRequest(userId: string, requestId: string) {
   return next;
 }
 
-export function prepareOAuthGrant(user: User, requestId: string, deviceIds: unknown, requestedScopes: unknown) {
+export function prepareOAuthGrant(user: User, requestId: string, deviceIds: unknown, requestedScopes: unknown, lifetimeValue?: unknown) {
   const request = oauthRequest(user.id, requestId); if (!request) throw new HttpError(410, "MCP authorization expired");
   const selected = Array.isArray(requestedScopes) ? requestedScopes.map(String) : [];
   if (!selected.length) throw new HttpError(400, "select at least one MCP permission");
   const allowed = scopes(request.requested_scope);
   if (selected.some(scope => !allowed.includes(scope as McpScope))) throw new HttpError(400, "scope was not requested by this MCP client");
-  const grant = prepareGrant(user, request.client_id, request.client_name || "MCP client", deviceIds, selected);
+  const grant = prepareGrant(user, request.client_id, request.client_name || "MCP client", deviceIds, selected, lifetimeValue);
   q("UPDATE mcp_oauth_requests SET prepared_grant=? WHERE id=?").run(grant, request.id);
   const digest = new Bun.CryptoHasher("sha256").update(grant).digest("hex");
   return { grant, signaturePayload: `rc-mcp-grant-v1\n${digest}` };
@@ -139,7 +139,8 @@ function verifierChallenge(verifier: string) {
 
 function issueTokens(grant: McpGrantRecord) {
   const access = opaque("mcp_access"), refresh = opaque("mcp_refresh"), t = now();
-  const accessExpires = Math.min(t + MCP_ACCESS_TTL, grant.expires_at), refreshExpires = Math.min(t + MCP_GRANT_TTL, grant.expires_at);
+  const accessExpires = grant.expires_at === 0 ? t + MCP_ACCESS_TTL : Math.min(t + MCP_ACCESS_TTL, grant.expires_at);
+  const refreshExpires = grant.expires_at;
   q("INSERT INTO mcp_access_tokens(token_hash,grant_id,expires_at) VALUES(?,?,?)").run(sha(access), grant.id, accessExpires);
   q("INSERT INTO mcp_refresh_tokens(token_hash,grant_id,expires_at) VALUES(?,?,?)").run(sha(refresh), grant.id, refreshExpires);
   q("UPDATE mcp_grants SET last_used=? WHERE id=?").run(t, grant.id);
@@ -155,7 +156,7 @@ export function exchangeOAuthToken(form: URLSearchParams) {
     const code = form.get("code") || "", verifier = form.get("code_verifier") || "", redirectUri = form.get("redirect_uri") || "";
     if (!/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) throw new HttpError(400, "invalid PKCE verifier");
     const row = q<any>(`SELECT g.*,c.redirect_uri code_redirect_uri,c.code_challenge,c.resource FROM mcp_codes c JOIN mcp_grants g ON g.id=c.grant_id
-      WHERE c.code_hash=? AND c.expires_at>? AND g.revoked_at IS NULL AND g.expires_at>?`).get(sha(code), now(), now());
+      WHERE c.code_hash=? AND c.expires_at>? AND g.revoked_at IS NULL AND (g.expires_at=0 OR g.expires_at>?)`).get(sha(code), now(), now());
     if (!row || row.client_id !== clientId || row.code_redirect_uri !== redirectUri || row.resource !== resource || row.code_challenge !== verifierChallenge(verifier)) {
       throw new HttpError(400, "invalid authorization code");
     }
@@ -165,7 +166,7 @@ export function exchangeOAuthToken(form: URLSearchParams) {
   if (grantType === "refresh_token") {
     const token = form.get("refresh_token") || "";
     const row = q<any>(`SELECT g.* FROM mcp_refresh_tokens r JOIN mcp_grants g ON g.id=r.grant_id
-      WHERE r.token_hash=? AND r.expires_at>? AND g.revoked_at IS NULL AND g.expires_at>?`).get(sha(token), now(), now());
+      WHERE r.token_hash=? AND (r.expires_at=0 OR r.expires_at>?) AND g.revoked_at IS NULL AND (g.expires_at=0 OR g.expires_at>?)`).get(sha(token), now(), now());
     if (!row || row.client_id !== clientId) throw new HttpError(400, "invalid refresh token");
     q("DELETE FROM mcp_refresh_tokens WHERE token_hash=?").run(sha(token));
     return issueTokens(row as McpGrantRecord);
@@ -177,7 +178,7 @@ export function mcpAccessGrant(request: Request) {
   const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] || "";
   if (!token) return null;
   const grant = q<McpGrantRecord>(`SELECT g.* FROM mcp_access_tokens a JOIN mcp_grants g ON g.id=a.grant_id
-    WHERE a.token_hash=? AND a.expires_at>? AND g.revoked_at IS NULL AND g.expires_at>?`).get(sha(token), now(), now()) || null;
+    WHERE a.token_hash=? AND a.expires_at>? AND g.revoked_at IS NULL AND (g.expires_at=0 OR g.expires_at>?)`).get(sha(token), now(), now()) || null;
   if (grant) q("UPDATE mcp_grants SET last_used=? WHERE id=?").run(now(), grant.id);
   return grant;
 }
@@ -187,7 +188,7 @@ export function cleanupMcpOAuth() {
   q("DELETE FROM mcp_oauth_requests WHERE expires_at<=?").run(t);
   q("DELETE FROM mcp_codes WHERE expires_at<=?").run(t);
   q("DELETE FROM mcp_access_tokens WHERE expires_at<=?").run(t);
-  q("DELETE FROM mcp_refresh_tokens WHERE expires_at<=?").run(t);
+  q("DELETE FROM mcp_refresh_tokens WHERE expires_at>0 AND expires_at<=?").run(t);
   q("DELETE FROM mcp_confirmations WHERE expires_at<=?").run(t);
   q(`DELETE FROM mcp_clients WHERE created_at<?
     AND NOT EXISTS(SELECT 1 FROM mcp_oauth_requests r WHERE r.client_id=mcp_clients.id)

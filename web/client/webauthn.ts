@@ -41,7 +41,7 @@ export async function createPasskey(path: string, verifyPath: string, data: Reco
   if (!credential) throw new Error("Passkey creation was cancelled.");
   return api(verifyPath, { method: "POST", body: JSON.stringify({ ceremonyId: start.ceremonyId, response: credentialJSON(credential) }) });
 }
-export async function authenticatePasskey() {
+export async function authenticatePasskey(lifetime = "30d") {
   requirePasskeys(); const start = await api<{ ceremonyId: string; options: any }>("/api/v1/auth/login/options", { method: "POST", body: "{}" });
-  return api("/api/v1/auth/login/verify", { method: "POST", body: JSON.stringify({ ceremonyId: start.ceremonyId, response: await passkeyAssertion(start.options) }) });
+  return api("/api/v1/auth/login/verify", { method: "POST", body: JSON.stringify({ ceremonyId: start.ceremonyId, response: await passkeyAssertion(start.options), lifetime }) });
 }

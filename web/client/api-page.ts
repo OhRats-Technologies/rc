@@ -2,7 +2,7 @@ import { api, copyText, qs } from "./http";
 import { bytesToB64url, syncOwnedAuthorities } from "./control-client";
 import { freshPasskey, stepHeader } from "./step-up";
 
-type CreatedKey = { id: string; publicKey: string; scopes: string[] };
+type CreatedKey = { id: string; publicKey: string; scopes: string[]; expiresAt: number };
 
 const dialog = qs<HTMLDialogElement>("[data-api-key-dialog]");
 const form = qs<HTMLFormElement>("[data-api-key-form]");
@@ -21,13 +21,13 @@ function openCreate() {
 
 function close() { dialog.close(); }
 
-function addKey(id: string, name: string, scopes: string[]) {
+function addKey(id: string, name: string, scopes: string[], expiresAt: number, lifetimeLabel: string) {
   list.querySelector(".empty-state")?.remove();
   const row = document.createElement("div"); row.className = "setting-row token-row";
   const main = document.createElement("div"); main.className = "token-row-main";
   const icon = document.createElement("span"); icon.className = "ui-icon icon-key"; icon.setAttribute("aria-hidden", "true");
   const copy = document.createElement("div"), title = document.createElement("strong"), meta = document.createElement("div");
-  title.textContent = name; meta.className = "meta"; meta.textContent = `${scopes.join(" · ").toUpperCase()} · NEVER USED`; copy.append(title, meta); main.append(icon, copy);
+  title.textContent = name; meta.className = "meta"; meta.textContent = `${scopes.join(" · ").toUpperCase()} · NEVER USED · ${expiresAt === 0 ? "UNTIL REVOKED" : `EXPIRES IN ${lifetimeLabel.toUpperCase()}`}`; copy.append(title, meta); main.append(icon, copy);
   const revoke = document.createElement("form"); revoke.method = "post"; revoke.action = `/api/tokens/${id}/delete`;
   const button = document.createElement("button"); button.className = "text-button"; button.type = "submit"; button.textContent = "REVOKE"; revoke.append(button);
   row.append(main, revoke); list.prepend(row);
@@ -42,14 +42,16 @@ form.addEventListener("submit", async event => {
   event.preventDefault(); const name = input.value.trim(); if (!name) { input.focus(); return; }
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!; submit.disabled = true; error.textContent = "";
   try {
-    const scopes = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="scope"]:checked')).map(item => item.value);
+    const data = new FormData(form), scopes = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="scope"]:checked')).map(item => item.value);
+    const lifetime = String(data.get("lifetime") || "never");
+    const lifetimeLabel = form.querySelector<HTMLSelectElement>('select[name="lifetime"]')?.selectedOptions[0]?.textContent || lifetime;
     const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
     const publicKey = bytesToB64url(await crypto.subtle.exportKey("raw", pair.publicKey));
     const privateKey = bytesToB64url(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
     const step = await freshPasskey();
-    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", headers: stepHeader(step), body: JSON.stringify({ name, scopes, publicKey }) });
+    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", headers: stepHeader(step), body: JSON.stringify({ name, scopes, publicKey, lifetime }) });
     const apiSecret = `rcsk_${created.id}_${privateKey}`;
-    addKey(created.id, name, created.scopes); secret.textContent = apiSecret; copy.dataset.copyValue = apiSecret;
+    addKey(created.id, name, created.scopes, created.expiresAt, lifetimeLabel); secret.textContent = apiSecret; copy.dataset.copyValue = apiSecret;
     await syncOwnedAuthorities();
     createView.hidden = true; resultView.hidden = false; requestAnimationFrame(() => copy.focus());
   } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }

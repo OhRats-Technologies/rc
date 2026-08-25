@@ -24,7 +24,7 @@ function oauthMetadata() {
 }
 
 function protectedMetadata() {
-  return { resource: MCP_RESOURCE, authorization_servers: [PUBLIC_URL], scopes_supported: ["mcp:observe", "mcp:actions"], bearer_methods_supported: ["header"] };
+  return { resource: MCP_RESOURCE, authorization_servers: [PUBLIC_URL], scopes_supported: [...MCP_SCOPES], bearer_methods_supported: ["header"] };
 }
 
 function oauthError(error: unknown) {
@@ -58,7 +58,7 @@ export const oauthRoutes = new Elysia({ name: "rc.oauth", detail: { hide: true }
     const user = await cookieUser(request); if (!user) return fail("authentication required", 401);
     try {
       const body = await request.json() as any;
-      return json(prepareOAuthGrant(user, String(body.requestId || ""), body.deviceIds, body.scopes));
+      return json(prepareOAuthGrant(user, String(body.requestId || ""), body.deviceIds, body.scopes, body.lifetime));
     } catch (error) { return error instanceof HttpError ? fail(error.message, error.status) : fail("authorization failed", 400); }
   })
   .post("/oauth/authorize/approve", async ({ request }) => {

@@ -24,13 +24,13 @@ form.addEventListener("submit", async event => {
   event.preventDefault(); error.textContent = "";
   const button = form.querySelector<HTMLButtonElement>("button[type=submit]"); if (button) button.disabled = true;
   try {
-    const data = new FormData(form), deviceIds = data.getAll("device").map(String), scopes = data.getAll("scope").map(String);
+    const data = new FormData(form), deviceIds = data.getAll("device").map(String), scopes = data.getAll("scope").map(String), lifetime = String(data.get("lifetime") || "never");
     if (!deviceIds.length) throw new Error("Select at least one machine.");
     if (!scopes.length) throw new Error("Select at least one permission.");
     const prepared = await api<{ grant: string; signaturePayload: string }>("/oauth/authorize/prepare", {
-      method: "POST", body: JSON.stringify({ requestId: root.dataset.mcpRequest, deviceIds, scopes }),
+      method: "POST", body: JSON.stringify({ requestId: root.dataset.mcpRequest, deviceIds, scopes, lifetime }),
     });
-    await ensureControlAuthorized(true);
+    await ensureControlAuthorized(true, lifetime);
     const signed = await signControl(prepared.signaturePayload);
     const result = await api<{ redirect: string; grantId: string; workspaceIds: string[]; requiresSync: boolean }>("/oauth/authorize/approve", {
       method: "POST", body: JSON.stringify({ requestId: root.dataset.mcpRequest, controlClientId: signed.clientId, signature: signed.signature }),

@@ -2,10 +2,11 @@ import { MAX_API_KEYS_PER_USER } from "./config";
 import { id, now, q, sha } from "./db";
 import { base64urlToBytes } from "./encoding";
 import { HttpError } from "./errors";
+import { API_DEFAULT_LIFETIME, authLifetime, expiresAt } from "./lifetimes";
 
 export const API_SCOPES = ["read", "execute", "manage-devices", "manage-workspaces"] as const;
 export type ApiScope = typeof API_SCOPES[number];
-export type ApiTokenView = { id: string; name: string; public_key: string; scopes: ApiScope[]; created_at: number; last_used: number | null };
+export type ApiTokenView = { id: string; name: string; public_key: string; scopes: ApiScope[]; created_at: number; expires_at: number; last_used: number | null };
 
 function parseScopes(value: string) {
   try {
@@ -22,7 +23,7 @@ export function normalizeApiScopes(value: unknown): ApiScope[] {
 
 export function listApiTokens(userId: string) {
   const rows = q<Omit<ApiTokenView, "scopes"> & { scopes: string }>(
-    "SELECT id,name,public_key,scopes,created_at,last_used FROM api_tokens WHERE user_id=? ORDER BY created_at DESC"
+    "SELECT id,name,public_key,scopes,created_at,expires_at,last_used FROM api_tokens WHERE user_id=? ORDER BY created_at DESC"
   ).all(userId);
   return rows.map(row => ({ ...row, scopes: parseScopes(row.scopes) }));
 }
@@ -31,15 +32,16 @@ function validPublicKey(value: string) {
   try { return base64urlToBytes(value).length === 32; } catch { return false; }
 }
 
-export function createApiToken(userId: string, value: unknown, requestedScopes: unknown, publicKeyValue: unknown) {
+export function createApiToken(userId: string, value: unknown, requestedScopes: unknown, publicKeyValue: unknown, lifetimeValue?: unknown) {
   const count = q<{ count: number }>("SELECT count(*) count FROM api_tokens WHERE user_id=?").get(userId)?.count || 0;
   if (count >= MAX_API_KEYS_PER_USER) throw new HttpError(409, `API key limit reached (${MAX_API_KEYS_PER_USER})`);
   const name = String(value || "API key").trim().slice(0, 80) || "API key";
-  const scopes = normalizeApiScopes(requestedScopes), publicKey = String(publicKeyValue || "").trim(), tokenId = id();
+  const scopes = normalizeApiScopes(requestedScopes), publicKey = String(publicKeyValue || "").trim(), tokenId = id(), t = now();
+  const lifetime = authLifetime(lifetimeValue, API_DEFAULT_LIFETIME), expiration = expiresAt(lifetime, t);
   if (!validPublicKey(publicKey)) throw new HttpError(400, "invalid API signing key");
-  q("INSERT INTO api_tokens(id,user_id,name,token_hash,public_key,scopes,created_at) VALUES(?,?,?,?,?,?,?)")
-    .run(tokenId, userId, name, `pop:${tokenId}`, publicKey, JSON.stringify(scopes), now());
-  return { id: tokenId, publicKey, scopes };
+  q("INSERT INTO api_tokens(id,user_id,name,token_hash,public_key,scopes,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?)")
+    .run(tokenId, userId, name, `pop:${tokenId}`, publicKey, JSON.stringify(scopes), t, expiration);
+  return { id: tokenId, publicKey, scopes, expiresAt: expiration };
 }
 
 export function deleteApiToken(userId: string, tokenId: string) {
@@ -63,7 +65,7 @@ export async function apiKeyGrant(request: Request): Promise<ApiKeyGrant | null>
     requestGrants.set(request, null); return null;
   }
   const row = q<any>(`SELECT u.id,u.name,a.id token_id,a.public_key,a.scopes FROM api_tokens a
-    JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.public_key<>''`).get(keyId);
+    JOIN users u ON u.id=a.user_id WHERE a.id=? AND a.public_key<>'' AND (a.expires_at=0 OR a.expires_at>?)`).get(keyId, t);
   if (!row) { requestGrants.set(request, null); return null; }
   q("DELETE FROM api_request_nonces WHERE expires_at<=?").run(t);
   if (q("SELECT 1 FROM api_request_nonces WHERE token_id=? AND nonce_hash=?").get(keyId, sha(nonce))) {

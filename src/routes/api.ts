@@ -89,8 +89,8 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     body: WebAuthnVerify, detail: { hide: true },
   })
   .post("/auth/login/options", () => loginOptions(), { body: t.Optional(t.Object({})), detail: { hide: true } })
-  .post("/auth/login/verify", ({ body }) => verifyLogin(body.ceremonyId, body.response as AuthenticationResponseJSON), {
-    body: WebAuthnVerify, detail: { hide: true },
+  .post("/auth/login/verify", ({ body }) => verifyLogin(body.ceremonyId, body.response as AuthenticationResponseJSON, body.lifetime), {
+    body: t.Object({ ceremonyId: t.String(), response: t.Unknown(), lifetime: t.Optional(t.String()) }), detail: { hide: true },
   })
   .post("/auth/step-up/options", async ({ request, rcUser }) => {
     const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
@@ -100,8 +100,8 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
     return verifyStepUp(rcUser!, body.authorizationId, body.response as AuthenticationResponseJSON);
   }, { body: t.Object({ authorizationId: t.String(), response: t.Unknown() }), detail: { hide: true } })
-  .post("/auth/cli/start", ({ body }) => startCliAuthorization(body.clientId, body.signingPublicKey), {
-    body: t.Object({ clientId: t.String(), signingPublicKey: t.String() }), detail: { hide: true },
+  .post("/auth/cli/start", ({ body }) => startCliAuthorization(body.clientId, body.signingPublicKey, body.lifetime), {
+    body: t.Object({ clientId: t.String(), signingPublicKey: t.String(), lifetime: t.Optional(t.String()) }), detail: { hide: true },
   })
   .post("/auth/cli/poll", ({ body }) => exchangeCliAuthorization(body.requestId, body.deviceCode), {
     body: t.Object({ requestId: t.String(), deviceCode: t.String() }), detail: { hide: true },
@@ -146,7 +146,7 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .post("/control/authorize/options", async ({ request, rcUser, body }) => {
     const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "browser session required");
     return controlAuthorizationOptions(rcUser!, body);
-  }, { body: t.Object({ clientId: t.String({ minLength: 1, maxLength: 100 }), signingPublicKey: t.String() }), detail: { hide: true } })
+  }, { body: t.Object({ clientId: t.String({ minLength: 1, maxLength: 100 }), signingPublicKey: t.String(), lifetime: t.Optional(t.String()) }), detail: { hide: true } })
   .post("/control/authorize/verify", async ({ request, rcUser, body }) => {
     const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "browser session required");
     return json(await verifyControlAuthorization(rcUser!, body.authorizationId, body.response as AuthenticationResponseJSON), 201);
@@ -162,9 +162,9 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .post("/tokens", async ({ request, rcUser, body }) => {
     const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");
     consumeStepUp(request, rcUser!);
-    return json(createApiToken(rcUser!.id, body.name, body.scopes, body.publicKey), 201);
+    return json(createApiToken(rcUser!.id, body.name, body.scopes, body.publicKey, body.lifetime), 201);
   }, {
-    body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })), scopes: t.Optional(t.Array(t.String(), { maxItems: 4 })), publicKey: t.String() }),
+    body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })), scopes: t.Optional(t.Array(t.String(), { maxItems: 4 })), publicKey: t.String(), lifetime: t.Optional(t.String()) }),
   })
   .delete("/tokens/:id", async ({ request, rcUser, params }) => {
     const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "matching browser session required");

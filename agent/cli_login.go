@@ -80,11 +80,12 @@ func loginCommand(args []string) error {
 		serverDefault = defaultServer
 	}
 	server := flags.String("url", serverDefault, "RC server URL")
+	expires := flags.String("expires", "never", "authorization lifetime: 1h, 1d, 7d, 30d, 90d, 180d, 1y, never")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-rc login [--url URL]")
+		return errors.New("usage: ohrats-rc login [--url URL] [--expires DURATION]")
 	}
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -93,7 +94,7 @@ func loginCommand(args []string) error {
 	clientID := randomURLBytes(18)
 	var start cliAuthorizationStart
 	if err := publicJSON(*server, "/api/v1/auth/cli/start", map[string]any{
-		"clientId": clientID, "signingPublicKey": base64.RawURLEncoding.EncodeToString(publicKey),
+		"clientId": clientID, "signingPublicKey": base64.RawURLEncoding.EncodeToString(publicKey), "lifetime": *expires,
 	}, &start); err != nil {
 		return err
 	}

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func authorityJSONHash(snapshot []byte) string {
@@ -51,6 +52,21 @@ func TestAuthoritySnapshotReplayIsRejected(t *testing.T) {
 
 	if err := syncLock(dir, string(withKeyJSON), initialHash, 0, proof, withKeySignature); err == nil {
 		t.Fatal("replayed owner-signed authority snapshot restored a revoked API key")
+	}
+}
+
+func TestExpiredApiKeyIsRejectedByNodeAuthority(t *testing.T) {
+	snapshot, _, privateKey := controlFixture(t, "owner")
+	snapshot.APIKeys = []authorityAPIKey{{
+		ID: "expired", UserID: "user", PublicKey: base64.RawURLEncoding.EncodeToString(privateKey.Public().(ed25519.PublicKey)),
+		Scopes: []string{"execute"}, ExpiresAt: time.Now().Add(-time.Minute).UnixMilli(),
+	}}
+	if key, _ := apiAuthority(snapshot, "expired"); key != nil {
+		t.Fatal("Node accepted an expired API key from RC Lock")
+	}
+	snapshot.APIKeys[0].ExpiresAt = 0
+	if key, _ := apiAuthority(snapshot, "expired"); key == nil {
+		t.Fatal("Node rejected an until-revoked API key")
 	}
 }
 

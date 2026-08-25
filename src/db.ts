@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS step_up_tokens(
 CREATE TABLE IF NOT EXISTS api_tokens(
   id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,public_key TEXT NOT NULL DEFAULT '',scopes TEXT NOT NULL DEFAULT '["read","execute"]',
-  created_at INTEGER NOT NULL,last_used INTEGER
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL DEFAULT 0,last_used INTEGER
 );
 CREATE TABLE IF NOT EXISTS api_request_nonces(
   token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,nonce_hash TEXT NOT NULL,
@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS mcp_confirmations(
 CREATE TABLE IF NOT EXISTS cli_authorizations(
   id TEXT PRIMARY KEY,device_code_hash TEXT NOT NULL UNIQUE,user_code_hash TEXT NOT NULL UNIQUE,
   client_id TEXT NOT NULL DEFAULT '',signing_public_key TEXT NOT NULL DEFAULT '',
+  session_lifetime TEXT NOT NULL DEFAULT 'never',
   user_id TEXT REFERENCES users(id) ON DELETE CASCADE,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,
   approved_at INTEGER,exchanged_at INTEGER
 );
@@ -188,6 +189,7 @@ function migrateApiTokenScopes() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(api_tokens)").all().map(row => row.name);
   if (!columns.includes("scopes")) db.exec(`ALTER TABLE api_tokens ADD COLUMN scopes TEXT NOT NULL DEFAULT '["read","execute"]'`);
   if (!columns.includes("public_key")) db.exec(`ALTER TABLE api_tokens ADD COLUMN public_key TEXT NOT NULL DEFAULT ''`);
+  if (!columns.includes("expires_at")) db.exec("ALTER TABLE api_tokens ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0");
   db.exec("DELETE FROM api_tokens WHERE public_key=''");
 }
 
@@ -214,6 +216,7 @@ function migrateCliControlKeys() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(cli_authorizations)").all().map(row => row.name);
   if (!columns.includes("client_id")) db.exec("ALTER TABLE cli_authorizations ADD COLUMN client_id TEXT NOT NULL DEFAULT ''");
   if (!columns.includes("signing_public_key")) db.exec("ALTER TABLE cli_authorizations ADD COLUMN signing_public_key TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("session_lifetime")) db.exec("ALTER TABLE cli_authorizations ADD COLUMN session_lifetime TEXT NOT NULL DEFAULT 'never'");
 }
 
 migrateCliControlKeys();

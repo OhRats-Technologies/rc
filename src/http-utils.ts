@@ -1,4 +1,5 @@
-import { PUBLIC_URL, SESSION_TTL, SETUP_COOKIE_TTL } from "./config";
+import { PUBLIC_URL, SETUP_COOKIE_TTL } from "./config";
+import { cookieMaxAge, WEB_DEFAULT_LIFETIME } from "./lifetimes";
 
 export function json(data: unknown, status = 200, headers: HeadersInit = {}) {
   return Response.json(data, { status, headers: { "cache-control": "no-store", ...headers } });
@@ -20,7 +21,7 @@ export function cookie(req: Request, name: string) {
 }
 
 function secureFlag() { return PUBLIC_URL.startsWith("https://") ? "; Secure" : ""; }
-export function sessionCookie(token: string, maxAge = Math.floor(SESSION_TTL / 1000)) {
+export function sessionCookie(token: string, maxAge = cookieMaxAge(WEB_DEFAULT_LIFETIME)) {
   return `rc_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secureFlag()}`;
 }
 export function setupCookie(token: string) {

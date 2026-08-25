@@ -1,4 +1,6 @@
 import { htmlDocument } from "../document";
+import { LifetimeSelect } from "../components";
+import { lifetimeLabel, type AuthLifetime } from "../../../src/lifetimes";
 
 type AuthMode = "setup" | "login" | "register" | "join" | "invalid-invite";
 
@@ -16,7 +18,7 @@ export function authPage(mode: AuthMode, options: {
         ? <form id="setup-form" className="auth-form"><label>Name<input name="name" autoComplete="name" required autoFocus/></label><button className="or-button" type="submit">CREATE PASSKEY</button></form>
         : <p className="page-copy">Open the setup link for this RC instance.</p>}</>}
       {mode === "login" && <><p className="muted">Use your passkey to sign in.</p>
-        <form id="login-form" className="auth-form"><button className="or-button" type="submit">SIGN IN WITH PASSKEY</button></form><p className="muted">New accounts are created from workspace invite links.</p></>}
+        <form id="login-form" className="auth-form"><LifetimeSelect defaultValue="30d" allowNever={false} label="Stay signed in for"/><button className="or-button" type="submit">SIGN IN WITH PASSKEY</button></form><p className="muted">New accounts are created from workspace invite links.</p></>}
       {mode === "register" && <><p className="muted">Create a passkey to join as {options.role || "operator"}.</p><form id="register-form" className="auth-form"><label>Name<input name="name" autoComplete="name" required/></label><input name="invite" type="hidden" value={invite}/><button className="or-button" type="submit">CREATE PASSKEY</button></form><a className="text-action" href={`/?invite=${encodeURIComponent(invite)}&signin=1`}>SIGN IN INSTEAD</a></>}
       {mode === "join" && <><p className="muted">Join as {options.role || "operator"} with your current account.</p><form method="post" action="/workspaces/join" className="auth-form"><input type="hidden" name="token" value={invite}/><button className="or-button" type="submit">JOIN WORKSPACE</button></form></>}
       {mode === "invalid-invite" && <><p className="muted">This workspace invite is invalid, expired, or already used.</p><a className="text-action" href="/">SIGN IN</a></>}
@@ -24,12 +26,12 @@ export function authPage(mode: AuthMode, options: {
     </div></section> });
 }
 
-export function cliLoginPage(user: import("../../../src/core").User, code: string, approved = false, error = "", clientId = "", signingPublicKey = "") {
+export function cliLoginPage(user: import("../../../src/core").User, code: string, approved = false, error = "", clientId = "", signingPublicKey = "", lifetime: AuthLifetime = "never") {
   return htmlDocument({ title: approved ? "CLI authorized" : "Authorize CLI", scripts: approved ? [] : ["cli-authorize"], body:
-    <section className="auth-shell" data-cli-client={clientId} data-cli-public-key={signingPublicKey}><div className="ohrats-grid auth-grid" aria-hidden="true"/><div className="auth-content">
+    <section className="auth-shell" data-cli-client={clientId} data-cli-public-key={signingPublicKey} data-cli-lifetime={lifetime}><div className="ohrats-grid auth-grid" aria-hidden="true"/><div className="auth-content">
       <p className="eyebrow">OHRATS RC / COMMAND LINE</p><h1>{approved ? "CLI authorized" : "Authorize CLI"}</h1>
       {approved ? <p className="page-copy">Return to your terminal. This tab can be closed.</p> : <>
-        <p className="page-copy">Allow the RC command line to act as <strong>{user.name}</strong> on your workspaces.</p>
+        <p className="page-copy">Allow the RC command line to act as <strong>{user.name}</strong> on your workspaces.</p><p className="meta">ACCESS · {lifetimeLabel(lifetime).toUpperCase()}</p>
         <form method="post" action="/cli/login" className="auth-form"><input type="hidden" name="code" value={code}/><button className="or-button" type="submit">AUTHORIZE CLI</button></form>
       </>}
       <p className="error" role="alert">{error}</p>

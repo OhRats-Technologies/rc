@@ -3,13 +3,14 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { PUBLIC_URL, RP_ID, SESSION_TTL, SETUP_TOKEN } from "./config";
+import { PUBLIC_URL, RP_ID, SETUP_TOKEN } from "./config";
 import { User } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
 import { base64ToBytes } from "./encoding";
 import { cookie, fail, json, sessionCookie } from "./http-utils";
 import { HttpError } from "./errors";
 import { cliTokenUser } from "./cli-auth";
+import { WEB_DEFAULT_LIFETIME, authLifetime, cookieMaxAge, expiresAt, type WebLifetime } from "./lifetimes";
 import { activeUserCount } from "./users";
 import { apiKeyGrant, type ApiScope } from "./account";
 import {
@@ -40,15 +41,16 @@ export async function cookieUser(req: Request): Promise<User | null> {
   const token = cookie(req, "rc_session");
   if (!token) return null;
   const row = q<any>(`SELECT u.id,u.name FROM auth_sessions s JOIN users u ON u.id=s.user_id
-    WHERE s.token_hash=? AND s.expires_at>?`).get(sha(token), now());
+    WHERE s.token_hash=? AND (s.expires_at=0 OR s.expires_at>?)`).get(sha(token), now());
   return row ? { id: row.id, name: row.name } : null;
 }
 
-export async function createLogin(userId: string) {
-  const token = opaque("sess");
+export async function createLogin(userId: string, lifetimeValue: unknown = WEB_DEFAULT_LIFETIME) {
+  const lifetime = authLifetime(lifetimeValue, WEB_DEFAULT_LIFETIME, false) as WebLifetime;
+  const token = opaque("sess"), t = now(), expiration = expiresAt(lifetime, t);
   q("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)")
-    .run(sha(token), userId, now(), now() + SESSION_TTL);
-  return token;
+    .run(sha(token), userId, t, expiration);
+  return { token, expiresAt: expiration, maxAge: cookieMaxAge(lifetime) };
 }
 
 export function rcStatus(req: Request) {
@@ -118,7 +120,10 @@ export async function deletePasskey(req: Request, user: User, passkeyId: string)
   })();
 }
 
-export async function verifyLogin(ceremonyId: string, response: AuthenticationResponseJSON) {
+export async function verifyLogin(ceremonyId: string, response: AuthenticationResponseJSON, lifetimeValue?: unknown) {
+  let lifetime: WebLifetime;
+  try { lifetime = authLifetime(lifetimeValue, WEB_DEFAULT_LIFETIME, false) as WebLifetime; }
+  catch (error) { return fail(error instanceof Error ? error.message : "invalid authorization lifetime", 400); }
   const ceremony = takeCeremony(ceremonyId, "login");
   if (!ceremony) return fail("authentication expired", 410);
   const row = q<any>(`SELECT p.*,u.name FROM passkeys p JOIN users u ON u.id=p.user_id WHERE p.credential_id=?`)
@@ -133,8 +138,8 @@ export async function verifyLogin(ceremonyId: string, response: AuthenticationRe
     });
     if (!result.verified) return fail("passkey verification failed", 401);
     q("UPDATE passkeys SET counter=?,last_used=? WHERE id=?").run(result.authenticationInfo.newCounter, now(), row.id);
-    const token = await createLogin(row.user_id);
-    return json({ ok: true }, 200, { "set-cookie": sessionCookie(token) });
+    const login = await createLogin(row.user_id, lifetime);
+    return json({ ok: true, expiresAt: login.expiresAt }, 200, { "set-cookie": sessionCookie(login.token, login.maxAge) });
   } catch { return fail("passkey verification failed", 401); }
 }
 
@@ -171,6 +176,6 @@ export async function verifyNewUser(kind: "setup" | "register", ceremonyId: stri
     if (error instanceof HttpError) return fail(error.message, error.status);
     throw error;
   }
-  const token = await createLogin(userId);
-  return json({ ok: true }, 201, { "set-cookie": sessionCookie(token) });
+  const login = await createLogin(userId);
+  return json({ ok: true, expiresAt: login.expiresAt }, 201, { "set-cookie": sessionCookie(login.token, login.maxAge) });
 }

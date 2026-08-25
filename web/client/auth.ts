@@ -19,7 +19,8 @@ document.querySelector<HTMLFormElement>("#setup-form")?.addEventListener("submit
   } catch (error) { errorOut(error); }
 });
 document.querySelector<HTMLFormElement>("#login-form")?.addEventListener("submit", async event => {
-  event.preventDefault(); try { await authenticatePasskey(); location.href = destination(); } catch (error) { errorOut(error); }
+  event.preventDefault(); const form = event.currentTarget as HTMLFormElement;
+  try { await authenticatePasskey(String(new FormData(form).get("lifetime") || "30d")); location.href = destination(); } catch (error) { errorOut(error); }
 });
 document.querySelector<HTMLFormElement>("#register-form")?.addEventListener("submit", async event => {
   event.preventDefault(); const form = event.currentTarget as HTMLFormElement, data = new FormData(form);

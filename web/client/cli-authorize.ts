@@ -3,6 +3,7 @@ import { passkeyAssertion } from "./webauthn";
 import { freshPasskey, stepHeader } from "./step-up";
 
 const shell = qs<HTMLElement>("[data-cli-client]"), clientId = shell.dataset.cliClient || "", signingPublicKey = shell.dataset.cliPublicKey || "";
+const lifetime = shell.dataset.cliLifetime || "never";
 const form = qs<HTMLFormElement>('form[action="/cli/login"]');
 
 form.addEventListener("submit", async event => {
@@ -10,7 +11,7 @@ form.addEventListener("submit", async event => {
   const code = String(new FormData(form).get("code") || ""), error = qs<HTMLElement>(".error");
   try {
     const start = await api<{ authorizationId: string; options: any }>("/api/v1/control/authorize/options", {
-      method: "POST", body: JSON.stringify({ clientId, signingPublicKey }),
+      method: "POST", body: JSON.stringify({ clientId, signingPublicKey, lifetime }),
     });
     await api("/api/v1/control/authorize/verify", { method: "POST", body: JSON.stringify({ authorizationId: start.authorizationId, response: await passkeyAssertion(start.options) }) });
     const step = await freshPasskey();

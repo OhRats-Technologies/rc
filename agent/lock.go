@@ -30,6 +30,7 @@ type authorityAPIKey struct {
 	UserID    string   `json:"userId"`
 	PublicKey string   `json:"publicKey"`
 	Scopes    []string `json:"scopes"`
+	ExpiresAt int64    `json:"expiresAt,omitempty"`
 }
 type authorityMcpGrant struct {
 	ID     string `json:"id"`
@@ -75,7 +76,7 @@ func authorityMemberForUser(snapshot authoritySnapshot, userID string) *authorit
 func apiAuthority(snapshot authoritySnapshot, keyID string) (*authorityAPIKey, *authorityMember) {
 	for index := range snapshot.APIKeys {
 		key := &snapshot.APIKeys[index]
-		if key.ID == keyID {
+		if key.ID == keyID && (key.ExpiresAt == 0 || key.ExpiresAt > time.Now().UnixMilli()) {
 			return key, authorityMemberForUser(snapshot, key.UserID)
 		}
 	}
@@ -168,7 +169,7 @@ func verifyControlProof(snapshot authoritySnapshot, proof controlProof, origin, 
 		return grant, "", errors.New("invalid control grant")
 	}
 	now := time.Now().UnixMilli()
-	if grant.ExpiresAt <= now || grant.IssuedAt > now+60_000 || grant.ExpiresAt-grant.IssuedAt > int64(31*24*time.Hour/time.Millisecond) {
+	if grant.IssuedAt > now+60_000 || (grant.ExpiresAt != 0 && (grant.ExpiresAt <= now || grant.ExpiresAt <= grant.IssuedAt || grant.ExpiresAt-grant.IssuedAt > int64(366*24*time.Hour/time.Millisecond))) {
 		return grant, "", errors.New("expired control grant")
 	}
 	member, credential := memberCredential(snapshot, proof.CredentialID)

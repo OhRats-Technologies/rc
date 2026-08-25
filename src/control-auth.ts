@@ -1,9 +1,10 @@
 import { generateAuthenticationOptions, verifyAuthenticationResponse, type AuthenticationResponseJSON } from "@simplewebauthn/server";
-import { CONTROL_GRANT_TTL, PUBLIC_URL, RP_ID } from "./config";
+import { PUBLIC_URL, RP_ID } from "./config";
 import type { User } from "./core";
 import { id, now, q } from "./db";
 import { base64ToBytes, base64urlToBytes, bytesToBase64url } from "./encoding";
 import { HttpError } from "./errors";
+import { CONTROL_DEFAULT_LIFETIME, authLifetime, expiresAt } from "./lifetimes";
 
 export type ControlGrant = {
   v: 1; clientId: string; userId: string; signingPublicKey: string; issuedAt: number; expiresAt: number;
@@ -27,11 +28,11 @@ function validSigningKey(value: string) {
   try { return base64urlToBytes(value).length === 32; } catch { return false; }
 }
 
-export async function controlAuthorizationOptions(user: User, input: { clientId?: unknown; signingPublicKey?: unknown }) {
+export async function controlAuthorizationOptions(user: User, input: { clientId?: unknown; signingPublicKey?: unknown; lifetime?: unknown }) {
   const clientId = String(input.clientId || "").trim(), signingPublicKey = String(input.signingPublicKey || "").trim();
   if (!clientId || clientId.length > 100 || !validSigningKey(signingPublicKey)) throw new HttpError(400, "invalid control client key");
-  const issuedAt = now(), grant = canonicalGrant({
-    v: 1, clientId, userId: user.id, signingPublicKey, issuedAt, expiresAt: issuedAt + CONTROL_GRANT_TTL,
+  const lifetime = authLifetime(input.lifetime, CONTROL_DEFAULT_LIFETIME), issuedAt = now(), grant = canonicalGrant({
+    v: 1, clientId, userId: user.id, signingPublicKey, issuedAt, expiresAt: expiresAt(lifetime, issuedAt),
   });
   const challenge = controlGrantChallenge(grant);
   const options = await generateAuthenticationOptions({
@@ -73,7 +74,7 @@ export async function verifyControlAuthorization(user: User, authorizationId: st
 
 export function controlProof(userId: string, clientId: string): ControlProof | null {
   const row = q<any>(`SELECT grant,credential_id,assertion FROM control_clients
-    WHERE id=? AND user_id=? AND expires_at>?`).get(clientId, userId, now());
+    WHERE id=? AND user_id=? AND (expires_at=0 OR expires_at>?)`).get(clientId, userId, now());
   if (!row) return null;
   q("UPDATE control_clients SET last_used=? WHERE id=?").run(now(), clientId);
   return { grant: String(row.grant), credentialId: String(row.credential_id), assertion: String(row.assertion) };
@@ -81,18 +82,18 @@ export function controlProof(userId: string, clientId: string): ControlProof | n
 
 export function freshControlProof(userId: string, clientId: string, maxAgeMs = 2 * 60_000): ControlProof | null {
   const row = q<any>(`SELECT grant,credential_id,assertion FROM control_clients
-    WHERE id=? AND user_id=? AND expires_at>? AND created_at>=?`).get(clientId, userId, now(), now() - maxAgeMs);
+    WHERE id=? AND user_id=? AND (expires_at=0 OR expires_at>?) AND created_at>=?`).get(clientId, userId, now(), now() - maxAgeMs);
   return row ? { grant: String(row.grant), credentialId: String(row.credential_id), assertion: String(row.assertion) } : null;
 }
 
 export function controlClientStatus(userId: string, clientId: string) {
-  const row = q<{ expires_at: number }>("SELECT expires_at FROM control_clients WHERE id=? AND user_id=? AND expires_at>?")
+  const row = q<{ expires_at: number }>("SELECT expires_at FROM control_clients WHERE id=? AND user_id=? AND (expires_at=0 OR expires_at>?)")
     .get(clientId, userId, now());
   return row ? { authorized: true as const, expiresAt: row.expires_at } : { authorized: false as const };
 }
 
 export async function verifyClientSignature(userId: string, clientId: string, payload: string, signature: string) {
-  const row = q<any>("SELECT signing_public_key FROM control_clients WHERE id=? AND user_id=? AND expires_at>?").get(clientId, userId, now());
+  const row = q<any>("SELECT signing_public_key FROM control_clients WHERE id=? AND user_id=? AND (expires_at=0 OR expires_at>?)").get(clientId, userId, now());
   if (!row) return false;
   try {
     const key = await crypto.subtle.importKey("raw", base64urlToBytes(String(row.signing_public_key)), { name: "Ed25519" }, false, ["verify"]);

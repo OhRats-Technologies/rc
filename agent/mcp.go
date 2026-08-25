@@ -81,8 +81,8 @@ func verifyMcpProcess(stateDir, deviceID string, message wireMessage) (string, e
 		return "", errors.New("invalid MCP grant")
 	}
 	now := time.Now().UnixMilli()
-	if grant.ExpiresAt <= now || grant.IssuedAt > now+60_000 || grant.ExpiresAt <= grant.IssuedAt ||
-		grant.ExpiresAt-grant.IssuedAt > int64(31*24*time.Hour/time.Millisecond) || !containsString(grant.DeviceIDs, deviceID) {
+	if grant.IssuedAt > now+60_000 || (grant.ExpiresAt != 0 && (grant.ExpiresAt <= now || grant.ExpiresAt <= grant.IssuedAt ||
+		grant.ExpiresAt-grant.IssuedAt > int64(366*24*time.Hour/time.Millisecond))) || !containsString(grant.DeviceIDs, deviceID) {
 		return "", errors.New("MCP grant is expired or not valid for this device")
 	}
 	if !mcpGrantActive(snapshot, grant, message.McpGrant) {
