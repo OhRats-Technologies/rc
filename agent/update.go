@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/OhRats-Technologies/rc/agent/releaseverify"
 )
@@ -22,17 +23,9 @@ func replaceExecutable(serverURL string) error {
 		return err
 	}
 	base := strings.TrimRight(serverURL, "/") + "/downloads/"
-	manifestBytes, err := downloadSmall(base+"release.json", 64<<10)
+	manifest, err := downloadSignedManifest(base)
 	if err != nil {
 		return err
-	}
-	signatureBytes, err := downloadSmall(base+"release.json.sig", 4<<10)
-	if err != nil {
-		return err
-	}
-	manifest, err := releaseverify.Verify(manifestBytes, signatureBytes)
-	if err != nil {
-		return fmt.Errorf("release manifest: %w", err)
 	}
 	comparison, err := releaseverify.CompareVersions(manifest.Version, version)
 	if err != nil {
@@ -83,6 +76,29 @@ func replaceExecutable(serverURL string) error {
 		return fmt.Errorf("downloaded file does not match signed release version")
 	}
 	return os.Rename(name, executable)
+}
+
+func downloadSignedManifest(base string) (releaseverify.Manifest, error) {
+	var lastErr error
+	for attempt := 0; attempt < 4; attempt++ {
+		manifestBytes, err := downloadSmall(base+"release.json", 64<<10)
+		if err == nil {
+			var signatureBytes []byte
+			signatureBytes, err = downloadSmall(base+"release.json.sig", 4<<10)
+			if err == nil {
+				var manifest releaseverify.Manifest
+				manifest, err = releaseverify.Verify(manifestBytes, signatureBytes)
+				if err == nil {
+					return manifest, nil
+				}
+			}
+		}
+		lastErr = err
+		if attempt < 3 {
+			time.Sleep(250 * time.Millisecond)
+		}
+	}
+	return releaseverify.Manifest{}, fmt.Errorf("release manifest: %w", lastErr)
 }
 
 func downloadSmall(url string, limit int64) ([]byte, error) {

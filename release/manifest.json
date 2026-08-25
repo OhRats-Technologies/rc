@@ -1,29 +1,29 @@
 {
-  "version": "0.8.0",
+  "version": "0.8.1",
   "artifacts": [
     {
       "os": "darwin",
       "arch": "amd64",
       "name": "ohrats-rc-darwin-amd64",
-      "sha256": "21312ad74a0beb0ed3af1d2da0075af63210f92d655508c5112f8798fa0b23f0"
+      "sha256": "b5f74a51f0bb3c3395e2beb78175beb2640994fa700bd5fc96b1b6cf568787cc"
     },
     {
       "os": "darwin",
       "arch": "arm64",
       "name": "ohrats-rc-darwin-arm64",
-      "sha256": "2505b87574723e61f8d2dd1095037a2627f6b4b6eadcd6ca62c8c1777b66a8e2"
+      "sha256": "5d1a0a3741cd460541d15c4c9e7df984fd1a7e60bff4866bf68b0f1f2ccbe676"
     },
     {
       "os": "linux",
       "arch": "amd64",
       "name": "ohrats-rc-linux-amd64",
-      "sha256": "d7af9a4a5278ef926613c139dcbad439a682121a992b51051835359be1d8cd9a"
+      "sha256": "c3c9f4d923b7b1e28451f43b425e2470f35ee4cea5067b8fb96bf9971cae78d2"
     },
     {
       "os": "linux",
       "arch": "arm64",
       "name": "ohrats-rc-linux-arm64",
-      "sha256": "9f92b9ae2e953467660071eb552f2206a0b15dba229049596ffe51014031bc26"
+      "sha256": "1553a2e9b0353d496b16075c560df7462995a9f0bbef225b999302bbcb6e5527"
     }
   ]
 }

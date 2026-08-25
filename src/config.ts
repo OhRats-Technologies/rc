@@ -1,5 +1,5 @@
 export const PORT = Number(Bun.env.PORT || 3000);
-export const VERSION = "0.8.0";
+export const VERSION = "0.8.1";
 export const DATA_DIR = Bun.env.DATA_DIR || "./data";
 export const STATIC_DIR = Bun.env.STATIC_DIR || `${import.meta.dir}/../static`;
 export const PUBLIC_URL = (Bun.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");

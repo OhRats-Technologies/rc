@@ -28,7 +28,7 @@ func TestCommittedReleaseSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Version != "0.8.0" {
+	if manifest.Version != "0.8.1" {
 		t.Fatalf("unexpected version %s", manifest.Version)
 	}
 	if len(manifest.Artifacts) != 4 {
@@ -46,7 +46,7 @@ func TestTamperedManifestRejected(t *testing.T) {
 }
 
 func TestVersionComparisonRejectsRollback(t *testing.T) {
-	comparison, err := CompareVersions("0.7.9", "0.8.0")
+	comparison, err := CompareVersions("0.8.0", "0.8.1")
 	if err != nil {
 		t.Fatal(err)
 	}

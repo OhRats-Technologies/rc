@@ -24,6 +24,7 @@
 - [x] Remote RC Node updates from the web UI
 - [x] Replay-resistant one-time challenge authentication for RC Nodes
 - [x] Signed release manifest + SHA-256 verification + downgrade protection for RC Node updates
+- [x] Fail-closed signed-manifest pair retries across rolling deployments
 - [x] Application rate limits, security headers, quotas, shorter credential lifetimes, and non-root runtime
 - [x] 30-day passkey-authorized browser/CLI control identities with fresh per-connection X25519 keys
 - [x] Node-local RC Lock authority with Owner-signed mutation and Node-reported synchronization hash
