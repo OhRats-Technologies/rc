@@ -1,6 +1,7 @@
 import { api, copyText, qs } from "./http";
+import { bytesToB64url, syncOwnedAuthorities } from "./control-client";
 
-type CreatedKey = { id: string; token: string };
+type CreatedKey = { id: string; publicKey: string; scopes: string[] };
 
 const dialog = qs<HTMLDialogElement>("[data-api-key-dialog]");
 const form = qs<HTMLFormElement>("[data-api-key-form]");
@@ -19,13 +20,13 @@ function openCreate() {
 
 function close() { dialog.close(); }
 
-function addKey(id: string, name: string) {
+function addKey(id: string, name: string, scopes: string[]) {
   list.querySelector(".empty-state")?.remove();
   const row = document.createElement("div"); row.className = "setting-row token-row";
   const main = document.createElement("div"); main.className = "token-row-main";
   const icon = document.createElement("span"); icon.className = "ui-icon icon-key"; icon.setAttribute("aria-hidden", "true");
   const copy = document.createElement("div"), title = document.createElement("strong"), meta = document.createElement("div");
-  title.textContent = name; meta.className = "meta"; meta.textContent = "NEVER USED"; copy.append(title, meta); main.append(icon, copy);
+  title.textContent = name; meta.className = "meta"; meta.textContent = `${scopes.join(" · ").toUpperCase()} · NEVER USED`; copy.append(title, meta); main.append(icon, copy);
   const revoke = document.createElement("form"); revoke.method = "post"; revoke.action = `/api/tokens/${id}/delete`;
   const button = document.createElement("button"); button.className = "text-button"; button.type = "submit"; button.textContent = "REVOKE"; revoke.append(button);
   row.append(main, revoke); list.prepend(row);
@@ -41,11 +42,26 @@ form.addEventListener("submit", async event => {
   const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]')!; submit.disabled = true; error.textContent = "";
   try {
     const scopes = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="scope"]:checked')).map(item => item.value);
-    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", body: JSON.stringify({ name, scopes }) });
-    addKey(created.id, name); secret.textContent = created.token; copy.dataset.copyValue = created.token;
+    const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+    const publicKey = bytesToB64url(await crypto.subtle.exportKey("raw", pair.publicKey));
+    const privateKey = bytesToB64url(await crypto.subtle.exportKey("pkcs8", pair.privateKey));
+    const created = await api<CreatedKey>("/api/v1/tokens", { method: "POST", body: JSON.stringify({ name, scopes, publicKey }) });
+    const apiSecret = `rcsk_${created.id}_${privateKey}`;
+    addKey(created.id, name, created.scopes); secret.textContent = apiSecret; copy.dataset.copyValue = apiSecret;
+    await syncOwnedAuthorities();
     createView.hidden = true; resultView.hidden = false; requestAnimationFrame(() => copy.focus());
   } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }
   finally { submit.disabled = false; }
 });
 
 copy.addEventListener("click", () => void copyText(copy.dataset.copyValue || "", copy));
+
+list.querySelectorAll<HTMLFormElement>('form[action^="/api/tokens/"][action$="/delete"]').forEach(revoke => revoke.addEventListener("submit", async event => {
+  event.preventDefault();
+  try {
+    const id = revoke.action.split("/").at(-2) || "";
+    await api(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await syncOwnedAuthorities(); revoke.closest(".token-row")?.remove();
+    if (!list.querySelector(".token-row")) { const empty = document.createElement("p"); empty.className = "empty-state"; empty.textContent = "No API keys yet."; list.append(empty); }
+  } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }
+}));

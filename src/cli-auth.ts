@@ -1,16 +1,20 @@
 import { CLI_SESSION_TTL, PUBLIC_URL } from "./config";
 import type { User } from "./core";
 import { id, now, opaque, q, sha } from "./db";
+import { base64urlToBytes } from "./encoding";
 import { HttpError } from "./errors";
 
 const REQUEST_TTL = 10 * 60 * 1000;
 
-export function startCliAuthorization() {
+export function startCliAuthorization(clientIdValue: unknown, publicKeyValue: unknown) {
   q("DELETE FROM cli_authorizations WHERE expires_at<=? OR exchanged_at IS NOT NULL").run(now());
   q("DELETE FROM cli_sessions WHERE expires_at<=?").run(now());
+  const clientId = String(clientIdValue || "").trim(), signingPublicKey = String(publicKeyValue || "").trim();
+  try { if (!clientId || clientId.length > 100 || base64urlToBytes(signingPublicKey).length !== 32) throw new Error(); }
+  catch { throw new HttpError(400, "invalid CLI control key"); }
   const requestId = id(), deviceCode = opaque("cli_device"), userCode = opaque("cli_user"), t = now();
-  q(`INSERT INTO cli_authorizations(id,device_code_hash,user_code_hash,created_at,expires_at)
-    VALUES(?,?,?,?,?)`).run(requestId, sha(deviceCode), sha(userCode), t, t + REQUEST_TTL);
+  q(`INSERT INTO cli_authorizations(id,device_code_hash,user_code_hash,client_id,signing_public_key,created_at,expires_at)
+    VALUES(?,?,?,?,?,?,?)`).run(requestId, sha(deviceCode), sha(userCode), clientId, signingPublicKey, t, t + REQUEST_TTL);
   return {
     requestId, deviceCode, expiresAt: t + REQUEST_TTL, interval: 2,
     verificationUrl: `${PUBLIC_URL}/cli/login?code=${encodeURIComponent(userCode)}`,
@@ -20,7 +24,7 @@ export function startCliAuthorization() {
 export function cliAuthorizationPreview(value: unknown) {
   const code = String(value || "").trim();
   if (!code) return null;
-  return q<{ id: string; approved_at: number | null; exchanged_at: number | null }>(`SELECT id,approved_at,exchanged_at
+  return q<{ id: string; client_id: string; signing_public_key: string; approved_at: number | null; exchanged_at: number | null }>(`SELECT id,client_id,signing_public_key,approved_at,exchanged_at
     FROM cli_authorizations WHERE user_code_hash=? AND expires_at>? AND exchanged_at IS NULL`).get(sha(code), now()) || null;
 }
 
@@ -43,6 +47,11 @@ export function exchangeCliAuthorization(requestIdValue: unknown, deviceCodeValu
   q("UPDATE cli_authorizations SET exchanged_at=? WHERE id=?").run(t, row.id);
   const user = q<User>("SELECT id,name FROM users WHERE id=?").get(row.user_id);
   return { pending: false as const, token, expiresAt: t + CLI_SESSION_TTL, user };
+}
+
+export function cliAuthorizationControl(value: unknown) {
+  const row = cliAuthorizationPreview(value);
+  return row ? { clientId: row.client_id, signingPublicKey: row.signing_public_key } : null;
 }
 
 export function cliTokenUser(token: string): User | null {

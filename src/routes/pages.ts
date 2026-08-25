@@ -47,7 +47,7 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     if (!approval) return new Response("CLI authorization expired", { status: 410, headers: { "cache-control": "no-store" } });
     const context = await pageContext(request);
     if (!context) return Response.redirect(`/?next=${encodeURIComponent(`/cli/login?code=${encodeURIComponent(code)}`)}`, 303);
-    return cliLoginPage(context.user, code, Boolean(approval.approved_at));
+    return cliLoginPage(context.user, code, Boolean(approval.approved_at), "", approval.client_id, approval.signing_public_key);
   })
   .get("/devices", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();

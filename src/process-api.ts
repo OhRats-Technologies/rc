@@ -1,11 +1,13 @@
 import { canOperate, deviceRole, logEvent, type Role } from "./core";
 import { id, now, q } from "./db";
-import { dispatchProcessStart, isOnline, sendProcessControl } from "./gateway";
-import { processJSON, processRow, resizeProcess, workspaceForDevice } from "./process-store";
+import { isOnline } from "./gateway";
+import { markProcessLost, processJSON, processRow, workspaceForDevice } from "./process-store";
 import { HttpError } from "./errors";
 import { MAX_CONCURRENT_PROCESSES_PER_USER } from "./config";
+import { publishEvent } from "./events";
 
 export type StartProcessInput = { deviceId: string; command: string; cwd?: string; cols: number; rows: number };
+export type AllocateProcessInput = { deviceId: string; cols: number; rows: number };
 export type ProcessInput = { processId: string; data: string };
 export type ProcessResize = { processId: string; cols: number; rows: number };
 export type ProcessSignal = { processId: string; signal: "INT" | "TERM" | "KILL" };
@@ -28,6 +30,11 @@ function canControl(role: Role, userId: string, process: any) {
 }
 
 export function startProcess(userId: string, input: StartProcessInput) {
+  void userId; void input;
+  throw new HttpError(426, "end-to-end control client required");
+}
+
+export function allocateProcess(userId: string, input: AllocateProcessInput) {
   const deviceId = input.deviceId, role = deviceRole(userId, deviceId);
   if (!canOperate(role)) throw new HttpError(403, "operator required");
   if (!isOnline(deviceId)) throw new HttpError(409, "device is offline");
@@ -37,49 +44,23 @@ export function startProcess(userId: string, input: StartProcessInput) {
   if (activeCount >= MAX_CONCURRENT_PROCESSES_PER_USER) {
     throw new HttpError(409, `concurrent process limit reached (${MAX_CONCURRENT_PROCESSES_PER_USER})`);
   }
-  const command = input.command.trim(), cwd = String(input.cwd || "").trim().slice(0, 4096) || null;
-  if (!command) throw new HttpError(400, "command required");
-  if (command.length > 8192) throw new HttpError(400, "command too long");
   const cols = boundedSize(input.cols, 80), rows = boundedSize(input.rows, 24), processId = id(), t = now();
-  q(`INSERT INTO processes(id,device_id,command,cwd,status,cols,rows,created_by,created_at)
-    VALUES(?,?,?,?,'starting',?,?,?,?)`).run(processId, deviceId, command, cwd, cols, rows, userId, t);
-  if (!dispatchProcessStart(processId, deviceId, command, cwd, cols, rows)) {
-    q("DELETE FROM processes WHERE id=?").run(processId);
-    throw new HttpError(409, "device connection changed");
-  }
-  logEvent("process.created", workspaceForDevice(deviceId), userId, deviceId, { processId, command, cwd });
+  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,cols,rows,created_by,created_at)
+    VALUES(?,?,?,NULL,'starting',1,?,?,?,?)`).run(processId, deviceId, "[encrypted]", cols, rows, userId, t);
+  logEvent("process.created", workspaceForDevice(deviceId), userId, deviceId, { processId, encrypted: true });
   return { processId };
 }
 
 export function inputProcess(userId: string, input: ProcessInput) {
-  const processId = input.processId, allowed = processAccess(userId, processId);
-  if (!canControl(allowed.role, userId, allowed.process)) throw new HttpError(403, "process belongs to another operator");
-  if (!["starting", "running"].includes(allowed.process.status)) throw new HttpError(409, "process is not running");
-  if (!isOnline(allowed.process.device_id)) throw new HttpError(409, "device is offline");
-  const data = input.data;
-  if (!data || data.length > 64 * 1024) throw new HttpError(400, "input must be 1-65536 characters");
-  if (!sendProcessControl(allowed.process.device_id, { type: "process.input", id: processId, input: data })) throw new HttpError(409, "device connection changed");
-  return { ok: true };
+  void userId; void input; throw new HttpError(426, "end-to-end control client required");
 }
 
 export function resizeRemoteProcess(userId: string, input: ProcessResize) {
-  const processId = input.processId, allowed = processAccess(userId, processId);
-  if (!canControl(allowed.role, userId, allowed.process)) throw new HttpError(403, "process belongs to another operator");
-  if (!['starting','running'].includes(allowed.process.status)) return { ok: true };
-  const cols = boundedSize(input.cols, Number(allowed.process.cols || 80));
-  const rows = boundedSize(input.rows, Number(allowed.process.rows || 24));
-  if (!sendProcessControl(allowed.process.device_id, { type: "process.resize", id: processId, cols, rows })) throw new HttpError(409, "device connection changed");
-  resizeProcess(processId, cols, rows);
-  return { ok: true };
+  void userId; void input; throw new HttpError(426, "end-to-end control client required");
 }
 
 export function signalProcess(userId: string, input: ProcessSignal) {
-  const processId = input.processId, allowed = processAccess(userId, processId);
-  if (!canControl(allowed.role, userId, allowed.process)) throw new HttpError(403, "process belongs to another operator");
-  if (!['starting','running'].includes(allowed.process.status)) return { ok: true };
-  const signal = input.signal;
-  if (!sendProcessControl(allowed.process.device_id, { type: "process.signal", id: processId, signal })) throw new HttpError(409, "device connection changed");
-  return { ok: true };
+  void userId; void input; throw new HttpError(426, "end-to-end control client required");
 }
 
 export function listProcesses(userId: string, deviceId: string) {
@@ -94,3 +75,15 @@ export function getProcess(userId: string, processId: string) {
   const row = q<any>("SELECT p.*,u.name created_by_name FROM processes p JOIN users u ON u.id=p.created_by WHERE p.id=?").get(processId);
   return processJSON(row || allowed.process);
 }
+
+setInterval(() => {
+  const cutoff = now() - 60_000;
+  const stale = q<{ id: string; device_id: string }>(
+    "SELECT id,device_id FROM processes WHERE encrypted=1 AND status='starting' AND created_at<?"
+  ).all(cutoff);
+  for (const process of stale) {
+    markProcessLost(process.id, "encrypted process was not acknowledged by the RC Node");
+    publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(process.device_id), deviceId: process.device_id,
+      processId: process.id, detail: { error: "encrypted process was not acknowledged by the RC Node" } });
+  }
+}, 30_000).unref();

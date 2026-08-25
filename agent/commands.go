@@ -45,6 +45,9 @@ func enrollCommand(args []string) error {
 		case statusErr == nil:
 			return fmt.Errorf("this machine is already enrolled as %s (%s); remove or uninstall that enrollment before moving it", remote.Name, existing.DeviceID)
 		case errors.Is(statusErr, errNodeRemoved):
+			if lockHash(dir) != "" {
+				return fmt.Errorf("locked enrollment %s is no longer recognized by RC; local state was preserved. Use an owner-authorized remove while the Node is online, or uninstall locally", existing.DeviceID)
+			}
 			if err := os.Remove(statePath(dir)); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -74,6 +77,13 @@ func enrollCommand(args []string) error {
 	if err != nil {
 		return err
 	}
+	if changed, err := ensureTransportIdentity(&value); err != nil {
+		return err
+	} else if changed {
+		if err := saveState(dir, value); err != nil {
+			return err
+		}
+	}
 	if err := saveState(dir, value); err != nil {
 		return err
 	}
@@ -95,6 +105,13 @@ func runNode(args []string) error {
 	}
 	if err != nil {
 		return err
+	}
+	if changed, err := ensureTransportIdentity(&value); err != nil {
+		return err
+	} else if changed {
+		if err := saveState(dir, value); err != nil {
+			return err
+		}
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

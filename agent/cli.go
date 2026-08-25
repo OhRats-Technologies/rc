@@ -67,7 +67,7 @@ func accountFlags(name string, args []string) (*flag.FlagSet, *string, *string, 
 		defaultURL = defaultServer
 	}
 	server := flags.String("url", defaultURL, "RC server URL")
-	token := flags.String("token", env("RC_API_TOKEN", ""), "RC API token override")
+	token := flags.String("token", env("RC_API_TOKEN", ""), "RC proof-of-possession API key override")
 	if err := flags.Parse(args); err != nil {
 		return flags, server, token, err
 	}
@@ -121,10 +121,23 @@ func deviceCommand(args []string) error {
 	if flags.NArg() != 1 {
 		return errors.New("usage: ohrats-rc device delete [--token TOKEN] ID")
 	}
-	if err := deleteAccountDevice(*server, *token, flags.Arg(0)); err != nil {
+	device, err := resolveAccountDevice(*server, *token, flags.Arg(0))
+	if err != nil {
 		return err
 	}
-	fmt.Printf("Removed %s\n", flags.Arg(0))
+	control, err := openRemoteControl(*server, *token, device)
+	if err != nil {
+		return fmt.Errorf("secure device removal: %w", err)
+	}
+	if err := control.request(wireMessage{Type: "node.remove"}); err != nil {
+		control.close()
+		return fmt.Errorf("secure device removal: %w", err)
+	}
+	control.close()
+	if err := deleteAccountDevice(*server, *token, device.ID); err != nil {
+		return err
+	}
+	fmt.Printf("Removed %s\n", device.ID)
 	return nil
 }
 

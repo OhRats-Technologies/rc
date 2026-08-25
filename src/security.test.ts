@@ -6,7 +6,6 @@ import { join } from "node:path";
 let dataDir = "";
 let app: typeof import("./app").app;
 let q: typeof import("./db").q;
-let sha: typeof import("./db").sha;
 let createAgentChallenge: typeof import("./gateway").createAgentChallenge;
 let verifyAgent: typeof import("./gateway").verifyAgent;
 
@@ -14,7 +13,7 @@ beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "rc-security-test-"));
   Bun.env.DATA_DIR = dataDir;
   Bun.env.PUBLIC_URL = "http://localhost:3000";
-  ({ q, sha } = await import("./db"));
+  ({ q } = await import("./db"));
   ({ createAgentChallenge, verifyAgent } = await import("./gateway"));
   ({ app } = await import("./app"));
 });
@@ -73,16 +72,45 @@ describe("HTTP hardening", () => {
 
 describe("API key scopes", () => {
   test("read-only keys cannot mutate workspaces", async () => {
-    const userId = crypto.randomUUID(), t = Date.now(), token = "rc_api_test_scope";
+    const userId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
+    const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+    const publicKey = Buffer.from(await crypto.subtle.exportKey("raw", pair.publicKey)).toString("base64url");
     q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Scoped User", t);
-    q("INSERT INTO api_tokens(id,user_id,name,token_hash,scopes,created_at) VALUES(?,?,?,?,?,?)")
-      .run(crypto.randomUUID(), userId, "Read only", sha(token), '["read"]', t);
-    const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
-    const list = await app.handle(new Request("http://localhost:3000/api/v1/workspaces", { headers }));
+    q("INSERT INTO api_tokens(id,user_id,name,token_hash,public_key,scopes,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(keyId, userId, "Read only", `pop:${keyId}`, publicKey, '["read"]', t);
+
+    async function signed(method: string, path: string, body = "") {
+      const timestamp = String(Math.floor(Date.now() / 1000)), nonce = crypto.randomUUID();
+      const digest = new Bun.CryptoHasher("sha256").update(body).digest("hex");
+      const payload = `rc-api-v1\n${keyId}\n${timestamp}\n${nonce}\n${method}\n${path}\n${digest}`;
+      const signature = Buffer.from(await crypto.subtle.sign("Ed25519", pair.privateKey, new TextEncoder().encode(payload))).toString("base64url");
+      return new Request(`http://localhost:3000${path}`, { method, body: body || undefined, headers: {
+        "content-type": "application/json", "x-rc-key-id": keyId, "x-rc-timestamp": timestamp,
+        "x-rc-nonce": nonce, "x-rc-signature": signature,
+      } });
+    }
+
+    const list = await app.handle(await signed("GET", "/api/v1/workspaces"));
     expect(list.status).toBe(200);
-    const create = await app.handle(new Request("http://localhost:3000/api/v1/workspaces", {
-      method: "POST", headers, body: JSON.stringify({ name: "Denied" }),
-    }));
+    const create = await app.handle(await signed("POST", "/api/v1/workspaces", JSON.stringify({ name: "Denied" })));
     expect(create.status).toBe(403);
+  });
+
+  test("proof-of-possession request nonces cannot be replayed", async () => {
+    const userId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
+    const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+    const publicKey = Buffer.from(await crypto.subtle.exportKey("raw", pair.publicKey)).toString("base64url");
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Replay User", t);
+    q("INSERT INTO api_tokens(id,user_id,name,token_hash,public_key,scopes,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(keyId, userId, "Replay test", `pop:${keyId}`, publicKey, '["read"]', t);
+    const path = "/api/v1/workspaces", timestamp = String(Math.floor(Date.now() / 1000)), nonce = crypto.randomUUID();
+    const digest = new Bun.CryptoHasher("sha256").update("").digest("hex");
+    const payload = `rc-api-v1\n${keyId}\n${timestamp}\n${nonce}\nGET\n${path}\n${digest}`;
+    const signature = Buffer.from(await crypto.subtle.sign("Ed25519", pair.privateKey, new TextEncoder().encode(payload))).toString("base64url");
+    const request = () => new Request(`http://localhost:3000${path}`, { headers: {
+      "x-rc-key-id": keyId, "x-rc-timestamp": timestamp, "x-rc-nonce": nonce, "x-rc-signature": signature,
+    } });
+    expect((await app.handle(request())).status).toBe(200);
+    expect((await app.handle(request())).status).toBe(401);
   });
 });

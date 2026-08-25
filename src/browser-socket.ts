@@ -1,50 +1,47 @@
-import { deviceRole, logEvent } from "./core";
 import { subscribeEvents } from "./events";
-import { isOnline, sendNodeUpdate } from "./gateway";
-import { inputProcess, resizeRemoteProcess, signalProcess, startProcess } from "./process-api";
-import { workspaceForDevice } from "./process-store";
+import { allocateProcess } from "./process-api";
 import type { BrowserCommand, BrowserServerMessage } from "./protocol";
-import { VERSION } from "./config";
 import type { ApiScope } from "./account";
+import {
+  closeControlSession, relayControlFrame, releaseControlSocket, requestControlChallenge, requestControlOpen, syncWorkspaceAuthority,
+} from "./control-relay";
 
 export type SocketWriter = { send(data: string): unknown; close(code?: number, reason?: string): void };
-type BrowserConnection = { socket: SocketWriter; scopes: ApiScope[] | null; unsubscribe?: () => void };
+type BrowserConnection = { socket: SocketWriter; scopes: ApiScope[] | null; apiKeyId: string | null; unsubscribe?: () => void };
 
 function requireScope(connection: BrowserConnection, scope: ApiScope) {
   if (connection.scopes && !connection.scopes.includes(scope)) throw new Error(`API key requires ${scope} scope`);
+}
+
+function requireControlScope(connection: BrowserConnection) {
+  if (connection.scopes && !connection.scopes.some(scope => scope === "execute" || scope === "manage-devices")) {
+    throw new Error("API key requires execute or manage-devices scope");
+  }
 }
 
 function send(connection: BrowserConnection, value: BrowserServerMessage) {
   try { connection.socket.send(JSON.stringify(value)); } catch {}
 }
 
-function updateNode(userId: string, input: any) {
-  const deviceId = String(input.deviceId || ""), role = deviceRole(userId, deviceId);
-  if (role !== "owner") throw new Error("owner required");
-  if (!isOnline(deviceId)) throw new Error("device is offline");
-  if (!sendNodeUpdate(deviceId)) throw new Error("node does not support remote update");
-  logEvent("node.update.requested", workspaceForDevice(deviceId), userId, deviceId);
-  return { ok: true, targetVersion: VERSION };
-}
-
 export const browserSocketHandlers = {
-  open(userId: string, socket: SocketWriter, scopes: ApiScope[] | null = null) {
-    const connection: BrowserConnection = { socket, scopes };
+  open(userId: string, socket: SocketWriter, scopes: ApiScope[] | null = null, apiKeyId: string | null = null) {
+    const connection: BrowserConnection = { socket, scopes, apiKeyId };
     connection.unsubscribe = subscribeEvents(userId, event => send(connection, { type: "event", event }));
     send(connection, { type: "ready" });
     return connection;
   },
-  message(userId: string, connection: BrowserConnection, message: BrowserCommand) {
+  async message(userId: string, connection: BrowserConnection, message: BrowserCommand) {
     const requestId = "requestId" in message ? String(message.requestId || "") : "";
     try {
       let result: unknown;
       switch (message.type) {
         case "ping": send(connection, { type: "pong" }); return;
-        case "process.start": requireScope(connection, "execute"); result = startProcess(userId, message); break;
-        case "process.input": requireScope(connection, "execute"); result = inputProcess(userId, message); break;
-        case "process.resize": requireScope(connection, "execute"); result = resizeRemoteProcess(userId, message); break;
-        case "process.signal": requireScope(connection, "execute"); result = signalProcess(userId, message); break;
-        case "node.update": requireScope(connection, "manage-devices"); result = updateNode(userId, message); break;
+        case "process.allocate": requireScope(connection, "execute"); result = allocateProcess(userId, message); break;
+        case "control.challenge": requireControlScope(connection); requestControlChallenge(userId, message.deviceId, requestId, connection.socket); return;
+        case "control.open": requireControlScope(connection); requestControlOpen(userId, message, connection.socket, connection.apiKeyId); return;
+        case "control.frame": requireControlScope(connection); relayControlFrame(userId, message, connection.socket); return;
+        case "control.close": closeControlSession(message, connection.socket); return;
+        case "lock.sync": result = await syncWorkspaceAuthority(userId, message.workspaceId, message.clientId, message.signature); break;
       }
       if (requestId) send(connection, { type: "response", requestId, ok: true, result });
     } catch (error) {
@@ -54,5 +51,6 @@ export const browserSocketHandlers = {
   },
   close(connection: BrowserConnection) {
     connection.unsubscribe?.();
+    releaseControlSocket(connection.socket);
   },
 };

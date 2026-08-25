@@ -1,7 +1,7 @@
 import { canOperate, logEvent, roleFor, type User } from "./core";
 import { id, now, q } from "./db";
 import { HttpError } from "./errors";
-import { startProcess } from "./process-api";
+import { allocateProcess } from "./process-api";
 
 export type ActionView = {
   id: string; workspace_id: string; workspace_name: string; name: string; description: string;
@@ -71,10 +71,11 @@ export function runAction(user: User, actionId: string, deviceIds: string[]): Ac
     const device = q<{ name: string; workspace_id: string }>("SELECT name,workspace_id FROM devices WHERE id=?").get(deviceId);
     if (!device || device.workspace_id !== action.workspace_id) return { deviceId, deviceName: device?.name || deviceId, error: "device is not in this workspace" };
     try {
-      const { processId } = startProcess(user.id, { deviceId, command: action.command, cwd: action.cwd || undefined, cols: 80, rows: 24 });
+      const { processId } = allocateProcess(user.id, { deviceId, cols: 80, rows: 24 });
       return { deviceId, deviceName: device.name, processId };
     } catch (error) { return { deviceId, deviceName: device.name, error: error instanceof Error ? error.message : "run failed" }; }
   });
-  logEvent("action.run", action.workspace_id, user.id, null, { actionId, name: action.name, devices: results.map(result => ({ deviceId: result.deviceId, processId: result.processId || null, error: result.error || null })) });
+  logEvent("action.run", action.workspace_id, user.id, null, { actionId, name: action.name, encrypted: true,
+    devices: results.map(result => ({ deviceId: result.deviceId, processId: result.processId || null, error: result.error || null })) });
   return results;
 }

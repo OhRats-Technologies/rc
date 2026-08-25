@@ -21,12 +21,15 @@ export interface Device {
   online: boolean;
   active_processes: number;
   role?: Role;
+  identity_public_key?: string;
+  transport_public_key?: string;
 }
 
 export interface RemoteProcess {
   id: string;
   device_id: string;
   command: string;
+  encrypted?: boolean;
   cwd: string | null;
   status: ProcessStatus;
   output: string;

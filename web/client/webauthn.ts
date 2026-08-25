@@ -13,12 +13,12 @@ function creationOptions(options: any): PublicKeyCredentialCreationOptions {
   return parser ? parser(options) : { ...options, challenge: b64urlToBytes(options.challenge), user: { ...options.user, id: b64urlToBytes(options.user.id) },
     excludeCredentials: (options.excludeCredentials || []).map((item: any) => ({ ...item, id: b64urlToBytes(item.id) })) };
 }
-function requestOptions(options: any): PublicKeyCredentialRequestOptions {
+export function requestOptions(options: any): PublicKeyCredentialRequestOptions {
   const parser = (PublicKeyCredential as any).parseRequestOptionsFromJSON;
   return parser ? parser(options) : { ...options, challenge: b64urlToBytes(options.challenge),
     allowCredentials: options.allowCredentials?.map((item: any) => ({ ...item, id: b64urlToBytes(item.id) })) };
 }
-function credentialJSON(credential: PublicKeyCredential) {
+export function credentialJSON(credential: PublicKeyCredential) {
   const native = (credential as any).toJSON; if (native) return native.call(credential);
   const response = credential.response, output: any = { id: credential.id, rawId: bytesToB64url(credential.rawId), type: credential.type,
     authenticatorAttachment: credential.authenticatorAttachment, clientExtensionResults: credential.getClientExtensionResults() };
@@ -28,6 +28,13 @@ function credentialJSON(credential: PublicKeyCredential) {
 }
 function requirePasskeys() { if (!window.PublicKeyCredential || !navigator.credentials) throw new Error("Passkeys are not supported in this browser."); }
 
+export async function passkeyAssertion(options: any) {
+  requirePasskeys();
+  const credential = await navigator.credentials.get({ publicKey: requestOptions(options) }) as PublicKeyCredential | null;
+  if (!credential) throw new Error("Passkey request was cancelled.");
+  return credentialJSON(credential);
+}
+
 export async function createPasskey(path: string, verifyPath: string, data: Record<string, unknown>) {
   requirePasskeys(); const start = await api<{ ceremonyId: string; options: any }>(path, { method: "POST", body: JSON.stringify(data) });
   const credential = await navigator.credentials.create({ publicKey: creationOptions(start.options) }) as PublicKeyCredential | null;
@@ -36,7 +43,5 @@ export async function createPasskey(path: string, verifyPath: string, data: Reco
 }
 export async function authenticatePasskey() {
   requirePasskeys(); const start = await api<{ ceremonyId: string; options: any }>("/api/v1/auth/login/options", { method: "POST", body: "{}" });
-  const credential = await navigator.credentials.get({ publicKey: requestOptions(start.options) }) as PublicKeyCredential | null;
-  if (!credential) throw new Error("Sign in was cancelled.");
-  return api("/api/v1/auth/login/verify", { method: "POST", body: JSON.stringify({ ceremonyId: start.ceremonyId, response: credentialJSON(credential) }) });
+  return api("/api/v1/auth/login/verify", { method: "POST", body: JSON.stringify({ ceremonyId: start.ceremonyId, response: await passkeyAssertion(start.options) }) });
 }

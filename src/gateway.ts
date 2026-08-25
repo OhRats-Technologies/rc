@@ -5,12 +5,12 @@ import { publishEvent } from "./events";
 import { appendProcessOutput, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
 import type { AgentClientMessage, AgentServerMessage } from "./protocol";
 import type { SocketWriter } from "./browser-socket";
-import { AGENT_CHALLENGE_TTL, VERSION } from "./config";
+import { AGENT_CHALLENGE_TTL } from "./config";
+import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-relay";
 
 const agents = new Map<string, SocketWriter>();
 const agentActivity = new Map<string, number>();
 const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const pendingUpdates = new Map<string, string>();
 const RECONNECT_GRACE_MS = 45_000;
 
 export function agentsCount() { return agents.size; }
@@ -19,13 +19,9 @@ export function disconnectDevice(deviceId: string, remove = false) {
   const timer = disconnectTimers.get(deviceId); if (timer) clearTimeout(timer);
   disconnectTimers.delete(deviceId);
   const ws = agents.get(deviceId);
-  if (remove && ws) {
-    try { ws.send(JSON.stringify({ type: "node.remove" })); } catch {}
-  }
   ws?.close(1008, "device removed");
   agents.delete(deviceId);
   agentActivity.delete(deviceId);
-  if (remove) pendingUpdates.delete(deviceId);
 }
 
 function send(deviceId: string, message: AgentServerMessage) {
@@ -34,30 +30,7 @@ function send(deviceId: string, message: AgentServerMessage) {
   try { ws.send(JSON.stringify(message)); return true; } catch { return false; }
 }
 
-function capabilities(deviceId: string) {
-  const raw = q<any>("SELECT capabilities FROM devices WHERE id=?").get(deviceId)?.capabilities || "[]";
-  try { return JSON.parse(raw) as string[]; } catch { return []; }
-}
-
-export function dispatchProcessStart(processId: string, deviceId: string, command: string, cwd: string | null, cols: number, rows: number) {
-  if (!capabilities(deviceId).includes("process")) return false;
-  return send(deviceId, { type: "process.start", id: processId, command, cwd, cols, rows });
-}
-
-export function sendProcessControl(deviceId: string, message: AgentServerMessage) {
-  if (!capabilities(deviceId).includes("process")) return false;
-  return send(deviceId, message);
-}
-
-export function sendNodeUpdate(deviceId: string) {
-  if (!capabilities(deviceId).includes("update")) return false;
-  pendingUpdates.set(deviceId, VERSION);
-  if (!send(deviceId, { type: "node.update" })) {
-    pendingUpdates.delete(deviceId);
-    return false;
-  }
-  return true;
-}
+registerAgentSender(send);
 
 export function createAgentChallenge(deviceId: string) {
   if (!q("SELECT 1 FROM devices WHERE id=?").get(deviceId)) return null;
@@ -92,7 +65,6 @@ function scheduleDisconnect(deviceId: string, startup = false) {
   disconnectTimers.set(deviceId, setTimeout(() => {
     disconnectTimers.delete(deviceId);
     if (agents.has(deviceId)) return;
-    const updateTarget = pendingUpdates.get(deviceId);
     const running = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
     for (const process of running) {
       const error = startup ? "control plane restarted and device did not reconnect" : process.status === "running" ? "device disconnected beyond reconnect grace" : "device disconnected before acknowledgement";
@@ -100,9 +72,6 @@ function scheduleDisconnect(deviceId: string, startup = false) {
       publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { error } });
     }
     logEvent(startup ? "device.reconnect.timeout" : "device.offline", workspaceForDevice(deviceId), null, deviceId, { reconnectGraceMs: RECONNECT_GRACE_MS });
-    if (updateTarget) publishEvent({ kind: "node.update.error", workspaceId: workspaceForDevice(deviceId), deviceId,
-      detail: { error: `Node did not reconnect on ${updateTarget}.` } });
-    pendingUpdates.delete(deviceId);
   }, RECONNECT_GRACE_MS));
 }
 
@@ -135,20 +104,16 @@ export const agentSocketHandlers = {
   message(deviceId: string, msg: AgentClientMessage) {
     try {
       agentActivity.set(deviceId, Date.now());
+      if (handleControlAgentMessage(deviceId, msg)) return;
       if (msg.type === "hello") {
         const capabilities = msg.capabilities;
-        q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,last_seen=? WHERE id=?`).run(
+        q(`UPDATE devices SET hostname=?,platform=?,arch=?,agent_version=?,capabilities=?,transport_public_key=?,last_seen=? WHERE id=?`).run(
           String(msg.hostname || "unknown").slice(0, 255), String(msg.platform || "unknown").slice(0, 40),
           String(msg.arch || "unknown").slice(0, 40), String(msg.agentVersion || "unknown").slice(0, 40),
-          JSON.stringify(capabilities), Date.now(), deviceId,
+          JSON.stringify(capabilities), String(msg.transportPublicKey || "").slice(0, 100), Date.now(), deviceId,
         );
+        bootstrapAuthority(deviceId, String(msg.lockHash || ""));
         publishEvent({ kind: "device.updated", workspaceId: workspaceForDevice(deviceId), deviceId });
-        const targetVersion = pendingUpdates.get(deviceId);
-        if (targetVersion && msg.agentVersion === targetVersion) {
-          pendingUpdates.delete(deviceId);
-          publishEvent({ kind: "node.update.complete", workspaceId: workspaceForDevice(deviceId), deviceId,
-            detail: { version: msg.agentVersion } });
-        }
         return;
       }
       if (msg.type === "heartbeat") {
@@ -165,6 +130,7 @@ export const agentSocketHandlers = {
       if (msg.type === "process.output") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
+        if (process.encrypted) return;
         const chunk = msg.output;
         const revision = appendProcessOutput(process.id, chunk);
         publishEvent({ kind: "process.output", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { chunk, revision } });
@@ -173,7 +139,7 @@ export const agentSocketHandlers = {
       if (msg.type === "process.exit") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
-        const output = msg.output || "";
+        const output = process.encrypted ? "" : msg.output || "";
         if (output) appendProcessOutput(process.id, output);
         const exitCode = msg.exitCode ?? null;
         const signal = msg.signal ? String(msg.signal).slice(0, 32) : null;
@@ -194,7 +160,6 @@ export const agentSocketHandlers = {
         return;
       }
       if (msg.type === "node.update.error") {
-        pendingUpdates.delete(deviceId);
         publishEvent({ kind: "node.update.error", workspaceId: workspaceForDevice(deviceId), deviceId, detail: { error: String(msg.output || "update failed").slice(0, 1024) } });
       }
     } catch (error) { console.error("agent message", error); }

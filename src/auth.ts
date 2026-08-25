@@ -11,7 +11,7 @@ import { cookie, fail, json, sessionCookie } from "./http-utils";
 import { HttpError } from "./errors";
 import { cliTokenUser } from "./cli-auth";
 import { activeUserCount } from "./users";
-import { apiTokenGrant, type ApiScope } from "./account";
+import { apiKeyGrant, type ApiScope } from "./account";
 import {
   authenticationCeremony, cleanName, insertPasskey, registrationCeremony, takeCeremony, verifyNewPasskey,
 } from "./webauthn";
@@ -24,19 +24,15 @@ export function setupAuthorized(req: Request) {
   return !!token && sha(token) === sha(SETUP_TOKEN);
 }
 
-export function apiTokenUser(token: string): User | null {
-  return apiTokenGrant(token)?.user || null;
-}
-
-export function apiTokenScopes(req: Request): ApiScope[] | null {
-  const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!bearer || bearer.startsWith("rc_cli_")) return null;
-  return apiTokenGrant(bearer)?.scopes || null;
+export async function apiTokenScopes(req: Request): Promise<ApiScope[] | null> {
+  return (await apiKeyGrant(req))?.scopes || null;
 }
 
 export async function auth(req: Request): Promise<User | null> {
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (bearer) return cliTokenUser(bearer) || apiTokenUser(bearer);
+  if (bearer) return cliTokenUser(bearer);
+  const apiKey = await apiKeyGrant(req);
+  if (apiKey) return apiKey.user;
   return cookieUser(req);
 }
 
@@ -114,7 +110,12 @@ export async function deletePasskey(req: Request, user: User, passkeyId: string)
   await requireHuman(req, user);
   const count = q<{ count: number }>("SELECT count(*) count FROM passkeys WHERE user_id=?").get(user.id)?.count || 0;
   if (count <= 1) throw new HttpError(409, "add another passkey before removing your last one");
-  if (!q("DELETE FROM passkeys WHERE id=? AND user_id=?").run(passkeyId, user.id).changes) throw new HttpError(404, "passkey not found");
+  const passkey = q<{ credential_id: string }>("SELECT credential_id FROM passkeys WHERE id=? AND user_id=?").get(passkeyId, user.id);
+  if (!passkey) throw new HttpError(404, "passkey not found");
+  db.transaction(() => {
+    q("DELETE FROM control_clients WHERE user_id=? AND credential_id=?").run(user.id, passkey.credential_id);
+    q("DELETE FROM passkeys WHERE id=? AND user_id=?").run(passkeyId, user.id);
+  })();
 }
 
 export async function verifyLogin(ceremonyId: string, response: AuthenticationResponseJSON) {

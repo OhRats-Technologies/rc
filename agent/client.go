@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdh"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/x509"
@@ -23,7 +24,10 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var errNodeRemoved = errors.New("node removed from RC")
+var (
+	errNodeRemoved         = errors.New("node removed from RC")
+	errLockedServerMissing = errors.New("locked RC Node is no longer recognized by the server")
+)
 
 func enroll(serverURL, token, displayName string) (state, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -31,6 +35,10 @@ func enroll(serverURL, token, displayName string) (state, error) {
 		return state{}, err
 	}
 	pubDER, err := x509.MarshalPKIXPublicKey(pub)
+	transportPrivate, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		return state{}, err
+	}
 	if err != nil {
 		return state{}, err
 	}
@@ -40,8 +48,9 @@ func enroll(serverURL, token, displayName string) (state, error) {
 	}
 	payload := enrollRequest{
 		Token: token, Name: displayName, Hostname: hostname, Platform: runtime.GOOS, Arch: runtime.GOARCH,
-		PublicKey:    string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})),
-		AgentVersion: version, Capabilities: []string{"process", "update"},
+		PublicKey:          string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})),
+		TransportPublicKey: base64.RawURLEncoding.EncodeToString(transportPrivate.PublicKey().Bytes()),
+		AgentVersion:       version, Capabilities: []string{"process", "update", "lock", "e2e"},
 	}
 	data, _ := json.Marshal(payload)
 	resp, err := http.Post(strings.TrimRight(serverURL, "/")+"/api/v1/agent/enroll", "application/json", bytes.NewReader(data))
@@ -57,7 +66,9 @@ func enroll(serverURL, token, displayName string) (state, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return state{}, err
 	}
-	return state{DeviceID: out.DeviceID, PrivateKey: base64.RawStdEncoding.EncodeToString(priv)}, nil
+	return state{DeviceID: out.DeviceID, PrivateKey: base64.RawStdEncoding.EncodeToString(priv),
+		TransportPrivateKey: base64.RawURLEncoding.EncodeToString(transportPrivate.Bytes()),
+		TransportPublicKey:  base64.RawURLEncoding.EncodeToString(transportPrivate.PublicKey().Bytes())}, nil
 }
 
 func signedAgentRequest(serverURL, method, path string, value state) (*http.Request, error) {
@@ -79,7 +90,9 @@ func signedAgentRequest(serverURL, method, path string, value state) (*http.Requ
 		body, _ := io.ReadAll(io.LimitReader(challengeResp.Body, 4096))
 		return nil, fmt.Errorf("agent challenge: %s: %s", challengeResp.Status, strings.TrimSpace(string(body)))
 	}
-	var auth struct{ Challenge string `json:"challenge"` }
+	var auth struct {
+		Challenge string `json:"challenge"`
+	}
 	if err := json.NewDecoder(challengeResp.Body).Decode(&auth); err != nil || auth.Challenge == "" {
 		return nil, errors.New("invalid agent challenge")
 	}
@@ -131,6 +144,9 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 	conn, response, err := websocket.DefaultDialer.Dial(u.String(), req.Header)
 	if err != nil {
 		if response != nil && response.StatusCode == http.StatusNotFound {
+			if lockHash(stateDir) != "" {
+				return errLockedServerMissing
+			}
 			_ = os.Remove(statePath(stateDir))
 			return errNodeRemoved
 		}
@@ -146,7 +162,8 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 	hostname, _ := os.Hostname()
 	if err := send(wireMessage{
 		Type: "hello", AgentVersion: version, Hostname: hostname,
-		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"process", "update"},
+		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"process", "update", "lock", "e2e"},
+		TransportPublicKey: value.TransportPublicKey, LockHash: lockHash(stateDir),
 	}); err != nil {
 		return err
 	}
@@ -154,6 +171,7 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 	readDone := make(chan error, 1)
 	manager.attach(send)
 	defer manager.detach()
+	control := newControlManager(value, stateDir, serverURL, manager, send)
 	go func() {
 		for {
 			var message wireMessage
@@ -161,27 +179,18 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 				readDone <- err
 				return
 			}
-			if message.Type == "node.update" {
-				fmt.Printf("Updating OhRats RC Node %s…\n", version)
-				if err := replaceExecutable(serverURL); err != nil {
-					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
-					fmt.Fprintf(os.Stderr, "update failed: %v\n", err)
-					continue
+			if strings.HasPrefix(message.Type, "control.") || strings.HasPrefix(message.Type, "lock.") {
+				if err := control.handle(message); err != nil {
+					if errors.Is(err, errNodeRemoved) {
+						readDone <- err
+						return
+					}
+					_ = send(wireMessage{Type: "control.error", RequestID: message.RequestID, Output: err.Error()})
 				}
-				manager.shutdown()
-				_ = send(wireMessage{Type: "node.update.ready", AgentVersion: version})
-				fmt.Println("Update installed; restarting RC Node…")
-				if err := syscallExecCurrent(); err != nil {
-					_ = send(wireMessage{Type: "node.update.error", Output: err.Error()})
-					readDone <- fmt.Errorf("restart after update: %w", err)
-				}
-				return
+				continue
 			}
-			if message.Type == "node.remove" {
-				manager.shutdown()
-				_ = os.Remove(statePath(stateDir))
-				readDone <- errNodeRemoved
-				return
+			if strings.HasPrefix(message.Type, "process.") || message.Type == "node.update" || message.Type == "node.remove" {
+				continue
 			}
 			manager.handle(message)
 		}

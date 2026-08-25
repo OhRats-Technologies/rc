@@ -1,12 +1,24 @@
 import { qs } from "./http";
 import { createPasskey } from "./webauthn";
+import { api } from "./http";
+import { syncOwnedAuthorities } from "./control-client";
 
 document.querySelector<HTMLButtonElement>("#add-passkey")?.addEventListener("click", async () => {
   try {
     await createPasskey("/api/v1/passkeys/options", "/api/v1/passkeys/verify", {});
+    await syncOwnedAuthorities();
     location.reload();
   } catch (error) { qs<HTMLElement>("#passkey-error").textContent = error instanceof Error ? error.message : String(error); }
 });
+
+document.querySelectorAll<HTMLFormElement>('form[action^="/account/passkeys/"][action$="/delete"]').forEach(form => form.addEventListener("submit", async event => {
+  event.preventDefault();
+  try {
+    const passkeyId = form.action.split("/").at(-2) || "";
+    await api(`/api/v1/passkeys/${encodeURIComponent(passkeyId)}`, { method: "DELETE" });
+    await syncOwnedAuthorities(); location.reload();
+  } catch (error) { qs<HTMLElement>("#passkey-error").textContent = error instanceof Error ? error.message : String(error); }
+}));
 
 const accountName = document.querySelector<HTMLElement>("[data-account-name-view]");
 const accountNameForm = document.querySelector<HTMLFormElement>("[data-account-name-form]");

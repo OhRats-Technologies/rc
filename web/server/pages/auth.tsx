@@ -24,9 +24,9 @@ export function authPage(mode: AuthMode, options: {
     </div></section> });
 }
 
-export function cliLoginPage(user: import("../../../src/core").User, code: string, approved = false, error = "") {
-  return htmlDocument({ title: approved ? "CLI authorized" : "Authorize CLI", body:
-    <section className="auth-shell"><div className="ohrats-grid auth-grid" aria-hidden="true"/><div className="auth-content">
+export function cliLoginPage(user: import("../../../src/core").User, code: string, approved = false, error = "", clientId = "", signingPublicKey = "") {
+  return htmlDocument({ title: approved ? "CLI authorized" : "Authorize CLI", scripts: approved ? [] : ["cli-authorize"], body:
+    <section className="auth-shell" data-cli-client={clientId} data-cli-public-key={signingPublicKey}><div className="ohrats-grid auth-grid" aria-hidden="true"/><div className="auth-content">
       <p className="eyebrow">OHRATS RC / COMMAND LINE</p><h1>{approved ? "CLI authorized" : "Authorize CLI"}</h1>
       {approved ? <p className="page-copy">Return to your terminal. This tab can be closed.</p> : <>
         <p className="page-copy">Allow the RC command line to act as <strong>{user.name}</strong> on your workspaces.</p>

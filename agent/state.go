@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/ecdh"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -14,9 +17,11 @@ type nodeConfig struct {
 }
 
 type accountSession struct {
-	Server string `json:"server"`
-	Token  string `json:"token"`
-	User   string `json:"user,omitempty"`
+	Server            string `json:"server"`
+	Token             string `json:"token"`
+	User              string `json:"user,omitempty"`
+	ControlClientID   string `json:"controlClientId,omitempty"`
+	ControlPrivateKey string `json:"controlPrivateKey,omitempty"`
 }
 
 func env(key, fallback string) string {
@@ -67,6 +72,19 @@ func saveState(dir string, value state) error {
 		return err
 	}
 	return os.WriteFile(statePath(dir), data, 0600)
+}
+
+func ensureTransportIdentity(value *state) (bool, error) {
+	if value.TransportPrivateKey != "" && value.TransportPublicKey != "" {
+		return false, nil
+	}
+	privateKey, err := ecdh.X25519().GenerateKey(rand.Reader)
+	if err != nil {
+		return false, err
+	}
+	value.TransportPrivateKey = base64.RawURLEncoding.EncodeToString(privateKey.Bytes())
+	value.TransportPublicKey = base64.RawURLEncoding.EncodeToString(privateKey.PublicKey().Bytes())
+	return true, nil
 }
 
 func loadConfig(dir string) (nodeConfig, error) {

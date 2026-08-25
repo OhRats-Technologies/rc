@@ -31,13 +31,14 @@ CREATE TABLE IF NOT EXISTS workspace_members(
 CREATE TABLE IF NOT EXISTS devices(
   id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
   name TEXT NOT NULL,hostname TEXT NOT NULL,platform TEXT NOT NULL,arch TEXT NOT NULL,
-  public_key TEXT NOT NULL UNIQUE,agent_version TEXT NOT NULL,capabilities TEXT NOT NULL DEFAULT '[]',
+  public_key TEXT NOT NULL UNIQUE,transport_public_key TEXT NOT NULL DEFAULT '',lock_hash TEXT NOT NULL DEFAULT '',agent_version TEXT NOT NULL,capabilities TEXT NOT NULL DEFAULT '[]',
   last_seen INTEGER,created_at INTEGER NOT NULL
 );
 CREATE TABLE IF NOT EXISTS processes(
   id TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
   command TEXT NOT NULL,cwd TEXT,status TEXT NOT NULL DEFAULT 'starting'
     CHECK(status IN ('starting','running','exited','lost')),
+  encrypted INTEGER NOT NULL DEFAULT 0,
   output_head TEXT NOT NULL DEFAULT '',output_tail TEXT NOT NULL DEFAULT '',output_chars INTEGER NOT NULL DEFAULT 0,
   revision INTEGER NOT NULL DEFAULT 0,cols INTEGER NOT NULL DEFAULT 80,rows INTEGER NOT NULL DEFAULT 24,
   exit_code INTEGER,signal TEXT,error TEXT,created_by TEXT NOT NULL REFERENCES users(id),
@@ -49,11 +50,26 @@ CREATE TABLE IF NOT EXISTS auth_sessions(
 );
 CREATE TABLE IF NOT EXISTS api_tokens(
   id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,scopes TEXT NOT NULL DEFAULT '["read","execute"]',
+  name TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,public_key TEXT NOT NULL DEFAULT '',scopes TEXT NOT NULL DEFAULT '["read","execute"]',
   created_at INTEGER NOT NULL,last_used INTEGER
+);
+CREATE TABLE IF NOT EXISTS api_request_nonces(
+  token_id TEXT NOT NULL REFERENCES api_tokens(id) ON DELETE CASCADE,nonce_hash TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,PRIMARY KEY(token_id,nonce_hash)
+);
+CREATE TABLE IF NOT EXISTS control_authorizations(
+  id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id TEXT NOT NULL,signing_public_key TEXT NOT NULL,grant TEXT NOT NULL,challenge TEXT NOT NULL,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS control_clients(
+  id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  signing_public_key TEXT NOT NULL,credential_id TEXT NOT NULL,grant TEXT NOT NULL,assertion TEXT NOT NULL,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_used INTEGER
 );
 CREATE TABLE IF NOT EXISTS cli_authorizations(
   id TEXT PRIMARY KEY,device_code_hash TEXT NOT NULL UNIQUE,user_code_hash TEXT NOT NULL UNIQUE,
+  client_id TEXT NOT NULL DEFAULT '',signing_public_key TEXT NOT NULL DEFAULT '',
   user_id TEXT REFERENCES users(id) ON DELETE CASCADE,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,
   approved_at INTEGER,exchanged_at INTEGER
 );
@@ -96,6 +112,9 @@ CREATE INDEX IF NOT EXISTS idx_actions_workspace ON actions(workspace_id,name);
 CREATE INDEX IF NOT EXISTS idx_cli_authorizations_expiry ON cli_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_cli_sessions_user ON cli_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_auth_challenges_expiry ON agent_auth_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_api_request_nonces_expiry ON api_request_nonces(expires_at);
+CREATE INDEX IF NOT EXISTS idx_control_authorizations_expiry ON control_authorizations(expires_at);
+CREATE INDEX IF NOT EXISTS idx_control_clients_user ON control_clients(user_id,expires_at);
 `);
 
 function migrateRoleVocabulary() {
@@ -126,9 +145,34 @@ migrateRoleVocabulary();
 function migrateApiTokenScopes() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(api_tokens)").all().map(row => row.name);
   if (!columns.includes("scopes")) db.exec(`ALTER TABLE api_tokens ADD COLUMN scopes TEXT NOT NULL DEFAULT '["read","execute"]'`);
+  if (!columns.includes("public_key")) db.exec(`ALTER TABLE api_tokens ADD COLUMN public_key TEXT NOT NULL DEFAULT ''`);
+  db.exec("DELETE FROM api_tokens WHERE public_key=''");
 }
 
 migrateApiTokenScopes();
+
+function migrateDeviceTransportKeys() {
+  const columns = db.query<{ name: string }, []>("PRAGMA table_info(devices)").all().map(row => row.name);
+  if (!columns.includes("transport_public_key")) db.exec("ALTER TABLE devices ADD COLUMN transport_public_key TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("lock_hash")) db.exec("ALTER TABLE devices ADD COLUMN lock_hash TEXT NOT NULL DEFAULT ''");
+}
+
+migrateDeviceTransportKeys();
+
+function migrateEncryptedProcesses() {
+  const columns = db.query<{ name: string }, []>("PRAGMA table_info(processes)").all().map(row => row.name);
+  if (!columns.includes("encrypted")) db.exec("ALTER TABLE processes ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0");
+}
+
+migrateEncryptedProcesses();
+
+function migrateCliControlKeys() {
+  const columns = db.query<{ name: string }, []>("PRAGMA table_info(cli_authorizations)").all().map(row => row.name);
+  if (!columns.includes("client_id")) db.exec("ALTER TABLE cli_authorizations ADD COLUMN client_id TEXT NOT NULL DEFAULT ''");
+  if (!columns.includes("signing_public_key")) db.exec("ALTER TABLE cli_authorizations ADD COLUMN signing_public_key TEXT NOT NULL DEFAULT ''");
+}
+
+migrateCliControlKeys();
 
 export const q = <T = any>(sql: string) => db.query<T, any[]>(sql);
 export const now = () => Date.now();

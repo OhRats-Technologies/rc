@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { createAction, getAction, listActions, runAction, updateAction } from "../actions";
-import { createApiToken, deleteApiToken } from "../account";
+import { deleteApiToken } from "../account";
 import { deletePasskey, logout } from "../auth";
 import { approveCliAuthorization } from "../cli-auth";
 import { renameDevice } from "../devices";
@@ -134,9 +134,8 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
     const action = getAction(context.user, params.id); if (!action) return new Response("not found", { status: 404 });
     const data = await request.formData(), deviceIds = data.getAll("deviceId").map(String);
     if (action.confirm && data.get("confirm") !== "1") return actionConfirmPage(context.user, context.workspaces, action, workspaceDevices(action.workspace_id), deviceIds, context.sidebar);
-    const results = runAction(context.user, action.id, deviceIds);
-    if (results.length === 1 && results[0].processId) return Response.redirect(`/devices/${results[0].deviceId}/processes/${results[0].processId}`, 303);
-    return actionPage(context.user, context.workspaces, action, workspaceDevices(action.workspace_id), context.sidebar, results);
+    return actionPage(context.user, context.workspaces, action, workspaceDevices(action.workspace_id), context.sidebar,
+      deviceIds.map(deviceId => ({ deviceId, deviceName: deviceId, error: "Encrypted execution requires JavaScript or the RC CLI." })));
   })
   .post("/account/passkeys/:id/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
@@ -145,9 +144,7 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/api/tokens", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const data = await request.formData(), name = data.get("name"), scopes = data.getAll("scope").map(String);
-    try { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, createApiToken(context.user.id, name, scopes).token); }
-    catch (error) { return apiKeyFormPage(context.user, context.workspaces, context.sidebar, "", error instanceof Error ? error.message : "Key creation failed."); }
+    return apiKeyFormPage(context.user, context.workspaces, context.sidebar, "", "API signing keys are generated in your browser or RC CLI; JavaScript is required here.");
   })
   .post("/api/tokens/:id/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

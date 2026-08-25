@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -83,8 +86,15 @@ func loginCommand(args []string) error {
 	if flags.NArg() != 0 {
 		return errors.New("usage: ohrats-rc login [--url URL]")
 	}
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		return err
+	}
+	clientID := randomURLBytes(18)
 	var start cliAuthorizationStart
-	if err := publicJSON(*server, "/api/v1/auth/cli/start", map[string]any{}, &start); err != nil {
+	if err := publicJSON(*server, "/api/v1/auth/cli/start", map[string]any{
+		"clientId": clientID, "signingPublicKey": base64.RawURLEncoding.EncodeToString(publicKey),
+	}, &start); err != nil {
 		return err
 	}
 	fmt.Printf("Open this URL to authorize RC CLI:\n%s\n", start.VerificationURL)
@@ -107,7 +117,8 @@ func loginCommand(args []string) error {
 			if poll.User != nil {
 				name = poll.User.Name
 			}
-			if err := saveAccountSession(dir, accountSession{Server: strings.TrimRight(*server, "/"), Token: poll.Token, User: name}); err != nil {
+			if err := saveAccountSession(dir, accountSession{Server: strings.TrimRight(*server, "/"), Token: poll.Token, User: name,
+				ControlClientID: clientID, ControlPrivateKey: base64.RawURLEncoding.EncodeToString(privateKey)}); err != nil {
 				return err
 			}
 			if name == "" {

@@ -2,12 +2,12 @@ import { Elysia, t } from "elysia";
 import { openapi } from "@elysia/openapi";
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
 import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
-import { createApiToken, deleteApiToken, listApiTokens, requiredApiScope } from "../account";
+import { apiKeyGrant, createApiToken, deleteApiToken, listApiTokens, requiredApiScope } from "../account";
 import {
   addPasskeyOptions, apiTokenScopes, auth, cookieUser, deletePasskey, loginOptions, registerOptions, rcStatus,
   setupOptions, verifyAddedPasskey, verifyLogin, verifyNewUser,
 } from "../auth";
-import { exchangeCliAuthorization, revokeCliToken, startCliAuthorization } from "../cli-auth";
+import { approveCliAuthorization, exchangeCliAuthorization, revokeCliToken, startCliAuthorization } from "../cli-auth";
 import { PUBLIC_URL, VERSION } from "../config";
 import { userWorkspaces } from "../core";
 import {
@@ -15,8 +15,11 @@ import {
 } from "../devices";
 import { HttpError } from "../errors";
 import { createAgentChallenge } from "../gateway";
+import { controlAuthorizationOptions, controlClientStatus, verifyControlAuthorization } from "../control-auth";
+import { authorityHash } from "../authority";
+import { q } from "../db";
 import { checkOrigin, fail, json } from "../http-utils";
-import { getProcess, listProcesses, startProcess } from "../process-api";
+import { allocateProcess, getProcess, listProcesses } from "../process-api";
 import {
   createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceActivity, workspaceDetail,
 } from "../workspaces";
@@ -30,7 +33,7 @@ const WebAuthnVerify = t.Object({ ceremonyId: t.String(), response: t.Unknown() 
 const AgentQuery = t.Object({ device: t.String({ minLength: 1, maxLength: 100 }) });
 const AgentEnroll = t.Object({
   token: t.String(), name: t.Optional(t.String()), hostname: t.Optional(t.String()), platform: t.Optional(t.String()),
-  arch: t.Optional(t.String()), publicKey: t.String(), agentVersion: t.Optional(t.String()),
+  arch: t.Optional(t.String()), publicKey: t.String(), transportPublicKey: t.String(), agentVersion: t.Optional(t.String()),
   capabilities: t.Optional(t.Array(t.String(), { maxItems: 32 })),
 });
 
@@ -40,10 +43,14 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     documentation: {
       info: { title: "RC API", description: "RC HTTP API.", version: VERSION },
       servers: [{ url: PUBLIC_URL }],
-      components: { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "RC API token" } } },
-      security: [{ bearerAuth: [] }],
+      components: { securitySchemes: { rcProof: { type: "apiKey", in: "header", name: "X-RC-Key-ID",
+        description: "RC proof-of-possession signing key. Also send X-RC-Timestamp, X-RC-Nonce, and X-RC-Signature over the canonical request including the SHA-256 body hash." } } },
+      security: [{ rcProof: [] }],
     },
   }))
+  .onRequest(async ({ request }) => {
+    if (request.headers.has("x-rc-key-id")) await apiKeyGrant(request);
+  })
   .derive(async ({ request }) => ({ rcUser: await auth(request) }))
   .onBeforeHandle(async ({ request, set, rcUser }) => {
     set.headers["cache-control"] = "no-store";
@@ -54,7 +61,7 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
         "/api/v1/auth/register/options", "/api/v1/auth/register/verify", "/api/v1/auth/cli/start", "/api/v1/auth/cli/poll"].includes(path);
     if (!publicRoute && !rcUser) return fail("authentication required", 401);
     if (!publicRoute && rcUser) {
-      const scopes = apiTokenScopes(request);
+      const scopes = await apiTokenScopes(request);
       if (scopes) {
         const required = requiredApiScope(request.method, path);
         if (required === "human") return fail("browser session required", 401);
@@ -81,10 +88,16 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .post("/auth/login/verify", ({ body }) => verifyLogin(body.ceremonyId, body.response as AuthenticationResponseJSON), {
     body: WebAuthnVerify, detail: { hide: true },
   })
-  .post("/auth/cli/start", () => startCliAuthorization(), { body: t.Optional(t.Object({})), detail: { hide: true } })
+  .post("/auth/cli/start", ({ body }) => startCliAuthorization(body.clientId, body.signingPublicKey), {
+    body: t.Object({ clientId: t.String(), signingPublicKey: t.String() }), detail: { hide: true },
+  })
   .post("/auth/cli/poll", ({ body }) => exchangeCliAuthorization(body.requestId, body.deviceCode), {
     body: t.Object({ requestId: t.String(), deviceCode: t.String() }), detail: { hide: true },
   })
+  .post("/auth/cli/approve", async ({ request, rcUser, body }) => {
+    const human = await cookieUser(request); if (!human || !rcUser || human.id !== rcUser.id) throw new HttpError(401, "browser session required");
+    approveCliAuthorization(rcUser, body.code); return { ok: true };
+  }, { body: t.Object({ code: t.String() }), detail: { hide: true } })
   .delete("/auth/cli/session", ({ request, rcUser }) => {
     if (!rcUser) throw new HttpError(401, "authentication required");
     const token = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1] || "";
@@ -114,15 +127,27 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .delete("/passkeys/:id", async ({ request, rcUser, params }) => {
     await deletePasskey(request, rcUser!, params.id); return { ok: true };
   }, { params: IdParams, detail: { hide: true } })
+  .post("/control/authorize/options", async ({ request, rcUser, body }) => {
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "browser session required");
+    return controlAuthorizationOptions(rcUser!, body);
+  }, { body: t.Object({ clientId: t.String({ minLength: 1, maxLength: 100 }), signingPublicKey: t.String() }), detail: { hide: true } })
+  .post("/control/authorize/verify", async ({ request, rcUser, body }) => {
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "browser session required");
+    return json(await verifyControlAuthorization(rcUser!, body.authorizationId, body.response as AuthenticationResponseJSON), 201);
+  }, { body: t.Object({ authorizationId: t.String(), response: t.Unknown() }), detail: { hide: true } })
+  .get("/control/clients/:id", async ({ request, rcUser, params }) => {
+    const human = await cookieUser(request); if (!human || human.id !== rcUser!.id) throw new HttpError(401, "browser session required");
+    return controlClientStatus(rcUser!.id, params.id);
+  }, { params: IdParams, detail: { hide: true } })
   .get("/tokens", async ({ request, rcUser }) => {
     if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
     return { tokens: listApiTokens(rcUser!.id) };
   })
   .post("/tokens", async ({ request, rcUser, body }) => {
     if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
-    return json(createApiToken(rcUser!.id, body.name, body.scopes), 201);
+    return json(createApiToken(rcUser!.id, body.name, body.scopes, body.publicKey), 201);
   }, {
-    body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })), scopes: t.Optional(t.Array(t.String(), { maxItems: 4 })) }),
+    body: t.Object({ name: t.Optional(t.String({ maxLength: 80 })), scopes: t.Optional(t.Array(t.String(), { maxItems: 4 })), publicKey: t.String() }),
   })
   .delete("/tokens/:id", async ({ request, rcUser, params }) => {
     if (!await cookieUser(request)) throw new HttpError(401, "browser session required");
@@ -157,6 +182,12 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     params: WorkspaceParams, body: t.Object({ role: t.Optional(t.Union([t.Literal("operator"), t.Literal("viewer")])) }),
   })
   .get("/workspaces/:workspaceId/access", ({ rcUser, params }) => workspaceAccess(rcUser!, params.workspaceId), { params: WorkspaceParams })
+  .get("/workspaces/:workspaceId/authority", ({ rcUser, params }) => {
+    if (!workspaceDetail(rcUser!, params.workspaceId)) throw new HttpError(404, "workspace not found");
+    const value = authorityHash(params.workspaceId);
+    const devices = q<{ lock_hash: string }>("SELECT lock_hash FROM devices WHERE workspace_id=?").all(params.workspaceId);
+    return { hash: value.hash, devices: devices.length, synced: devices.filter(device => device.lock_hash === value.hash).length };
+  }, { params: WorkspaceParams, detail: { hide: true } })
   .patch("/workspaces/:workspaceId/members/:id", ({ rcUser, params, body }) => changeWorkspaceRole(rcUser!, params.workspaceId, params.id, body.role), {
     params: t.Object({ workspaceId: t.String(), id: t.String() }), body: t.Object({ role: t.Union([t.Literal("owner"), t.Literal("operator"), t.Literal("viewer")]) }),
   })
@@ -184,10 +215,10 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .get("/devices/:deviceId/processes", ({ rcUser, params }) => ({ processes: listProcesses(rcUser!.id, params.deviceId) }), {
     params: DeviceParams,
   })
-  .post("/devices/:deviceId/processes", ({ rcUser, params, body }) => json(startProcess(rcUser!.id, {
-    deviceId: params.deviceId, command: body.command, cwd: body.cwd, cols: body.cols || 100, rows: body.rows || 30,
+  .post("/devices/:deviceId/processes", ({ rcUser, params, body }) => json(allocateProcess(rcUser!.id, {
+    deviceId: params.deviceId, cols: body.cols || 80, rows: body.rows || 24,
   }), 201), {
-    params: DeviceParams, body: t.Object({ command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), cols: t.Optional(t.Number({ minimum: 2, maximum: 500 })), rows: t.Optional(t.Number({ minimum: 2, maximum: 500 })) }),
+    params: DeviceParams, body: t.Object({ cols: t.Optional(t.Number({ minimum: 2, maximum: 500 })), rows: t.Optional(t.Number({ minimum: 2, maximum: 500 })) }),
   })
   .get("/processes/:id", ({ rcUser, params }) => ({ process: getProcess(rcUser!.id, params.id) }), { params: IdParams })
   .get("/actions", ({ rcUser }) => ({ actions: listActions(rcUser!) }))

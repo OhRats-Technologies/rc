@@ -23,16 +23,28 @@ func replaceExecutable(serverURL string) error {
 	}
 	base := strings.TrimRight(serverURL, "/") + "/downloads/"
 	manifestBytes, err := downloadSmall(base+"release.json", 64<<10)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	signatureBytes, err := downloadSmall(base+"release.json.sig", 4<<10)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	manifest, err := releaseverify.Verify(manifestBytes, signatureBytes)
-	if err != nil { return fmt.Errorf("release manifest: %w", err) }
+	if err != nil {
+		return fmt.Errorf("release manifest: %w", err)
+	}
 	comparison, err := releaseverify.CompareVersions(manifest.Version, version)
-	if err != nil { return err }
-	if comparison < 0 { return fmt.Errorf("refusing signed downgrade from %s to %s", version, manifest.Version) }
+	if err != nil {
+		return err
+	}
+	if comparison < 0 {
+		return fmt.Errorf("refusing signed downgrade from %s to %s", version, manifest.Version)
+	}
 	artifact, ok := releaseverify.ArtifactFor(manifest, runtime.GOOS, runtime.GOARCH)
-	if !ok { return fmt.Errorf("release does not contain %s/%s", runtime.GOOS, runtime.GOARCH) }
+	if !ok {
+		return fmt.Errorf("release does not contain %s/%s", runtime.GOOS, runtime.GOARCH)
+	}
 	resp, err := http.Get(base + artifact.Name)
 	if err != nil {
 		return err
@@ -53,7 +65,10 @@ func replaceExecutable(serverURL string) error {
 		temp.Close()
 		return err
 	}
-	if written == 100<<20 { temp.Close(); return fmt.Errorf("downloaded file is too large") }
+	if written == 100<<20 {
+		temp.Close()
+		return fmt.Errorf("downloaded file is too large")
+	}
 	if err = temp.Close(); err != nil {
 		return err
 	}
@@ -72,12 +87,20 @@ func replaceExecutable(serverURL string) error {
 
 func downloadSmall(url string, limit int64) ([]byte, error) {
 	resp, err := http.Get(url)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("download %s: %s", filepath.Base(url), resp.Status) }
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("download %s: %s", filepath.Base(url), resp.Status)
+	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil { return nil, err }
-	if int64(len(data)) > limit { return nil, fmt.Errorf("download %s is too large", filepath.Base(url)) }
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > limit {
+		return nil, fmt.Errorf("download %s is too large", filepath.Base(url))
+	}
 	return data, nil
 }
 

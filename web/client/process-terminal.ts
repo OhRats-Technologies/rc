@@ -2,30 +2,32 @@ import "@xterm/xterm/css/xterm.css";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { api, qs } from "./http";
-import { fire, onEvent, request } from "./socket";
+import { onEvent } from "./socket";
+import { openControlSession, type ControlSession } from "./control-session";
 import type { RemoteProcess } from "../types";
 
 const page = qs<HTMLElement>("[data-process-page]"), processId = page.dataset.processPage || "";
 const transcript = qs<HTMLElement>("#process-transcript"), source = qs<HTMLElement>("#process-terminal-source"), host = qs<HTMLElement>("#terminal-host");
-const live = page.dataset.processLive === "true", interactive = page.dataset.processInteractive === "true";
+const live = page.dataset.processLive === "true", interactive = page.dataset.processInteractive === "true", encrypted = page.dataset.processEncrypted === "true";
 const encoded = source.textContent || "", bytes = Uint8Array.from(atob(encoded), value => value.charCodeAt(0)), initialOutput = new TextDecoder().decode(bytes);
 const style = getComputedStyle(document.documentElement), color = (name: string) => style.getPropertyValue(name).trim();
 const terminal = new Terminal({ cursorBlink: interactive && page.dataset.processStatus === "running", disableStdin: !interactive, scrollback: 10_000,
   theme: { background: color("--or-bg"), foreground: color("--or-text"), cursor: color("--or-text"), selectionBackground: color("--or-surface-hover") } });
 const fit = new FitAddon(); terminal.loadAddon(fit); host.hidden = false; transcript.hidden = true; terminal.open(host); terminal.write(initialOutput);
 let status = page.dataset.processStatus || "", revision = Number(page.dataset.processRevision || 0), frame = 0;
+let control: ControlSession | null = null, controlGeneration = 0;
 let ctrlNext = false, altNext = false;
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
 fitTerminal(); const observer = new ResizeObserver(fitTerminal); observer.observe(host);
 
-function sendInput(data: string) { if (status === "running" && data) fire({ type: "process.input", processId, data }); }
+function sendInput(data: string) { if (status === "running" && data) void control?.send({ type: "process.input", id: processId, input: data }); }
 if (interactive) terminal.onData(data => {
   if (ctrlNext && data.length === 1) { const code = data.toUpperCase().charCodeAt(0); if (code >= 64 && code <= 95) data = String.fromCharCode(code - 64); ctrlNext = false; }
   if (altNext) { data = `\x1b${data}`; altNext = false; }
   document.querySelectorAll("[data-terminal-key='CTRL'],[data-terminal-key='ALT']").forEach(button => button.classList.remove("active"));
   sendInput(data);
 });
-if (interactive) terminal.onResize(size => { if (status === "running") fire({ type: "process.resize", processId, cols: size.cols, rows: size.rows }); });
+if (interactive) terminal.onResize(size => { if (status === "running") void control?.send({ type: "process.resize", id: processId, cols: size.cols, rows: size.rows }); });
 if (interactive) terminal.focus();
 
 function stateText(process: RemoteProcess) {
@@ -43,7 +45,7 @@ async function resync() {
 }
 
 if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-signal]").forEach(button => button.addEventListener("click", async () => {
-  try { await request({ type: "process.signal", processId, signal: button.dataset.signal as "INT" | "TERM" | "KILL" }); }
+  try { await control?.send({ type: "process.signal", id: processId, signal: button.dataset.signal as "INT" | "TERM" | "KILL" }); }
   catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
 }));
 
@@ -55,8 +57,34 @@ if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-terminal-ke
   sendInput(keyValues[key] || ""); terminal.focus();
 }));
 
+async function connectEncrypted() {
+  if (!live || !interactive || !encrypted) return;
+  const generation = ++controlGeneration; control?.close(); control = null;
+  try {
+    const next = await openControlSession(page.dataset.deviceId || "");
+    if (generation !== controlGeneration) { next.close(); return; }
+    control = next;
+    next.onMessage(message => {
+      if (String(message.id || "") !== processId && !["control.result"].includes(message.type)) return;
+      if (message.type === "process.output" && message.output) terminal.write(String(message.output));
+      if (message.type === "process.started") { status = "running"; qs<HTMLElement>("#process-state").textContent = "RUNNING"; }
+      if (message.type === "process.exit") {
+        status = "exited"; const signal = String(message.signal || ""), exitCode = Number(message.exitCode ?? -1);
+        qs<HTMLElement>("#process-state").textContent = signal || `EXIT ${exitCode}`;
+        const actions = document.querySelector<HTMLElement>("#terminal-actions"); if (actions) actions.hidden = true;
+      }
+    });
+    const key = `rc_process_start_${processId}`, raw = sessionStorage.getItem(key);
+    if (raw) {
+      sessionStorage.removeItem(key); const start = JSON.parse(raw) as { command: string; cwd: string; cols: number; rows: number };
+      await next.send({ type: "process.start", id: processId, command: start.command, cwd: start.cwd, cols: start.cols, rows: start.rows });
+    } else await next.send({ type: "process.attach", id: processId });
+  } catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
+}
+
 if (live) onEvent(event => {
-  if (event.kind === "rc.connected") { void resync(); return; }
+  if (event.kind === "rc.connected") { if (encrypted) void connectEncrypted(); else void resync(); return; }
+  if (encrypted) return;
   if (event.processId !== processId) return;
   if (event.kind === "process.output" && event.detail?.chunk) {
     const next = Number(event.detail.revision || 0);
@@ -67,4 +95,6 @@ if (live) onEvent(event => {
   if (["process.started", "process.exited", "process.lost"].includes(event.kind)) void resync();
 });
 
-addEventListener("pagehide", () => { observer.disconnect(); cancelAnimationFrame(frame); terminal.dispose(); }, { once: true });
+if (encrypted) void connectEncrypted();
+
+addEventListener("pagehide", () => { controlGeneration++; control?.close(); observer.disconnect(); cancelAnimationFrame(frame); terminal.dispose(); }, { once: true });

@@ -8,6 +8,8 @@ const buckets = new Map<string, Bucket>();
 function requestKey(request: Request) {
   const bearer = request.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
   if (bearer) return `bearer:${sha(bearer)}`;
+  const apiKey = request.headers.get("x-rc-key-id");
+  if (apiKey) return `api-key:${apiKey}`;
   const device = request.headers.get("x-rc-device");
   if (device) return `device:${device}`;
   const session = request.headers.get("cookie")?.match(/(?:^|;\s*)rc_session=([^;]+)/)?.[1];

@@ -15,9 +15,14 @@ import (
 )
 
 type managedProcess struct {
-	cmd      *exec.Cmd
-	terminal *os.File
-	lifeline *os.File
+	cmd          *exec.Cmd
+	terminal     *os.File
+	lifeline     *os.File
+	sessionID    string
+	userID       string
+	secure       bool
+	backlog      []wireMessage
+	backlogBytes int
 }
 
 type processManager struct {
@@ -27,6 +32,7 @@ type processManager struct {
 	pending      []wireMessage
 	pendingBytes int
 	graceTimer   *time.Timer
+	secureSend   func(string, wireMessage) bool
 }
 
 const reconnectGrace = 45 * time.Second
@@ -105,7 +111,7 @@ func (manager *processManager) detach() {
 func (manager *processManager) handle(message wireMessage) {
 	switch message.Type {
 	case "process.start":
-		manager.start(message)
+		manager.start(message, "", "")
 	case "process.input":
 		manager.input(message.ID, message.Input)
 	case "process.resize":
@@ -125,7 +131,7 @@ func terminalSize(cols, rows int) *pty.Winsize {
 	return &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)}
 }
 
-func (manager *processManager) start(message wireMessage) {
+func (manager *processManager) start(message wireMessage, sessionID, userID string) {
 	if message.ID == "" || strings.TrimSpace(message.Command) == "" {
 		return
 	}
@@ -152,15 +158,16 @@ func (manager *processManager) start(message wireMessage) {
 	if err != nil {
 		_ = writeEnd.Close()
 		manager.mu.Unlock()
-		manager.sendMessage(wireMessage{Type: "process.output", ID: message.ID, Output: fmt.Sprintf("process start failed: %v\r\n", err)})
+		failed := &managedProcess{sessionID: sessionID, userID: userID, secure: sessionID != ""}
+		manager.emit(failed, wireMessage{Type: "process.output", ID: message.ID, Output: fmt.Sprintf("process start failed: %v\r\n", err)})
 		code := -1
-		manager.sendMessage(wireMessage{Type: "process.exit", ID: message.ID, ExitCode: &code})
+		manager.emit(failed, wireMessage{Type: "process.exit", ID: message.ID, ExitCode: &code})
 		return
 	}
-	managed := &managedProcess{cmd: cmd, terminal: terminal, lifeline: writeEnd}
+	managed := &managedProcess{cmd: cmd, terminal: terminal, lifeline: writeEnd, sessionID: sessionID, userID: userID, secure: sessionID != ""}
 	manager.processes[message.ID] = managed
 	manager.mu.Unlock()
-	manager.sendMessage(wireMessage{Type: "process.started", ID: message.ID})
+	manager.emit(managed, wireMessage{Type: "process.started", ID: message.ID})
 	go manager.capture(message.ID, managed)
 	go manager.wait(message.ID, managed)
 }
@@ -170,7 +177,7 @@ func (manager *processManager) capture(id string, managed *managedProcess) {
 	for {
 		n, err := managed.terminal.Read(buffer)
 		if n > 0 {
-			manager.sendMessage(wireMessage{Type: "process.output", ID: id, Output: string(buffer[:n])})
+			manager.emit(managed, wireMessage{Type: "process.output", ID: id, Output: string(buffer[:n])})
 		}
 		if err != nil {
 			return
@@ -196,7 +203,7 @@ func (manager *processManager) wait(id string, managed *managedProcess) {
 	manager.mu.Unlock()
 	_ = managed.lifeline.Close()
 	_ = managed.terminal.Close()
-	manager.sendMessage(wireMessage{Type: "process.exit", ID: id, ExitCode: &code, Signal: signal})
+	manager.emit(managed, wireMessage{Type: "process.exit", ID: id, ExitCode: &code, Signal: signal})
 }
 
 func (manager *processManager) input(id, value string) {

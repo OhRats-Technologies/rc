@@ -9,13 +9,14 @@ export type DeviceView = {
   id: string; workspace_id: string; name: string; hostname: string; platform: string; arch: string;
   agent_version: string; capabilities: string[]; last_seen: number | null; created_at: number;
   workspace_name: string; online: boolean; active_processes: number; role?: "owner" | "operator" | "viewer";
+  identity_public_key?: string; transport_public_key?: string;
 };
 
 type DeviceRow = Omit<DeviceView, "capabilities" | "online"> & { capabilities: string };
 
 export type AgentEnrollInput = {
   token: string; name?: string; hostname?: string; platform?: string; arch?: string; publicKey: string;
-  agentVersion?: string; capabilities?: string[];
+  transportPublicKey?: string; agentVersion?: string; capabilities?: string[];
 };
 
 export function nodeUpdateAvailable(agent: string, rc: string) {
@@ -37,14 +38,16 @@ export function enrollAgent(input: AgentEnrollInput) {
   if (deviceCount >= MAX_DEVICES_PER_WORKSPACE) throw new HttpError(409, `device limit reached (${MAX_DEVICES_PER_WORKSPACE})`);
   const publicKey = input.publicKey;
   if (!publicKey.includes("BEGIN PUBLIC KEY")) throw new HttpError(400, "invalid public key");
+  const transportPublicKey = String(input.transportPublicKey || "");
+  if (!/^[A-Za-z0-9_-]{43}$/.test(transportPublicKey)) throw new HttpError(400, "invalid transport public key");
   if (q("SELECT id FROM devices WHERE public_key=?").get(publicKey)) throw new HttpError(409, "device key already enrolled");
   const deviceId = id(), t = now();
   db.transaction(() => {
-    q(`INSERT INTO devices(id,workspace_id,name,hostname,platform,arch,public_key,agent_version,capabilities,last_seen,created_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(
+    q(`INSERT INTO devices(id,workspace_id,name,hostname,platform,arch,public_key,transport_public_key,agent_version,capabilities,last_seen,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(
       deviceId, enrollment.workspace_id, String(input.name || input.hostname || "Device").slice(0, 120),
       String(input.hostname || "unknown").slice(0, 255), String(input.platform || "unknown").slice(0, 40),
-      String(input.arch || "unknown").slice(0, 40), publicKey, String(input.agentVersion || "unknown").slice(0, 40),
+      String(input.arch || "unknown").slice(0, 40), publicKey, transportPublicKey, String(input.agentVersion || "unknown").slice(0, 40),
       JSON.stringify(input.capabilities || []), t, t,
     );
     q("UPDATE enrollment_tokens SET used_at=? WHERE id=?").run(t, enrollment.id);
@@ -77,11 +80,12 @@ export function listDevices(user: User): DeviceView[] {
 }
 
 export function getDevice(user: User, deviceId: string): DeviceView | null {
-  const device = q<DeviceRow>(`SELECT d.id,d.workspace_id,d.name,d.hostname,d.platform,d.arch,d.agent_version,d.capabilities,
+  const device = q<DeviceRow & { public_key: string; transport_public_key: string }>(`SELECT d.id,d.workspace_id,d.name,d.hostname,d.platform,d.arch,d.agent_version,d.capabilities,d.public_key,d.transport_public_key,
     d.last_seen,d.created_at,w.name workspace_name,wm.role,(SELECT count(*) FROM processes p WHERE p.device_id=d.id AND p.status IN ('starting','running')) active_processes
     FROM devices d JOIN workspaces w ON w.id=d.workspace_id
     JOIN workspace_members wm ON wm.workspace_id=d.workspace_id WHERE d.id=? AND wm.user_id=?`).get(deviceId, user.id);
-  return device ? { ...device, online: isOnline(deviceId), capabilities: JSON.parse(device.capabilities || "[]") as string[] } : null;
+  return device ? { ...device, identity_public_key: device.public_key, transport_public_key: device.transport_public_key,
+    online: isOnline(deviceId), capabilities: JSON.parse(device.capabilities || "[]") as string[] } : null;
 }
 
 export function removeDevice(user: User, deviceId: string) {

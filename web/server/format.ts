@@ -24,7 +24,10 @@ export function processState(process: { status: string; signal?: string | null; 
 }
 
 export const LOGIN_SHELL_COMMAND = 'exec "${SHELL:-sh}" -l';
-export function processLabel(command: string) { return command === LOGIN_SHELL_COMMAND ? "Terminal" : command; }
+export function processLabel(command: string) {
+  if (command === "[encrypted]") return "Encrypted terminal";
+  return command === LOGIN_SHELL_COMMAND ? "Terminal" : command;
+}
 
 export function terminalFallback(value: string) {
   return String(value || "")

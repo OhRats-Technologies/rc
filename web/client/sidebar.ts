@@ -1,5 +1,6 @@
 import { onEvent, request } from "./socket";
 import { api } from "./http";
+import { openControlSession } from "./control-session";
 
 const root = document.documentElement;
 function setSidebar(next: "open" | "closed") {
@@ -156,7 +157,13 @@ deleteDialog?.addEventListener("close", () => { deleteEndpoint = ""; deleteRedir
 deleteConfirm?.addEventListener("click", async () => {
   if (!deleteEndpoint || !deleteConfirm) return;
   deleteConfirm.disabled = true; deleteConfirm.textContent = "Deleting…";
-  try { await api(deleteEndpoint, { method: deleteMethod, headers: { accept: "application/json" } }); location.href = deleteRedirect; }
+  try {
+    if (deleteMethod === "DELETE" && deleteEndpoint.startsWith("/api/v1/devices/")) {
+      const deviceId = deleteEndpoint.split("/").at(-1) || "", control = await openControlSession(deviceId);
+      try { await control.request({ type: "node.remove" }); } finally { control.close(); }
+    }
+    await api(deleteEndpoint, { method: deleteMethod, headers: { accept: "application/json" } }); location.href = deleteRedirect;
+  }
   catch (error) {
     if (deleteError) deleteError.textContent = error instanceof Error ? error.message : String(error);
     deleteConfirm.disabled = false; deleteConfirm.textContent = "Delete";
@@ -174,7 +181,11 @@ function resetUpdate(button: HTMLButtonElement, message = "") {
 
 document.querySelectorAll<HTMLButtonElement>("[data-sidebar-device-update]").forEach(button => button.addEventListener("click", async () => {
   const deviceId = button.dataset.sidebarDeviceUpdate || ""; button.dataset.updating = "true"; button.disabled = true; button.textContent = "Updating node…"; button.title = "";
-  try { await request({ type: "node.update", deviceId }); button.textContent = "Restarting node…"; }
+  try {
+    const control = await openControlSession(deviceId);
+    try { await control.request({ type: "node.update" }); } finally { control.close(); }
+    button.textContent = "Restarting node…";
+  }
   catch (error) { resetUpdate(button, error instanceof Error ? error.message : String(error)); }
 }));
 
@@ -208,6 +219,9 @@ onEvent(event => {
   }
   if (event.kind === "node.update.complete") {
     document.querySelectorAll<HTMLButtonElement>(`[data-sidebar-device-update="${CSS.escape(event.deviceId)}"]`).forEach(button => button.remove());
+  }
+  if (event.kind === "device.updated") {
+    document.querySelectorAll<HTMLButtonElement>(`[data-sidebar-device-update="${CSS.escape(event.deviceId)}"][data-updating]`).forEach(button => button.remove());
   }
   if (event.kind === "node.update.error") {
     const message = String(event.detail?.error || "Update failed.");

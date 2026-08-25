@@ -97,17 +97,25 @@ func CompareVersions(left, right string) (int, error) {
 	for i := 1; i <= 3; i++ {
 		lv, _ := strconv.Atoi(l[i])
 		rv, _ := strconv.Atoi(r[i])
-		if lv < rv { return -1, nil }
-		if lv > rv { return 1, nil }
+		if lv < rv {
+			return -1, nil
+		}
+		if lv > rv {
+			return 1, nil
+		}
 	}
 	return 0, nil
 }
 
 func FileSHA256(path string) (string, error) {
 	file, err := os.Open(path)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	defer file.Close()
 	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil { return "", err }
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }

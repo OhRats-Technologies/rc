@@ -33,11 +33,8 @@ func resolveAccountDevice(server, token, value string) (accountDevice, error) {
 	return accountDevice{}, fmt.Errorf("device %q is ambiguous", value)
 }
 
-func startAccountProcess(server, token, deviceID, command, cwd string) (string, error) {
-	body := map[string]any{"command": command, "cols": 80, "rows": 24}
-	if cwd != "" {
-		body["cwd"] = cwd
-	}
+func startAccountProcess(server, token, deviceID string, cols, rows int) (string, error) {
+	body := map[string]any{"cols": cols, "rows": rows}
 	resp, err := accountJSONRequest(server, token, http.MethodPost, "/api/v1/devices/"+url.PathEscape(deviceID)+"/processes", body)
 	if err != nil {
 		return "", err
@@ -119,12 +116,21 @@ func remoteRunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	processID, err := startAccountProcess(*server, *token, device.ID, strings.Join(args[separator+1:], " "), "")
+	processID, err := startAccountProcess(*server, *token, device.ID, 80, 24)
 	if err != nil {
 		return err
 	}
+	control, err := openRemoteControl(*server, *token, device)
+	if err != nil {
+		return err
+	}
+	defer control.close()
+	if err := control.send(wireMessage{Type: "process.start", ID: processID,
+		Command: strings.Join(args[separator+1:], " "), Cols: 80, Rows: 24}); err != nil {
+		return err
+	}
 	fmt.Fprintf(os.Stderr, "Started %s on %s\n", processID, device.Name)
-	return followAccountProcess(*server, *token, processID)
+	return waitForProcess(control, processID)
 }
 
 func listAccountActions(server, token string) ([]accountAction, error) {
@@ -247,5 +253,14 @@ func actionCommand(args []string) error {
 	if out.Results[0].Error != "" {
 		return errors.New(out.Results[0].Error)
 	}
-	return followAccountProcess(server, token, out.Results[0].ProcessID)
+	control, err := openRemoteControl(server, token, device)
+	if err != nil {
+		return err
+	}
+	defer control.close()
+	if err := control.send(wireMessage{Type: "process.start", ID: out.Results[0].ProcessID,
+		Command: action.Command, Cwd: action.Cwd, Cols: 80, Rows: 24}); err != nil {
+		return err
+	}
+	return waitForProcess(control, out.Results[0].ProcessID)
 }

@@ -3,32 +3,35 @@
 - [x] Fresh product repository
 - [x] Keep the domain model to users, workspaces, devices, and processes
 - [x] Persistent SQLite state
-- [x] Passkey authentication plus scoped automation API keys
+- [x] Passkey authentication plus proof-of-possession scoped automation API keys
 - [x] Workspace membership and invite links
 - [x] Signed device identity and workspace enrollment tokens
 - [x] Agent heartbeat, reconnect, and capability advertisement
-- [x] Personal API tokens
+- [x] Client-generated Ed25519 API signing keys with replay-resistant request signatures
 - [x] OhRats sidebar/page UI
 - [x] Downloadable Linux/macOS RC Nodes
 - [x] Persistent Coolify deployment
-- [x] One authenticated browser WebSocket for live state and PTY control
-- [x] PTY-backed process handles with stdin, resize, signals, retained transcript, and exit/lost state
+- [x] One authenticated browser WebSocket for live state plus opaque encrypted PTY relay
+- [x] PTY-backed process handles with E2E stdin/output/resize/signals and metadata-only hosted history
 - [x] Dedicated process list and PTY routes
 - [x] Kill active process trees when the RC Node stops, crashes, or updates
 - [x] Never replay an ambiguous process start
 - [x] Half-open node heartbeat expiry
 - [x] `ohrats-rc` help/run/enroll/status/update/config/uninstall lifecycle
-- [x] Account CLI device listing/removal with API tokens
+- [x] Account CLI device listing/removal with human sessions or PoP API signing keys
 - [x] Node state/config under `~/.config/ohrats-rc`
 - [x] Installer exits after install/enrollment
 - [x] Remote RC Node updates from the web UI
 - [x] Replay-resistant one-time challenge authentication for RC Nodes
 - [x] Signed release manifest + SHA-256 verification + downgrade protection for RC Node updates
 - [x] Application rate limits, security headers, quotas, shorter credential lifetimes, and non-root runtime
-- [x] Device removal from web, API, and CLI with remote node cleanup
+- [x] 30-day passkey-authorized browser/CLI control identities with fresh per-connection X25519 keys
+- [x] Node-local RC Lock authority with Owner-signed mutation and Node-reported synchronization hash
+- [x] Encrypted Node-authorized update/removal with locked-state preservation on server-side deletion
+- [x] Device removal from web, API, and CLI with owner-authorized remote node cleanup
 - [x] Immutable fingerprinted frontend assets
 - [x] Bun-native HTML/TypeScript/CSS production build with no custom asset pipeline
 - [x] Persistent SPA sidebar navigation with no page-remount blink
 - [x] Flat responsive device/process UI without panel stacking
-- [x] First-class API token management route
+- [x] First-class API signing-key management route
 - [x] Keep maintained source files under 300 LOC

@@ -12,29 +12,45 @@ func releaseFiles(t *testing.T) ([]byte, []byte) {
 	_, file, _, _ := runtime.Caller(0)
 	releaseDir := filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "release"))
 	manifest, err := os.ReadFile(filepath.Join(releaseDir, "manifest.json"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	signature, err := os.ReadFile(filepath.Join(releaseDir, "manifest.sig"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	return manifest, signature
 }
 
 func TestCommittedReleaseSignature(t *testing.T) {
 	manifestBytes, signatureBytes := releaseFiles(t)
 	manifest, err := Verify(manifestBytes, signatureBytes)
-	if err != nil { t.Fatal(err) }
-	if manifest.Version != "0.7.0" { t.Fatalf("unexpected version %s", manifest.Version) }
-	if len(manifest.Artifacts) != 4 { t.Fatalf("unexpected artifact count %d", len(manifest.Artifacts)) }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Version != "0.8.0" {
+		t.Fatalf("unexpected version %s", manifest.Version)
+	}
+	if len(manifest.Artifacts) != 4 {
+		t.Fatalf("unexpected artifact count %d", len(manifest.Artifacts))
+	}
 }
 
 func TestTamperedManifestRejected(t *testing.T) {
 	manifestBytes, signatureBytes := releaseFiles(t)
 	manifestBytes = append([]byte(nil), manifestBytes...)
 	manifestBytes[len(manifestBytes)-2] ^= 1
-	if _, err := Verify(manifestBytes, signatureBytes); err == nil { t.Fatal("tampered manifest was accepted") }
+	if _, err := Verify(manifestBytes, signatureBytes); err == nil {
+		t.Fatal("tampered manifest was accepted")
+	}
 }
 
 func TestVersionComparisonRejectsRollback(t *testing.T) {
-	comparison, err := CompareVersions("0.6.9", "0.7.0")
-	if err != nil { t.Fatal(err) }
-	if comparison >= 0 { t.Fatal("older release did not compare lower") }
+	comparison, err := CompareVersions("0.7.9", "0.8.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if comparison >= 0 {
+		t.Fatal("older release did not compare lower")
+	}
 }

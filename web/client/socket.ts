@@ -2,9 +2,11 @@ import type { BrowserCommand } from "../../src/protocol";
 import type { RCEvent } from "../types";
 
 type Listener = (event: RCEvent) => void;
+type ControlFrame = { sessionId: string; sequence: number; ciphertext: string };
+type FrameListener = (frame: ControlFrame) => void;
 type Pending = { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: number };
 let socket: WebSocket | null = null, ready = false, closed = false, reconnectTimer = 0, heartbeat = 0;
-const listeners = new Set<Listener>(), pending = new Map<string, Pending>(), waiters = new Set<() => void>();
+const listeners = new Set<Listener>(), frameListeners = new Set<FrameListener>(), pending = new Map<string, Pending>(), waiters = new Set<() => void>();
 type WithoutRequestId<T> = T extends unknown ? Omit<T, "requestId"> : never;
 type RequestCommand = WithoutRequestId<Exclude<BrowserCommand, { type: "ping" }>>;
 
@@ -20,6 +22,9 @@ function connect() {
       for (const waiter of waiters) waiter(); waiters.clear(); emit({ kind: "rc.connected" }); return;
     }
     if (value.type === "event") { emit(value.event as RCEvent); return; }
+    if (value.type === "control.frame") {
+      const frame = value as unknown as ControlFrame; for (const listener of frameListeners) listener(frame); return;
+    }
     if (value.type !== "response") return;
     const requestId = String(value.requestId || ""), request = pending.get(requestId); if (!request) return;
     clearTimeout(request.timer); pending.delete(requestId);
@@ -54,6 +59,7 @@ export async function request<T>(message: RequestCommand): Promise<T> {
 
 export function fire(message: BrowserCommand) { connect(); return send(message); }
 export function onEvent(listener: Listener) { connect(); listeners.add(listener); return () => listeners.delete(listener); }
+export function onControlFrame(listener: FrameListener) { connect(); frameListeners.add(listener); return () => frameListeners.delete(listener); }
 
 addEventListener("pagehide", () => {
   closed = true; clearTimeout(reconnectTimer); clearInterval(heartbeat); socket?.close();
