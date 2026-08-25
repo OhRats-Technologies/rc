@@ -34,7 +34,7 @@ export function devicesPage(user: User, workspaces: WorkspaceView[], devices: De
     </div> });
 }
 
-export function devicePage(user: User, workspaces: WorkspaceView[], device: DeviceView, processes: RemoteProcess[], rcVersion: string, sidebar: "open" | "closed") {
+export function devicePage(user: User, workspaces: WorkspaceView[], device: DeviceView, processes: RemoteProcess[], sidebar: "open" | "closed") {
   const supportsProcess = device.capabilities.includes("process");
   const canOperate = device.role === "owner" || device.role === "operator";
   return htmlDocument({ title: device.name, user, workspaces, path: `/devices/${device.id}`, sidebar, scripts: ["live", "device"], body:
@@ -42,20 +42,15 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
       <section className="device-overview">
         <header className="page-header device-header">
           <div><p className="eyebrow">DEVICE</p><h1>{device.name}</h1><p className="meta">{device.workspace_name} · {device.platform.toUpperCase()}/{device.arch}</p></div>
-          <span id="device-status" className={`status${device.online ? " online" : ""}`}>{device.online ? "ONLINE" : `LAST SEEN ${relative(device.last_seen)}`}</span>
+          <div className="device-header-actions"><span id="device-status" className={`status${device.online ? " online" : ""}`}>{device.online ? "ONLINE" : `LAST SEEN ${relative(device.last_seen)}`}</span>
+            {canOperate && <button id="open-terminal" className="device-terminal-button" type="button" aria-label="Open terminal" title="Open terminal" disabled={!device.online || !supportsProcess}><span className="ui-icon icon-terminal" aria-hidden="true"/></button>}
+          </div>
         </header>
         <dl className="facts">
-          <div><dt>HOST</dt><dd>{device.hostname}</dd></div><div><dt>NODE</dt><dd id="node-agent">{device.agent_version}</dd></div>
-          <div><dt>RC</dt><dd>{rcVersion}</dd></div>
+          <div><dt>HOST</dt><dd>{device.hostname}</dd></div><div><dt>NODE VERSION</dt><dd id="node-agent">{device.agent_version}</dd></div>
         </dl>
-      </section>
-      <section className="content-section process-launch-section">
-        <div className="section-heading"><div><SectionBadge index="01">Terminal</SectionBadge><h2>Remote shell</h2></div></div>
-        {canOperate && <><button id="open-terminal" className="or-button" type="button" disabled={!device.online || !supportsProcess}>OPEN TERMINAL</button>
-          <details className="advanced-launch"><summary>Advanced command</summary><form id="process-launch" className="process-form"><label>Working directory<input id="process-cwd" name="cwd" spellCheck={false} placeholder="~"/></label><label>Command<input id="process-command" name="command" spellCheck={false} defaultValue="sh" required/></label><button className="or-button" type="submit" disabled={!device.online || !supportsProcess}>START</button></form></details></>}
-        {!canOperate && <p className="empty-state">Viewers can inspect this device but cannot start processes.</p>}
         <p id="process-error" className="error">{supportsProcess ? "" : <>This RC Node is too old for terminals. Run <code>ohrats-rc update</code> on the device.</>}</p>
       </section>
-      <section className="content-section"><div className="section-heading"><div><SectionBadge index="02">Processes</SectionBadge><h2>History</h2></div></div>{device.role === "viewer" ? <p className="empty-state">Process history is available to operators and owners.</p> : <ProcessRows deviceId={device.id} processes={processes}/>}</section>
+      <section className="content-section"><div className="section-heading"><div><SectionBadge index="01">Processes</SectionBadge><h2>History</h2></div></div>{device.role === "viewer" ? <p className="empty-state">Process history is available to operators and owners.</p> : <ProcessRows deviceId={device.id} processes={processes}/>}</section>
     </div> });
 }

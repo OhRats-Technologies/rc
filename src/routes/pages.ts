@@ -3,7 +3,7 @@ import { getAction, listActions } from "../actions";
 import { listApiTokens } from "../account";
 import { listPasskeys, rcStatus } from "../auth";
 import { cliAuthorizationPreview } from "../cli-auth";
-import { PUBLIC_URL, SETUP_TOKEN, VERSION } from "../config";
+import { PUBLIC_URL, SETUP_TOKEN } from "../config";
 import { sha } from "../db";
 import { getDevice, listDevices } from "../devices";
 import { HttpError } from "../errors";
@@ -62,7 +62,7 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
   .get("/devices/:deviceId", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
     const device = getDevice(context.user, params.deviceId); if (!device) return notFoundPage(context.user, context.workspaces, context.sidebar);
-    return devicePage(context.user, context.workspaces, device, device.role === "viewer" ? [] : listProcesses(context.user.id, device.id), VERSION, context.sidebar);
+    return devicePage(context.user, context.workspaces, device, device.role === "viewer" ? [] : listProcesses(context.user.id, device.id), context.sidebar);
   })
   .get("/devices/:deviceId/processes/:processId", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();

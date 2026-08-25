@@ -25,3 +25,14 @@ export function processState(process: { status: string; signal?: string | null; 
 
 export const LOGIN_SHELL_COMMAND = 'exec "${SHELL:-sh}" -l';
 export function processLabel(command: string) { return command === LOGIN_SHELL_COMMAND ? "Terminal" : command; }
+
+export function terminalFallback(value: string) {
+  return String(value || "")
+    .replace(/\x1B\][\s\S]*?(?:\x07|\x1B\\)/g, "")
+    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/\x1B[()][0-2A-Z0-9]/g, "")
+    .replace(/\x1B[=>]/g, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+}

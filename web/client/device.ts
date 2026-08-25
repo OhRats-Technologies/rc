@@ -13,10 +13,3 @@ document.querySelector<HTMLButtonElement>("#open-terminal")?.addEventListener("c
   try { await start('exec "${SHELL:-sh}" -l'); }
   catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
 });
-
-document.querySelector<HTMLFormElement>("#process-launch")?.addEventListener("submit", async event => {
-  event.preventDefault(); const form = event.currentTarget as HTMLFormElement;
-  const command = qs<HTMLInputElement>("#process-command").value.trim(), cwd = qs<HTMLInputElement>("#process-cwd").value.trim();
-  try { await start(command, cwd); }
-  catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
-});

@@ -30,9 +30,8 @@ function setPresence(deviceId: string, online: boolean) {
     const status = page.querySelector<HTMLElement>("#device-status");
     if (status) { status.classList.toggle("online", online); status.textContent = online ? "ONLINE" : "OFFLINE"; }
     const supportsProcess = page.dataset.supportsProcess === "true";
-    const terminal = page.querySelector<HTMLButtonElement>("#open-terminal"), start = page.querySelector<HTMLButtonElement>("#process-launch button[type=submit]");
+    const terminal = page.querySelector<HTMLButtonElement>("#open-terminal");
     if (terminal) terminal.disabled = !online || !supportsProcess;
-    if (start) start.disabled = !online || !supportsProcess;
     if (online) void refreshDevice(deviceId);
   }
 }
@@ -42,9 +41,8 @@ async function refreshDevice(deviceId: string) {
   const { device } = await api<{ device: Device }>(`/api/v1/devices/${deviceId}`);
   page.querySelector<HTMLElement>("#node-agent")!.textContent = device.agent_version;
   const supportsProcess = device.capabilities.includes("process"); page.dataset.supportsProcess = String(supportsProcess);
-  const terminal = page.querySelector<HTMLButtonElement>("#open-terminal"), start = page.querySelector<HTMLButtonElement>("#process-launch button[type=submit]");
+  const terminal = page.querySelector<HTMLButtonElement>("#open-terminal");
   if (terminal) terminal.disabled = !device.online || !supportsProcess;
-  if (start) start.disabled = !device.online || !supportsProcess;
   const processError = page.querySelector<HTMLElement>("#process-error"); if (processError && supportsProcess) processError.textContent = "";
 }
 
