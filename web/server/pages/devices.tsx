@@ -45,13 +45,14 @@ export function devicesPage(user: User, workspaces: WorkspaceView[], devices: De
 export function devicePage(user: User, workspaces: WorkspaceView[], device: DeviceView, processes: RemoteProcess[], sidebar: "open" | "closed") {
   const supportsProcess = device.capabilities.includes("process");
   const canOperate = device.role === "owner" || device.role === "operator";
+  const canManage = device.role === "owner";
   return htmlDocument({ title: device.name, user, workspaces, path: `/devices/${device.id}`, sidebar, scripts: ["live", "device"], body:
     <div className="page" data-device-page={device.id} data-supports-process={supportsProcess ? "true" : "false"}>
       <section className="device-overview">
         <header className="page-header device-header">
-          <div><p className="eyebrow">DEVICE</p><h1>{device.name}</h1><p className="meta">{device.workspace_name} · {device.platform.toUpperCase()}/{device.arch}</p></div>
+          <div><p className="eyebrow">DEVICE</p><div className="page-title-row device-title-row"><span className={`ui-icon device-platform-icon device-title-platform ${platformIcon(device.platform)}`} aria-hidden="true"/><h1 data-device-title-view>{device.name}</h1>{canManage && <form method="post" action={`/devices/${device.id}/rename`} hidden data-device-title-form><input className="device-title-input" name="name" defaultValue={device.name} aria-label="Device name" required maxLength={120}/><input type="hidden" name="next" value={`/devices/${device.id}`}/></form>}{canManage && <button className="header-icon-button" type="button" data-device-title-rename aria-label="Rename device" title="Rename device"><span className="ui-icon icon-pencil" aria-hidden="true"/></button>}</div><p className="error device-title-error" data-device-title-error/><p className="meta">{device.workspace_name} · {device.platform.toUpperCase()}/{device.arch}</p></div>
           <div className="device-header-actions"><span id="device-status" className={`status${device.online ? " online" : ""}`}>{device.online ? "ONLINE" : `LAST SEEN ${relative(device.last_seen)}`}</span>
-            {canOperate && <button id="open-terminal" className="device-terminal-button" type="button" aria-label="Open terminal" title="Open terminal" disabled={!device.online || !supportsProcess}><span className="ui-icon icon-terminal" aria-hidden="true"/></button>}
+            {canOperate && <button id="open-terminal" className="device-terminal-button" type="button" aria-label="Open terminal" title="Open terminal" disabled={!device.online || !supportsProcess}><span className="ui-icon icon-terminal" aria-hidden="true"/></button>}{canManage && <button className="header-icon-button danger-icon-button" type="button" aria-label={`Delete ${device.name}`} title="Delete device" data-delete-kind="device" data-delete-name={device.name} data-delete-endpoint={`/api/v1/devices/${device.id}`} data-delete-redirect="/devices"><span className="ui-icon icon-trash" aria-hidden="true"/></button>}
           </div>
         </header>
         <dl className="facts">

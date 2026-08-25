@@ -31,8 +31,13 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
   })
   .post("/account/name", async ({ request }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    try { renameUser(context.user, (await form(request)).name); return Response.redirect("/account", 303); }
+    try {
+      const result = renameUser(context.user, (await form(request)).name);
+      if (request.headers.get("accept")?.includes("application/json")) return Response.json(result, { headers: { "cache-control": "no-store" } });
+      return Response.redirect("/account", 303);
+    }
     catch (error) {
+      if (request.headers.get("accept")?.includes("application/json")) return Response.json({ error: error instanceof Error ? error.message : "Rename failed." }, { status: 400, headers: { "cache-control": "no-store" } });
       return accountPage(context.user, context.workspaces, await import("../auth").then(m => m.listPasskeys(request, context.user)), context.sidebar, "", error instanceof Error ? error.message : "Rename failed.");
     }
   })
