@@ -129,6 +129,10 @@ func unregister(serverURL string, value state) error {
 }
 
 func connect(ctx context.Context, serverURL string, value state, stateDir string, manager *processManager) error {
+	return connectWithLiveness(ctx, serverURL, value, stateDir, manager, 10*time.Second, 30*time.Second)
+}
+
+func connectWithLiveness(ctx context.Context, serverURL string, value state, stateDir string, manager *processManager, heartbeatInterval, livenessTimeout time.Duration) error {
 	connectionCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	req, err := signedAgentRequest(serverURL, http.MethodGet, "/api/v1/agent/ws", value)
@@ -157,7 +161,20 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 	send := func(message wireMessage) error {
 		writeMu.Lock()
 		defer writeMu.Unlock()
+		_ = conn.SetWriteDeadline(time.Now().Add(livenessTimeout))
 		return conn.WriteJSON(message)
+	}
+	sendPing := func() error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		return conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(livenessTimeout))
+	}
+	refreshReadDeadline := func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(livenessTimeout))
+	}
+	conn.SetPongHandler(refreshReadDeadline)
+	if err := refreshReadDeadline(""); err != nil {
+		return err
 	}
 	hostname, _ := os.Hostname()
 	lock, _ := loadLock(stateDir)
@@ -207,7 +224,7 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 		}
 	}()
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -217,6 +234,9 @@ func connect(ctx context.Context, serverURL string, value state, stateDir string
 		case err := <-readDone:
 			return err
 		case <-ticker.C:
+			if err := sendPing(); err != nil {
+				return err
+			}
 			if err := send(wireMessage{Type: "heartbeat"}); err != nil {
 				return err
 			}
