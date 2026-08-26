@@ -29,7 +29,7 @@ function Document({ title, body, user, workspaces = [], path = "/", scripts = []
       <meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content={`${title} | OhRats RC`}/><meta name="twitter:description" content={description}/>
       {socialCard ? <><meta name="twitter:image" content={`${PUBLIC_URL}${socialCard}`}/><meta name="twitter:image:alt" content="OhRats RC device page"/></> : null}
       <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>
-      <link rel="stylesheet" href="https://assets.ohrats.party/assets/ohrats.bb9b49c66e85.css"/>
+      <link rel="stylesheet" href="https://assets.ohrats.party/assets/ohrats.0b905f4bfc12.css"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/states.8d99d4b0e704.css"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/copy.e4c6bbb26b56.css"/>
       <link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>

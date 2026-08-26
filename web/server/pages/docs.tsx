@@ -34,22 +34,24 @@ export function docsPage(article: DocArticle) {
       <PublicNav active="docs" documentation/>
       <main className="docs-layout">
         <aside className="docs-sidebar"><Catalog active={article.slug}/></aside>
-        <article className="docs-article">
-          <details className="docs-mobile-catalog">
-            <summary>Documentation</summary>
-            <Catalog active={article.slug}/>
-          </details>
-          <header className="docs-article-header">
-            <h1>{article.title}</h1>
-            <p>{article.intro}</p>
-          </header>
-          <div className="docs-content">{article.sections.map(section =>
-            <section className="docs-article-section" id={section.id} key={section.id}>
-              <h2>{section.title}</h2>
-              <div className="docs-copy">{section.body}</div>
-            </section>)}</div>
-        </article>
-        <aside className="docs-toc"><OnThisPage article={article}/></aside>
+        <div className="docs-reading">
+          <article className="or-article docs-article">
+            <details className="docs-mobile-catalog">
+              <summary>Documentation</summary>
+              <Catalog active={article.slug}/>
+            </details>
+            <header className="or-article-header docs-article-header">
+              <h1>{article.title}</h1>
+              <p>{article.intro}</p>
+            </header>
+            <div className="or-article-content docs-content">{article.sections.map(section =>
+              <section className="docs-article-section" id={section.id} key={section.id}>
+                <h2>{section.title}</h2>
+                <div className="docs-copy">{section.body}</div>
+              </section>)}</div>
+          </article>
+          <aside className="docs-toc"><OnThisPage article={article}/></aside>
+        </div>
       </main>
       <PublicFooter/>
     </div>,
