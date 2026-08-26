@@ -16,6 +16,8 @@ import (
 type controlSession struct {
 	aead             cipher.AEAD
 	send             func(wireMessage) bool
+	transportID      string
+	closeTransport   func()
 	clientID         string
 	userID           string
 	role             string
@@ -122,7 +124,7 @@ func (manager *controlManager) open(message wireMessage) {
 	}
 	sessionID := randomURLBytes(18)
 	manager.mu.Lock()
-	manager.sessions[sessionID] = &controlSession{aead: aead, send: manager.relayFrame, clientID: message.ClientID, userID: userID, role: role,
+	manager.sessions[sessionID] = &controlSession{aead: aead, send: manager.relayFrame, transportID: "relay", clientID: message.ClientID, userID: userID, role: role,
 		canExecute: canExecute, canManageDevices: canManageDevices}
 	manager.mu.Unlock()
 	privateBytes, _ := base64.RawStdEncoding.DecodeString(manager.device.PrivateKey)
@@ -224,7 +226,9 @@ func (manager *controlManager) sendFrame(sessionID string, message wireMessage) 
 		Ciphertext: base64.RawURLEncoding.EncodeToString(ciphertext)})
 }
 
-func (manager *controlManager) relayFrame(message wireMessage) bool { return manager.send(message) == nil }
+func (manager *controlManager) relayFrame(message wireMessage) bool {
+	return manager.send(message) == nil
+}
 
 func (manager *controlManager) handle(message wireMessage) error {
 	switch message.Type {
@@ -244,16 +248,14 @@ func (manager *controlManager) handle(message wireMessage) error {
 		manager.challenge(message.RequestID)
 	case "control.open":
 		manager.open(message)
+	case "control.webrtc":
+		manager.openWebRTC(message)
 	case "control.frame":
 		return manager.receiveFrame(message)
 	case "process.permit":
 		manager.permitSecureStart(message)
 	case "control.close":
-		manager.mu.Lock()
-		delete(manager.sessions, message.SessionID)
-		manager.mu.Unlock()
-		manager.processes.detachSecureSession(message.SessionID)
-		manager.discardPendingSession(message.SessionID)
+		manager.closeSession(message.SessionID)
 	}
 	return nil
 }
@@ -268,12 +270,8 @@ func (manager *controlManager) invalidateSessions() {
 	for _, sessionID := range ids {
 		manager.sendFrame(sessionID, wireMessage{Type: "control.revoked"})
 	}
-	manager.mu.Lock()
-	manager.sessions = map[string]*controlSession{}
-	manager.mu.Unlock()
 	for _, sessionID := range ids {
-		manager.processes.detachSecureSession(sessionID)
-		manager.discardPendingSession(sessionID)
+		manager.closeSession(sessionID)
 	}
 }
 

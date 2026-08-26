@@ -3,11 +3,12 @@ import { controlProof, verifyClientSignature } from "./control-auth";
 import { canOperate, deviceRole } from "./core";
 import { q } from "./db";
 import type { AgentClientMessage, AgentServerMessage, BrowserServerMessage } from "./protocol";
+import { controlIceServers } from "./webrtc";
 
 type RelaySocket = { send(data: string): unknown };
 type Sender = (deviceId: string, message: AgentServerMessage) => boolean;
 let sendAgent: Sender = () => false;
-const pending = new Map<string, { socket: RelaySocket; deviceId: string; kind: "challenge" | "open" }>();
+const pending = new Map<string, { socket: RelaySocket; deviceId: string; kind: "challenge" | "open" | "webrtc" }>();
 const sessions = new Map<string, { socket: RelaySocket; deviceId: string }>();
 
 export function registerAgentSender(sender: Sender) { sendAgent = sender; }
@@ -35,6 +36,17 @@ export function requestControlOpen(userId: string, input: any, socket: RelaySock
     grant: proof?.grant || "", credentialId: proof?.credentialId || "", assertion: proof?.assertion || "",
     publicKey: String(input.publicKey || ""), signature: String(input.signature || "") });
   if (!sent) { pending.delete(requestId); throw new Error("device is offline"); }
+}
+
+export function requestControlWebRTC(userId: string, input: any, socket: RelaySocket) {
+  const sessionId = String(input.sessionId || ""), requestId = String(input.requestId || ""), session = sessions.get(sessionId);
+  if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) {
+    throw new Error("control session unavailable");
+  }
+  pending.set(requestId, { socket, deviceId: session.deviceId, kind: "webrtc" });
+  if (!sendAgent(session.deviceId, { type: "control.webrtc", requestId, sessionId, sdp: String(input.sdp || ""), iceServers: controlIceServers() })) {
+    pending.delete(requestId); throw new Error("device is offline");
+  }
 }
 
 export function relayControlFrame(userId: string, input: any, socket: RelaySocket) {
@@ -100,7 +112,12 @@ export function handleControlAgentMessage(deviceId: string, message: AgentClient
     pending.delete(message.requestId); sessions.set(message.sessionId, { socket: request.socket, deviceId });
     browserSend(request.socket, { type: "response", requestId: message.requestId, ok: true,
       result: { sessionId: message.sessionId, transportPublicKey: message.transportPublicKey,
-        ephemeralPublicKey: message.ephemeralPublicKey, signature: message.signature } }); return true;
+        ephemeralPublicKey: message.ephemeralPublicKey, signature: message.signature, iceServers: controlIceServers() } }); return true;
+  }
+  if (message.type === "control.webrtc.ready") {
+    const request = pending.get(message.requestId); if (!request || request.deviceId !== deviceId || request.kind !== "webrtc") return true;
+    pending.delete(message.requestId); browserSend(request.socket, { type: "response", requestId: message.requestId, ok: true,
+      result: { sdp: message.sdp } }); return true;
   }
   if (message.type === "control.error") {
     const requestId = message.requestId || "", request = pending.get(requestId); if (!request) return true;

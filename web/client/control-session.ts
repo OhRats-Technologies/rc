@@ -2,6 +2,7 @@ import { api } from "./http";
 import { request } from "./socket";
 import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, pinDevice } from "./control-client";
 import { websocketControlTransport, type ControlTransport } from "./control-transport";
+import { openWebRTCControlTransport } from "./control-webrtc";
 import type { Device } from "../types";
 
 type SessionMessage = { type: string; [key: string]: unknown };
@@ -45,8 +46,11 @@ export class ControlSession {
   private listeners = new Set<Listener>();
   private pending = new Map<string, { resolve: (value: SessionMessage) => void; reject: (error: Error) => void; timer: number }>();
   private unsubscribe: () => void;
+  private unsubscribeClose: () => void;
+  private closed = false;
   constructor(readonly deviceId: string, readonly sessionId: string, private key: CryptoKey, private transport: ControlTransport) {
     this.unsubscribe = transport.onFrame((sequence, ciphertext) => { void this.receive(sequence, ciphertext); });
+    this.unsubscribeClose = transport.onClose(() => this.shutdown(false));
   }
   onMessage(listener: Listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async send(message: SessionMessage) {
@@ -75,11 +79,13 @@ export class ControlSession {
       for (const listener of this.listeners) listener(message);
     } catch { this.close(); }
   }
-  close() {
-    this.unsubscribe(); this.transport.close(); this.listeners.clear();
+  private shutdown(closeTransport: boolean) {
+    if (this.closed) return; this.closed = true; this.unsubscribe(); this.unsubscribeClose();
+    if (closeTransport) this.transport.close(); this.listeners.clear();
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error("Control session closed")); }
     this.pending.clear();
   }
+  close() { this.shutdown(true); }
 }
 
 export async function openControlSession(deviceId: string) {
@@ -93,7 +99,7 @@ export async function openControlSession(deviceId: string) {
   const publicKey = bytesToB64url(await crypto.subtle.exportKey("raw", pair.publicKey));
   const payload = sessionPayload(challenge, deviceId, identity.id, publicKey);
   const signature = bytesToB64url(await crypto.subtle.sign("Ed25519", identity.privateKey, new TextEncoder().encode(payload)));
-  const ready = await request<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string }>({
+  const ready = await request<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string; iceServers?: RTCIceServer[] }>({
     type: "control.open", deviceId, challenge, clientId: identity.id, publicKey, signature,
   });
   if (ready.transportPublicKey !== expectedTransport || !ready.ephemeralPublicKey) throw new Error("RC Node transport identity changed.");
@@ -101,8 +107,9 @@ export async function openControlSession(deviceId: string) {
   const verified = await crypto.subtle.verify("Ed25519", deviceKey, b64urlToBytes(ready.signature),
     new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey, ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId)));
   if (!verified) throw new Error("RC Node handshake signature failed.");
-  return new ControlSession(deviceId, ready.sessionId,
-    await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id),
-    websocketControlTransport(deviceId, ready.sessionId));
+  const key = await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id);
+  const webRTC = device.capabilities?.includes("webrtc")
+    ? await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || []) : null;
+  return new ControlSession(deviceId, ready.sessionId, key, webRTC || websocketControlTransport(deviceId, ready.sessionId));
 }
 

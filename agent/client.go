@@ -50,7 +50,7 @@ func enroll(serverURL, token, displayName string) (state, error) {
 		Token: token, Name: displayName, Hostname: hostname, Platform: runtime.GOOS, Arch: runtime.GOARCH,
 		PublicKey:          string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})),
 		TransportPublicKey: base64.RawURLEncoding.EncodeToString(transportPrivate.PublicKey().Bytes()),
-		AgentVersion:       version, Capabilities: []string{"process", "update", "lock", "e2e"},
+		AgentVersion:       version, Capabilities: []string{"process", "update", "lock", "e2e", "webrtc"},
 	}
 	data, _ := json.Marshal(payload)
 	resp, err := http.Post(strings.TrimRight(serverURL, "/")+"/api/v1/agent/enroll", "application/json", bytes.NewReader(data))
@@ -180,7 +180,7 @@ func connectWithLiveness(ctx context.Context, serverURL string, value state, sta
 	lock, _ := loadLock(stateDir)
 	if err := send(wireMessage{
 		Type: "hello", AgentVersion: version, Hostname: hostname,
-		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"process", "update", "lock", "e2e"},
+		Platform: runtime.GOOS, Arch: runtime.GOARCH, Capabilities: []string{"process", "update", "lock", "e2e", "webrtc"},
 		TransportPublicKey: value.TransportPublicKey, LockHash: lockHash(stateDir), LockGeneration: lock.Generation,
 	}); err != nil {
 		return err

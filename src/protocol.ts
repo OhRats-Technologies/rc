@@ -4,6 +4,10 @@ const RequestId = t.String({ minLength: 1, maxLength: 100 });
 const ProcessId = t.String({ minLength: 1, maxLength: 100 });
 const DeviceId = t.String({ minLength: 1, maxLength: 100 });
 const TerminalSize = t.Number({ minimum: 2, maximum: 500 });
+const IceServerSchema = t.Object({
+  urls: t.Array(t.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 16 }),
+  username: t.Optional(t.String({ maxLength: 512 })), credential: t.Optional(t.String({ maxLength: 512 })),
+});
 
 export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("ping") }),
@@ -13,6 +17,8 @@ export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId, deviceId: DeviceId }),
   t.Object({ type: t.Literal("control.open"), requestId: RequestId, deviceId: DeviceId, challenge: t.String(),
     clientId: t.String(), publicKey: t.String(), signature: t.String() }),
+  t.Object({ type: t.Literal("control.webrtc"), requestId: RequestId, deviceId: DeviceId, sessionId: t.String(),
+    sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
   t.Object({ type: t.Literal("control.frame"), deviceId: DeviceId, sessionId: t.String(), sequence: t.Number(), ciphertext: t.String() }),
   t.Object({ type: t.Literal("control.close"), deviceId: DeviceId, sessionId: t.String() }),
   t.Object({ type: t.Literal("lock.sync"), requestId: RequestId, workspaceId: t.String(), clientId: t.String(),
@@ -53,6 +59,7 @@ export const AgentClientMessageSchema = t.Union([
   t.Object({ type: t.Literal("node.update.error"), output: t.Optional(t.String({ maxLength: 1024 })) }),
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId, challenge: t.String() }),
   t.Object({ type: t.Literal("control.ready"), requestId: RequestId, sessionId: t.String(), transportPublicKey: t.String(), ephemeralPublicKey: t.String(), signature: t.String() }),
+  t.Object({ type: t.Literal("control.webrtc.ready"), requestId: RequestId, sessionId: t.String(), sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
   t.Object({ type: t.Literal("control.frame"), sessionId: t.String(), sequence: t.Number(), ciphertext: t.String() }),
   t.Object({ type: t.Literal("control.error"), requestId: t.Optional(RequestId), output: t.String() }),
   t.Object({ type: t.Literal("lock.state"), lockHash: t.String(), lockGeneration: t.Integer({ minimum: 0 }) }),
@@ -72,6 +79,8 @@ export const AgentServerMessageSchema = t.Union([
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId }),
   t.Object({ type: t.Literal("control.open"), requestId: RequestId, challenge: t.String(), clientId: t.String(), grant: t.String(),
     credentialId: t.String(), assertion: t.String(), publicKey: t.String(), signature: t.String() }),
+  t.Object({ type: t.Literal("control.webrtc"), requestId: RequestId, sessionId: t.String(), sdp: t.String({ minLength: 1, maxLength: 131072 }),
+    iceServers: t.Array(IceServerSchema, { maxItems: 8 }) }),
   t.Object({ type: t.Literal("control.frame"), sessionId: t.String(), sequence: t.Number(), ciphertext: t.String() }),
   t.Object({ type: t.Literal("control.close"), sessionId: t.String() }),
 ]);

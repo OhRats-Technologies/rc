@@ -183,8 +183,13 @@ func openRemoteControl(server, token string, device accountDevice) (*remoteContr
 		conn.Close()
 		return nil, err
 	}
-	control := &remoteControl{deviceID: device.ID, sessionID: sessionID, aead: aead,
-		transport: &websocketControlTransport{conn: conn}}
+	transport := controlTransport(&websocketControlTransport{conn: conn})
+	if device.supports("webrtc") {
+		if direct, directErr := openWebRTCClientTransport(conn, &writeMu, device.ID, sessionID, decodeIceServers(ready["iceServers"])); directErr == nil {
+			transport = direct
+		}
+	}
+	control := &remoteControl{deviceID: device.ID, sessionID: sessionID, aead: aead, transport: transport}
 	return control, nil
 }
 

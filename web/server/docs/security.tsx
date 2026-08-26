@@ -33,6 +33,15 @@ export function securityArticle(): DocArticle {
         </>,
       },
       {
+        id: "control-transport",
+        title: "Control transport",
+        body: <>
+          <p>The authenticated RC WebSocket carries control signaling and hosted live events. After the encrypted control session is authorized, browser and CLI clients try to move its opaque encrypted frames onto a reliable ordered WebRTC DataChannel.</p>
+          <p>The managed service currently uses <code>stun.cloudflare.com:3478</code> for ICE candidate discovery. When direct ICE succeeds, terminal data does not traverse the RC application server. When it fails, the client continues over the existing encrypted WebSocket relay.</p>
+          <p>WebRTC adds DTLS transport encryption, but RC currently retains its own AES-256-GCM control framing inside the DataChannel. Changing or removing that inner encryption is a separate security change.</p>
+        </>,
+      },
+      {
         id: "rc-lock",
         title: "RC Lock",
         body: <>
@@ -55,7 +64,7 @@ export function securityArticle(): DocArticle {
         title: "Process data",
         body: <>
           <p>SQLite stores process metadata such as process ID, device, state, timestamps, exit code, and signal.</p>
-          <p>Browser and CLI process command, working directory, stdin, stdout, and stderr are not persisted in process history. The server relays encrypted control frames instead.</p>
+          <p>Browser and CLI process command, working directory, stdin, stdout, and stderr are not persisted in process history. Direct WebRTC sessions bypass the application server; relay fallback carries only encrypted control frames.</p>
         </>,
       },
       {

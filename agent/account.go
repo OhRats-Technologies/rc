@@ -16,13 +16,23 @@ import (
 )
 
 type accountDevice struct {
-	ID                 string `json:"id"`
-	Name               string `json:"name"`
-	Workspace          string `json:"workspace_name"`
-	AgentVersion       string `json:"agent_version"`
-	Online             bool   `json:"online"`
-	IdentityPublicKey  string `json:"identity_public_key"`
-	TransportPublicKey string `json:"transport_public_key"`
+	ID                 string   `json:"id"`
+	Name               string   `json:"name"`
+	Workspace          string   `json:"workspace_name"`
+	AgentVersion       string   `json:"agent_version"`
+	Capabilities       []string `json:"capabilities"`
+	Online             bool     `json:"online"`
+	IdentityPublicKey  string   `json:"identity_public_key"`
+	TransportPublicKey string   `json:"transport_public_key"`
+}
+
+func (device accountDevice) supports(capability string) bool {
+	for _, value := range device.Capabilities {
+		if value == capability {
+			return true
+		}
+	}
+	return false
 }
 
 type accountProcess struct {
