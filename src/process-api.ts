@@ -3,7 +3,6 @@ import { id, now, q } from "./db";
 import { isOnline } from "./gateway";
 import { markProcessLost, processJSON, processRow, workspaceForDevice } from "./process-store";
 import { HttpError } from "./errors";
-import { MAX_CONCURRENT_PROCESSES_PER_USER } from "./config";
 import { publishEvent } from "./events";
 
 export type StartProcessInput = { deviceId: string; command: string; cwd?: string; cols: number; rows: number };
@@ -38,12 +37,6 @@ export function allocateProcess(userId: string, input: AllocateProcessInput) {
   const deviceId = input.deviceId, role = deviceRole(userId, deviceId);
   if (!canOperate(role)) throw new HttpError(403, "operator required");
   if (!isOnline(deviceId)) throw new HttpError(409, "device is offline");
-  const activeCount = q<{ count: number }>(
-    "SELECT count(*) count FROM processes WHERE created_by=? AND status IN ('starting','running')"
-  ).get(userId)?.count || 0;
-  if (activeCount >= MAX_CONCURRENT_PROCESSES_PER_USER) {
-    throw new HttpError(409, `concurrent process limit reached (${MAX_CONCURRENT_PROCESSES_PER_USER})`);
-  }
   const cols = boundedSize(input.cols, 80), rows = boundedSize(input.rows, 24), processId = id(), t = now();
   q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,cols,rows,created_by,created_at)
     VALUES(?,?,?,NULL,'starting',1,?,?,?,?)`).run(processId, deviceId, "[encrypted]", cols, rows, userId, t);

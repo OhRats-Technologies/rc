@@ -15,6 +15,7 @@ import (
 
 type controlSession struct {
 	aead             cipher.AEAD
+	send             func(wireMessage) bool
 	clientID         string
 	userID           string
 	role             string
@@ -121,7 +122,7 @@ func (manager *controlManager) open(message wireMessage) {
 	}
 	sessionID := randomURLBytes(18)
 	manager.mu.Lock()
-	manager.sessions[sessionID] = &controlSession{aead: aead, clientID: message.ClientID, userID: userID, role: role,
+	manager.sessions[sessionID] = &controlSession{aead: aead, send: manager.relayFrame, clientID: message.ClientID, userID: userID, role: role,
 		canExecute: canExecute, canManageDevices: canManageDevices}
 	manager.mu.Unlock()
 	privateBytes, _ := base64.RawStdEncoding.DecodeString(manager.device.PrivateKey)
@@ -217,10 +218,13 @@ func (manager *controlManager) sendFrame(sessionID string, message wireMessage) 
 	sequence := session.sendSeq
 	plaintext, _ := json.Marshal(message)
 	ciphertext := session.aead.Seal(nil, frameNonce(2, sequence), plaintext, frameAAD(sessionID, sequence, "n2c"))
+	send := session.send
 	manager.mu.Unlock()
-	return manager.send(wireMessage{Type: "control.frame", SessionID: sessionID, Sequence: sequence,
-		Ciphertext: base64.RawURLEncoding.EncodeToString(ciphertext)}) == nil
+	return send != nil && send(wireMessage{Type: "control.frame", SessionID: sessionID, Sequence: sequence,
+		Ciphertext: base64.RawURLEncoding.EncodeToString(ciphertext)})
 }
+
+func (manager *controlManager) relayFrame(message wireMessage) bool { return manager.send(message) == nil }
 
 func (manager *controlManager) handle(message wireMessage) error {
 	switch message.Type {

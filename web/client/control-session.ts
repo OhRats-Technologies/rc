@@ -1,6 +1,7 @@
 import { api } from "./http";
-import { fire, onControlFrame, request } from "./socket";
+import { request } from "./socket";
 import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, pinDevice } from "./control-client";
+import { websocketControlTransport, type ControlTransport } from "./control-transport";
 import type { Device } from "../types";
 
 type SessionMessage = { type: string; [key: string]: unknown };
@@ -44,14 +45,14 @@ export class ControlSession {
   private listeners = new Set<Listener>();
   private pending = new Map<string, { resolve: (value: SessionMessage) => void; reject: (error: Error) => void; timer: number }>();
   private unsubscribe: () => void;
-  constructor(readonly deviceId: string, readonly sessionId: string, private key: CryptoKey) {
-    this.unsubscribe = onControlFrame(frame => { if (frame.sessionId === sessionId) void this.receive(frame.sequence, frame.ciphertext); });
+  constructor(readonly deviceId: string, readonly sessionId: string, private key: CryptoKey, private transport: ControlTransport) {
+    this.unsubscribe = transport.onFrame((sequence, ciphertext) => { void this.receive(sequence, ciphertext); });
   }
   onMessage(listener: Listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async send(message: SessionMessage) {
     const sequence = ++this.sendSequence, plain = new TextEncoder().encode(JSON.stringify(message));
     const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce(1, sequence), additionalData: aad(this.sessionId, sequence, "c2n") }, this.key, plain);
-    if (!fire({ type: "control.frame", deviceId: this.deviceId, sessionId: this.sessionId, sequence, ciphertext: bytesToB64url(encrypted) })) throw new Error("RC connection unavailable");
+    if (!this.transport.send(sequence, bytesToB64url(encrypted))) throw new Error("RC connection unavailable");
   }
   async request(message: SessionMessage) {
     const requestId = crypto.randomUUID(), result = new Promise<SessionMessage>((resolve, reject) => {
@@ -75,7 +76,7 @@ export class ControlSession {
     } catch { this.close(); }
   }
   close() {
-    this.unsubscribe(); fire({ type: "control.close", deviceId: this.deviceId, sessionId: this.sessionId }); this.listeners.clear();
+    this.unsubscribe(); this.transport.close(); this.listeners.clear();
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error("Control session closed")); }
     this.pending.clear();
   }
@@ -101,6 +102,7 @@ export async function openControlSession(deviceId: string) {
     new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey, ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId)));
   if (!verified) throw new Error("RC Node handshake signature failed.");
   return new ControlSession(deviceId, ready.sessionId,
-    await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id));
+    await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id),
+    websocketControlTransport(deviceId, ready.sessionId));
 }
 

@@ -78,7 +78,7 @@ func TestEncryptedProcessOutputOnlyLeavesAsCiphertext(t *testing.T) {
 	processes := newProcessManager()
 	defer processes.shutdown()
 	manager := &controlManager{processes: processes, send: func(message wireMessage) error { outbound <- message; return nil },
-		sessions:   map[string]*controlSession{"session": {aead: nodeAEAD, clientID: "client", userID: "user", role: "owner", canExecute: true}},
+		sessions:   map[string]*controlSession{"session": {aead: nodeAEAD, send: func(message wireMessage) bool { outbound <- message; return true }, clientID: "client", userID: "user", role: "owner", canExecute: true}},
 		challenges: map[string]time.Time{}, pendingStarts: map[string]pendingSecureStart{}}
 	processes.setSecureSender(manager.sendFrame)
 	command := wireMessage{Type: "process.start", ID: "secret-process", Command: "printf 'phase34-secret'", Cols: 80, Rows: 24}

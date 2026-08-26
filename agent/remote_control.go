@@ -20,13 +20,12 @@ import (
 )
 
 type remoteControl struct {
-	conn      *websocket.Conn
 	deviceID  string
 	sessionID string
 	aead      cipher.AEAD
 	sendSeq   uint64
 	recvSeq   uint64
-	writeMu   sync.Mutex
+	transport controlTransport
 }
 
 func accountControlIdentity(server, token string) (string, ed25519.PrivateKey, error) {
@@ -128,9 +127,9 @@ func openRemoteControl(server, token string, device accountDevice) (*remoteContr
 		}
 		return nil, err
 	}
-	control := &remoteControl{conn: conn, deviceID: device.ID}
+	writeMu := sync.Mutex{}
 	challengeID := randomURLBytes(12)
-	if err := writeJSON(conn, &control.writeMu, map[string]any{"type": "control.challenge", "requestId": challengeID, "deviceId": device.ID}); err != nil {
+	if err := writeJSON(conn, &writeMu, map[string]any{"type": "control.challenge", "requestId": challengeID, "deviceId": device.ID}); err != nil {
 		conn.Close()
 		return nil, err
 	}
@@ -151,7 +150,7 @@ func openRemoteControl(server, token string, device accountDevice) (*remoteContr
 	}
 	signature := ed25519.Sign(signingKey, []byte(sessionPayload(challenge, device.ID, clientID, ephemeral.Public)))
 	openID := randomURLBytes(12)
-	if err := writeJSON(conn, &control.writeMu, map[string]any{"type": "control.open", "requestId": openID, "deviceId": device.ID,
+	if err := writeJSON(conn, &writeMu, map[string]any{"type": "control.open", "requestId": openID, "deviceId": device.ID,
 		"challenge": challenge, "clientId": clientID, "publicKey": ephemeral.Public, "signature": base64.RawURLEncoding.EncodeToString(signature)}); err != nil {
 		conn.Close()
 		return nil, err
@@ -184,7 +183,8 @@ func openRemoteControl(server, token string, device accountDevice) (*remoteContr
 		conn.Close()
 		return nil, err
 	}
-	control.sessionID, control.aead = sessionID, aead
+	control := &remoteControl{deviceID: device.ID, sessionID: sessionID, aead: aead,
+		transport: &websocketControlTransport{conn: conn}}
 	return control, nil
 }
 
@@ -199,49 +199,38 @@ func generateX25519() (x25519Pair, error) {
 }
 
 func (control *remoteControl) send(message wireMessage) error {
-	control.writeMu.Lock()
-	defer control.writeMu.Unlock()
 	control.sendSeq++
 	sequence := control.sendSeq
 	plaintext, _ := json.Marshal(message)
 	ciphertext := control.aead.Seal(nil, frameNonce(1, sequence), plaintext, frameAAD(control.sessionID, sequence, "c2n"))
-	return control.conn.WriteJSON(map[string]any{"type": "control.frame", "deviceId": control.deviceID, "sessionId": control.sessionID,
-		"sequence": sequence, "ciphertext": base64.RawURLEncoding.EncodeToString(ciphertext)})
+	return control.transport.sendFrame(control.deviceID, control.sessionID, sequence, base64.RawURLEncoding.EncodeToString(ciphertext))
 }
 
 func (control *remoteControl) read() (wireMessage, error) {
-	for {
-		var outer map[string]any
-		if err := control.conn.ReadJSON(&outer); err != nil {
-			return wireMessage{}, err
-		}
-		if outer["type"] != "control.frame" || outer["sessionId"] != control.sessionID {
-			continue
-		}
-		sequence, _ := outer["sequence"].(float64)
-		next := uint64(sequence)
-		if next != control.recvSeq+1 {
-			return wireMessage{}, errors.New("invalid encrypted frame sequence")
-		}
-		encoded, _ := outer["ciphertext"].(string)
-		ciphertext, err := base64.RawURLEncoding.DecodeString(encoded)
-		if err != nil {
-			return wireMessage{}, err
-		}
-		plaintext, err := control.aead.Open(nil, frameNonce(2, next), ciphertext, frameAAD(control.sessionID, next, "n2c"))
-		if err != nil {
-			return wireMessage{}, errors.New("encrypted frame authentication failed")
-		}
-		control.recvSeq = next
-		var message wireMessage
-		if err := json.Unmarshal(plaintext, &message); err != nil {
-			return wireMessage{}, err
-		}
-		if message.Type == "control.revoked" {
-			return wireMessage{}, errors.New("control authorization changed; reopen the session")
-		}
-		return message, nil
+	next, encoded, err := control.transport.readFrame(control.sessionID)
+	if err != nil {
+		return wireMessage{}, err
 	}
+	if next != control.recvSeq+1 {
+		return wireMessage{}, errors.New("invalid encrypted frame sequence")
+	}
+	ciphertext, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		return wireMessage{}, err
+	}
+	plaintext, err := control.aead.Open(nil, frameNonce(2, next), ciphertext, frameAAD(control.sessionID, next, "n2c"))
+	if err != nil {
+		return wireMessage{}, errors.New("encrypted frame authentication failed")
+	}
+	control.recvSeq = next
+	var message wireMessage
+	if err := json.Unmarshal(plaintext, &message); err != nil {
+		return wireMessage{}, err
+	}
+	if message.Type == "control.revoked" {
+		return wireMessage{}, errors.New("control authorization changed; reopen the session")
+	}
+	return message, nil
 }
 
 func (control *remoteControl) request(message wireMessage) error {
@@ -263,7 +252,7 @@ func (control *remoteControl) request(message wireMessage) error {
 	}
 }
 
-func (control *remoteControl) close() { _ = control.conn.Close() }
+func (control *remoteControl) close() { _ = control.transport.close() }
 
 func waitForProcess(control *remoteControl, processID string) error {
 	for {
