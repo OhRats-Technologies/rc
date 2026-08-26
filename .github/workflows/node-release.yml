@@ -1,0 +1,108 @@
+name: Node release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.13"
+          cache-dependency-path: agent/go.sum
+      - name: Verify tag matches Node version
+        working-directory: agent
+        run: |
+          expected="${GITHUB_REF_NAME#v}"
+          actual="$(sed -n 's/^const version = "\([^"]*\)"/\1/p' types.go)"
+          test "$actual" = "$expected" || {
+            echo "tag $GITHUB_REF_NAME does not match Node version $actual" >&2
+            exit 1
+          }
+      - name: Test Node
+        working-directory: agent
+        run: go test ./...
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: darwin
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.13"
+          cache-dependency-path: agent/go.sum
+      - name: Build Node
+        working-directory: agent
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          go build -trimpath -ldflags="-s -w -buildid=" -o "dist/rc-${GOOS}-${GOARCH}" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rc-${{ matrix.os }}-${{ matrix.arch }}
+          path: agent/dist/rc-${{ matrix.os }}-${{ matrix.arch }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: rc-*
+          path: dist
+          merge-multiple: true
+      - name: Generate release metadata
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          version="${VERSION#v}"
+          sha256sum dist/rc-* | sed 's#  dist/#  #' > SHA256SUMS
+          python3 - "$version" <<'PY'
+          import hashlib, json, pathlib, sys
+
+          version = sys.argv[1]
+          artifacts = []
+          for path in sorted(pathlib.Path("dist").glob("rc-*")):
+              _, os_name, arch = path.name.split("-")
+              artifacts.append({
+                  "os": os_name,
+                  "arch": arch,
+                  "name": path.name,
+                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+              })
+          if len(artifacts) != 4:
+              raise SystemExit(f"expected 4 release binaries, found {len(artifacts)}")
+          pathlib.Path("release.json").write_text(
+              json.dumps({"version": version, "artifacts": artifacts}, indent=2) + "\n"
+          )
+          PY
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "RC ${GITHUB_REF_NAME#v}" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" dist/rc-* release.json SHA256SUMS
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
