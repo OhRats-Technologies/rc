@@ -69,7 +69,7 @@ function settleInitial(state: State) {
 }
 
 export function runMcpProcess(context: McpToolContext, input: {
-  deviceId: string; command: string; cwd?: string; kind: "terminal" | "action"; actionId?: string; actionHash?: string; timeoutSeconds?: number;
+  deviceId: string; command: string; cwd?: string; timeoutSeconds?: number;
 }) {
   cleanupStates();
   const { grant, payload } = context, deviceId = String(input.deviceId || "");
@@ -81,7 +81,7 @@ export function runMcpProcess(context: McpToolContext, input: {
   q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
     VALUES(?,?,?,NULL,'starting',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", payload.userId, t);
   logEvent("mcp.process.created", workspaceForDevice(deviceId), payload.userId, deviceId,
-    { grantId: payload.id, client: payload.clientName, processId, kind: input.kind, actionId: input.actionId || null });
+    { grantId: payload.id, client: payload.clientName, processId });
   const state: State = { processId, grantId: payload.id, userId: payload.userId, deviceId, status: "running", output: "",
     outputTruncated: false, exitCode: null, signal: null, error: null, createdAt: t, updatedAt: t, listeners: new Set() };
   states.set(processId, state);
@@ -89,8 +89,8 @@ export function runMcpProcess(context: McpToolContext, input: {
   return new Promise<McpProcessResult>((resolve) => {
     state.initial = { resolve, timer: setTimeout(() => { delete state.initial; resolve(result(state)); }, timeout) };
     const sent = sendMcpAgent(deviceId, {
-      type: "mcp.process.start", id: processId, command, cwd, userId: payload.userId, mcpKind: input.kind,
-      actionId: input.actionId || "", mcpGrant: grant.grant, mcpSignature: grant.grant_signature,
+      type: "mcp.process.start", id: processId, command, cwd, userId: payload.userId,
+      mcpGrant: grant.grant, mcpSignature: grant.grant_signature,
       grant: grant.control_grant, credentialId: grant.credential_id, assertion: grant.control_assertion,
     });
     if (!sent) {

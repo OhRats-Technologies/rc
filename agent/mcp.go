@@ -10,20 +10,14 @@ import (
 	"time"
 )
 
-type mcpActionGrant struct {
-	ID   string `json:"id"`
-	Hash string `json:"hash"`
-}
-
 type mcpGrant struct {
-	V         int              `json:"v"`
-	ID        string           `json:"id"`
-	UserID    string           `json:"userId"`
-	DeviceIDs []string         `json:"deviceIds"`
-	Scopes    []string         `json:"scopes"`
-	Actions   []mcpActionGrant `json:"actions"`
-	IssuedAt  int64            `json:"issuedAt"`
-	ExpiresAt int64            `json:"expiresAt"`
+	V         int      `json:"v"`
+	ID        string   `json:"id"`
+	UserID    string   `json:"userId"`
+	DeviceIDs []string `json:"deviceIds"`
+	Scopes    []string `json:"scopes"`
+	IssuedAt  int64    `json:"issuedAt"`
+	ExpiresAt int64    `json:"expiresAt"`
 }
 
 func mcpGrantSignaturePayload(raw string) string {
@@ -34,17 +28,6 @@ func mcpGrantSignaturePayload(raw string) string {
 func containsString(values []string, target string) bool {
 	for _, value := range values {
 		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
-func actionAllowed(grant mcpGrant, actionID, command, cwd string) bool {
-	digest := sha256.Sum256([]byte(command + "\n" + cwd))
-	hash := hex.EncodeToString(digest[:])
-	for _, action := range grant.Actions {
-		if action.ID == actionID && action.Hash == hash {
 			return true
 		}
 	}
@@ -93,10 +76,7 @@ func verifyMcpProcess(stateDir, deviceID string, message wireMessage) (string, e
 	if err != nil || sigErr != nil || len(publicKey) != ed25519.PublicKeySize || !ed25519.Verify(ed25519.PublicKey(publicKey), []byte(mcpGrantSignaturePayload(message.McpGrant)), signature) {
 		return "", errors.New("invalid MCP grant signature")
 	}
-	if message.McpKind == "terminal" && containsString(grant.Scopes, "mcp:terminal") {
-		return grant.UserID, nil
-	}
-	if message.McpKind == "action" && containsString(grant.Scopes, "mcp:actions") && actionAllowed(grant, message.ActionID, message.Command, message.Cwd) {
+	if containsString(grant.Scopes, "mcp:terminal") {
 		return grant.UserID, nil
 	}
 	return "", errors.New("MCP grant does not allow this command")

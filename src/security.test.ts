@@ -10,7 +10,6 @@ let createAgentChallenge: typeof import("./gateway").createAgentChallenge;
 let verifyAgent: typeof import("./gateway").verifyAgent;
 let agentSocketHandlers: typeof import("./gateway").agentSocketHandlers;
 let checkOrigin: typeof import("./http-utils").checkOrigin;
-let runAction: typeof import("./actions").runAction;
 let consumeStepUp: typeof import("./step-up").consumeStepUp;
 let consumeStepUpOrRecentSession: typeof import("./step-up").consumeStepUpOrRecentSession;
 let controlAuthorizationOptions: typeof import("./control-auth").controlAuthorizationOptions;
@@ -27,7 +26,6 @@ beforeAll(async () => {
   ({ q, sha } = await import("./db"));
   ({ createAgentChallenge, verifyAgent, agentSocketHandlers } = await import("./gateway"));
   ({ checkOrigin } = await import("./http-utils"));
-  ({ runAction } = await import("./actions"));
   ({ consumeStepUp, consumeStepUpOrRecentSession } = await import("./step-up"));
   ({ controlAuthorizationOptions, controlGrantChallenge } = await import("./control-auth"));
   ({ createOAuthRequest, denyOAuthRequest, restartOAuthRequest } = await import("./mcp/oauth"));
@@ -164,19 +162,6 @@ describe("API key scopes", () => {
   });
 });
 
-describe("action integrity", () => {
-  test("confirmation-required actions cannot be allocated without explicit confirmation", () => {
-    const userId = crypto.randomUUID(), workspaceId = crypto.randomUUID(), actionId = crypto.randomUUID(), t = Date.now();
-    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Action User", t);
-    q("INSERT INTO workspaces(id,name,created_by,created_at) VALUES(?,?,?,?)").run(workspaceId, "Action Workspace", userId, t);
-    q("INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
-    q(`INSERT INTO actions(id,workspace_id,name,description,command,cwd,confirm,created_by,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?)`).run(actionId, workspaceId, "Dangerous", "", "echo guarded", null, 1, userId, t, t);
-    expect(() => runAction({ id: userId, name: "Action User" }, actionId, ["missing-device"])).toThrow("explicit confirmation required");
-    expect(runAction({ id: userId, name: "Action User" }, actionId, ["missing-device"], true)[0]?.error).toContain("not in this workspace");
-  });
-});
-
 describe("fresh passkey step-up", () => {
   test("step-up tokens are user-bound and consumed exactly once", () => {
     const userId = crypto.randomUUID(), otherId = crypto.randomUUID(), token = `step_${crypto.randomUUID()}`, t = Date.now();
@@ -228,7 +213,7 @@ function seededMcpCode(scopes: string[]) {
   const digest = new Bun.CryptoHasher("sha256").update(verifier).digest();
   const challenge = Buffer.from(digest).toString("base64url"), redirect = "http://127.0.0.1:49152/callback";
   const grant = JSON.stringify({ v: 1, id: grantId, userId, clientId, clientName: "MCP Test", deviceIds: [], scopes,
-    actions: [], issuedAt: t, expiresAt: t + 60 * 60_000 });
+    issuedAt: t, expiresAt: t + 60 * 60_000 });
   q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "MCP User", t);
   q("INSERT INTO mcp_clients(id,name,redirect_uris,created_at) VALUES(?,?,?,?)").run(clientId, "MCP Test", JSON.stringify([redirect]), t);
   q(`INSERT INTO mcp_grants(id,user_id,client_id,name,grant,control_client_id,grant_signature,credential_id,control_grant,control_assertion,created_at,expires_at)
@@ -261,13 +246,13 @@ describe("MCP transport and OAuth", () => {
     const metadata = await app.handle(new Request("http://localhost:3000/.well-known/oauth-protected-resource"));
     expect((await metadata.json() as any).resource).toBe("http://localhost:3000/mcp");
     const denied = await app.handle(mcpRpc("tools/list"));
-    expect(denied.status).toBe(401); expect(denied.headers.get("www-authenticate")).toContain("mcp:actions");
+    expect(denied.status).toBe(401); expect(denied.headers.get("www-authenticate")).toContain("mcp:observe");
     const mismatched = mcpRpc("server/discover"); mismatched.headers.set("mcp-method", "tools/list");
     expect((await app.handle(mismatched)).status).toBe(400);
   });
 
   test("PKCE codes and refresh tokens are one-time and scopes filter tools", async () => {
-    const seeded = seededMcpCode(["mcp:observe", "mcp:actions"]);
+    const seeded = seededMcpCode(["mcp:observe"]);
     const form = new URLSearchParams({ grant_type: "authorization_code", client_id: seeded.clientId, code: seeded.code,
       redirect_uri: seeded.redirect, code_verifier: seeded.verifier, resource: "http://localhost:3000/mcp" });
     const token = await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: form }));
@@ -277,7 +262,7 @@ describe("MCP transport and OAuth", () => {
     expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: form }))).status).toBe(400);
     const listed = await app.handle(mcpRpc("tools/list", 2, undefined, credentials.access_token));
     const descriptors = (await listed.json() as any).result.tools, names = descriptors.map((tool: any) => tool.name);
-    expect(names).toContain("machines_list"); expect(names).toContain("action_run"); expect(names).toContain("process_status"); expect(names).not.toContain("process_run");
+    expect(names).toContain("machines_list"); expect(names).toContain("process_status"); expect(names).not.toContain("process_run");
     const machines = descriptors.find((tool: any) => tool.name === "machines_list");
     expect(machines.annotations.readOnlyHint).toBe(true); expect(machines.outputSchema.properties.machines.type).toBe("array");
     const terminal = await app.handle(mcpRpc("tools/call", 3, { name: "process_run", arguments: { deviceId: "x", command: "id" } }, credentials.access_token));

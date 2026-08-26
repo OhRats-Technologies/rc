@@ -129,7 +129,7 @@ export async function approveOAuthGrant(user: User, requestId: string, controlCl
   if (request.state) redirect.searchParams.set("state", request.state);
   redirect.searchParams.set("iss", PUBLIC_URL);
   return { redirect: redirect.toString(), grantId: payload.id, workspaceIds: grantWorkspaceIds(payload),
-    requiresSync: payload.scopes.some(scope => scope === "mcp:actions" || scope === "mcp:terminal") };
+    requiresSync: payload.scopes.includes("mcp:terminal") };
 }
 
 function verifierChallenge(verifier: string) {

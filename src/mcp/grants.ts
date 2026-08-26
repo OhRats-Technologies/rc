@@ -5,10 +5,6 @@ import { HttpError } from "../errors";
 import { MCP_DEFAULT_LIFETIME, MAX_FINITE_AUTH_LIFETIME_MS, authLifetime, expiresAt } from "../lifetimes";
 import { MCP_SCOPES, type McpGrantPayload, type McpGrantRecord, type McpScope } from "./types";
 
-export function actionHash(command: string, cwd: string | null) {
-  return new Bun.CryptoHasher("sha256").update(`${command}\n${cwd || ""}`).digest("hex");
-}
-
 export function grantWorkspaceIds(payload: McpGrantPayload) {
   if (!payload.deviceIds.length) return [];
   return q<{ workspace_id: string }>(`SELECT DISTINCT workspace_id FROM devices WHERE id IN (${payload.deviceIds.map(() => "?").join(",")}) ORDER BY workspace_id`)
@@ -28,7 +24,7 @@ function allowedDeviceIds(user: User, values: unknown, scopes: McpScope[]) {
     const role = deviceRole(user.id, deviceId);
     if (!role) throw new HttpError(403, "device is not available to this account");
     if (scopes.some(scope => scope !== "mcp:observe") && role !== "owner") {
-      throw new HttpError(403, "Actions and Terminal require Owner access on every selected device");
+      throw new HttpError(403, "Terminal requires Owner access on every selected device");
     }
   }
   return requested.sort();
@@ -37,16 +33,8 @@ function allowedDeviceIds(user: User, values: unknown, scopes: McpScope[]) {
 export function prepareGrant(user: User, clientId: string, clientName: string, deviceIdsValue: unknown, scopesValue: unknown, lifetimeValue?: unknown) {
   const scopes = normalizedScopes(scopesValue), deviceIds = allowedDeviceIds(user, deviceIdsValue, scopes), issuedAt = now();
   const lifetime = authLifetime(lifetimeValue, MCP_DEFAULT_LIFETIME);
-  const placeholders = deviceIds.map(() => "?").join(",");
-  const workspaces = q<{ workspace_id: string }>(`SELECT DISTINCT workspace_id FROM devices WHERE id IN (${placeholders})`)
-    .all(...deviceIds).map(row => row.workspace_id);
-  const actionPlaceholders = workspaces.map(() => "?").join(",");
-  const actions = scopes.includes("mcp:actions") && workspaces.length
-    ? q<{ id: string; command: string; cwd: string | null }>(`SELECT id,command,cwd FROM actions WHERE workspace_id IN (${actionPlaceholders}) ORDER BY id`)
-      .all(...workspaces).map(action => ({ id: action.id, hash: actionHash(action.command, action.cwd) })) : [];
-  if (actions.length > 400) throw new HttpError(409, "too many saved Actions for one MCP grant");
   const payload: McpGrantPayload = {
-    v: 1, id: id(), userId: user.id, clientId, clientName, deviceIds, scopes, actions,
+    v: 1, id: id(), userId: user.id, clientId, clientName, deviceIds, scopes,
     issuedAt, expiresAt: expiresAt(lifetime, issuedAt),
   };
   return JSON.stringify(payload);

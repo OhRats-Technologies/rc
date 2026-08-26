@@ -32,7 +32,7 @@ export function authoritySnapshot(workspaceId: string): AuthoritySnapshot {
   const mcpGrants = q<{ id: string; user_id: string; grant: string }>(`SELECT DISTINCT g.id,g.user_id,g.grant FROM mcp_grants g
     JOIN json_each(json_extract(g.grant,'$.deviceIds')) granted JOIN devices d ON d.id=granted.value
     WHERE d.workspace_id=? AND g.revoked_at IS NULL AND (g.expires_at=0 OR g.expires_at>?) AND EXISTS (
-      SELECT 1 FROM json_each(json_extract(g.grant,'$.scopes')) scope WHERE scope.value IN ('mcp:actions','mcp:terminal')
+      SELECT 1 FROM json_each(json_extract(g.grant,'$.scopes')) scope WHERE scope.value='mcp:terminal'
     ) ORDER BY g.id`).all(workspaceId, Date.now())
     .map(row => ({ id: row.id, userId: row.user_id, hash: new Bun.CryptoHasher("sha256").update(row.grant).digest("hex") }));
   return { v: 1, workspaceId, members: [...grouped.values()], apiKeys, ...(mcpGrants.length ? { mcpGrants } : {}) };

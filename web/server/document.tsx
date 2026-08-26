@@ -13,7 +13,7 @@ type DocumentProps = {
 };
 
 function Document({ title, body, user, workspaces = [], path = "/", scripts = [], styles = [], sidebar = "open", indexable = false,
-  description = "Persistent terminals, saved actions, and private device access without exposing SSH.", canonicalPath = "/", publicSite = false }: DocumentProps) {
+  description = "Persistent terminals and private device access without exposing SSH.", canonicalPath = "/", publicSite = false }: DocumentProps) {
   const css = assetUrl("styles", "css");
   const socialCard = assetUrl("social-card", "png");
   const canonical = `${PUBLIC_URL}${canonicalPath}`;

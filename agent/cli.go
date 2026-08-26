@@ -37,8 +37,6 @@ func printHelp() {
 	helpRow("35;1", "devices", "List devices in your account")
 	helpRow("35;1", "shell DEVICE", "Open a remote terminal")
 	helpRow("35;1", "run DEVICE -- CMD", "Run a remote command")
-	helpRow("35;1", "actions", "List saved actions")
-	helpRow("35;1", "action run", "Run a saved action")
 	fmt.Println()
 	helpRow("34;1", "service", "Manage the background RC Node")
 	helpRow("34;1", "update", "Update this RC Node")
@@ -171,11 +169,6 @@ func commandHelp(command string) error {
 		return devicesCommand([]string{"--help"})
 	case "shell":
 		return shellCommand([]string{"--help"})
-	case "actions":
-		return actionsCommand([]string{"--help"})
-	case "action":
-		fmt.Println("Usage: rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
-		return nil
 	case "device":
 		return deviceCommand([]string{"--help"})
 	case "service":

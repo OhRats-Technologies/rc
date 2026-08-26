@@ -3,7 +3,7 @@ import type { User } from "../../../src/core";
 import type { DeviceView } from "../../../src/devices";
 import type { WorkspaceView } from "../../../src/workspaces";
 import { htmlDocument } from "../document";
-import { LOGIN_SHELL_COMMAND, processLabel, processState, relative, terminalFallback } from "../format";
+import { processLabel, processState, relative, terminalFallback } from "../format";
 
 type RemoteProcess = ReturnType<typeof import("../../../src/process-store").processJSON>;
 
@@ -21,6 +21,5 @@ export function processPage(user: User, workspaces: WorkspaceView[], device: Dev
       <div id="terminal-toolbar" className="terminal-toolbar"><span className="terminal-label">PTY/{process.id.slice(0, 8)}</span>{interactive && <div id="terminal-actions" className="terminal-actions"><button className="text-button" data-signal="INT" type="button">CTRL-C</button><button className="text-button" data-signal="TERM" type="button">TERM</button><button className="text-button" data-signal="KILL" type="button">KILL</button></div>}</div>
       <pre id="process-transcript" className="terminal-transcript">{process.encrypted ? "Terminal contents are end-to-end encrypted and are not retained by RC." : terminalFallback(process.output || "")}</pre><script id="process-terminal-source" type="application/octet-stream">{source}</script><div id="terminal-host" className="terminal-host" hidden/>{interactive && <div className="mobile-terminal-keys" aria-label="Terminal keys"><button type="button" data-terminal-key="ESC">ESC</button><button type="button" data-terminal-key="CTRL">CTRL</button><button type="button" data-terminal-key="ALT">ALT</button><button type="button" data-terminal-key="TAB">TAB</button><button type="button" data-terminal-key="LEFT">←</button><button type="button" data-terminal-key="UP">↑</button><button type="button" data-terminal-key="DOWN">↓</button><button type="button" data-terminal-key="RIGHT">→</button></div>}
       <p id="process-message" className="meta process-message">{process.error || (process.encrypted && !running ? "Encrypted terminal content was not retained." : running && !controllable ? `Live control belongs to ${process.created_by_name || "another operator"}.` : "")}</p>
-      {device.role === "owner" && !process.encrypted && process.command !== LOGIN_SHELL_COMMAND && <a className="text-action save-action" href={`/actions/new?workspace=${device.workspace_id}&process=${process.id}`}>SAVE AS ACTION →</a>}
     </div> });
 }

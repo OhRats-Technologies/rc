@@ -55,7 +55,7 @@ export function authenticationArticle(): DocArticle {
         title: "MCP OAuth",
         body: <>
           <p>MCP uses OAuth with Protected Resource Metadata, PKCE S256, and an exact resource value for the RC MCP endpoint.</p>
-          <p>Access tokens are short-lived and refresh tokens rotate. The durable MCP grant separately records selected machines, scopes, saved Action hashes, and authorization lifetime.</p>
+          <p>Access tokens are short-lived and refresh tokens rotate. The durable MCP grant separately records selected machines, scopes, and authorization lifetime.</p>
           <p>Execution-capable approval requires an Owner and a fresh passkey ceremony. A browser control identity signs the exact grant, and its hash is synchronized into RC Lock before the grant is usable on a Node.</p>
         </>,
       },

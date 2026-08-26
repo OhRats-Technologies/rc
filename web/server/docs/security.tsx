@@ -73,7 +73,7 @@ export function securityArticle(): DocArticle {
         body: <>
           <p>Standard remote MCP does not participate in RC's browser/CLI end-to-end transport. For <code>mcp:terminal</code>, command and output plaintext pass through RC server memory while the MCP call is active.</p>
           <p>That memory is bounded to 256 KiB per active process buffer. Completed buffers expire after five minutes; inactive running buffers expire after thirty minutes. MCP command/output is not written to SQLite process history.</p>
-          <p>A compromised RC server with an active Terminal grant could issue commands allowed by that grant until the grant expires or is revoked. Actions are narrower because the Node checks the authorized Action hash before execution.</p>
+          <p>A compromised RC server with an active Terminal grant could issue commands allowed by that grant until the grant expires or is revoked.</p>
         </>,
       },
       {

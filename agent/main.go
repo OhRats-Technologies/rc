@@ -48,10 +48,6 @@ func run(args []string) error {
 		return runNode(args[1:])
 	case "shell":
 		return shellCommand(args[1:])
-	case "actions":
-		return actionsCommand(args[1:])
-	case "action":
-		return actionCommand(args[1:])
 	case "enroll":
 		return enrollCommand(args[1:])
 	case "status":

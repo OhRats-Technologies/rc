@@ -56,7 +56,6 @@ function WorkspaceFolder({ workspace, devices, currentDeviceId, open, path }: {
         <div className="workspace-menu-popover">
           <div className="workspace-menu-actions" data-workspace-menu-actions>
             {workspace.role === "owner" && <a href={`/devices/enroll?workspace=${workspace.id}`}><span className="ui-icon icon-enroll" aria-hidden="true"/>Enroll device</a>}
-            <a href={`/actions?workspace=${workspace.id}`}><span className="ui-icon icon-bolt" aria-hidden="true"/>Actions</a>
             {workspace.role === "owner" && <a href={`/workspaces/${workspace.id}/access`}><span className="ui-icon icon-access" aria-hidden="true"/>Manage access</a>}
             <a href={`/workspaces/${workspace.id}/activity`}><span className="ui-icon icon-audit" aria-hidden="true"/>Audit log</a>
             {workspace.role === "owner" && <button type="button" data-workspace-rename><span className="ui-icon icon-pencil" aria-hidden="true"/>Rename workspace</button>}
@@ -88,7 +87,6 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
           <section className="sidebar-section">
             <h2>Navigation</h2>
             <a className={`nav-link${active(path, "/devices")}`} href="/devices"><span className="ui-icon icon-devices"/><span>Devices</span></a>
-            <a className={`nav-link${active(path, "/actions")}`} href="/actions"><span className="ui-icon icon-actions"/><span>Actions</span></a>
             <a className={`nav-link${path === "/api" ? " active" : ""}`} href="/api"><span className="ui-icon icon-api"/><span>API</span></a>
             <a className={`nav-link${active(path, "/integrations/mcp")}`} href="/integrations/mcp"><span className="ui-icon icon-api"/><span>MCP</span></a>
           </section>

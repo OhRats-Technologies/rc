@@ -6,10 +6,9 @@ import { SectionBadge } from "../components";
 
 function eventDetail(event: ActivityView) {
   const label = String(event.detail.name || event.detail.command || event.detail.deviceId || event.detail.processId || event.device_id || "").slice(0, 120);
-  const deviceId = String(event.detail.deviceId || event.device_id || ""), processId = String(event.detail.processId || ""), actionId = String(event.detail.actionId || "");
+  const deviceId = String(event.detail.deviceId || event.device_id || ""), processId = String(event.detail.processId || "");
   if (deviceId && processId) return <a className="text-action activity-link" href={`/devices/${deviceId}/processes/${processId}`}>{label || processId.slice(0, 8)} →</a>;
   if (deviceId) return <a className="text-action activity-link" href={`/devices/${deviceId}`}>{label || deviceId.slice(0, 8)} →</a>;
-  if (actionId) return <a className="text-action activity-link" href={`/actions/${actionId}`}>{label || actionId.slice(0, 8)} →</a>;
   return label;
 }
 

@@ -24,7 +24,7 @@ export const app = new Elysia({ name: "rc" })
   .get("/healthz", () => "ok", { detail: { hide: true } })
   .get("/favicon.ico", () => Response.redirect("https://assets.ohrats.party/assets/logo.092a1cece4d0.svg", 302), { detail: { hide: true } })
   .get("/robots.txt", () => new Response([
-    "User-agent: *", "Allow: /", "Disallow: /devices", "Disallow: /account", "Disallow: /actions",
+    "User-agent: *", "Allow: /", "Disallow: /devices", "Disallow: /account",
     "Disallow: /workspaces", "Disallow: /integrations", "Disallow: /oauth", "Disallow: /cli/login",
     "Disallow: /setup/", "Disallow: /mcp", "Disallow: /api/v1/auth/", "Disallow: /api/v1/agent/", "",
   ].join("\n"), { headers: { "content-type": "text/plain" } }), { detail: { hide: true } })

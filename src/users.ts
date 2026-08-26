@@ -25,7 +25,7 @@ export function deleteUser(user: User) {
 
   db.transaction(() => {
     q("INSERT OR IGNORE INTO users(id,name,created_at) VALUES(?,?,?)").run(DELETED_USER_ID, "Deleted account", now());
-    for (const table of ["workspaces", "processes", "workspace_invites", "enrollment_tokens", "actions"]) {
+    for (const table of ["workspaces", "processes", "workspace_invites", "enrollment_tokens"]) {
       q(`UPDATE ${table} SET created_by=? WHERE created_by=?`).run(DELETED_USER_ID, user.id);
     }
     q("DELETE FROM users WHERE id=? AND id<>?").run(user.id, DELETED_USER_ID);

@@ -29,10 +29,10 @@ export function apiArticle(): DocArticle {
         title: "Scopes",
         body: <>
           <DocTable><thead><tr><th>Scope</th><th>Allows</th></tr></thead><tbody>
-            <tr><td><code>read</code></td><td>GET requests to account, workspace, device, Action, and process resources.</td></tr>
-            <tr><td><code>execute</code></td><td>Allocate device processes and run saved Actions.</td></tr>
+            <tr><td><code>read</code></td><td>GET requests to account, workspace, device, and process resources.</td></tr>
+            <tr><td><code>execute</code></td><td>Allocate device processes for remote execution.</td></tr>
             <tr><td><code>manage-devices</code></td><td>Create enrollments and modify or remove devices.</td></tr>
-            <tr><td><code>manage-workspaces</code></td><td>Create or modify workspaces and Actions.</td></tr>
+            <tr><td><code>manage-workspaces</code></td><td>Create or modify workspaces.</td></tr>
           </tbody></DocTable>
           <p>Passkey and API-key administration require a human browser session and cannot be performed with an API key.</p>
         </>,

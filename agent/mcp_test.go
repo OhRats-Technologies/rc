@@ -10,17 +10,10 @@ import (
 	"time"
 )
 
-func mcpFixture(t *testing.T, role, kind, command string) (string, wireMessage, ed25519.PrivateKey) {
+func mcpFixture(t *testing.T, role, command string) (string, wireMessage, ed25519.PrivateKey) {
 	t.Helper()
 	snapshot, proof, privateKey := controlFixture(t, role)
-	scope := "mcp:terminal"
-	actions := []mcpActionGrant{}
-	if kind == "action" {
-		scope = "mcp:actions"
-		digest := sha256.Sum256([]byte(command + "\n"))
-		actions = []mcpActionGrant{{ID: "action", Hash: hex.EncodeToString(digest[:])}}
-	}
-	grant := mcpGrant{V: 1, ID: "mcp", UserID: "user", DeviceIDs: []string{"device"}, Scopes: []string{scope}, Actions: actions,
+	grant := mcpGrant{V: 1, ID: "mcp", UserID: "user", DeviceIDs: []string{"device"}, Scopes: []string{"mcp:terminal"},
 		IssuedAt: time.Now().UnixMilli(), ExpiresAt: time.Now().Add(time.Hour).UnixMilli()}
 	raw, _ := json.Marshal(grant)
 	digest := sha256.Sum256(raw)
@@ -31,13 +24,13 @@ func mcpFixture(t *testing.T, role, kind, command string) (string, wireMessage, 
 		t.Fatal(err)
 	}
 	signature := ed25519.Sign(privateKey, []byte(mcpGrantSignaturePayload(string(raw))))
-	return dir, wireMessage{Type: "mcp.process.start", ID: "process", UserID: "user", Command: command, McpKind: kind,
-		ActionID: "action", McpGrant: string(raw), McpSignature: base64.RawURLEncoding.EncodeToString(signature),
+	return dir, wireMessage{Type: "mcp.process.start", ID: "process", UserID: "user", Command: command,
+		McpGrant: string(raw), McpSignature: base64.RawURLEncoding.EncodeToString(signature),
 		Grant: proof.Grant, CredentialID: proof.CredentialID, Assertion: proof.Assertion}, privateKey
 }
 
 func TestMcpTerminalRequiresActiveOwnerGrant(t *testing.T) {
-	dir, message, _ := mcpFixture(t, "owner", "terminal", "printf ok")
+	dir, message, _ := mcpFixture(t, "owner", "printf ok")
 	if _, err := verifyMcpProcess(dir, "device", message); err != nil {
 		t.Fatal(err)
 	}
@@ -54,26 +47,15 @@ func TestMcpTerminalRequiresActiveOwnerGrant(t *testing.T) {
 	}
 }
 
-func TestMcpActionIsBoundToApprovedDefinition(t *testing.T) {
-	dir, message, _ := mcpFixture(t, "owner", "action", "printf approved")
-	if _, err := verifyMcpProcess(dir, "device", message); err != nil {
-		t.Fatal(err)
-	}
-	message.Command = "printf tampered"
-	if _, err := verifyMcpProcess(dir, "device", message); err == nil {
-		t.Fatal("edited Action command passed an old MCP grant")
-	}
-}
-
 func TestMcpExecutionRejectsOperatorSigner(t *testing.T) {
-	dir, message, _ := mcpFixture(t, "operator", "terminal", "printf no")
+	dir, message, _ := mcpFixture(t, "operator", "printf no")
 	if _, err := verifyMcpProcess(dir, "device", message); err == nil {
 		t.Fatal("operator created an executable MCP grant")
 	}
 }
 
 func TestMcpExecutionRejectsOverlongGrantLifetime(t *testing.T) {
-	dir, message, _ := mcpFixture(t, "owner", "terminal", "printf no")
+	dir, message, _ := mcpFixture(t, "owner", "printf no")
 	var grant mcpGrant
 	_ = json.Unmarshal([]byte(message.McpGrant), &grant)
 	grant.ExpiresAt = grant.IssuedAt + int64(400*24*time.Hour/time.Millisecond)
@@ -85,7 +67,7 @@ func TestMcpExecutionRejectsOverlongGrantLifetime(t *testing.T) {
 }
 
 func TestMcpExecutionAllowsUntilRevokedGrant(t *testing.T) {
-	dir, message, privateKey := mcpFixture(t, "owner", "terminal", "printf ok")
+	dir, message, privateKey := mcpFixture(t, "owner", "printf ok")
 	lock, _ := loadLock(dir)
 	var snapshot authoritySnapshot
 	_ = json.Unmarshal([]byte(lock.Snapshot), &snapshot)
@@ -107,7 +89,7 @@ func TestMcpExecutionAllowsUntilRevokedGrant(t *testing.T) {
 }
 
 func TestMcpOwnerGrantRunsThroughExistingProcessManager(t *testing.T) {
-	dir, message, _ := mcpFixture(t, "owner", "terminal", "printf mcp-ok")
+	dir, message, _ := mcpFixture(t, "owner", "printf mcp-ok")
 	outbound := make(chan wireMessage, 16)
 	manager := newProcessManager()
 	manager.attach(func(message wireMessage) error { outbound <- message; return nil })

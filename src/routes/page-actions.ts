@@ -1,5 +1,4 @@
 import { Elysia } from "elysia";
-import { createAction, getAction, listActions, runAction, updateAction } from "../actions";
 import { deleteApiToken } from "../account";
 import { deletePasskey, logout } from "../auth";
 import { approveCliAuthorization } from "../cli-auth";
@@ -8,12 +7,11 @@ import { HttpError } from "../errors";
 import { checkOrigin, sessionCookie } from "../http-utils";
 import { pageContext, safeNext } from "../page-context";
 import { consumeStepUp } from "../step-up";
-import { createEnrollment, createInvite, createWorkspace, joinWorkspace, renameWorkspace, workspaceDevices, workspaceFor } from "../workspaces";
+import { createEnrollment, createInvite, createWorkspace, joinWorkspace, renameWorkspace, workspaceFor } from "../workspaces";
 import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvite, workspaceAccess } from "../workspace-access";
 import { deleteUser, renameUser } from "../users";
 import { accountPage, apiKeyFormPage, apiPage, deleteAccountFallbackPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
-import { actionConfirmPage, actionFormPage, actionPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage } from "../../web/server/pages/auth";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 
@@ -116,27 +114,6 @@ export const pageActions = new Elysia({ name: "rc.page-actions", detail: { hide:
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
     const input = await form(request); renameDevice(context.user, params.deviceId, input.name);
     return Response.redirect(safeNext(input.next || `/devices/${params.deviceId}`), 303);
-  })
-  .post("/actions", async ({ request }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const input = await form(request);
-    try { return Response.redirect(`/actions/${createAction(context.user, String(input.workspaceId || ""), input).id}`, 303); }
-    catch (error) { return actionFormPage(context.user, context.workspaces, context.sidebar, null, { workspaceId: String(input.workspaceId || ""), name: String(input.name || ""), description: String(input.description || ""), command: String(input.command || ""), cwd: String(input.cwd || ""), confirm: Boolean(input.confirm) }, error instanceof Error ? error.message : "Could not create action."); }
-  })
-  .post("/actions/:id", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const action = getAction(context.user, params.id); if (!action) return new Response("not found", { status: 404 });
-    const input = await form(request);
-    try { updateAction(context.user, action.id, input); return Response.redirect(`/actions/${action.id}`, 303); }
-    catch (error) { return actionFormPage(context.user, context.workspaces, context.sidebar, action, {}, error instanceof Error ? error.message : "Could not update action."); }
-  })
-  .post("/actions/:id/run", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return Response.redirect("/", 303);
-    const action = getAction(context.user, params.id); if (!action) return new Response("not found", { status: 404 });
-    const data = await request.formData(), deviceIds = data.getAll("deviceId").map(String);
-    if (action.confirm && data.get("confirm") !== "1") return actionConfirmPage(context.user, context.workspaces, action, workspaceDevices(action.workspace_id), deviceIds, context.sidebar);
-    return actionPage(context.user, context.workspaces, action, workspaceDevices(action.workspace_id), context.sidebar,
-      deviceIds.map(deviceId => ({ deviceId, deviceName: deviceId, error: "Encrypted execution requires JavaScript or the RC CLI." })));
   })
   .post("/account/passkeys/:id/delete", async ({ request, params }) => {
     const context = await pageContext(request); if (!context) return Response.redirect("/", 303);

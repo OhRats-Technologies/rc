@@ -24,7 +24,7 @@ export const terminalRunTool: McpTool = {
   annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
   async run(context, args) {
     const result = await runMcpProcess(context, { deviceId: String(args.deviceId || ""), command: String(args.command || ""),
-      cwd: String(args.cwd || ""), kind: "terminal", timeoutSeconds: Number(args.timeoutSeconds || 20) });
+      cwd: String(args.cwd || ""), timeoutSeconds: Number(args.timeoutSeconds || 20) });
     const status = result.status === "exited" ? `Exit ${result.exitCode ?? "unknown"}.`
       : result.status === "running" ? `Process ${result.processId} is still running.` : `Process was lost${result.error ? `: ${result.error}` : "."}`;
     const text = result.output.trim() ? `${result.output.trimEnd()}\n${status}` : status;

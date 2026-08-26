@@ -13,7 +13,7 @@ function rpcError(id: JsonRpcRequest["id"], code: number, message: string, statu
   return Response.json({ jsonrpc: "2.0", id: id ?? null, error: { code, message } }, { status, headers: { "cache-control": "no-store" } });
 }
 
-function authError(scope = "mcp:observe mcp:actions", insufficient = false) {
+function authError(scope = "mcp:observe", insufficient = false) {
   const value = `Bearer ${insufficient ? 'error="insufficient_scope", ' : ""}resource_metadata="${MCP_RESOURCE_METADATA}", scope="${scope}"`;
   return Response.json({ error: insufficient ? "insufficient_scope" : "unauthorized" }, {
     status: insufficient ? 403 : 401, headers: { "cache-control": "no-store", "www-authenticate": value },
@@ -50,7 +50,7 @@ export async function handleMcp(request: Request) {
 
   if (body.method === "server/discover") return rpc(body.id, {
     resultType: "complete", supportedVersions: [MCP_PROTOCOL_VERSION], capabilities: { tools: {} },
-    instructions: "Use only the machines and capabilities explicitly granted by the user. Prefer saved Actions over arbitrary terminal commands.",
+    instructions: "Use only the machines and capabilities explicitly granted by the user.",
     ttlMs: 300_000, cacheScope: "public",
     _meta: { "io.modelcontextprotocol/serverInfo": { name: "RC", version: VERSION, websiteUrl: PUBLIC_URL } },
   });

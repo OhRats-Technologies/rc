@@ -101,10 +101,6 @@ CREATE TABLE IF NOT EXISTS mcp_access_tokens(
 CREATE TABLE IF NOT EXISTS mcp_refresh_tokens(
   token_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,expires_at INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS mcp_confirmations(
-  id TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,
-  action_id TEXT NOT NULL,device_ids TEXT NOT NULL,expires_at INTEGER NOT NULL
-);
 CREATE TABLE IF NOT EXISTS cli_authorizations(
   id TEXT PRIMARY KEY,device_code_hash TEXT NOT NULL UNIQUE,user_code_hash TEXT NOT NULL UNIQUE,
   client_id TEXT NOT NULL DEFAULT '',signing_public_key TEXT NOT NULL DEFAULT '',
@@ -135,19 +131,12 @@ CREATE TABLE IF NOT EXISTS events(
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,
   kind TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '{}',created_at INTEGER NOT NULL
 );
-CREATE TABLE IF NOT EXISTS actions(
-  id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  name TEXT NOT NULL,description TEXT NOT NULL DEFAULT '',command TEXT NOT NULL,cwd TEXT,
-  confirm INTEGER NOT NULL DEFAULT 0,created_by TEXT NOT NULL REFERENCES users(id),
-  created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL
-);
 CREATE INDEX IF NOT EXISTS idx_members_user ON workspace_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_passkeys_user ON passkeys(user_id);
 CREATE INDEX IF NOT EXISTS idx_devices_workspace ON devices(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_processes_device ON processes(device_id,created_at);
 CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(device_id,status);
 CREATE INDEX IF NOT EXISTS idx_events_workspace ON events(workspace_id,created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_actions_workspace ON actions(workspace_id,name);
 CREATE INDEX IF NOT EXISTS idx_cli_authorizations_expiry ON cli_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_cli_sessions_user ON cli_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_auth_challenges_expiry ON agent_auth_challenges(expires_at);
@@ -159,6 +148,11 @@ CREATE INDEX IF NOT EXISTS idx_mcp_oauth_expiry ON mcp_oauth_requests(expires_at
 CREATE INDEX IF NOT EXISTS idx_mcp_access_expiry ON mcp_access_tokens(expires_at);
 CREATE INDEX IF NOT EXISTS idx_mcp_refresh_expiry ON mcp_refresh_tokens(expires_at);
 `);
+
+const retiredActions = db.query<{ name: string }, []>("SELECT name FROM sqlite_master WHERE type='table' AND name='actions'").get();
+if (retiredActions) db.transaction(() => {
+  db.exec("DELETE FROM mcp_grants; DROP TABLE IF EXISTS mcp_confirmations; DROP TABLE actions;");
+})();
 
 function migrateRoleVocabulary() {
   const memberSql = db.query<{ sql: string }, []>("SELECT sql FROM sqlite_master WHERE type='table' AND name='workspace_members'").get()?.sql || "";

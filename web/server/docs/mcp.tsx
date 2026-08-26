@@ -38,8 +38,8 @@ export function mcpArticle(): DocArticle {
         title: "Codex",
         body: <>
           <CopyField value={`codex mcp add rc --url ${endpoint} --oauth-resource ${endpoint}`}/>
-          <CopyField value="codex mcp login --scopes mcp:observe,mcp:actions,mcp:terminal rc"/>
-          <p>Request only the scopes the agent needs. Omit <code>mcp:terminal</code> if saved Actions are sufficient.</p>
+          <CopyField value="codex mcp login --scopes mcp:observe,mcp:terminal rc"/>
+          <p>Request only the scopes the agent needs. Omit <code>mcp:terminal</code> for read-only access.</p>
         </>,
       },
       {
@@ -93,10 +93,8 @@ export function mcpArticle(): DocArticle {
         body: <>
           <DocTable><thead><tr><th>Scope</th><th>Tools</th><th>Meaning</th></tr></thead><tbody>
             <tr><td><code>mcp:observe</code></td><td><code>machines_list</code>, <code>process_status</code></td><td>Read granted machine metadata and status/output for MCP processes created by the same grant.</td></tr>
-            <tr><td><code>mcp:actions</code></td><td><code>actions_list</code>, <code>action_run</code></td><td>List and run saved Actions captured when the grant was approved.</td></tr>
             <tr><td><code>mcp:terminal</code></td><td><code>process_run</code></td><td>Run an arbitrary shell command on an explicitly granted machine.</td></tr>
           </tbody></DocTable>
-          <p>Actions are bound to the Action ID plus a hash of its command and working directory. Editing an Action requires re-authorization before MCP can run it again.</p>
         </>,
       },
       {
@@ -105,7 +103,7 @@ export function mcpArticle(): DocArticle {
         body: <>
           <p>RC publishes Protected Resource Metadata and authorization-server metadata. Clients use PKCE S256 and resource-bound access tokens. Access tokens are short-lived; refresh tokens rotate and cannot outlive the durable grant.</p>
           <p>The browser control identity signs the exact MCP grant. RC synchronizes its hash into RC Lock.</p>
-          <p>Before execution, the Node verifies the grant signature, current Owner signer, selected device, required scope, grant presence in RC Lock, expiry, and any saved Action hash.</p>
+          <p>Before execution, the Node verifies the grant signature, current Owner signer, selected device, required scope, grant presence in RC Lock, and expiry.</p>
         </>,
       },
       {

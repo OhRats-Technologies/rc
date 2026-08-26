@@ -1,7 +1,6 @@
 import { Elysia, t } from "elysia";
 import { openapi } from "@elysia/openapi";
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simplewebauthn/server";
-import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
 import { apiKeyGrant, createApiToken, deleteApiToken, listApiTokens, requiredApiScope } from "../account";
 import {
   addPasskeyOptions, apiTokenScopes, auth, cookieUser, deletePasskey, loginOptions, registerOptions, rcStatus, signupOptions,
@@ -29,7 +28,6 @@ import { changeWorkspaceRole, leaveWorkspace, removeWorkspaceMember, revokeInvit
 const IdParams = t.Object({ id: t.String({ minLength: 1, maxLength: 100 }) });
 const WorkspaceParams = t.Object({ workspaceId: t.String({ minLength: 1, maxLength: 100 }) });
 const DeviceParams = t.Object({ deviceId: t.String({ minLength: 1, maxLength: 100 }) });
-const ActionParams = t.Object({ id: t.String({ minLength: 1, maxLength: 100 }) });
 const WebAuthnVerify = t.Object({ ceremonyId: t.String(), response: t.Unknown() });
 const AgentQuery = t.Object({ device: t.String({ minLength: 1, maxLength: 100 }) });
 const AgentEnroll = t.Object({
@@ -249,18 +247,4 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   }), 201), {
     params: DeviceParams, body: t.Object({ cols: t.Optional(t.Number({ minimum: 2, maximum: 500 })), rows: t.Optional(t.Number({ minimum: 2, maximum: 500 })) }),
   })
-  .get("/processes/:id", ({ rcUser, params }) => ({ process: getProcess(rcUser!.id, params.id) }), { params: IdParams })
-  .get("/actions", ({ rcUser }) => ({ actions: listActions(rcUser!) }))
-  .post("/actions", ({ rcUser, body }) => json(createAction(rcUser!, body.workspaceId, body), 201), {
-    body: t.Object({ workspaceId: t.String(), name: t.String({ minLength: 1, maxLength: 120 }), description: t.Optional(t.String({ maxLength: 500 })), command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), confirm: t.Optional(t.Boolean()) }),
-  })
-  .get("/actions/:id", ({ rcUser, params }) => {
-    const action = getAction(rcUser!, params.id); if (!action) throw new HttpError(404, "action not found"); return { action };
-  }, { params: ActionParams })
-  .patch("/actions/:id", ({ rcUser, params, body }) => {
-    updateAction(rcUser!, params.id, body); return { ok: true };
-  }, { params: ActionParams, body: t.Object({ name: t.String({ minLength: 1, maxLength: 120 }), description: t.Optional(t.String({ maxLength: 500 })), command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), confirm: t.Optional(t.Boolean()) }) })
-  .delete("/actions/:id", ({ rcUser, params }) => { deleteAction(rcUser!, params.id); return { ok: true }; }, { params: ActionParams })
-  .post("/actions/:id/run", ({ rcUser, params, body }) => ({ results: runAction(rcUser!, params.id, body.deviceIds, body.confirm === true) }), {
-    params: ActionParams, body: t.Object({ deviceIds: t.Array(t.String(), { minItems: 1, maxItems: 100 }), confirm: t.Optional(t.Boolean()) }),
-  });
+  .get("/processes/:id", ({ rcUser, params }) => ({ process: getProcess(rcUser!.id, params.id) }), { params: IdParams });

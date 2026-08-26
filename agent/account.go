@@ -45,15 +45,6 @@ type accountProcess struct {
 	Signal   string `json:"signal"`
 }
 
-type accountAction struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Workspace string `json:"workspace_name"`
-	Command   string `json:"command"`
-	Cwd       string `json:"cwd"`
-	Confirm   int    `json:"confirm"`
-}
-
 func accountRequest(server, token, method, path string) (*http.Response, error) {
 	return accountJSONRequest(server, token, method, path, nil)
 }

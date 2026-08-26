@@ -8,7 +8,7 @@ export const processStatusTool: McpTool = {
   description: "Read incremental output and status for a process created by this same MCP grant. Pass the prior nextOffset to avoid repeated output. waitSeconds can wait for new output or exit. Buffers are bounded and ephemeral.",
   scope: "mcp:observe",
   inputSchema: { type: "object", additionalProperties: false, properties: {
-    processId: { type: "string", description: "Process ID returned by process_run or action_run." },
+    processId: { type: "string", description: "Process ID returned by process_run." },
     offset: { type: "integer", minimum: 0, description: "Previous nextOffset. Default 0." },
     waitSeconds: { type: "integer", minimum: 0, maximum: 60, default: 0, description: "Wait for new output or exit. Default 0." },
   }, required: ["processId"] },

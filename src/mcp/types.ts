@@ -1,8 +1,7 @@
 export const MCP_PROTOCOL_VERSION = "2026-07-28";
-export const MCP_SCOPES = ["mcp:observe", "mcp:actions", "mcp:terminal"] as const;
+export const MCP_SCOPES = ["mcp:observe", "mcp:terminal"] as const;
 export type McpScope = typeof MCP_SCOPES[number];
 
-export type McpActionGrant = { id: string; hash: string };
 export type McpGrantPayload = {
   v: 1;
   id: string;
@@ -11,7 +10,6 @@ export type McpGrantPayload = {
   clientName: string;
   deviceIds: string[];
   scopes: McpScope[];
-  actions: McpActionGrant[];
   issuedAt: number;
   expiresAt: number;
 };

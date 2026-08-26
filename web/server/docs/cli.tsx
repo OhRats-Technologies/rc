@@ -36,8 +36,6 @@ export function cliArticle(): DocArticle {
           <tr><td><code>rc devices</code></td><td>List devices, workspaces, online state, and Node version.</td></tr>
           <tr><td><code>rc shell DEVICE</code></td><td>Open the machine's login shell in the current terminal.</td></tr>
           <tr><td><code>rc run DEVICE -- CMD...</code></td><td>Run one command remotely and stream its output.</td></tr>
-          <tr><td><code>rc actions</code></td><td>List saved Actions.</td></tr>
-          <tr><td><code>rc action run ACTION --device DEVICE</code></td><td>Run a saved Action. Add <code>--confirm</code> when the Action requires confirmation.</td></tr>
           <tr><td><code>rc status</code></td><td>Show local enrollment and hosted device status.</td></tr>
           <tr><td><code>rc enroll TOKEN</code></td><td>Enroll this machine. Optional flags: <code>--name</code>, <code>--url</code>, <code>--state-dir</code>.</td></tr>
           <tr><td><code>rc service install|start|stop|status|uninstall</code></td><td>Manage the per-user background Node service.</td></tr>
@@ -53,7 +51,6 @@ export function cliArticle(): DocArticle {
         body: <>
           <CopyField value="rc shell Mac"/>
           <CopyField value="rc run Mac -- uname -a"/>
-          <CopyField value="rc action run deploy --device Mac --confirm"/>
         </>,
       },
       {

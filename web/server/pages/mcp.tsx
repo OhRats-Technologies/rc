@@ -20,7 +20,6 @@ export function mcpAuthorizePage(user: User, requestId: string, clientName: stri
         <LifetimeSelect defaultValue="never"/>
         <fieldset className="scope-fields"><legend>Permissions</legend>
           {scope("mcp:observe", "Observe", "Machine status and metadata.", true)}
-          {scope("mcp:actions", "Actions", "Run saved Actions captured by this grant.", true)}
           {scope("mcp:terminal", "Terminal", "Run arbitrary commands. Command and output plaintext pass through RC.", false)}
         </fieldset>
         <fieldset className="scope-fields"><legend>Machines</legend>{devices.length ? devices.map(device =>

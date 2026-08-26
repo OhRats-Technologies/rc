@@ -1,5 +1,4 @@
 import { Elysia } from "elysia";
-import { getAction, listActions } from "../actions";
 import { listApiTokens } from "../account";
 import { listPasskeys, publicSignupAvailable, rcStatus } from "../auth";
 import { cliAuthorizationPreview } from "../cli-auth";
@@ -10,12 +9,11 @@ import { HttpError } from "../errors";
 import { fail, setupCookie } from "../http-utils";
 import { pageContext, safeNext } from "../page-context";
 import { getProcess, listProcesses } from "../process-api";
-import { invitePreview, workspaceActivity, workspaceDevices, workspaceFor } from "../workspaces";
+import { invitePreview, workspaceActivity, workspaceFor } from "../workspaces";
 import { workspaceAccess } from "../workspace-access";
 import { activeUserCount } from "../users";
 import { accountPage, apiKeyFormPage, apiPage, deleteAccountFallbackPage } from "../../web/server/pages/account";
 import { accessPage } from "../../web/server/pages/access";
-import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
 import { landingPage } from "../../web/server/pages/landing";
 import { openapiReferencePage } from "../../web/server/pages/openapi";
@@ -127,32 +125,4 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
   .get("/api", async ({ request }) => {
     const context = await pageContext(request); if (!context) return loginRedirect();
     return apiPage(context.user, context.workspaces, listApiTokens(context.user.id), context.sidebar);
-  })
-  .get("/actions", async ({ request, query }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const workspaceId = String(query.workspace || "");
-    return actionsPage(context.user, context.workspaces, listActions(context.user, workspaceId || undefined), context.sidebar);
-  })
-  .get("/actions/new", async ({ request, query }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const workspaceId = String(query.workspace || ""), processId = String(query.process || "");
-    const workspace = workspaceId ? workspaceFor(context.user, workspaceId) : null;
-    if (workspaceId && (!workspace || workspace.role !== "owner")) return notFoundPage(context.user, context.workspaces, context.sidebar);
-    let prefill: { workspaceId?: string; name?: string; command?: string; cwd?: string } = { workspaceId };
-    if (processId) try {
-      const process = getProcess(context.user.id, processId);
-      const device = getDevice(context.user, process.device_id);
-      if (device?.role === "owner") prefill = { workspaceId: device.workspace_id, name: process.command.slice(0, 80), command: process.command, cwd: process.cwd || "" };
-    } catch {}
-    return actionFormPage(context.user, context.workspaces, context.sidebar, null, prefill);
-  })
-  .get("/actions/:id", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const action = getAction(context.user, params.id); if (!action) return notFoundPage(context.user, context.workspaces, context.sidebar);
-    return actionPage(context.user, context.workspaces, action, workspaceDevices(action.workspace_id), context.sidebar);
-  })
-  .get("/actions/:id/edit", async ({ request, params }) => {
-    const context = await pageContext(request); if (!context) return loginRedirect();
-    const action = getAction(context.user, params.id); if (!action || action.role !== "owner") return notFoundPage(context.user, context.workspaces, context.sidebar);
-    return actionFormPage(context.user, context.workspaces, context.sidebar, action);
   });

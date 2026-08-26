@@ -75,7 +75,6 @@ export const AgentServerMessageSchema = t.Union([
   t.Object({ type: t.Literal("process.permit"), id: ProcessId, userId: t.String({ minLength: 1, maxLength: 100 }) }),
   t.Object({ type: t.Literal("mcp.process.start"), id: ProcessId, userId: t.String({ minLength: 1, maxLength: 100 }),
     command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })),
-    mcpKind: t.Union([t.Literal("action"), t.Literal("terminal")]), actionId: t.Optional(t.String({ maxLength: 100 })),
     mcpGrant: t.String({ minLength: 1, maxLength: 65536 }), mcpSignature: t.String({ minLength: 1, maxLength: 256 }),
     grant: t.String({ minLength: 1, maxLength: 8192 }), credentialId: t.String({ minLength: 1, maxLength: 2048 }),
     assertion: t.String({ minLength: 1, maxLength: 16384 }) }),

@@ -6,7 +6,7 @@ import { complete } from "./types";
 export const machinesListTool: McpTool = {
   name: "machines_list",
   title: "List RC machines",
-  description: "List machines explicitly granted to this agent. Call this before process_run or action_run to obtain machine IDs and online state.",
+  description: "List machines explicitly granted to this agent. Call this before process_run to obtain machine IDs and online state.",
   scope: "mcp:observe",
   inputSchema: { type: "object", additionalProperties: false },
   outputSchema: { type: "object", additionalProperties: false, properties: {
