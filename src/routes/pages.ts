@@ -1,7 +1,7 @@
 import { Elysia } from "elysia";
 import { getAction, listActions } from "../actions";
 import { listApiTokens } from "../account";
-import { listPasskeys, rcStatus } from "../auth";
+import { listPasskeys, publicSignupAvailable, rcStatus } from "../auth";
 import { cliAuthorizationPreview } from "../cli-auth";
 import { PUBLIC_URL, SETUP_TOKEN } from "../config";
 import { sha } from "../db";
@@ -54,6 +54,11 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
   .get("/login", async ({ request, query }) => {
     const context = await pageContext(request); if (context) return Response.redirect("/devices", 303);
     return authPage("login", { next: safeNext(query.next) });
+  })
+  .get("/signup", async ({ request }) => {
+    if (!publicSignupAvailable()) return Response.redirect("/login", 303);
+    const context = await pageContext(request); if (context) return Response.redirect("/devices", 303);
+    return authPage("signup");
   })
   .get("/docs", () => docsPage(quickstartArticle()))
   .get("/docs/quickstart", () => Response.redirect("/docs", 308))

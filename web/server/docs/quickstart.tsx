@@ -1,5 +1,6 @@
 import { CopyField } from "./components";
 import type { DocArticle } from "./types";
+import { PUBLIC_SIGNUP_CONFIGURED } from "../../../src/config";
 
 export function quickstartArticle(): DocArticle {
   return {
@@ -13,7 +14,7 @@ export function quickstartArticle(): DocArticle {
         title: "Requirements",
         body: <>
           <ul>
-            <li>A workspace invitation. RC does not expose public self-signup.</li>
+            <li>{PUBLIC_SIGNUP_CONFIGURED ? <>An RC account. The OhRats-managed service supports public passkey signup.</> : <>An existing RC account or a workspace invitation.</>}</li>
             <li>A passkey-capable browser for account creation and sensitive approvals.</li>
             <li>A macOS or Linux machine to enroll.</li>
           </ul>
@@ -24,11 +25,11 @@ export function quickstartArticle(): DocArticle {
         title: "Create an account",
         body: <>
           <ol>
-            <li>Open the workspace invitation.</li>
+            <li>{PUBLIC_SIGNUP_CONFIGURED ? <>Open <a href="/signup">Create account</a>.</> : <>Open the workspace invitation provided by an Owner.</>}</li>
             <li>Choose your RC user name.</li>
             <li>Create a passkey when the browser asks.</li>
           </ol>
-          <p>The passkey is the account credential. RC does not use account passwords.</p>
+          <p>The passkey is the account credential. RC does not use account passwords. Every new account receives its own <strong>Personal</strong> workspace; invitation signup also joins the invited workspace.</p>
         </>,
       },
       {

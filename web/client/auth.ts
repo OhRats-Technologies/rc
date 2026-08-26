@@ -29,3 +29,13 @@ document.querySelector<HTMLFormElement>("#register-form")?.addEventListener("sub
     location.href = "/devices";
   } catch (error) { errorOut(error); }
 });
+document.querySelector<HTMLFormElement>("#signup-form")?.addEventListener("submit", async event => {
+  event.preventDefault(); const form = event.currentTarget as HTMLFormElement;
+  try {
+    const data = new FormData(form), name = String(data.get("name") || ""), turnstile = String(data.get("cf-turnstile-response") || "");
+    if (!turnstile) throw new Error("Complete the human verification first.");
+    await createPasskey("/api/v1/auth/signup/options", "/api/v1/auth/register/verify", { name, turnstile }); location.href = "/devices";
+  } catch (error) {
+    (window as typeof window & { turnstile?: { reset(): void } }).turnstile?.reset(); errorOut(error);
+  }
+});

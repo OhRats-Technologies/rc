@@ -12,6 +12,7 @@ export function authenticationArticle(): DocArticle {
         title: "Passkeys",
         body: <>
           <p>Passkeys are the primary human credential. Account creation registers a WebAuthn credential; browser login verifies a WebAuthn assertion.</p>
+          <p>The OhRats-managed service may allow public signup. Public signup is gated by Cloudflare Turnstile before RC issues a WebAuthn registration ceremony. Self-hosted instances remain invite/setup-only unless their operator explicitly enables and configures public signup.</p>
           <p>Sensitive operations can require a fresh passkey assertion even when a browser session is already active. Examples include authority changes and durable execution authorization.</p>
         </>,
       },

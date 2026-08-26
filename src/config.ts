@@ -4,6 +4,10 @@ export const DATA_DIR = Bun.env.DATA_DIR || "./data";
 export const STATIC_DIR = Bun.env.STATIC_DIR || `${import.meta.dir}/../static`;
 export const PUBLIC_URL = (Bun.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 export const SETUP_TOKEN = String(Bun.env.RC_SETUP_TOKEN || "").trim();
+export const PUBLIC_SIGNUP = Bun.env.RC_PUBLIC_SIGNUP === "1";
+export const TURNSTILE_SITE_KEY = String(Bun.env.RC_TURNSTILE_SITE_KEY || "").trim();
+export const TURNSTILE_SECRET_KEY = String(Bun.env.RC_TURNSTILE_SECRET_KEY || "").trim();
+export const PUBLIC_SIGNUP_CONFIGURED = PUBLIC_SIGNUP && !!TURNSTILE_SITE_KEY && !!TURNSTILE_SECRET_KEY;
 export const RP_ID = new URL(PUBLIC_URL).hostname;
 export const DB_PATH = `${DATA_DIR.replace(/\/$/, "")}/rc.db`;
 const positiveInt = (name: string, fallback: number) => {

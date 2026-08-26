@@ -3,7 +3,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { PUBLIC_URL, RP_ID, SETUP_TOKEN } from "./config";
+import { PUBLIC_SIGNUP_CONFIGURED, PUBLIC_URL, RP_ID, SETUP_TOKEN } from "./config";
 import { User } from "./core";
 import { db, id, now, opaque, q, sha } from "./db";
 import { base64ToBytes } from "./encoding";
@@ -16,6 +16,7 @@ import { apiKeyGrant, type ApiScope } from "./account";
 import {
   authenticationCeremony, cleanName, insertPasskey, registrationCeremony, takeCeremony, verifyNewPasskey,
 } from "./webauthn";
+import { verifySignupTurnstile } from "./turnstile";
 
 export type PasskeyView = { id: string; created_at: number; last_used: number | null };
 
@@ -55,7 +56,7 @@ export async function createLogin(userId: string, lifetimeValue: unknown = WEB_D
 
 export function rcStatus(req: Request) {
   const count = activeUserCount();
-  return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req) };
+  return { setupRequired: count === 0, setupAuthorized: count === 0 && setupAuthorized(req), publicSignup: count > 0 && PUBLIC_SIGNUP_CONFIGURED };
 }
 
 export async function setupOptions(req: Request, value: unknown) {
@@ -77,6 +78,18 @@ export async function registerOptions(inviteValue: unknown, nameValue: unknown) 
   if (!row) throw new HttpError(401, "invalid or expired invite");
   if (!name) throw new HttpError(400, "name required");
   return registrationCeremony("register", id(), name, row.id);
+}
+
+export function publicSignupAvailable() {
+  return activeUserCount() > 0 && PUBLIC_SIGNUP_CONFIGURED;
+}
+
+export async function signupOptions(nameValue: unknown, turnstileValue: unknown) {
+  if (!publicSignupAvailable()) throw new HttpError(404, "public signup is unavailable");
+  const name = cleanName(nameValue);
+  if (!name) throw new HttpError(400, "name required");
+  await verifySignupTurnstile(turnstileValue);
+  return registrationCeremony("register", id(), name);
 }
 
 export function logout(req: Request) {
@@ -162,15 +175,20 @@ export async function verifyNewUser(kind: "setup" | "register", ceremonyId: stri
         q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
         return;
       }
-      const invite = q<any>("SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?")
-        .get(ceremony.invite_id, t);
-      if (!invite) throw new HttpError(401, "invalid or expired invite");
-      const consumed = q("UPDATE workspace_invites SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>?")
-        .run(t, invite.id, t).changes;
-      if (consumed !== 1) throw new HttpError(401, "invalid or expired invite");
       q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, ceremony.name, t);
       insertPasskey(userId, credential);
-      q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(invite.workspace_id, userId, invite.role, t);
+      const workspaceId = id();
+      q("INSERT INTO workspaces VALUES(?,?,?,?)").run(workspaceId, "Personal", userId, t);
+      q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
+      if (ceremony.invite_id) {
+        const invite = q<any>("SELECT * FROM workspace_invites WHERE id=? AND used_at IS NULL AND expires_at>?")
+          .get(ceremony.invite_id, t);
+        if (!invite) throw new HttpError(401, "invalid or expired invite");
+        const consumed = q("UPDATE workspace_invites SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>?")
+          .run(t, invite.id, t).changes;
+        if (consumed !== 1) throw new HttpError(401, "invalid or expired invite");
+        q("INSERT INTO workspace_members VALUES(?,?,?,?)").run(invite.workspace_id, userId, invite.role, t);
+      }
     })();
   } catch (error) {
     if (error instanceof HttpError) return fail(error.message, error.status);

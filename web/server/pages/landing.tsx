@@ -1,6 +1,7 @@
 import { htmlDocument } from "../document";
 import { SectionBadge } from "../components";
 import { Arrow, PublicFooter, PublicNav } from "../public";
+import { PUBLIC_SIGNUP_CONFIGURED } from "../../../src/config";
 
 export function landingPage() {
   return htmlDocument({
@@ -13,7 +14,7 @@ export function landingPage() {
           <div className="ohrats-grid"/>
           <div className="hero-content">
             <h1 aria-label="Remote Control for your machines.">Remote Control<br/><span className="hero-muted">for your machines.</span></h1>
-            <div className="public-hero-actions"><a href="/docs" className="or-button">Get started <Arrow/></a><a href="/login" className="header-link">Sign in <Arrow/></a></div>
+            <div className="public-hero-actions"><a href={PUBLIC_SIGNUP_CONFIGURED ? "/signup" : "/docs"} className="or-button">Get started <Arrow/></a><a href="/login" className="header-link">Sign in <Arrow/></a></div>
           </div>
         </header>
 

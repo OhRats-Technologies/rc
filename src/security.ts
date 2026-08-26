@@ -38,22 +38,24 @@ function policy(request: Request) {
 function checkRateLimit(request: Request) {
   const selected = policy(request);
   if (!selected) return null;
-  const now = Date.now(), key = `${selected.name}:${requestKey(request)}`;
+  const current = Date.now(), key = `${selected.name}:${requestKey(request)}`;
   let bucket = buckets.get(key);
   if (!bucket && buckets.size >= 10_000) return 60;
-  if (!bucket || bucket.resetAt <= now) bucket = { count: 0, resetAt: now + selected.windowMs };
+  if (!bucket || bucket.resetAt <= current) bucket = { count: 0, resetAt: current + selected.windowMs };
   bucket.count += 1;
   buckets.set(key, bucket);
   if (bucket.count <= selected.limit) return null;
-  return Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+  return Math.max(1, Math.ceil((bucket.resetAt - current) / 1000));
 }
 
 function headers() {
   const secure = PUBLIC_URL.startsWith("https://");
   const websocket = PUBLIC_URL.replace(/^http/, "ws");
+  const turnstile = Bun.env.RC_PUBLIC_SIGNUP === "1" && !!Bun.env.RC_TURNSTILE_SITE_KEY && !!Bun.env.RC_TURNSTILE_SECRET_KEY;
   const csp = [
     "default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'",
-    "form-action 'self'", "script-src 'self' https://assets.ohrats.party",
+    "form-action 'self'", `script-src 'self' https://assets.ohrats.party${turnstile ? " https://challenges.cloudflare.com" : ""}`,
+    ...(turnstile ? ["frame-src https://challenges.cloudflare.com"] : []),
     "style-src 'self' https://assets.ohrats.party https://fonts.googleapis.com", "img-src 'self' https://assets.ohrats.party data:",
     "font-src 'self' https://assets.ohrats.party https://fonts.gstatic.com data:", `connect-src 'self' ${websocket}`,
     ...(secure ? ["upgrade-insecure-requests"] : []),

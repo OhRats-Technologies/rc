@@ -4,7 +4,7 @@ import type { AuthenticationResponseJSON, RegistrationResponseJSON } from "@simp
 import { createAction, deleteAction, getAction, listActions, runAction, updateAction } from "../actions";
 import { apiKeyGrant, createApiToken, deleteApiToken, listApiTokens, requiredApiScope } from "../account";
 import {
-  addPasskeyOptions, apiTokenScopes, auth, cookieUser, deletePasskey, loginOptions, registerOptions, rcStatus,
+  addPasskeyOptions, apiTokenScopes, auth, cookieUser, deletePasskey, loginOptions, registerOptions, rcStatus, signupOptions,
   setupOptions, verifyAddedPasskey, verifyLogin, verifyNewUser,
 } from "../auth";
 import { approveCliAuthorization, exchangeCliAuthorization, revokeCliToken, startCliAuthorization } from "../cli-auth";
@@ -63,7 +63,8 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     const path = new URL(request.url).pathname;
     const publicRoute = path === "/api/v1/health" || path === "/api/v1/status" || path.startsWith("/api/v1/agent/")
       || ["/api/v1/auth/setup/options", "/api/v1/auth/setup/verify", "/api/v1/auth/login/options", "/api/v1/auth/login/verify",
-        "/api/v1/auth/register/options", "/api/v1/auth/register/verify", "/api/v1/auth/cli/start", "/api/v1/auth/cli/poll"].includes(path);
+        "/api/v1/auth/register/options", "/api/v1/auth/register/verify", "/api/v1/auth/signup/options",
+        "/api/v1/auth/cli/start", "/api/v1/auth/cli/poll"].includes(path);
     if (!publicRoute && !rcUser) return fail("authentication required", 401);
     if (!publicRoute && rcUser) {
       const scopes = await apiTokenScopes(request);
@@ -123,6 +124,9 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   })
   .post("/auth/register/verify", ({ body }) => verifyNewUser("register", body.ceremonyId, body.response as RegistrationResponseJSON), {
     body: WebAuthnVerify, detail: { hide: true },
+  })
+  .post("/auth/signup/options", ({ body }) => signupOptions(body.name, body.turnstile), {
+    body: t.Object({ name: t.String({ maxLength: 120 }), turnstile: t.String({ minLength: 1, maxLength: 2048 }) }), detail: { hide: true },
   })
   .post("/agent/challenge", ({ body }) => {
     const challenge = createAgentChallenge(body.device);
