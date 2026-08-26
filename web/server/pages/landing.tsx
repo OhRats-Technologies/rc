@@ -20,7 +20,7 @@ export function landingPage() {
         <section>
           <div className="container">
             <div className="section-grid">
-              <div className="section-heading-stack"><SectionBadge index="01">Safety</SectionBadge><div className="section-title-container"><h2>Private remote control<br/><span className="muted">with checks on both ends.</span></h2></div></div>
+              <div className="section-heading-stack"><SectionBadge index="01">Security</SectionBadge><div className="section-title-container"><h2>Security model</h2></div></div>
               <div className="public-safety-list">
                 <div className="public-safety-item"><h3>Passkeys</h3><p>Human sign-in and sensitive approvals use WebAuthn. RC does not use account passwords.</p></div>
                 <div className="public-safety-item"><h3>RC Lock</h3><p>Each Node stores workspace authority locally and verifies Owner-signed changes before execution.</p></div>
@@ -34,7 +34,7 @@ export function landingPage() {
         <section>
           <div className="container">
             <header className="section-header public-resources-heading">
-              <div className="section-heading-stack"><SectionBadge index="02">Resources</SectionBadge><div className="section-title-container"><h2>Use RC<br/><span className="muted">from the interface you need.</span></h2></div></div>
+              <div className="section-heading-stack"><SectionBadge index="02">Resources</SectionBadge><div className="section-title-container"><h2>Documentation</h2></div></div>
               <div className="public-resource-links"><a className="header-link" href="/docs">Docs <Arrow/></a><a className="header-link" href="/docs/mcp">MCP <Arrow/></a><a className="header-link" href="/docs/api">API <Arrow/></a><a className="header-link" href="/docs/cli">CLI <Arrow/></a></div>
             </header>
           </div>

@@ -84,8 +84,8 @@
 .public-site .listing-page {
     width: calc(100% - 3rem);
     min-height: 100vh;
-    padding-top: 8rem;
-    padding-bottom: 6rem;
+    padding-top: 4rem;
+    padding-bottom: 4rem;
 }
 .public-site .listing-page h1 { margin: 1.5rem 0 0; font-size: 3rem; font-weight: 500; letter-spacing: -0.05em; line-height: 1; }
 .public-site .listing-copy { margin: 1rem 0 0; color: var(--or-text-muted); max-width: 42rem; line-height: 1.6; }
@@ -97,12 +97,24 @@
 .public-safety-item p { color: var(--or-text-muted); font-size: 0.875rem; line-height: 1.75; }
 .public-resource-links { display: flex; flex-wrap: wrap; gap: var(--or-space-md) var(--or-space-lg); }
 
-.public-doc-body { display: grid; gap: 4rem; }
-.public-doc-section { display: grid; gap: var(--or-space-md); max-width: 42rem; }
-.public-doc-copy { display: grid; gap: var(--or-space-sm); color: var(--or-text-muted); max-width: 42rem; }
-.public-doc-copy p { line-height: 1.7; }
+.public-doc-header { margin-bottom: 4rem; }
+.public-doc-body { min-width: 0; display: grid; gap: 4rem; }
+.public-site .public-doc-section { padding: 0; border: 0; background: transparent; }
+.public-doc-section { min-width: 0; display: grid; gap: var(--or-space-md); max-width: 42rem; }
+.public-doc-section h2 { font-size: 1.75rem; font-weight: 500; }
+.public-doc-copy { min-width: 0; display: grid; gap: var(--or-space-sm); color: var(--or-text-muted); max-width: 42rem; }
+.public-doc-copy p, .public-doc-copy li { line-height: 1.7; }
+.public-doc-copy ol, .public-doc-copy ul { padding-left: 1.5rem; display: grid; gap: var(--or-space-xs); }
+.public-doc-copy strong { color: var(--or-text); font-weight: 500; }
+.public-doc-copy a { color: var(--or-text); text-decoration: underline; text-underline-offset: 0.2em; }
+.public-doc-copy code { overflow-wrap: anywhere; }
 .public-doc-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--or-space-md); }
 .public-doc .or-copy-field { width: min(100%, 42rem); }
+.public-code { overflow-x: auto; padding: var(--or-space-sm); border: 1px solid var(--or-border); background: var(--or-surface); color: var(--or-text); font: 0.78rem/1.6 var(--or-font-mono); white-space: pre; }
+.public-doc-table { display: block; width: 100%; max-width: 100%; overflow-x: auto; border-collapse: collapse; color: var(--or-text); font-size: 0.875rem; }
+.public-doc-table th, .public-doc-table td { padding: 0.75rem 0; border-bottom: 1px solid var(--or-border); text-align: left; vertical-align: top; }
+.public-doc-table th { padding-right: var(--or-space-md); font-family: var(--or-font-mono); font-size: 0.75rem; font-weight: 700; }
+.public-doc-table td { color: var(--or-text-muted); }
 
 @media (max-width: 520px) {
     .public-hero-actions { flex-direction: column; }
