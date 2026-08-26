@@ -47,11 +47,11 @@ export function principlesArticle(): DocArticle {
         </>,
       },
       {
-        id: "signed-updates",
-        title: "Node updates are release-signed",
+        id: "node-updates",
+        title: "Node releases are isolated from RC deploys",
         body: <>
-          <p>The Node embeds an OhRats Ed25519 release public key. Updates require a signed release manifest, an artifact SHA-256 match, and a version that is not a downgrade.</p>
-          <p>The release private key is not stored in the RC runtime or repository.</p>
+          <p>GitHub Actions builds and publishes version-tagged Node/CLI releases independently of the RC control-plane deployment.</p>
+          <p>The installer and updater download GitHub Release assets directly, verify the selected artifact SHA-256 and reported version, and refuse downgrades.</p>
         </>,
       },
     ],

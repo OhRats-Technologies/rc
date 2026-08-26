@@ -1,6 +1,6 @@
 package main
 
-const version = "0.11.0"
+const version = "0.12.0"
 
 type state struct {
 	DeviceID            string `json:"deviceId"`

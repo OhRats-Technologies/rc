@@ -4,14 +4,14 @@ export function securityArticle(): DocArticle {
   return {
     slug: "security",
     title: "Security model",
-    intro: "Trust boundaries, encrypted control, RC Lock, Node authentication, data handling, and signed updates.",
+    intro: "Trust boundaries, encrypted control, RC Lock, Node authentication, data handling, and Node releases.",
     sections: [
       {
         id: "trust-boundaries",
         title: "Trust boundaries",
         body: <>
           <p>The hosted RC service authenticates users, coordinates workspaces, relays live connections, and stores control-plane metadata. The Node is the final execution verifier for locked machines.</p>
-          <p>The browser application is part of the trusted client computing base because RC serves its JavaScript. A fully compromised web server could replace that JavaScript when an authorized user visits and ask the browser-held control key to sign operations. RC Lock prevents the server/database from creating those signatures by itself; the signed CLI avoids this web-code-delivery dependency.</p>
+          <p>The browser application is part of the trusted client computing base because RC serves its JavaScript. A fully compromised web server could replace that JavaScript when an authorized user visits and ask the browser-held control key to sign operations. RC Lock prevents the server/database from creating those signatures by itself; the standalone CLI avoids this web-code-delivery dependency.</p>
           <p>RC does not claim that browser control is resistant to a malicious server actively serving modified client code.</p>
         </>,
       },
@@ -77,11 +77,11 @@ export function securityArticle(): DocArticle {
         </>,
       },
       {
-        id: "signed-updates",
-        title: "Signed Node updates",
+        id: "node-updates",
+        title: "Node release integrity",
         body: <>
-          <p>The updater downloads a release manifest and detached Ed25519 signature, verifies the signature with the public key embedded in the Node, verifies the selected artifact SHA-256, verifies the reported version, and refuses signed downgrades.</p>
-          <p>The update path retries a mismatched manifest/signature pair during a rolling deployment without weakening verification.</p>
+          <p>GitHub Releases are the Node release trust boundary. The updater reads the published release manifest, verifies the selected artifact SHA-256, verifies the downloaded binary's reported version, and refuses downgrades.</p>
+          <p>Node releases are published independently of RC runtime deployments, so a normal control-plane deploy does not rebuild or replace Node binaries.</p>
         </>,
       },
     ],

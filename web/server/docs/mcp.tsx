@@ -40,8 +40,6 @@ export function mcpArticle(): DocArticle {
           <CopyField value={`codex mcp add rc --url ${endpoint} --oauth-resource ${endpoint}`}/>
           <CopyField value="codex mcp login --scopes mcp:observe,mcp:actions,mcp:terminal rc"/>
           <p>Request only the scopes the agent needs. Omit <code>mcp:terminal</code> if saved Actions are sufficient.</p>
-          <p>RC has been tested end to end with Codex 0.147. If that build lists the server but does not expose its tools to an agent, enable the current MCP protocol feature:</p>
-          <CodeBlock>{`[features]\nmcp_2026_07_28 = true`}</CodeBlock>
         </>,
       },
       {
@@ -125,11 +123,6 @@ export function mcpArticle(): DocArticle {
           <p>MCP Terminal command/output plaintext passes through bounded RC server memory because standard remote MCP does not use RC's browser/CLI end-to-end transport.</p>
           <p>The buffer is capped at 256 KiB and is not persisted to SQLite. Completed buffers expire after five minutes; inactive running buffers expire after thirty minutes.</p>
         </>,
-      },
-      {
-        id: "compatibility",
-        title: "Client compatibility",
-        body: <p>Codex has passed RC's OAuth and remote-execution acceptance test. The Claude Code, Cursor, Visual Studio Code, and Antigravity examples above use their current remote-MCP configuration formats but have not each completed the same RC execution acceptance test.</p>,
       },
     ],
   };

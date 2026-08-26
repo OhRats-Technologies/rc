@@ -12,33 +12,34 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"time"
 
-	"github.com/OhRats-Technologies/rc/agent/releaseverify"
+	"github.com/OhRats-Technologies/rc/agent/releaseinfo"
 )
 
-func replaceExecutable(serverURL string) error {
+var releaseBaseURL = "https://github.com/OhRats-Technologies/rc/releases/latest/download/"
+var taggedReleaseBaseURL = "https://github.com/OhRats-Technologies/rc/releases/download/"
+
+func replaceExecutable() error {
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	base := strings.TrimRight(serverURL, "/") + "/downloads/"
-	manifest, err := downloadSignedManifest(base)
+	manifest, err := downloadReleaseManifest()
 	if err != nil {
 		return err
 	}
-	comparison, err := releaseverify.CompareVersions(manifest.Version, version)
+	comparison, err := releaseinfo.CompareVersions(manifest.Version, version)
 	if err != nil {
 		return err
 	}
 	if comparison < 0 {
-		return fmt.Errorf("refusing signed downgrade from %s to %s", version, manifest.Version)
+		return fmt.Errorf("refusing downgrade from %s to %s", version, manifest.Version)
 	}
-	artifact, ok := releaseverify.ArtifactFor(manifest, runtime.GOOS, runtime.GOARCH)
+	artifact, ok := releaseinfo.ArtifactFor(manifest, runtime.GOOS, runtime.GOARCH)
 	if !ok {
 		return fmt.Errorf("release does not contain %s/%s", runtime.GOOS, runtime.GOARCH)
 	}
-	resp, err := http.Get(base + artifact.Name)
+	resp, err := http.Get(fmt.Sprintf("%sv%s/%s", taggedReleaseBaseURL, manifest.Version, artifact.Name))
 	if err != nil {
 		return err
 	}
@@ -73,36 +74,21 @@ func replaceExecutable(serverURL string) error {
 	}
 	output, err := exec.Command(name, "version").CombinedOutput()
 	if err != nil || strings.TrimSpace(string(output)) != "RC "+manifest.Version {
-		return fmt.Errorf("downloaded file does not match signed release version")
+		return fmt.Errorf("downloaded file does not match release version")
 	}
 	return os.Rename(name, executable)
 }
 
-func downloadSignedManifest(base string) (releaseverify.Manifest, error) {
-	var lastErr error
-	retryDelays := []time.Duration{250 * time.Millisecond, 750 * time.Millisecond, 2 * time.Second, 5 * time.Second,
-		10 * time.Second, 15 * time.Second, 20 * time.Second, 30 * time.Second}
-	for attempt := 0; ; attempt++ {
-		cacheKey := fmt.Sprintf("?pair=%d-%d", attempt, time.Now().UnixNano())
-		manifestBytes, err := downloadSmall(base+"release.json"+cacheKey, 64<<10)
-		if err == nil {
-			var signatureBytes []byte
-			signatureBytes, err = downloadSmall(base+"release.json.sig"+cacheKey, 4<<10)
-			if err == nil {
-				var manifest releaseverify.Manifest
-				manifest, err = releaseverify.Verify(manifestBytes, signatureBytes)
-				if err == nil {
-					return manifest, nil
-				}
-			}
-		}
-		lastErr = err
-		if attempt >= len(retryDelays) {
-			break
-		}
-		time.Sleep(retryDelays[attempt])
+func downloadReleaseManifest() (releaseinfo.Manifest, error) {
+	data, err := downloadSmall(releaseBaseURL+"release.json", 64<<10)
+	if err != nil {
+		return releaseinfo.Manifest{}, fmt.Errorf("release manifest: %w", err)
 	}
-	return releaseverify.Manifest{}, fmt.Errorf("release manifest: %w", lastErr)
+	manifest, err := releaseinfo.Parse(data)
+	if err != nil {
+		return releaseinfo.Manifest{}, fmt.Errorf("release manifest: %w", err)
+	}
+	return manifest, nil
 }
 
 func downloadSmall(url string, limit int64) ([]byte, error) {

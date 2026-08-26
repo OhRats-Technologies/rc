@@ -4,8 +4,10 @@ import { PORT, PUBLIC_URL } from "./src/config";
 import { now, q } from "./src/db";
 import { recoverInterruptedProcesses } from "./src/gateway";
 import { cleanupMcpOAuth } from "./src/mcp/oauth";
+import { startNodeReleaseRefresh } from "./src/node-release";
 
 recoverInterruptedProcesses();
+startNodeReleaseRefresh();
 
 app.listen({
   port: PORT,

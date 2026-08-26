@@ -30,7 +30,7 @@ export const app = new Elysia({ name: "rc" })
   ].join("\n"), { headers: { "content-type": "text/plain" } }), { detail: { hide: true } })
   .all("/*", async ({ request }) => {
     const path = new URL(request.url).pathname;
-    if (path.startsWith("/api/") || path.startsWith("/assets/") || path.startsWith("/downloads/") || path.startsWith("/oauth/") || path === "/mcp" || path.startsWith("/.well-known/")) {
+    if (path.startsWith("/api/") || path.startsWith("/assets/") || path.startsWith("/oauth/") || path === "/mcp" || path.startsWith("/.well-known/")) {
       return new Response("not found", { status: 404 });
     }
     const context = await pageContext(request);

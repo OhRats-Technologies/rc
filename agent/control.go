@@ -196,7 +196,7 @@ func (manager *controlManager) receiveFrame(message wireMessage) error {
 }
 
 func (manager *controlManager) authorizedUpdate(sessionID, requestID string) {
-	if err := replaceExecutable(manager.serverURL); err != nil {
+	if err := replaceExecutable(); err != nil {
 		manager.sendFrame(sessionID, wireMessage{Type: "control.result", RequestID: requestID, Output: err.Error()})
 		return
 	}

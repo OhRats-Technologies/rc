@@ -26,7 +26,7 @@ export function landingPage() {
                 <div className="public-safety-item"><h3>Passkeys</h3><p>Human sign-in and sensitive approvals use WebAuthn. RC does not use account passwords.</p></div>
                 <div className="public-safety-item"><h3>RC Lock</h3><p>Each Node stores workspace authority locally and verifies Owner-signed changes before execution.</p></div>
                 <div className="public-safety-item"><h3>Encrypted control</h3><p>Browser and CLI process traffic is encrypted client-to-Node; hosted process history keeps metadata only.</p></div>
-                <div className="public-safety-item"><h3>Scoped automation</h3><p>API requests are signed, MCP grants select machines and capabilities, and Node updates require signed releases.</p></div>
+                <div className="public-safety-item"><h3>Scoped automation</h3><p>API requests are signed, MCP grants select machines and capabilities, and Node updates verify GitHub-published release hashes and versions.</p></div>
               </div>
             </div>
           </div>

@@ -1,25 +1,13 @@
-package releaseverify
+package releaseinfo
 
 import (
-	"crypto/ed25519"
-	"crypto/sha256"
-	"crypto/x509"
-	_ "embed"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
-	"os"
 	"regexp"
 	"strconv"
-	"strings"
 )
-
-//go:embed release-public.pem
-var releasePublicPEM []byte
 
 type Artifact struct {
 	OS     string `json:"os"`
@@ -35,28 +23,9 @@ type Manifest struct {
 
 var versionPattern = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)$`)
 
-func Verify(manifestBytes, signatureBytes []byte) (Manifest, error) {
-	block, _ := pem.Decode(releasePublicPEM)
-	if block == nil {
-		return Manifest{}, errors.New("invalid embedded release public key")
-	}
-	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return Manifest{}, fmt.Errorf("parse release public key: %w", err)
-	}
-	publicKey, ok := parsed.(ed25519.PublicKey)
-	if !ok {
-		return Manifest{}, errors.New("release public key is not Ed25519")
-	}
-	signature, err := base64.RawURLEncoding.DecodeString(strings.TrimSpace(string(signatureBytes)))
-	if err != nil || len(signature) != ed25519.SignatureSize {
-		return Manifest{}, errors.New("invalid release signature encoding")
-	}
-	if !ed25519.Verify(publicKey, manifestBytes, signature) {
-		return Manifest{}, errors.New("release signature verification failed")
-	}
+func Parse(data []byte) (Manifest, error) {
 	var manifest Manifest
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+	if err := json.Unmarshal(data, &manifest); err != nil {
 		return Manifest{}, fmt.Errorf("invalid release manifest: %w", err)
 	}
 	if !versionPattern.MatchString(manifest.Version) || len(manifest.Artifacts) != 4 {
@@ -105,17 +74,4 @@ func CompareVersions(left, right string) (int, error) {
 		}
 	}
 	return 0, nil
-}
-
-func FileSHA256(path string) (string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	if _, err := io.Copy(hash, file); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(hash.Sum(nil)), nil
 }

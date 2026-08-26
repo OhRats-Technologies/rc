@@ -143,13 +143,12 @@ func runNode(args []string) error {
 
 func updateCommand(args []string) error {
 	flags := flag.NewFlagSet("rc update", flag.ContinueOnError)
-	stateDir := flags.String("state-dir", "", "Node state directory")
-	serverFlag := flags.String("url", "", "RC server URL")
+	flags.String("state-dir", "", "Node state directory (deprecated for update)")
+	flags.String("url", "", "RC server URL (deprecated for update)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	_, server, _ := commandDefaults(*stateDir, *serverFlag)
-	if err := replaceExecutable(server); err != nil {
+	if err := replaceExecutable(); err != nil {
 		return err
 	}
 	if serviceInstalled() {

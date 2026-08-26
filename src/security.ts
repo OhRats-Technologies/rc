@@ -24,7 +24,7 @@ function requestKey(request: Request) {
 
 function policy(request: Request) {
   const url = new URL(request.url), path = url.pathname;
-  if (path.startsWith("/assets/") || path.startsWith("/downloads/") || path === "/install.sh") return null;
+  if (path.startsWith("/assets/") || path === "/install.sh") return null;
   if (path === "/api/v1/agent/challenge") return { name: "agent-challenge", limit: 60, windowMs: 60_000 };
   if (path === "/api/v1/agent/enroll") return { name: "agent-enroll", limit: 20, windowMs: 10 * 60_000 };
   if (path === "/oauth/register") return { name: "mcp-register", limit: 20, windowMs: 10 * 60_000 };

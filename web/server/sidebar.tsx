@@ -1,6 +1,6 @@
 import type { User } from "../../src/core";
 import { listDevices, nodeUpdateAvailable, type DeviceView } from "../../src/devices";
-import { VERSION } from "../../src/config";
+import { currentNodeRelease } from "../../src/node-release";
 import type { WorkspaceView } from "../../src/workspaces";
 
 function active(path: string, prefix: string) { return path.startsWith(prefix) ? " active" : ""; }
@@ -8,7 +8,8 @@ function active(path: string, prefix: string) { return path.startsWith(prefix) ?
 function DeviceItem({ device, owner, current, overflow, path }: {
   device: DeviceView; owner: boolean; current: boolean; overflow: boolean; path: string;
 }) {
-  const canUpdate = owner && device.capabilities.includes("update") && nodeUpdateAvailable(device.agent_version, VERSION);
+  const target = currentNodeRelease();
+  const canUpdate = owner && !!target && device.capabilities.includes("update") && nodeUpdateAvailable(device.agent_version, target);
   return <div className={`workspace-device-row${current ? " active" : ""}${overflow ? " workspace-device-overflow" : ""}`}
     data-sidebar-device={device.id} hidden={overflow}>
     <div className={`workspace-device-head${owner ? " has-menu" : ""}`}>

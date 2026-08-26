@@ -42,7 +42,7 @@ export function quickstartArticle(): DocArticle {
             <li>Choose <strong>Create install command</strong>.</li>
             <li>Run the generated command on the machine you want to control.</li>
           </ol>
-          <p>The generated command contains a one-time enrollment token. It downloads the signed <code>rc</code> binary, enrolls the machine, and installs a per-user background service.</p>
+          <p>The generated command contains a one-time enrollment token. It downloads and checksum-verifies the current GitHub Release, enrolls the machine, and installs a per-user background service.</p>
           <p>The service is a LaunchAgent on macOS and a user systemd service on supported Linux systems.</p>
         </>,
       },
