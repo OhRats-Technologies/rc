@@ -63,7 +63,7 @@ async function selectedPair(peer: RTCPeerConnection) {
 }
 
 export async function openWebRTCControlTransport(deviceId: string, sessionId: string, iceServers: RTCIceServer[], fallback: ControlTransport,
-  onStatus: StatusReporter = () => {}): Promise<ControlTransport | null> {
+  onStatus: StatusReporter = () => {}, attempt = 0): Promise<ControlTransport | null> {
   if (typeof RTCPeerConnection === "undefined") {
     const status: ControlTransportStatus = { transport: "relay", phase: "fallback", reason: "WebRTC unavailable in this browser" };
     onStatus(status); fire({ type: "control.transport", deviceId, sessionId, ...status }); return null;
@@ -115,7 +115,13 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
   } catch (error) {
     closing = true;
     const reason = error instanceof Error ? error.message : "WebRTC negotiation failed";
-    relay(reason); fallbackFrame(); peer.close(); return null;
+    fallbackFrame(); peer.close();
+    if (attempt === 0 && /webrtc|ice|datachannel|timed out|failed/i.test(reason)) {
+      onStatus({ transport: "webrtc", phase: "connecting", reason: `Retrying after: ${reason}` });
+      await new Promise(resolve => window.setTimeout(resolve, 1200));
+      return openWebRTCControlTransport(deviceId, sessionId, iceServers, fallback, onStatus, 1);
+    }
+    relay(reason); return null;
   }
   return {
     send(sequence, ciphertext) {
