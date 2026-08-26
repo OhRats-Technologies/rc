@@ -41,7 +41,8 @@ function stateText(process: RemoteProcess) {
 }
 async function resync() {
   const { process } = await api<{ process: RemoteProcess }>(`/api/v1/processes/${processId}`);
-  status = process.status; revision = Number(process.revision || 0); terminal.reset(); terminal.write(process.output || "");
+  status = process.status; revision = Number(process.revision || 0);
+  if (!encrypted) { terminal.reset(); terminal.write(process.output || ""); }
   terminal.options.cursorBlink = interactive && status === "running"; const state = qs<HTMLElement>("#process-state");
   state.textContent = stateText(process); state.classList.toggle("online", status === "running");
   const actions = document.querySelector<HTMLElement>("#terminal-actions");
@@ -92,8 +93,11 @@ async function connectEncrypted() {
 
 if (live) onEvent(event => {
   if (event.kind === "rc.connected") { if (encrypted) void connectEncrypted(); else void resync(); return; }
-  if (encrypted) return;
   if (event.processId !== processId) return;
+  if (encrypted) {
+    if (["process.started", "process.exited", "process.lost"].includes(event.kind)) void resync();
+    return;
+  }
   if (event.kind === "process.output" && event.detail?.chunk) {
     const next = Number(event.detail.revision || 0);
     if (!revision || next === revision + 1) { terminal.write(String(event.detail.chunk)); revision = next; }

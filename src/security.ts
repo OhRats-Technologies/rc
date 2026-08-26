@@ -57,7 +57,7 @@ function headers() {
     "default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'",
     "form-action 'self'", `script-src 'self' https://assets.ohrats.party${turnstile ? " https://challenges.cloudflare.com" : ""}`,
     ...(turnstile ? ["frame-src https://challenges.cloudflare.com"] : []),
-    "style-src 'self' https://assets.ohrats.party https://fonts.googleapis.com", "img-src 'self' https://assets.ohrats.party data:",
+    "style-src 'self' 'unsafe-inline' https://assets.ohrats.party https://fonts.googleapis.com", "img-src 'self' https://assets.ohrats.party data:",
     "font-src 'self' https://assets.ohrats.party https://fonts.gstatic.com data:", `connect-src 'self' ${websocket}`,
     ...(secure ? ["upgrade-insecure-requests"] : []),
   ].join("; ");

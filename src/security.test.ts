@@ -69,7 +69,10 @@ describe("agent authentication", () => {
 describe("HTTP hardening", () => {
   test("responses carry restrictive security headers", async () => {
     const response = await app.handle(new Request("http://localhost:3000/healthz"));
-    expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    const csp = response.headers.get("content-security-policy") || "";
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp.match(/script-src[^;]*/)?.[0]).not.toContain("'unsafe-inline'");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
   });
