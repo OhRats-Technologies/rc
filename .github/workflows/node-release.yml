@@ -5,15 +5,16 @@ on:
     tags:
       - "v*.*.*"
 
-permissions:
-  contents: write
-
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25.13"
           cache-dependency-path: agent/go.sum
@@ -33,6 +34,8 @@ jobs:
   build:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -45,8 +48,10 @@ jobs:
           - os: darwin
             arch: arm64
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.25.13"
           cache-dependency-path: agent/go.sum
@@ -59,7 +64,7 @@ jobs:
         run: |
           mkdir -p dist
           go build -trimpath -ldflags="-s -w -buildid=" -o "dist/rc-${GOOS}-${GOARCH}" .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: rc-${{ matrix.os }}-${{ matrix.arch }}
           path: agent/dist/rc-${{ matrix.os }}-${{ matrix.arch }}
@@ -68,8 +73,10 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: rc-*
           path: dist
