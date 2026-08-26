@@ -28,7 +28,7 @@ func commandDefaults(stateDir, urlFlag string) (string, string, nodeConfig) {
 }
 
 func enrollCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc enroll", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc enroll", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
 	serverFlag := flags.String("url", "", "RC server URL")
 	nameFlag := flags.String("name", "", "Device display name")
@@ -36,7 +36,7 @@ func enrollCommand(args []string) error {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: ohrats-rc enroll [flags] TOKEN")
+		return errors.New("usage: rc enroll [flags] TOKEN")
 	}
 	dir, server, config := commandDefaults(*stateDir, *serverFlag)
 	if existing, err := loadState(dir); err == nil {
@@ -92,7 +92,7 @@ func enrollCommand(args []string) error {
 }
 
 func runNode(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc run", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc run", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
 	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
@@ -101,7 +101,7 @@ func runNode(args []string) error {
 	dir, server, _ := commandDefaults(*stateDir, *serverFlag)
 	value, err := loadState(dir)
 	if errors.Is(err, os.ErrNotExist) {
-		return errors.New("not enrolled; run ohrats-rc enroll TOKEN")
+		return errors.New("not enrolled; run rc enroll TOKEN")
 	}
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func runNode(args []string) error {
 }
 
 func updateCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc update", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc update", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
 	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
@@ -156,15 +156,15 @@ func updateCommand(args []string) error {
 		if err := restartService(); err != nil {
 			return fmt.Errorf("updated, but could not restart RC Node: %w", err)
 		}
-		fmt.Println("OhRats RC Node updated and restarted")
+		fmt.Println("RC Node updated and restarted")
 		return nil
 	}
-	fmt.Println("OhRats RC Node updated")
+	fmt.Println("RC Node updated")
 	return nil
 }
 
 func uninstallCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc uninstall", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc uninstall", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
 	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
@@ -181,9 +181,9 @@ func uninstallCommand(args []string) error {
 		return err
 	}
 	executable, _ := os.Executable()
-	if filepath.Base(executable) == "ohrats-rc" {
+	if filepath.Base(executable) == "rc" {
 		_ = os.Remove(executable)
 	}
-	fmt.Println("OhRats RC Node uninstalled")
+	fmt.Println("RC Node uninstalled")
 	return nil
 }

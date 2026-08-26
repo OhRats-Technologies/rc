@@ -6,17 +6,17 @@ export function mcpArticle(): DocArticle {
   const endpoint = `${PUBLIC_URL}/mcp`;
   const cursor = `{
   "mcpServers": {
-    "ohrats-rc": { "url": "${endpoint}" }
+    "rc": { "url": "${endpoint}" }
   }
 }`;
   const vscode = `{
   "servers": {
-    "ohrats-rc": { "type": "http", "url": "${endpoint}" }
+    "rc": { "type": "http", "url": "${endpoint}" }
   }
 }`;
   const agy = `{
   "mcpServers": {
-    "ohrats-rc": { "serverUrl": "${endpoint}" }
+    "rc": { "serverUrl": "${endpoint}" }
   }
 }`;
   return {
@@ -30,15 +30,15 @@ export function mcpArticle(): DocArticle {
         title: "Endpoint",
         body: <>
           <CopyField value={endpoint} prefix=""/>
-          <p>All users connect to the same endpoint and authenticate with OAuth. The MCP server name is <strong>OhRats RC</strong>. Use <code>ohrats-rc</code> when a client requires an identifier without spaces.</p>
+          <p>All users connect to the same endpoint and authenticate with OAuth. The MCP server name and configuration identifier are <strong>RC</strong> and <code>rc</code>.</p>
         </>,
       },
       {
         id: "codex",
         title: "Codex",
         body: <>
-          <CopyField value={`codex mcp add ohrats-rc --url ${endpoint} --oauth-resource ${endpoint}`}/>
-          <CopyField value="codex mcp login --scopes mcp:observe,mcp:actions,mcp:terminal ohrats-rc"/>
+          <CopyField value={`codex mcp add rc --url ${endpoint} --oauth-resource ${endpoint}`}/>
+          <CopyField value="codex mcp login --scopes mcp:observe,mcp:actions,mcp:terminal rc"/>
           <p>Request only the scopes the agent needs. Omit <code>mcp:terminal</code> if saved Actions are sufficient.</p>
           <p>RC has been tested end to end with Codex 0.147. If that build lists the server but does not expose its tools to an agent, enable the current MCP protocol feature:</p>
           <CodeBlock>{`[features]\nmcp_2026_07_28 = true`}</CodeBlock>
@@ -48,8 +48,8 @@ export function mcpArticle(): DocArticle {
         id: "claude-code",
         title: "Claude Code",
         body: <>
-          <CopyField value={`claude mcp add --scope user --transport http ohrats-rc ${endpoint}`}/>
-          <CopyField value="claude mcp login ohrats-rc"/>
+          <CopyField value={`claude mcp add --scope user --transport http rc ${endpoint}`}/>
+          <CopyField value="claude mcp login rc"/>
           <p>Use <code>/mcp</code> inside Claude Code to inspect configured servers and authentication state.</p>
         </>,
       },
@@ -59,7 +59,7 @@ export function mcpArticle(): DocArticle {
         body: <>
           <p>Add the server to <code>~/.cursor/mcp.json</code> for all projects or <code>.cursor/mcp.json</code> for one project.</p>
           <CodeBlock>{cursor}</CodeBlock>
-          <CopyField value="cursor-agent mcp login ohrats-rc"/>
+          <CopyField value="cursor-agent mcp login rc"/>
         </>,
       },
       {

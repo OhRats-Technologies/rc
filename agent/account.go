@@ -50,7 +50,7 @@ func accountRequest(server, token, method, path string) (*http.Response, error) 
 
 func accountJSONRequest(server, token, method, path string, body any) (*http.Response, error) {
 	if strings.TrimSpace(token) == "" {
-		return nil, fmt.Errorf("RC credential required; sign in with ohrats-rc login, or pass a PoP API key with --token / RC_API_TOKEN")
+		return nil, fmt.Errorf("RC credential required; sign in with rc login, or pass a PoP API key with --token / RC_API_TOKEN")
 	}
 	var reader io.Reader
 	var data []byte

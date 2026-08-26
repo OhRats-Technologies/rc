@@ -35,9 +35,9 @@ export function authenticationArticle(): DocArticle {
         id: "cli-authentication",
         title: "CLI authentication",
         body: <>
-          <p><code>ohrats-rc login</code> generates a local Ed25519 control key, starts a short browser authorization flow, and waits for passkey approval.</p>
+          <p><code>rc login</code> generates a local Ed25519 control key, starts a short browser authorization flow, and waits for passkey approval.</p>
           <p>The default CLI authorization lifetime is until revoked. Finite values are <code>1h</code>, <code>1d</code>, <code>7d</code>, <code>30d</code>, <code>90d</code>, <code>180d</code>, and <code>1y</code>.</p>
-          <p><code>ohrats-rc logout</code> revokes the hosted CLI session and deletes the local account session.</p>
+          <p><code>rc logout</code> revokes the hosted CLI session and deletes the local account session.</p>
         </>,
       },
       {
@@ -78,7 +78,7 @@ export function authenticationArticle(): DocArticle {
         body: <>
           <ul>
             <li>Browser logout invalidates the browser session.</li>
-            <li><code>ohrats-rc logout</code> revokes the CLI session.</li>
+            <li><code>rc logout</code> revokes the CLI session.</li>
             <li>Revoking an API key removes it from hosted state and synchronizes affected RC Locks.</li>
             <li>Revoking an MCP connection invalidates its OAuth tokens and removes its execution grant from affected RC Locks.</li>
             <li>Removing a passkey prevents future assertions with that credential. RC prevents removing the last viable primary credential through the normal UI/API path.</li>

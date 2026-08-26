@@ -21,7 +21,7 @@ func main() {
 	binDir, version, manifestPath, signaturePath := os.Args[2], os.Args[3], os.Args[4], os.Args[5]
 	manifest := releaseverify.Manifest{Version: version}
 	for _, target := range [][2]string{{"darwin", "amd64"}, {"darwin", "arm64"}, {"linux", "amd64"}, {"linux", "arm64"}} {
-		name := "ohrats-rc-" + target[0] + "-" + target[1]
+		name := "rc-" + target[0] + "-" + target[1]
 		hash, err := releaseverify.FileSHA256(filepath.Join(binDir, name))
 		if err != nil {
 			fatal("hash %s: %v", name, err)

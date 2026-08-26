@@ -5,10 +5,10 @@ COPY agent/go.mod agent/go.sum ./
 RUN go mod download
 COPY agent ./
 RUN mkdir -p /out \
- && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/ohrats-rc-linux-amd64 . \
- && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/ohrats-rc-linux-arm64 . \
- && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/ohrats-rc-darwin-amd64 . \
- && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/ohrats-rc-darwin-arm64 .
+ && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/rc-linux-amd64 . \
+ && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/rc-linux-arm64 . \
+ && CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/rc-darwin-amd64 . \
+ && CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -v -trimpath -ldflags="-s -w -buildid=" -o /out/rc-darwin-arm64 .
 
 FROM scratch AS release
 COPY --from=agent-build /out /
@@ -16,7 +16,7 @@ COPY --from=agent-build /out /
 FROM agent-build AS agent-verified
 COPY release/manifest.json /release/manifest.json
 COPY release/manifest.sig /release/manifest.sig
-RUN go run ./cmd/verify-release /release/manifest.json /release/manifest.sig /out 0.9.2
+RUN go run ./cmd/verify-release /release/manifest.json /release/manifest.sig /out 0.10.0
 
 FROM oven/bun:1.4.0-alpine AS app
 WORKDIR /app

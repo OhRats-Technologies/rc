@@ -26,7 +26,7 @@ export async function registrationCeremony(
   kind: Exclude<CeremonyKind, "login">, userId: string, name: string, inviteId: string | null = null,
 ) {
   const options = await generateRegistrationOptions({
-    rpName: "OhRats RC", rpID: RP_ID, userName: name, userDisplayName: name,
+    rpName: "RC", rpID: RP_ID, userName: name, userDisplayName: name,
     userID: new TextEncoder().encode(userId), attestationType: "none",
     excludeCredentials: kind === "add-passkey" ? passkeyDescriptors(userId) : [],
     authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },

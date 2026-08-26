@@ -5,7 +5,7 @@ import type { Me } from "../types";
 
 type ControlIdentity = { id: string; publicKey: string; privateKey: CryptoKey };
 type DevicePin = { identityKey: string; transportKey: string };
-const DB_NAME = "ohrats-rc-security", STORE = "keys";
+const DB_NAME = "rc-security", STORE = "keys";
 
 export function bytesToB64url(bytes: ArrayBuffer | Uint8Array) {
   const value = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);

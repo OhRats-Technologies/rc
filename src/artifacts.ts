@@ -68,8 +68,8 @@ export async function download(name: string) {
       },
     });
   }
-  if (!/^ohrats-rc-(linux|darwin)-(amd64|arm64)(\.[0-9a-f]{12})?$/.test(name)) return fail("not found", 404);
-  const match = name.match(/^(ohrats-rc-(?:linux|darwin)-(?:amd64|arm64))(?:\.([0-9a-f]{12}))?$/);
+  if (!/^rc-(linux|darwin)-(amd64|arm64)(\.[0-9a-f]{12})?$/.test(name)) return fail("not found", 404);
+  const match = name.match(/^(rc-(?:linux|darwin)-(?:amd64|arm64))(?:\.([0-9a-f]{12}))?$/);
   if (!match) return fail("not found", 404);
   const [, logical, requestedHash] = match;
   const path = `${STATIC_DIR}/downloads/${logical}`;

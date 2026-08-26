@@ -11,11 +11,11 @@ import (
 	"strings"
 )
 
-const serviceLabel = "party.ohrats.rc.node"
+const serviceLabel = "party.ohrats.rc"
 
 func serviceCommand(args []string) error {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Println("Usage: ohrats-rc service <install|start|stop|status|uninstall>")
+		fmt.Println("Usage: rc service <install|start|stop|status|uninstall>")
 		return nil
 	}
 	dir := resolveStateDir("")
@@ -69,7 +69,7 @@ func startService(stateDir string) error {
 		}
 		return command("launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/%s", os.Getuid(), serviceLabel))
 	case "linux":
-		return command("systemctl", "--user", "start", "ohrats-rc.service")
+		return command("systemctl", "--user", "start", "rc.service")
 	default:
 		return fmt.Errorf("background service is not supported on %s", runtime.GOOS)
 	}
@@ -85,7 +85,7 @@ func serviceInstalled() bool {
 	case "darwin":
 		path = filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist")
 	case "linux":
-		path = filepath.Join(home, ".config", "systemd", "user", "ohrats-rc.service")
+		path = filepath.Join(home, ".config", "systemd", "user", "rc.service")
 	default:
 		return false
 	}
@@ -98,7 +98,7 @@ func restartService() error {
 	case "darwin":
 		return command("launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/%s", os.Getuid(), serviceLabel))
 	case "linux":
-		return command("systemctl", "--user", "restart", "ohrats-rc.service")
+		return command("systemctl", "--user", "restart", "rc.service")
 	default:
 		return nil
 	}
@@ -112,7 +112,7 @@ func stopService() error {
 		_ = exec.Command("launchctl", "bootout", fmt.Sprintf("gui/%d", os.Getuid()), path).Run()
 		return nil
 	case "linux":
-		_ = exec.Command("systemctl", "--user", "stop", "ohrats-rc.service").Run()
+		_ = exec.Command("systemctl", "--user", "stop", "rc.service").Run()
 		return nil
 	default:
 		return nil
@@ -124,7 +124,7 @@ func statusService() error {
 	case "darwin":
 		return command("launchctl", "print", fmt.Sprintf("gui/%d/%s", os.Getuid(), serviceLabel))
 	case "linux":
-		return command("systemctl", "--user", "status", "--no-pager", "ohrats-rc.service")
+		return command("systemctl", "--user", "status", "--no-pager", "rc.service")
 	default:
 		return fmt.Errorf("background service is not supported on %s", runtime.GOOS)
 	}
@@ -142,8 +142,8 @@ func disarmService() error {
 		return removeIfExists(filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist"))
 	case "linux":
 		home, _ := os.UserHomeDir()
-		path := filepath.Join(home, ".config", "systemd", "user", "ohrats-rc.service")
-		_ = exec.Command("systemctl", "--user", "disable", "ohrats-rc.service").Run()
+		path := filepath.Join(home, ".config", "systemd", "user", "rc.service")
+		_ = exec.Command("systemctl", "--user", "disable", "rc.service").Run()
 		if err := removeIfExists(path); err != nil {
 			return err
 		}
@@ -183,7 +183,7 @@ func installLaunchAgent(executable, stateDir string) error {
 
 func installSystemdUser(executable, stateDir string) error {
 	if _, err := exec.LookPath("systemctl"); err != nil {
-		return errors.New("systemd user services are unavailable; run `ohrats-rc run` manually")
+		return errors.New("systemd user services are unavailable; run `rc run` manually")
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -193,14 +193,14 @@ func installSystemdUser(executable, stateDir string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
-	unit := fmt.Sprintf("[Unit]\nDescription=OhRats RC Node\nAfter=network-online.target\n\n[Service]\nExecStart=%s run --state-dir %s\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=default.target\n", strconv.Quote(executable), strconv.Quote(stateDir))
-	if err := os.WriteFile(filepath.Join(dir, "ohrats-rc.service"), []byte(unit), 0644); err != nil {
+	unit := fmt.Sprintf("[Unit]\nDescription=RC Node\nAfter=network-online.target\n\n[Service]\nExecStart=%s run --state-dir %s\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=default.target\n", strconv.Quote(executable), strconv.Quote(stateDir))
+	if err := os.WriteFile(filepath.Join(dir, "rc.service"), []byte(unit), 0644); err != nil {
 		return err
 	}
 	if err := command("systemctl", "--user", "daemon-reload"); err != nil {
 		return err
 	}
-	return command("systemctl", "--user", "enable", "--now", "ohrats-rc.service")
+	return command("systemctl", "--user", "enable", "--now", "rc.service")
 }
 
 func command(name string, args ...string) error {

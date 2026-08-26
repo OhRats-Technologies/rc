@@ -33,7 +33,7 @@ func run(args []string) error {
 		printHelp()
 		return nil
 	case "version", "--version", "-version":
-		fmt.Printf("OhRats RC Node %s\n", version)
+		fmt.Printf("RC %s\n", version)
 		return nil
 	case "login":
 		return loginCommand(args[1:])

@@ -62,8 +62,8 @@ export function apiArticle(): DocArticle {
         id: "cli",
         title: "Use an API key with the RC CLI",
         body: <>
-          <CopyField value="RC_API_TOKEN='rcsk_...' ohrats-rc devices"/>
-          <CopyField value="ohrats-rc devices --token 'rcsk_...'"/>
+          <CopyField value="RC_API_TOKEN='rcsk_...' rc devices"/>
+          <CopyField value="rc devices --token 'rcsk_...'"/>
           <p>The CLI parses the private key from the <code>rcsk_</code> credential and signs each request locally. It does not transmit the private key as a bearer token.</p>
         </>,
       },

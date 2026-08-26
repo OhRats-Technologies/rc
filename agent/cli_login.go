@@ -65,7 +65,7 @@ func openBrowser(value string) error {
 }
 
 func loginCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc login", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc login", flag.ContinueOnError)
 	dir := resolveStateDir("")
 	config, _ := loadConfig(dir)
 	account, _ := loadAccountSession(dir)
@@ -85,7 +85,7 @@ func loginCommand(args []string) error {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-rc login [--url URL] [--expires DURATION]")
+		return errors.New("usage: rc login [--url URL] [--expires DURATION]")
 	}
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -135,13 +135,13 @@ func loginCommand(args []string) error {
 }
 
 func logoutCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc logout", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc logout", flag.ContinueOnError)
 	dir := resolveStateDir("")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-rc logout")
+		return errors.New("usage: rc logout")
 	}
 	account, err := loadAccountSession(dir)
 	if errors.Is(err, os.ErrNotExist) {

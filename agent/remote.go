@@ -103,14 +103,14 @@ func remoteRunCommand(args []string) error {
 		}
 	}
 	if separator < 1 || separator == len(args)-1 {
-		return errors.New("usage: ohrats-rc run [--url URL] [--token TOKEN] DEVICE -- COMMAND [ARG...]")
+		return errors.New("usage: rc run [--url URL] [--token TOKEN] DEVICE -- COMMAND [ARG...]")
 	}
-	flags, server, token, err := accountFlags("ohrats-rc run", args[:separator])
+	flags, server, token, err := accountFlags("rc run", args[:separator])
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: ohrats-rc run [flags] DEVICE -- COMMAND")
+		return errors.New("usage: rc run [flags] DEVICE -- COMMAND")
 	}
 	device, err := resolveAccountDevice(*server, *token, flags.Arg(0))
 	if err != nil {
@@ -151,12 +151,12 @@ func listAccountActions(server, token string) ([]accountAction, error) {
 }
 
 func actionsCommand(args []string) error {
-	flags, server, token, err := accountFlags("ohrats-rc actions", args)
+	flags, server, token, err := accountFlags("rc actions", args)
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-rc actions [--token TOKEN]")
+		return errors.New("usage: rc actions [--token TOKEN]")
 	}
 	actions, err := listAccountActions(*server, *token)
 	if err != nil {
@@ -174,7 +174,7 @@ func actionsCommand(args []string) error {
 
 func actionCommand(args []string) error {
 	if len(args) == 0 || args[0] != "run" {
-		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
+		return errors.New("usage: rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
 	}
 	var actionValue, deviceValue, server, token string
 	confirmed := false
@@ -208,7 +208,7 @@ func actionCommand(args []string) error {
 		}
 	}
 	if actionValue == "" || deviceValue == "" {
-		return errors.New("usage: ohrats-rc action run ACTION --device DEVICE [--confirm]")
+		return errors.New("usage: rc action run ACTION --device DEVICE [--confirm]")
 	}
 	actions, err := listAccountActions(server, token)
 	if err != nil {

@@ -2,7 +2,7 @@
 set -eu
 
 TOKEN="${1:-${RC_ENROLL_TOKEN:-}}"
-STATE_DIR="${RC_STATE_DIR:-$HOME/.config/ohrats-rc}"
+STATE_DIR="${RC_STATE_DIR:-$HOME/.config/rc}"
 
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
@@ -19,36 +19,36 @@ esac
 DIR="$HOME/.local/bin"
 mkdir -p "$DIR"
 
-URL="https://rc.ohrats.party/downloads/ohrats-rc-${OS}-${ARCH}"
-TMP="$DIR/.ohrats-rc.$$"
+URL="https://rc.ohrats.party/downloads/rc-${OS}-${ARCH}"
+TMP="$DIR/.rc.$$"
 trap 'rm -f "$TMP"' EXIT HUP INT TERM
 curl -fsSL "$URL" -o "$TMP"
 if [ ! -s "$TMP" ] || [ "$(head -c 1 "$TMP" || true)" = "<" ]; then
-  echo "downloaded ohrats-rc is not a valid binary" >&2
+  echo "downloaded rc is not a valid binary" >&2
   exit 1
 fi
 chmod 755 "$TMP"
-mv "$TMP" "$DIR/ohrats-rc"
+mv "$TMP" "$DIR/rc"
 trap - EXIT HUP INT TERM
-echo "installed $DIR/ohrats-rc"
+echo "installed $DIR/rc"
 if [ -n "$TOKEN" ]; then
-  "$DIR/ohrats-rc" enroll "$TOKEN"
+  "$DIR/rc" enroll "$TOKEN"
   echo ""
-  echo "OhRats RC Node installed and enrolled."
+  echo "RC Node installed and enrolled."
 elif [ -s "$STATE_DIR/device.json" ]; then
   echo ""
-  echo "OhRats RC Node updated."
+  echo "RC Node updated."
 else
   echo ""
-  echo "OhRats RC Node installed."
-  echo "enroll: ohrats-rc enroll ENROLLMENT_TOKEN"
+  echo "RC Node installed."
+  echo "enroll: rc enroll ENROLLMENT_TOKEN"
 fi
 if [ -s "$STATE_DIR/device.json" ]; then
-  if "$DIR/ohrats-rc" service install; then
+  if "$DIR/rc" service install; then
     echo "node:   running in the background"
   else
     echo "warning: could not start the background service" >&2
-    echo "run:    ohrats-rc run" >&2
+    echo "run:    rc run" >&2
   fi
 fi
-echo "help:   ohrats-rc --help"
+echo "help:   rc --help"

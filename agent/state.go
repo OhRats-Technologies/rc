@@ -34,9 +34,9 @@ func env(key, fallback string) string {
 func defaultStateDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return ".ohrats-rc"
+		return ".rc"
 	}
-	return filepath.Join(home, ".config", "ohrats-rc")
+	return filepath.Join(home, ".config", "rc")
 }
 
 func resolveStateDir(value string) string {

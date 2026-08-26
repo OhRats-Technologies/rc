@@ -17,9 +17,9 @@
 - [x] Kill active process trees when the RC Node stops, crashes, or updates
 - [x] Never replay an ambiguous process start
 - [x] Half-open node heartbeat expiry
-- [x] `ohrats-rc` help/run/enroll/status/update/config/uninstall lifecycle
+- [x] `rc` help/run/enroll/status/update/config/uninstall lifecycle
 - [x] Account CLI device listing/removal with human sessions or PoP API signing keys
-- [x] Node state/config under `~/.config/ohrats-rc`
+- [x] Node state/config under `~/.config/rc`
 - [x] Installer exits after install/enrollment
 - [x] Remote RC Node updates from the web UI
 - [x] Replay-resistant one-time challenge authentication for RC Nodes

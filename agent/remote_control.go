@@ -35,11 +35,11 @@ func accountControlIdentity(server, token string) (string, ed25519.PrivateKey, e
 	}
 	account, err := loadAccountSession(resolveStateDir(""))
 	if err != nil || account.Token != token || strings.TrimRight(account.Server, "/") != strings.TrimRight(server, "/") {
-		return "", nil, errors.New("CLI control key unavailable; run ohrats-rc login again")
+		return "", nil, errors.New("CLI control key unavailable; run rc login again")
 	}
 	privateKey, err := base64.RawURLEncoding.DecodeString(account.ControlPrivateKey)
 	if err != nil || len(privateKey) != ed25519.PrivateKeySize || account.ControlClientID == "" {
-		return "", nil, errors.New("CLI control key unavailable; run ohrats-rc login again")
+		return "", nil, errors.New("CLI control key unavailable; run rc login again")
 	}
 	return account.ControlClientID, ed25519.PrivateKey(privateKey), nil
 }

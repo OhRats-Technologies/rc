@@ -21,13 +21,13 @@ function Document({ title, body, user, workspaces = [], path = "/", scripts = []
     <head>
       <meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
       <meta name="robots" content={indexable ? "index,follow" : "noindex,nofollow"}/><meta name="color-scheme" content="light dark"/>
-      <title>{`${title} | OhRats RC`}</title>
+      <title>{`${title} | RC`}</title>
       {indexable && <link rel="canonical" href={canonical}/>}<meta name="description" content={description}/>
-      <meta property="og:site_name" content="OhRats RC"/><meta property="og:type" content="website"/>
-      <meta property="og:title" content={`${title} | OhRats RC`}/><meta property="og:description" content={description}/><meta property="og:url" content={canonical}/>
-      {socialCard ? <><meta property="og:image" content={`${PUBLIC_URL}${socialCard}`}/><meta property="og:image:width" content="2400"/><meta property="og:image:height" content="1260"/><meta property="og:image:type" content="image/png"/><meta property="og:image:alt" content="OhRats RC device page"/></> : null}
-      <meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content={`${title} | OhRats RC`}/><meta name="twitter:description" content={description}/>
-      {socialCard ? <><meta name="twitter:image" content={`${PUBLIC_URL}${socialCard}`}/><meta name="twitter:image:alt" content="OhRats RC device page"/></> : null}
+      <meta property="og:site_name" content="RC"/><meta property="og:type" content="website"/>
+      <meta property="og:title" content={`${title} | RC`}/><meta property="og:description" content={description}/><meta property="og:url" content={canonical}/>
+      {socialCard ? <><meta property="og:image" content={`${PUBLIC_URL}${socialCard}`}/><meta property="og:image:width" content="2400"/><meta property="og:image:height" content="1260"/><meta property="og:image:type" content="image/png"/><meta property="og:image:alt" content="RC device page"/></> : null}
+      <meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content={`${title} | RC`}/><meta name="twitter:description" content={description}/>
+      {socialCard ? <><meta name="twitter:image" content={`${PUBLIC_URL}${socialCard}`}/><meta name="twitter:image:alt" content="RC device page"/></> : null}
       <link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/ohrats.eb38b77e6b5e.css"/>
       <link rel="stylesheet" href="https://assets.ohrats.party/assets/states.8d99d4b0e704.css"/>

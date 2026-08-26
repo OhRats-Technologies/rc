@@ -58,7 +58,7 @@ export function devicePage(user: User, workspaces: WorkspaceView[], device: Devi
         <dl className="facts">
           <div><dt>HOST</dt><dd>{device.hostname}</dd></div><div><dt>NODE VERSION</dt><dd id="node-agent">{device.agent_version}</dd></div>
         </dl>
-        <p id="process-error" className="error">{supportsProcess ? "" : <>This RC Node is too old for terminals. Run <code>ohrats-rc update</code> on the device.</>}</p>
+        <p id="process-error" className="error">{supportsProcess ? "" : <>This RC Node is too old for terminals. Run <code>rc update</code> on the device.</>}</p>
       </section>
       <section className="content-section"><div className="section-heading"><div><SectionBadge index="01">Processes</SectionBadge><h2>History</h2></div></div>{device.role === "viewer" ? <p className="empty-state">Process history is available to operators and owners.</p> : <ProcessRows deviceId={device.id} processes={processes}/>}</section>
     </div> });

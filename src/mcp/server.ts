@@ -52,7 +52,7 @@ export async function handleMcp(request: Request) {
     resultType: "complete", supportedVersions: [MCP_PROTOCOL_VERSION], capabilities: { tools: {} },
     instructions: "Use only the machines and capabilities explicitly granted by the user. Prefer saved Actions over arbitrary terminal commands.",
     ttlMs: 300_000, cacheScope: "public",
-    _meta: { "io.modelcontextprotocol/serverInfo": { name: "OhRats RC", version: VERSION, websiteUrl: PUBLIC_URL } },
+    _meta: { "io.modelcontextprotocol/serverInfo": { name: "RC", version: VERSION, websiteUrl: PUBLIC_URL } },
   });
 
   const context = contextFor(request); if (!context) return authError();

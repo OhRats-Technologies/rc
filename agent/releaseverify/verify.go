@@ -65,7 +65,7 @@ func Verify(manifestBytes, signatureBytes []byte) (Manifest, error) {
 	seen := map[string]bool{}
 	for _, artifact := range manifest.Artifacts {
 		key := artifact.OS + "/" + artifact.Arch
-		expectedName := "ohrats-rc-" + artifact.OS + "-" + artifact.Arch
+		expectedName := "rc-" + artifact.OS + "-" + artifact.Arch
 		if seen[key] || artifact.Name != expectedName ||
 			(artifact.OS != "linux" && artifact.OS != "darwin") ||
 			(artifact.Arch != "amd64" && artifact.Arch != "arm64") || len(artifact.SHA256) != 64 {

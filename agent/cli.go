@@ -25,9 +25,9 @@ func helpRow(code, label, description string) {
 }
 
 func printHelp() {
-	fmt.Printf("%s %s\n\n", color("1", "OhRats RC Node"), version)
-	fmt.Println("Outbound device node for OhRats RC.")
-	fmt.Printf("\n%s %s\n\n", color("1", "Usage:"), "ohrats-rc <command> [flags]")
+	fmt.Printf("%s %s\n\n", color("1", "RC"), version)
+	fmt.Println("Remote control and device node.")
+	fmt.Printf("\n%s %s\n\n", color("1", "Usage:"), "rc <command> [flags]")
 	fmt.Println(color("1", "Commands:"))
 	helpRow("35;1", "login", "Sign in with a passkey")
 	helpRow("35;1", "logout", "Sign out this CLI")
@@ -48,7 +48,7 @@ func printHelp() {
 	fmt.Println()
 	helpRow("33;1", "version", "Print version")
 	helpRow("36;1", "help", "Print this help")
-	fmt.Printf("\n%s\n  ohrats-rc <command> --help\n", color("1", "Command help:"))
+	fmt.Printf("\n%s\n  rc <command> --help\n", color("1", "Command help:"))
 }
 
 func accountFlags(name string, args []string) (*flag.FlagSet, *string, *string, error) {
@@ -80,12 +80,12 @@ func accountFlags(name string, args []string) (*flag.FlagSet, *string, *string, 
 }
 
 func devicesCommand(args []string) error {
-	flags, server, token, err := accountFlags("ohrats-rc devices", args)
+	flags, server, token, err := accountFlags("rc devices", args)
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 0 {
-		return errors.New("usage: ohrats-rc devices [--token TOKEN]")
+		return errors.New("usage: rc devices [--token TOKEN]")
 	}
 	devices, err := listAccountDevices(*server, *token)
 	if err != nil {
@@ -107,19 +107,19 @@ func devicesCommand(args []string) error {
 
 func deviceCommand(args []string) error {
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
-		fmt.Println("Usage: ohrats-rc device delete [--token TOKEN] ID")
-		fmt.Println("       RC_API_TOKEN=... ohrats-rc device delete ID")
+		fmt.Println("Usage: rc device delete [--token TOKEN] ID")
+		fmt.Println("       RC_API_TOKEN=... rc device delete ID")
 		return nil
 	}
 	if args[0] != "delete" {
 		return fmt.Errorf("unknown device command %q", args[0])
 	}
-	flags, server, token, err := accountFlags("ohrats-rc device delete", args[1:])
+	flags, server, token, err := accountFlags("rc device delete", args[1:])
 	if err != nil {
 		return err
 	}
 	if flags.NArg() != 1 {
-		return errors.New("usage: ohrats-rc device delete [--token TOKEN] ID")
+		return errors.New("usage: rc device delete [--token TOKEN] ID")
 	}
 	device, err := resolveAccountDevice(*server, *token, flags.Arg(0))
 	if err != nil {
@@ -142,7 +142,7 @@ func deviceCommand(args []string) error {
 }
 
 func printConfigHelp() {
-	fmt.Println("Usage: ohrats-rc config <command>")
+	fmt.Println("Usage: rc config <command>")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  show                  Show effective configuration")
@@ -174,7 +174,7 @@ func commandHelp(command string) error {
 	case "actions":
 		return actionsCommand([]string{"--help"})
 	case "action":
-		fmt.Println("Usage: ohrats-rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
+		fmt.Println("Usage: rc action run ACTION --device DEVICE [--confirm] [--token TOKEN]")
 		return nil
 	case "device":
 		return deviceCommand([]string{"--help"})
@@ -190,7 +190,7 @@ func commandHelp(command string) error {
 }
 
 func statusCommand(args []string) error {
-	flags := flag.NewFlagSet("ohrats-rc status", flag.ContinueOnError)
+	flags := flag.NewFlagSet("rc status", flag.ContinueOnError)
 	stateDir := flags.String("state-dir", "", "Node state directory")
 	serverFlag := flags.String("url", "", "RC server URL")
 	if err := flags.Parse(args); err != nil {
@@ -198,7 +198,7 @@ func statusCommand(args []string) error {
 	}
 	dir, server, _ := commandDefaults(*stateDir, *serverFlag)
 	value, err := loadState(dir)
-	fmt.Printf("OhRats RC Node %s\n", version)
+	fmt.Printf("RC Node %s\n", version)
 	fmt.Printf("Config  %s\n", dir)
 	fmt.Printf("RC   %s\n", server)
 	if errors.Is(err, os.ErrNotExist) {
@@ -244,13 +244,13 @@ func configCommand(args []string) error {
 		return nil
 	}
 	if len(args) < 2 {
-		return errors.New("usage: ohrats-rc config <show|path|set|unset>")
+		return errors.New("usage: rc config <show|path|set|unset>")
 	}
 	config, _ := loadConfig(stateDir)
 	switch args[0] {
 	case "set":
 		if len(args) < 3 {
-			return errors.New("usage: ohrats-rc config set <server|name> VALUE")
+			return errors.New("usage: rc config set <server|name> VALUE")
 		}
 		value := strings.TrimSpace(strings.Join(args[2:], " "))
 		switch args[1] {

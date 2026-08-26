@@ -46,7 +46,7 @@ func replaceExecutable(serverURL string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download: %s", resp.Status)
 	}
-	temp, err := os.CreateTemp(filepath.Dir(executable), ".ohrats-rc-update-*")
+	temp, err := os.CreateTemp(filepath.Dir(executable), ".rc-update-*")
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func replaceExecutable(serverURL string) error {
 		return err
 	}
 	output, err := exec.Command(name, "version").CombinedOutput()
-	if err != nil || strings.TrimSpace(string(output)) != "OhRats RC Node "+manifest.Version {
+	if err != nil || strings.TrimSpace(string(output)) != "RC "+manifest.Version {
 		return fmt.Errorf("downloaded file does not match signed release version")
 	}
 	return os.Rename(name, executable)

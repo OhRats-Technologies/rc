@@ -32,9 +32,9 @@ Remote device control plane for OhRats Technologies.
 - Prefer normal links, forms, POST/redirect flows, and server-rendered snapshots. JavaScript is reserved for capabilities that inherently require it or materially benefit from live enhancement.
 - Keep authenticated pages visually flat: natural sections, typography, rows, and dividers. Do not turn every section into a bordered panel/card.
 - Browser live state and interactive PTY control use one authenticated WebSocket. HTTP remains for snapshots and ordinary CRUD. Do not reintroduce timer polling.
-- The device binary is branded `ohrats-rc` and presented as OhRats RC Node.
-- Normal install/enrollment starts the Node as a per-user background service. `ohrats-rc run` is the foreground/debug path, not a required second terminal in the normal setup flow.
-- Device removal is available from the web, `DELETE /api/v1/devices/:id`, and `ohrats-rc device delete`. Locked nodes erase local enrollment only after an owner-authorized encrypted `node.remove`; deleting the server record alone must never erase locked local state.
+- The device and human CLI share the `rc` binary. Keep the product name `RC`; OhRats is established by the product domain and company mark rather than repeated in the product name.
+- Normal install/enrollment starts the Node as a per-user background service. `rc run` is the foreground/debug path, not a required second terminal in the normal setup flow.
+- Device removal is available from the web, `DELETE /api/v1/devices/:id`, and `rc device delete`. Locked nodes erase local enrollment only after an owner-authorized encrypted `node.remove`; deleting the server record alone must never erase locked local state.
 - Keep the product model `User → Workspace → Device → Process`. Do not add fleets or browser shell-session wrappers without a concrete need.
 - Every remote process owns a PTY and is at-most-once. If execution becomes ambiguous after disconnect/restart, mark it lost instead of replaying it.
 - RC Node shutdown, crash, and update must tear down all PTY process trees; never leave detached remote work behind.

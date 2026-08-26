@@ -41,7 +41,7 @@ export function quickstartArticle(): DocArticle {
             <li>Choose <strong>Create install command</strong>.</li>
             <li>Run the generated command on the machine you want to control.</li>
           </ol>
-          <p>The generated command contains a one-time enrollment token. It downloads the signed <code>ohrats-rc</code> binary, enrolls the machine, and installs a per-user background service.</p>
+          <p>The generated command contains a one-time enrollment token. It downloads the signed <code>rc</code> binary, enrolls the machine, and installs a per-user background service.</p>
           <p>The service is a LaunchAgent on macOS and a user systemd service on supported Linux systems.</p>
         </>,
       },
@@ -49,7 +49,7 @@ export function quickstartArticle(): DocArticle {
         id: "verify-node",
         title: "Verify the Node",
         body: <>
-          <CopyField value="ohrats-rc status"/>
+          <CopyField value="rc status"/>
           <p>The command shows local enrollment and the hosted device state. The Devices page should show the same machine as online.</p>
         </>,
       },
@@ -58,9 +58,9 @@ export function quickstartArticle(): DocArticle {
         title: "Open a remote shell",
         body: <>
           <p>You can open a terminal from the device page in the browser, or use the CLI:</p>
-          <CopyField value="ohrats-rc login"/>
-          <CopyField value="ohrats-rc devices"/>
-          <CopyField value="ohrats-rc shell DEVICE"/>
+          <CopyField value="rc login"/>
+          <CopyField value="rc devices"/>
+          <CopyField value="rc shell DEVICE"/>
           <p><code>login</code> opens RC for passkey approval. The resulting CLI authorization defaults to until revoked.</p>
         </>,
       },
