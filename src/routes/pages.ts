@@ -18,12 +18,13 @@ import { accessPage } from "../../web/server/pages/access";
 import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
 import { landingPage } from "../../web/server/pages/landing";
+import { apiDocsPage, cliDocsPage, docsPage, mcpDocsPage } from "../../web/server/pages/docs";
 import { devicePage, devicesPage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 import { processPage } from "../../web/server/pages/process";
 import { activityPage } from "../../web/server/pages/workspaces";
 
-const loginRedirect = () => Response.redirect("/", 303);
+const loginRedirect = () => Response.redirect("/login", 303);
 
 export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } })
   .get("/setup/:token", ({ params }) => {
@@ -46,6 +47,10 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     const context = await pageContext(request); if (context) return Response.redirect("/devices", 303);
     return authPage("login", { next: safeNext(query.next) });
   })
+  .get("/docs", () => docsPage())
+  .get("/docs/mcp", () => mcpDocsPage())
+  .get("/docs/api", () => apiDocsPage())
+  .get("/docs/cli", () => cliDocsPage())
   .get("/cli/login", async ({ request, query }) => {
     const code = String(query.code || "");
     const approval = cliAuthorizationPreview(code);

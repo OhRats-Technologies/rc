@@ -54,8 +54,8 @@ function headers() {
   const csp = [
     "default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'",
     "form-action 'self'", "script-src 'self' https://assets.ohrats.party",
-    "style-src 'self' https://assets.ohrats.party", "img-src 'self' https://assets.ohrats.party data:",
-    "font-src 'self' https://assets.ohrats.party data:", `connect-src 'self' ${websocket}`,
+    "style-src 'self' https://assets.ohrats.party https://fonts.googleapis.com", "img-src 'self' https://assets.ohrats.party data:",
+    "font-src 'self' https://assets.ohrats.party https://fonts.gstatic.com data:", `connect-src 'self' ${websocket}`,
     ...(secure ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
   return {

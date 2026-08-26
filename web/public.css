@@ -1,0 +1,109 @@
+/* Page-level rules intentionally mirror ohrats.party. Shared header/footer live in OhRats UI. */
+.public-site section {
+    padding: 6rem 1.5rem;
+    border-bottom: 1px solid var(--or-border);
+    background-color: var(--or-bg);
+    transition: background-color var(--or-theme-transition), border-color var(--or-theme-transition);
+}
+
+.public-site .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+.public-site .section-grid {
+    display: grid;
+    gap: 4rem;
+    align-items: start;
+}
+
+@media (min-width: 1024px) {
+    .public-site .section-grid { grid-template-columns: 1fr 1fr; }
+}
+
+.public-site .header-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--or-text);
+    padding-bottom: 0.25rem;
+    font-size: 0.875rem;
+    font-family: var(--or-font-mono);
+    text-transform: uppercase;
+    color: var(--or-text);
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.public-site .header-link:hover { color: var(--or-text-muted); border-color: var(--or-text-muted); }
+
+.public-site .hero-header {
+    position: relative;
+    padding: 8rem 1.5rem 5rem;
+    overflow: hidden;
+    background-color: var(--or-bg);
+    transition: background-color var(--or-theme-transition);
+}
+
+@media (min-width: 768px) {
+    .public-site .hero-header { padding-top: 12rem; padding-bottom: 8rem; }
+}
+
+.public-site .hero-content { max-width: 80rem; margin: 0 auto; text-align: center; position: relative; z-index: 10; }
+.public-site .hero-content h1 {
+    font-size: 2.25rem;
+    font-weight: 400;
+    letter-spacing: -0.075em;
+    line-height: 0.9;
+    margin-bottom: 2rem;
+    color: var(--or-text);
+    transition: color var(--or-theme-transition);
+}
+@media (min-width: 768px) { .public-site .hero-content h1 { font-size: 4.5rem; } }
+@media (min-width: 1024px) { .public-site .hero-content h1 { font-size: 5rem; } }
+.public-site .hero-muted { color: var(--or-text-muted); }
+
+.public-site .section-header { display: flex; flex-direction: column; margin-bottom: 4rem; gap: 2rem; }
+@media (min-width: 768px) { .public-site .section-header { flex-direction: row; align-items: flex-end; justify-content: space-between; } }
+.public-site .public-resources-heading { margin-bottom: 0; }
+.public-site .section-heading-stack { display: flex; flex-direction: column; gap: 1.5rem; }
+.public-site .section-title-container h2 {
+    font-size: 2.25rem;
+    font-weight: 400;
+    letter-spacing: -0.05em;
+    margin-bottom: 1.5rem;
+    line-height: 1.2;
+    color: var(--or-text);
+    transition: color var(--or-theme-transition);
+}
+@media (min-width: 768px) { .public-site .section-title-container h2 { font-size: 3rem; margin-bottom: 0; } }
+.public-site .section-title-container .muted { color: var(--or-text-muted); }
+
+.public-site .listing-page {
+    width: calc(100% - 3rem);
+    min-height: 100vh;
+    padding-top: 8rem;
+    padding-bottom: 6rem;
+}
+.public-site .listing-page h1 { margin: 1.5rem 0 0; font-size: 3rem; font-weight: 500; letter-spacing: -0.05em; line-height: 1; }
+.public-site .listing-copy { margin: 1rem 0 0; color: var(--or-text-muted); max-width: 42rem; line-height: 1.6; }
+
+.public-hero-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: var(--or-space-lg); }
+.public-safety-list { display: grid; gap: var(--or-space-lg); max-width: 42rem; }
+.public-safety-item { display: grid; gap: var(--or-space-xs); }
+.public-safety-item h3 { font-size: 1.25rem; font-weight: 400; }
+.public-safety-item p { color: var(--or-text-muted); font-size: 0.875rem; line-height: 1.75; }
+.public-resource-links { display: flex; flex-wrap: wrap; gap: var(--or-space-md) var(--or-space-lg); }
+
+.public-doc-body { display: grid; gap: 4rem; }
+.public-doc-section { display: grid; gap: var(--or-space-md); max-width: 42rem; }
+.public-doc-copy { display: grid; gap: var(--or-space-sm); color: var(--or-text-muted); max-width: 42rem; }
+.public-doc-copy p { line-height: 1.7; }
+.public-doc-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--or-space-md); }
+.public-doc .or-copy-field { width: min(100%, 42rem); }
+
+@media (max-width: 520px) {
+    .public-hero-actions { flex-direction: column; }
+}
