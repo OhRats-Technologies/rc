@@ -34,12 +34,12 @@ export function mcpAuthorizePage(user: User, requestId: string, clientName: stri
 
 export function mcpConnectionsPage(user: User, workspaces: WorkspaceView[], sidebar: "open" | "closed", endpoint: string,
   grants: Array<{ record: { id: string; name: string; last_used: number | null; expires_at: number }; payload: { scopes: string[]; deviceIds: string[] } }>) {
-  return htmlDocument({ title: "AI agents", user, workspaces, path: "/integrations/mcp", sidebar, scripts: ["mcp-page"], body:
-    <div className="page"><header className="page-header"><div><h1>AI agents</h1><p className="page-copy">Connect an MCP client with this URL: <code>{endpoint}</code></p></div></header>
+  return htmlDocument({ title: "MCP", user, workspaces, path: "/integrations/mcp", sidebar, scripts: ["mcp-page"], body:
+    <div className="page"><header className="page-header"><div><p className="eyebrow">OHRATS RC / MODEL CONTEXT PROTOCOL</p><h1>MCP</h1><p className="page-copy">Connect an AI agent to <strong>OhRats RC</strong> with this URL: <code>{endpoint}</code></p><p className="meta">CONFIG IDENTIFIER · <code>ohrats-rc</code></p></div></header>
       <div className="settings-list">{grants.length ? grants.map(({ record, payload }) => <div className="setting-row" key={record.id}><div>
         <strong>{record.name}</strong><div className="meta">{payload.scopes.join(" · ").toUpperCase()} · {payload.deviceIds.length} MACHINE{payload.deviceIds.length === 1 ? "" : "S"} · {record.last_used ? `USED ${relative(record.last_used)}` : record.expires_at === 0 ? "UNTIL REVOKED" : `EXPIRES IN ${until(record.expires_at)}`}</div>
       </div><button className="text-button" type="button" data-mcp-revoke={record.id}>REVOKE</button></div>)
-        : <p className="empty-state">No AI agents are connected yet. Paste the MCP URL into your agent to start.</p>}</div>
+        : <p className="empty-state">No AI agents are connected yet. Add OhRats RC to your MCP client to start.</p>}</div>
       <p className="error" data-mcp-page-error/>
     </div> });
 }

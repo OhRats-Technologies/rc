@@ -17,6 +17,7 @@ import { accountPage, apiKeyFormPage, apiPage, deleteAccountFallbackPage } from 
 import { accessPage } from "../../web/server/pages/access";
 import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
+import { landingPage } from "../../web/server/pages/landing";
 import { devicePage, devicesPage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 import { processPage } from "../../web/server/pages/process";
@@ -35,11 +36,15 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     if (status.setupRequired) return authPage("setup", { authorized: status.setupAuthorized });
     const preview = invite ? invitePreview(invite) : null;
     if (invite && !preview) return authPage("invalid-invite");
-    if (!context) return authPage(invite && query.signin !== "1" ? "register" : "login", {
-      invite, workspaceName: preview?.workspaceName, role: preview?.role, next,
-    });
+    if (!context && invite) return authPage(query.signin !== "1" ? "register" : "login", { invite, workspaceName: preview?.workspaceName, role: preview?.role, next });
+    if (!context && next !== "/devices") return authPage("login", { next });
+    if (!context) return landingPage();
     if (invite) return authPage("join", { invite, workspaceName: preview!.workspaceName, role: preview!.role });
     return Response.redirect("/devices", 303);
+  })
+  .get("/login", async ({ request, query }) => {
+    const context = await pageContext(request); if (context) return Response.redirect("/devices", 303);
+    return authPage("login", { next: safeNext(query.next) });
   })
   .get("/cli/login", async ({ request, query }) => {
     const code = String(query.code || "");

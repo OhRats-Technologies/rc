@@ -8,17 +8,17 @@ import { Sidebar } from "./sidebar";
 
 type DocumentProps = {
   title: string; body: ReactNode; user?: User | null; workspaces?: WorkspaceView[]; path?: string;
-  scripts?: string[]; styles?: string[]; sidebar?: "open" | "closed"; status?: number;
+  scripts?: string[]; styles?: string[]; sidebar?: "open" | "closed"; status?: number; indexable?: boolean;
 };
 
-function Document({ title, body, user, workspaces = [], path = "/", scripts = [], styles = [], sidebar = "open" }: DocumentProps) {
+function Document({ title, body, user, workspaces = [], path = "/", scripts = [], styles = [], sidebar = "open", indexable = false }: DocumentProps) {
   const css = assetUrl("styles", "css");
   const socialCard = assetUrl("social-card", "png");
   return <html lang="en" data-sidebar={sidebar}>
     <head>
       <meta charSet="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-      <meta name="robots" content="noindex,nofollow"/><meta name="color-scheme" content="light dark"/>
-      <title>{`${title} | RC`}</title>
+      <meta name="robots" content={indexable ? "index,follow" : "noindex,nofollow"}/><meta name="color-scheme" content="light dark"/>
+      <title>{`${title} | OhRats RC`}</title>
       <meta property="og:site_name" content="OhRats RC"/><meta property="og:type" content="website"/>
       <meta property="og:title" content="OhRats RC | Remote control for your machines"/>
       <meta property="og:description" content="Persistent terminals, saved actions, and private device access without exposing SSH."/>

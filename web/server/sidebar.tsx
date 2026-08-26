@@ -89,7 +89,7 @@ export function Sidebar({ user, workspaces, path }: { user: User; workspaces: Wo
             <a className={`nav-link${active(path, "/devices")}`} href="/devices"><span className="ui-icon icon-devices"/><span>Devices</span></a>
             <a className={`nav-link${active(path, "/actions")}`} href="/actions"><span className="ui-icon icon-actions"/><span>Actions</span></a>
             <a className={`nav-link${path === "/api" ? " active" : ""}`} href="/api"><span className="ui-icon icon-api"/><span>API</span></a>
-            <a className={`nav-link${active(path, "/integrations/mcp")}`} href="/integrations/mcp"><span className="ui-icon icon-api"/><span>AI agents</span></a>
+            <a className={`nav-link${active(path, "/integrations/mcp")}`} href="/integrations/mcp"><span className="ui-icon icon-api"/><span>MCP</span></a>
           </section>
           <section className="sidebar-section workspace-section">
             <div className="sidebar-section-title"><h2>Workspaces</h2><button className="workspace-add" type="button" aria-label="New workspace" title="New workspace" data-workspace-create-trigger><span className="ui-icon icon-plus" aria-hidden="true"/></button></div>

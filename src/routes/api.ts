@@ -42,7 +42,7 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .use(openapi({
     path: "/openapi",
     documentation: {
-      info: { title: "RC API", description: "RC HTTP API.", version: VERSION },
+      info: { title: "OhRats RC API", description: "HTTP API for OhRats RC.", version: VERSION },
       servers: [{ url: PUBLIC_URL }],
       components: { securitySchemes: { rcProof: { type: "apiKey", in: "header", name: "X-RC-Key-ID",
         description: "RC proof-of-possession signing key. Also send X-RC-Timestamp, X-RC-Nonce, and X-RC-Signature over the canonical request including the SHA-256 body hash." } } },

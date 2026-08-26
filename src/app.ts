@@ -22,7 +22,11 @@ export const app = new Elysia({ name: "rc" })
   .use(browserSocketRoute)
   .use(agentSocketRoute)
   .get("/healthz", () => "ok", { detail: { hide: true } })
-  .get("/robots.txt", () => new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain" } }), { detail: { hide: true } })
+  .get("/robots.txt", () => new Response([
+    "User-agent: *", "Allow: /", "Disallow: /devices", "Disallow: /account", "Disallow: /actions",
+    "Disallow: /workspaces", "Disallow: /integrations", "Disallow: /oauth", "Disallow: /cli/login",
+    "Disallow: /setup/", "Disallow: /mcp", "Disallow: /api/v1/auth/", "Disallow: /api/v1/agent/", "",
+  ].join("\n"), { headers: { "content-type": "text/plain" } }), { detail: { hide: true } })
   .all("/*", async ({ request }) => {
     const path = new URL(request.url).pathname;
     if (path.startsWith("/api/") || path.startsWith("/assets/") || path.startsWith("/downloads/") || path.startsWith("/oauth/") || path === "/mcp" || path.startsWith("/.well-known/")) {
