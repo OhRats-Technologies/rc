@@ -18,7 +18,15 @@ import { accessPage } from "../../web/server/pages/access";
 import { actionFormPage, actionPage, actionsPage } from "../../web/server/pages/actions";
 import { authPage, cliLoginPage, notFoundPage } from "../../web/server/pages/auth";
 import { landingPage } from "../../web/server/pages/landing";
-import { apiDocsPage, cliDocsPage, docsPage, mcpDocsPage } from "../../web/server/pages/docs";
+import { openapiReferencePage } from "../../web/server/pages/openapi";
+import { docsPage } from "../../web/server/pages/docs";
+import { apiArticle } from "../../web/server/docs/api";
+import { authenticationArticle } from "../../web/server/docs/authentication";
+import { cliArticle } from "../../web/server/docs/cli";
+import { mcpArticle } from "../../web/server/docs/mcp";
+import { principlesArticle } from "../../web/server/docs/principles";
+import { quickstartArticle } from "../../web/server/docs/quickstart";
+import { securityArticle } from "../../web/server/docs/security";
 import { devicePage, devicesPage } from "../../web/server/pages/devices";
 import { enrollDevicePage } from "../../web/server/pages/enroll";
 import { processPage } from "../../web/server/pages/process";
@@ -47,10 +55,15 @@ export const pageRoutes = new Elysia({ name: "rc.pages", detail: { hide: true } 
     const context = await pageContext(request); if (context) return Response.redirect("/devices", 303);
     return authPage("login", { next: safeNext(query.next) });
   })
-  .get("/docs", () => docsPage())
-  .get("/docs/mcp", () => mcpDocsPage())
-  .get("/docs/api", () => apiDocsPage())
-  .get("/docs/cli", () => cliDocsPage())
+  .get("/docs", () => docsPage(quickstartArticle()))
+  .get("/docs/quickstart", () => Response.redirect("/docs", 308))
+  .get("/docs/principles", () => docsPage(principlesArticle()))
+  .get("/docs/security", () => docsPage(securityArticle()))
+  .get("/docs/authentication", () => docsPage(authenticationArticle()))
+  .get("/docs/cli", () => docsPage(cliArticle()))
+  .get("/docs/mcp", () => docsPage(mcpArticle()))
+  .get("/docs/api", () => docsPage(apiArticle()))
+  .get("/api/v1/openapi", () => openapiReferencePage())
   .get("/cli/login", async ({ request, query }) => {
     const code = String(query.code || "");
     const approval = cliAuthorizationPreview(code);

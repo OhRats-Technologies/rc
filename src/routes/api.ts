@@ -41,6 +41,7 @@ const AgentEnroll = t.Object({
 export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .use(openapi({
     path: "/openapi",
+    provider: null,
     documentation: {
       info: { title: "OhRats RC API", description: "HTTP API for OhRats RC.", version: VERSION },
       servers: [{ url: PUBLIC_URL }],

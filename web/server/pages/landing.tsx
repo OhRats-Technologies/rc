@@ -4,7 +4,7 @@ import { Arrow, PublicFooter, PublicNav } from "../public";
 
 export function landingPage() {
   return htmlDocument({
-    title: "Remote control for your machines", description: "Private remote control for your machines without exposing SSH.",
+    title: "Remote Control", description: "Private remote control for your machines without exposing SSH.",
     canonicalPath: "/", styles: ["public"], indexable: true, publicSite: true, body:
     <div className="public-site">
       <PublicNav/>
@@ -12,7 +12,7 @@ export function landingPage() {
         <header className="hero-header">
           <div className="ohrats-grid"/>
           <div className="hero-content">
-            <h1>Remote control for your machines<br/><span className="hero-muted">without exposing SSH.</span></h1>
+            <h1 aria-label="Remote Control for your machines.">Remote Control<br/><span className="hero-muted">for your machines.</span></h1>
             <div className="public-hero-actions"><a href="/docs" className="or-button">Get started <Arrow/></a><a href="/login" className="header-link">Sign in <Arrow/></a></div>
           </div>
         </header>
@@ -35,7 +35,7 @@ export function landingPage() {
           <div className="container">
             <header className="section-header public-resources-heading">
               <div className="section-heading-stack"><SectionBadge index="02">Resources</SectionBadge><div className="section-title-container"><h2>Documentation</h2></div></div>
-              <div className="public-resource-links"><a className="header-link" href="/docs">Docs <Arrow/></a><a className="header-link" href="/docs/mcp">MCP <Arrow/></a><a className="header-link" href="/docs/api">API <Arrow/></a><a className="header-link" href="/docs/cli">CLI <Arrow/></a></div>
+              <div className="public-resource-links"><a className="header-link" href="/docs">Docs <Arrow/></a></div>
             </header>
           </div>
         </section>

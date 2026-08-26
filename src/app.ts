@@ -22,6 +22,7 @@ export const app = new Elysia({ name: "rc" })
   .use(browserSocketRoute)
   .use(agentSocketRoute)
   .get("/healthz", () => "ok", { detail: { hide: true } })
+  .get("/favicon.ico", () => Response.redirect("https://assets.ohrats.party/assets/logo.092a1cece4d0.svg", 302), { detail: { hide: true } })
   .get("/robots.txt", () => new Response([
     "User-agent: *", "Allow: /", "Disallow: /devices", "Disallow: /account", "Disallow: /actions",
     "Disallow: /workspaces", "Disallow: /integrations", "Disallow: /oauth", "Disallow: /cli/login",

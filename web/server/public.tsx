@@ -8,12 +8,9 @@ function Arrow() {
 
 const resources = [
   ["01", "Docs", "/docs"],
-  ["02", "MCP", "/docs/mcp"],
-  ["03", "API", "/docs/api"],
-  ["04", "CLI", "/docs/cli"],
 ] as const;
 
-export function PublicNav({ active = "" }: { active?: string }) {
+export function PublicNav({ active = "", documentation = false }: { active?: string; documentation?: boolean }) {
   return <nav className="site-nav">
     <div className="nav-container">
       <div className="nav-left">
@@ -26,7 +23,7 @@ export function PublicNav({ active = "" }: { active?: string }) {
       <div className="cta-buttons">
         <button className="theme-toggle" data-theme-toggle aria-label="Toggle theme"/>
         <a href="/login" className="cta-link">Sign in</a>
-        <a href="/docs" className="or-button">Get started <Arrow/></a>
+        {!documentation && <a href="/docs" className="or-button">Get started <Arrow/></a>}
       </div>
       <button className="mobile-menu-btn" data-menu-toggle aria-controls="mobile-menu" aria-expanded="false" aria-label="Open menu">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
