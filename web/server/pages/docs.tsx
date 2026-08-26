@@ -8,7 +8,7 @@ function Catalog({ active }: { active: string }) {
     {docGroups.map(group => <div className="docs-catalog-group" key={group.title}>
       <span className="docs-catalog-label">{group.title}</span>
       <div className="docs-catalog-links">{group.items.map(item =>
-        <a href={item.href} className={`docs-catalog-link${item.slug === active ? " active" : ""}`} aria-current={item.slug === active ? "page" : undefined} key={item.slug}>{item.title}</a>)}</div>
+        <a href={item.href} className="docs-catalog-link" aria-current={item.slug === active ? "page" : undefined} key={item.slug}>{item.title}</a>)}</div>
     </div>)}
   </nav>;
 }
@@ -34,24 +34,22 @@ export function docsPage(article: DocArticle) {
       <PublicNav active="docs" documentation/>
       <main className="docs-layout">
         <aside className="docs-sidebar"><Catalog active={article.slug}/></aside>
-        <div className="docs-reading">
-          <article className="or-article docs-article">
-            <details className="docs-mobile-catalog">
-              <summary>Documentation</summary>
-              <Catalog active={article.slug}/>
-            </details>
-            <header className="or-article-header docs-article-header">
-              <h1>{article.title}</h1>
-              <p>{article.intro}</p>
-            </header>
-            <div className="or-article-content docs-content">{article.sections.map(section =>
-              <section className="docs-article-section" id={section.id} key={section.id}>
-                <h2>{section.title}</h2>
-                <div className="docs-copy">{section.body}</div>
-              </section>)}</div>
-          </article>
-          <aside className="docs-toc"><OnThisPage article={article}/></aside>
-        </div>
+        <article className="or-article docs-article">
+          <details className="docs-mobile-catalog">
+            <summary>Documentation</summary>
+            <Catalog active={article.slug}/>
+          </details>
+          <header className="or-article-header docs-article-header">
+            <h1>{article.title}</h1>
+            <p>{article.intro}</p>
+          </header>
+          <div className="or-article-content docs-content">{article.sections.map(section =>
+            <section className="docs-article-section" id={section.id} key={section.id}>
+              <h2>{section.title}</h2>
+              <div className="docs-copy">{section.body}</div>
+            </section>)}</div>
+        </article>
+        <aside className="docs-toc"><OnThisPage article={article}/></aside>
       </main>
       <PublicFooter/>
     </div>,

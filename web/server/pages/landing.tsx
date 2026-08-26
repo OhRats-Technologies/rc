@@ -17,7 +17,7 @@ export function landingPage() {
           </div>
         </header>
 
-        <section>
+        <section className="public-section">
           <div className="container">
             <div className="section-grid">
               <div className="section-heading-stack"><SectionBadge index="01">Security</SectionBadge><div className="section-title-container"><h2>Security model</h2></div></div>
@@ -31,7 +31,7 @@ export function landingPage() {
           </div>
         </section>
 
-        <section>
+        <section className="public-section">
           <div className="container">
             <header className="section-header public-resources-heading">
               <div className="section-heading-stack"><SectionBadge index="02">Resources</SectionBadge><div className="section-title-container"><h2>Documentation</h2></div></div>
