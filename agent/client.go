@@ -157,6 +157,7 @@ func connectWithLiveness(ctx context.Context, serverURL string, value state, sta
 		return err
 	}
 	defer conn.Close()
+	conn.SetReadLimit(maxWireMessageBytes)
 	var writeMu sync.Mutex
 	send := func(message wireMessage) error {
 		writeMu.Lock()

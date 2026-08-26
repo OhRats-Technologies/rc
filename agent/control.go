@@ -141,6 +141,9 @@ func (manager *controlManager) controlError(requestID, message string) {
 }
 
 func (manager *controlManager) receiveFrame(message wireMessage) error {
+	if message.SessionID == "" || len(message.SessionID) > 100 || message.Sequence == 0 || len(message.Ciphertext) == 0 || len(message.Ciphertext) > maxControlCiphertext {
+		return errors.New("invalid control frame")
+	}
 	manager.mu.Lock()
 	session := manager.sessions[message.SessionID]
 	if session == nil || message.Sequence != session.recvSeq+1 {
@@ -216,9 +219,13 @@ func (manager *controlManager) sendFrame(sessionID string, message wireMessage) 
 		manager.mu.Unlock()
 		return false
 	}
+	plaintext, _ := json.Marshal(message)
+	if len(plaintext) > maxControlPlaintext {
+		manager.mu.Unlock()
+		return false
+	}
 	session.sendSeq++
 	sequence := session.sendSeq
-	plaintext, _ := json.Marshal(message)
 	ciphertext := session.aead.Seal(nil, frameNonce(2, sequence), plaintext, frameAAD(sessionID, sequence, "n2c"))
 	send := session.send
 	manager.mu.Unlock()
@@ -251,6 +258,7 @@ func (manager *controlManager) handle(message wireMessage) error {
 	case "control.webrtc":
 		manager.openWebRTC(message)
 	case "control.frame":
+		manager.useRelay(message.SessionID)
 		return manager.receiveFrame(message)
 	case "process.permit":
 		manager.permitSecureStart(message)

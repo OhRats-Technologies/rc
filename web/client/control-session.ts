@@ -46,15 +46,15 @@ export class ControlSession {
   private listeners = new Set<Listener>();
   private pending = new Map<string, { resolve: (value: SessionMessage) => void; reject: (error: Error) => void; timer: number }>();
   private unsubscribe: () => void;
-  private unsubscribeClose: () => void;
   private closed = false;
   constructor(readonly deviceId: string, readonly sessionId: string, private key: CryptoKey, private transport: ControlTransport) {
     this.unsubscribe = transport.onFrame((sequence, ciphertext) => { void this.receive(sequence, ciphertext); });
-    this.unsubscribeClose = transport.onClose(() => this.shutdown(false));
   }
   onMessage(listener: Listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async send(message: SessionMessage) {
-    const sequence = ++this.sendSequence, plain = new TextEncoder().encode(JSON.stringify(message));
+    const plain = new TextEncoder().encode(JSON.stringify(message));
+    if (plain.byteLength > 1_048_576) throw new Error("Control message is too large");
+    const sequence = ++this.sendSequence;
     const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce(1, sequence), additionalData: aad(this.sessionId, sequence, "c2n") }, this.key, plain);
     if (!this.transport.send(sequence, bytesToB64url(encrypted))) throw new Error("RC connection unavailable");
   }
@@ -67,6 +67,7 @@ export class ControlSession {
   }
   private async receive(sequence: number, ciphertext: string) {
     if (sequence !== this.receiveSequence + 1) { this.close(); return; }
+    if (!ciphertext || ciphertext.length > 1_500_000) { this.close(); return; }
     try {
       const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(2, sequence), additionalData: aad(this.sessionId, sequence, "n2c") }, this.key, b64urlToBytes(ciphertext));
       this.receiveSequence = sequence; const message = JSON.parse(new TextDecoder().decode(plain)) as SessionMessage;
@@ -79,13 +80,12 @@ export class ControlSession {
       for (const listener of this.listeners) listener(message);
     } catch { this.close(); }
   }
-  private shutdown(closeTransport: boolean) {
-    if (this.closed) return; this.closed = true; this.unsubscribe(); this.unsubscribeClose();
-    if (closeTransport) this.transport.close(); this.listeners.clear();
+  private shutdown() {
+    if (this.closed) return; this.closed = true; this.unsubscribe(); this.transport.close(); this.listeners.clear();
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error("Control session closed")); }
     this.pending.clear();
   }
-  close() { this.shutdown(true); }
+  close() { this.shutdown(); }
 }
 
 export async function openControlSession(deviceId: string) {
@@ -108,8 +108,9 @@ export async function openControlSession(deviceId: string) {
     new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey, ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId)));
   if (!verified) throw new Error("RC Node handshake signature failed.");
   const key = await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id);
+  const fallback = websocketControlTransport(deviceId, ready.sessionId);
   const webRTC = device.capabilities?.includes("webrtc")
-    ? await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || []) : null;
-  return new ControlSession(deviceId, ready.sessionId, key, webRTC || websocketControlTransport(deviceId, ready.sessionId));
+    ? await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || [], fallback) : null;
+  return new ControlSession(deviceId, ready.sessionId, key, webRTC || fallback);
 }
 

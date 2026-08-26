@@ -126,4 +126,35 @@ func TestWebRTCControlFramesBypassRelay(t *testing.T) {
 	if json.Unmarshal(openedReply, &reply) != nil || reply.Type != "control.result" || reply.Output != "ok" {
 		t.Fatalf("unexpected direct reply: %s", openedReply)
 	}
+
+	plain, _ = json.Marshal(wireMessage{Type: "process.resize", ID: "missing", Cols: 100, Rows: 30})
+	ciphertext = clientAEAD.Seal(nil, frameNonce(1, 2), plain, frameAAD("session", 2, "c2n"))
+	if err = manager.handle(wireMessage{Type: "control.frame", SessionID: "session", Sequence: 2,
+		Ciphertext: base64.RawURLEncoding.EncodeToString(ciphertext)}); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.sendFrame("session", wireMessage{Type: "control.result", RequestID: "fallback", Output: "ok"}) {
+		t.Fatal("Node did not fall back to relay")
+	}
+	select {
+	case relayed := <-outbound:
+		if relayed.Type != "control.frame" || relayed.SessionID != "session" || relayed.Sequence != 2 {
+			t.Fatalf("unexpected fallback frame: %+v", relayed)
+		}
+		decoded, decodeErr := base64.RawURLEncoding.DecodeString(relayed.Ciphertext)
+		if decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		openedFallback, openErr := clientAEAD.Open(nil, frameNonce(2, relayed.Sequence), decoded,
+			frameAAD("session", relayed.Sequence, "n2c"))
+		if openErr != nil {
+			t.Fatal(openErr)
+		}
+		var fallback wireMessage
+		if json.Unmarshal(openedFallback, &fallback) != nil || fallback.RequestID != "fallback" || fallback.Output != "ok" {
+			t.Fatalf("unexpected fallback reply: %s", openedFallback)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("fallback reply did not use relay")
+	}
 }

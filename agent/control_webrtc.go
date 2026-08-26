@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -22,6 +23,10 @@ func (manager *controlManager) openWebRTC(message wireMessage) {
 }
 
 func (manager *controlManager) answerWebRTC(message wireMessage) {
+	if len(message.SDP) == 0 || len(message.SDP) > 131072 || len(message.IceServers) > 8 {
+		manager.controlError(message.RequestID, "invalid WebRTC offer")
+		return
+	}
 	manager.mu.Lock()
 	session := manager.sessions[message.SessionID]
 	manager.mu.Unlock()
@@ -43,6 +48,10 @@ func (manager *controlManager) answerWebRTC(message wireMessage) {
 		}
 		channel.OnOpen(func() { manager.bindWebRTC(message.SessionID, transportID, channel) })
 		channel.OnMessage(func(data webrtc.DataChannelMessage) {
+			if len(data.Data) > maxControlFrameBytes {
+				_ = channel.Close()
+				return
+			}
 			var frame wireMessage
 			if json.Unmarshal(data.Data, &frame) != nil || frame.Type != "control.frame" || frame.SessionID != message.SessionID {
 				_ = channel.Close()
@@ -68,7 +77,12 @@ func (manager *controlManager) answerWebRTC(message wireMessage) {
 		manager.failWebRTC(message.SessionID, transportID, peer, message.RequestID)
 		return
 	}
-	<-gathered
+	select {
+	case <-gathered:
+	case <-time.After(5 * time.Second):
+		manager.failWebRTC(message.SessionID, transportID, peer, message.RequestID)
+		return
+	}
 	local := peer.LocalDescription()
 	if local == nil || local.SDP == "" {
 		manager.failWebRTC(message.SessionID, transportID, peer, message.RequestID)
@@ -77,7 +91,14 @@ func (manager *controlManager) answerWebRTC(message wireMessage) {
 	if manager.send(wireMessage{Type: "control.webrtc.ready", RequestID: message.RequestID, SessionID: message.SessionID, SDP: local.SDP}) != nil {
 		manager.resetWebRTC(message.SessionID, transportID)
 		_ = peer.Close()
+		return
 	}
+	time.AfterFunc(10*time.Second, func() {
+		if peer.ConnectionState() != webrtc.PeerConnectionStateConnected {
+			manager.resetWebRTC(message.SessionID, transportID)
+			_ = peer.Close()
+		}
+	})
 }
 
 func (manager *controlManager) registerWebRTCPeer(sessionID, transportID string, peer *webrtc.PeerConnection) {
@@ -102,12 +123,32 @@ func (manager *controlManager) bindWebRTC(sessionID, transportID string, channel
 	if valid {
 		session.send = func(message wireMessage) bool {
 			data, err := json.Marshal(message)
-			return err == nil && channel.Send(data) == nil
+			if err == nil && channel.BufferedAmount() <= 1<<20 && channel.Send(data) == nil {
+				return true
+			}
+			manager.useRelay(sessionID)
+			return manager.relayFrame(message)
 		}
 	}
 	manager.mu.Unlock()
 	if !valid {
 		_ = channel.Close()
+	}
+}
+
+func (manager *controlManager) useRelay(sessionID string) {
+	manager.mu.Lock()
+	session := manager.sessions[sessionID]
+	var closeTransport func()
+	if session != nil && session.transportID != "relay" {
+		closeTransport = session.closeTransport
+		session.send = manager.relayFrame
+		session.transportID = "relay"
+		session.closeTransport = nil
+	}
+	manager.mu.Unlock()
+	if closeTransport != nil {
+		closeTransport()
 	}
 }
 

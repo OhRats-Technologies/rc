@@ -42,7 +42,7 @@ export function principlesArticle(): DocArticle {
         title: "Browser and CLI control is end-to-end encrypted",
         body: <>
           <p>Terminal commands, input, output, signals, and lifecycle messages use a client-to-Node AES-256-GCM session key derived from fresh and pinned X25519 material.</p>
-          <p>After authorization, browser and CLI clients prefer a direct WebRTC DataChannel to the Node. The hosted service performs signaling. If direct ICE cannot establish a DataChannel, the same encrypted control frames fall back to the hosted WebSocket relay.</p>
+          <p>After authorization, browser and CLI clients prefer a direct WebRTC DataChannel to the Node. The hosted service performs signaling. If the direct transport cannot be established or later becomes unavailable, the same encrypted session continues over the hosted WebSocket relay.</p>
           <p>Standard remote MCP does not use this custom transport; MCP Terminal behavior is documented separately in the <a href="/docs/security#mcp-terminal">security model</a>.</p>
         </>,
       },

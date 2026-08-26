@@ -37,7 +37,7 @@ export function securityArticle(): DocArticle {
         title: "Control transport",
         body: <>
           <p>The authenticated RC WebSocket carries control signaling and hosted live events. After the encrypted control session is authorized, browser and CLI clients try to move its opaque encrypted frames onto a reliable ordered WebRTC DataChannel.</p>
-          <p>The managed service currently uses <code>stun.cloudflare.com:3478</code> for ICE candidate discovery. When direct ICE succeeds, terminal data does not traverse the RC application server. When it fails, the client continues over the existing encrypted WebSocket relay.</p>
+          <p>The managed service currently uses <code>stun.cloudflare.com:3478</code> for ICE candidate discovery. While the direct DataChannel is available, terminal data does not traverse the RC application server. If the direct transport cannot be established or later fails, the same encrypted session continues over the WebSocket relay.</p>
           <p>WebRTC adds DTLS transport encryption, but RC currently retains its own AES-256-GCM control framing inside the DataChannel. Changing or removing that inner encryption is a separate security change.</p>
         </>,
       },

@@ -127,6 +127,7 @@ func openRemoteControl(server, token string, device accountDevice) (*remoteContr
 		}
 		return nil, err
 	}
+	conn.SetReadLimit(maxWireMessageBytes)
 	writeMu := sync.Mutex{}
 	challengeID := randomURLBytes(12)
 	if err := writeJSON(conn, &writeMu, map[string]any{"type": "control.challenge", "requestId": challengeID, "deviceId": device.ID}); err != nil {
@@ -183,9 +184,10 @@ func openRemoteControl(server, token string, device accountDevice) (*remoteContr
 		conn.Close()
 		return nil, err
 	}
-	transport := controlTransport(&websocketControlTransport{conn: conn})
+	fallback := &websocketControlTransport{conn: conn, writeMu: &writeMu}
+	transport := controlTransport(fallback)
 	if device.supports("webrtc") {
-		if direct, directErr := openWebRTCClientTransport(conn, &writeMu, device.ID, sessionID, decodeIceServers(ready["iceServers"])); directErr == nil {
+		if direct, directErr := openWebRTCClientTransport(fallback, device.ID, sessionID, decodeIceServers(ready["iceServers"])); directErr == nil {
 			transport = direct
 		}
 	}
@@ -204,9 +206,12 @@ func generateX25519() (x25519Pair, error) {
 }
 
 func (control *remoteControl) send(message wireMessage) error {
+	plaintext, _ := json.Marshal(message)
+	if len(plaintext) > maxControlPlaintext {
+		return errors.New("control message is too large")
+	}
 	control.sendSeq++
 	sequence := control.sendSeq
-	plaintext, _ := json.Marshal(message)
 	ciphertext := control.aead.Seal(nil, frameNonce(1, sequence), plaintext, frameAAD(control.sessionID, sequence, "c2n"))
 	return control.transport.sendFrame(control.deviceID, control.sessionID, sequence, base64.RawURLEncoding.EncodeToString(ciphertext))
 }
@@ -218,6 +223,9 @@ func (control *remoteControl) read() (wireMessage, error) {
 	}
 	if next != control.recvSeq+1 {
 		return wireMessage{}, errors.New("invalid encrypted frame sequence")
+	}
+	if len(encoded) == 0 || len(encoded) > maxControlCiphertext {
+		return wireMessage{}, errors.New("invalid encrypted control frame")
 	}
 	ciphertext, err := base64.RawURLEncoding.DecodeString(encoded)
 	if err != nil {

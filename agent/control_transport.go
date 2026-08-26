@@ -7,6 +7,11 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const maxControlPlaintext = 1 << 20
+const maxControlCiphertext = 1_500_000
+const maxControlFrameBytes = 2 << 20
+const maxWireMessageBytes = 4 << 20
+
 type controlTransport interface {
 	sendFrame(deviceID, sessionID string, sequence uint64, ciphertext string) error
 	readFrame(sessionID string) (uint64, string, error)
@@ -15,11 +20,11 @@ type controlTransport interface {
 
 type websocketControlTransport struct {
 	conn    *websocket.Conn
-	writeMu sync.Mutex
+	writeMu *sync.Mutex
 }
 
 func (transport *websocketControlTransport) sendFrame(deviceID, sessionID string, sequence uint64, ciphertext string) error {
-	return writeJSON(transport.conn, &transport.writeMu, map[string]any{"type": "control.frame", "deviceId": deviceID,
+	return writeJSON(transport.conn, transport.writeMu, map[string]any{"type": "control.frame", "deviceId": deviceID,
 		"sessionId": sessionID, "sequence": sequence, "ciphertext": ciphertext})
 }
 
