@@ -3,6 +3,7 @@ import { request } from "./socket";
 import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, pinDevice } from "./control-client";
 import { websocketControlTransport, type ControlTransport } from "./control-transport";
 import { openWebRTCControlTransport } from "./control-webrtc";
+import type { ControlTransportStatus } from "./control-webrtc";
 import type { Device } from "../types";
 
 type SessionMessage = { type: string; [key: string]: unknown };
@@ -88,7 +89,7 @@ export class ControlSession {
   close() { this.shutdown(); }
 }
 
-export async function openControlSession(deviceId: string) {
+export async function openControlSession(deviceId: string, onTransportStatus: (status: ControlTransportStatus) => void = () => {}) {
   const identity = await ensureControlAuthorized();
   const { device } = await api<{ device: Device & { identity_public_key?: string; transport_public_key?: string } }>(`/api/v1/devices/${encodeURIComponent(deviceId)}`);
   const identityKey = String(device.identity_public_key || ""), expectedTransport = String(device.transport_public_key || "");
@@ -110,7 +111,8 @@ export async function openControlSession(deviceId: string) {
   const key = await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id);
   const fallback = websocketControlTransport(deviceId, ready.sessionId);
   const webRTC = device.capabilities?.includes("webrtc")
-    ? await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || [], fallback) : null;
+    ? await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || [], fallback, onTransportStatus) : null;
+  if (!device.capabilities?.includes("webrtc")) onTransportStatus({ transport: "relay", phase: "fallback", reason: "RC Node does not advertise WebRTC" });
   return new ControlSession(deviceId, ready.sessionId, key, webRTC || fallback);
 }
 

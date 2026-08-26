@@ -1,6 +1,6 @@
 import { authoritySnapshot, canonicalAuthority } from "./authority";
 import { controlProof, verifyClientSignature } from "./control-auth";
-import { canOperate, deviceRole } from "./core";
+import { canOperate, deviceRole, logEvent } from "./core";
 import { q } from "./db";
 import type { AgentClientMessage, AgentServerMessage, BrowserServerMessage } from "./protocol";
 import { controlIceServers } from "./webrtc";
@@ -53,6 +53,21 @@ export function relayControlFrame(userId: string, input: any, socket: RelaySocke
   const sessionId = String(input.sessionId || ""), session = sessions.get(sessionId);
   if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) return false;
   return sendAgent(session.deviceId, { type: "control.frame", sessionId, sequence: Number(input.sequence), ciphertext: String(input.ciphertext || "") });
+}
+
+export function reportControlTransport(userId: string, input: any, socket: RelaySocket) {
+  const sessionId = String(input.sessionId || ""), session = sessions.get(sessionId);
+  if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) return;
+  const workspaceId = q<{ workspace_id: string }>("SELECT workspace_id FROM devices WHERE id=?").get(session.deviceId)?.workspace_id || null;
+  logEvent("control.transport", workspaceId, userId, session.deviceId, {
+    transport: input.transport,
+    reason: input.reason || null,
+    iceState: input.iceState || null,
+    connectionState: input.connectionState || null,
+    localCandidates: input.localCandidates || null,
+    remoteCandidates: input.remoteCandidates || null,
+    selected: input.selected || null,
+  });
 }
 
 export function closeControlSession(input: any, socket: RelaySocket) {

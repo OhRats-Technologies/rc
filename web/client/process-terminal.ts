@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { api, qs } from "./http";
 import { onEvent } from "./socket";
 import { openControlSession, type ControlSession } from "./control-session";
+import type { ControlTransportStatus } from "./control-webrtc";
 import { b64urlToBytes, bytesToB64url } from "./control-client";
 import type { RemoteProcess } from "../types";
 
@@ -25,6 +26,25 @@ function sendInput(data: string) {
   if (status === "running" && data) void control?.send({
     type: "process.stdin", id: processId, data: bytesToB64url(new TextEncoder().encode(data)),
   });
+}
+
+function transportText(status: ControlTransportStatus) {
+  if (status.transport === "webrtc" && status.phase === "connecting") return "WEBRTC…";
+  if (status.transport === "webrtc") {
+    const pair = status.selected, route = pair?.localType && pair?.remoteType ? `${pair.localType}↔${pair.remoteType}` : "DIRECT";
+    return `WEBRTC · ${route}${pair?.protocol ? `/${pair.protocol}` : ""}`.toUpperCase();
+  }
+  return "RELAY · WSS";
+}
+
+function showTransport(status: ControlTransportStatus) {
+  const element = document.querySelector<HTMLElement>("#control-transport"); if (!element) return;
+  element.textContent = transportText(status);
+  element.title = status.reason || (status.transport === "webrtc" ? "Direct WebRTC DataChannel" : "Encrypted WebSocket relay");
+  if (status.transport === "relay" && status.reason) {
+    const message = qs<HTMLElement>("#process-message");
+    if (!message.textContent?.trim()) message.textContent = `WebRTC fallback: ${status.reason}`;
+  }
 }
 if (interactive) terminal.onData(data => {
   if (ctrlNext && data.length === 1) { const code = data.toUpperCase().charCodeAt(0); if (code >= 64 && code <= 95) data = String.fromCharCode(code - 64); ctrlNext = false; }
@@ -67,7 +87,7 @@ async function connectEncrypted() {
   if (!live || !interactive || !encrypted) return;
   const generation = ++controlGeneration; control?.close(); control = null;
   try {
-    const next = await openControlSession(page.dataset.deviceId || "");
+    const next = await openControlSession(page.dataset.deviceId || "", showTransport);
     if (generation !== controlGeneration) { next.close(); return; }
     control = next;
     next.onMessage(message => {

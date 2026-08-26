@@ -3,7 +3,7 @@ import { allocateProcess } from "./process-api";
 import type { BrowserCommand, BrowserServerMessage } from "./protocol";
 import type { ApiScope } from "./account";
 import {
-  closeControlSession, relayControlFrame, releaseControlSocket, requestControlChallenge, requestControlOpen, requestControlWebRTC,
+  closeControlSession, relayControlFrame, releaseControlSocket, reportControlTransport, requestControlChallenge, requestControlOpen, requestControlWebRTC,
   syncWorkspaceAuthority,
 } from "./control-relay";
 
@@ -41,6 +41,7 @@ export const browserSocketHandlers = {
         case "control.challenge": requireControlScope(connection); requestControlChallenge(userId, message.deviceId, requestId, connection.socket); return;
         case "control.open": requireControlScope(connection); requestControlOpen(userId, message, connection.socket, connection.apiKeyId); return;
         case "control.webrtc": requireControlScope(connection); requestControlWebRTC(userId, message, connection.socket); return;
+        case "control.transport": requireControlScope(connection); reportControlTransport(userId, message, connection.socket); return;
         case "control.frame": requireControlScope(connection); relayControlFrame(userId, message, connection.socket); return;
         case "control.close": closeControlSession(message, connection.socket); return;
         case "lock.sync": result = await syncWorkspaceAuthority(userId, message.workspaceId, message.clientId, message.transitions); break;

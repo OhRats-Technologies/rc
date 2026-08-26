@@ -13,6 +13,13 @@ const IceServerSchema = t.Object({
   urls: t.Array(t.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 16 }),
   username: t.Optional(t.String({ maxLength: 512 })), credential: t.Optional(t.String({ maxLength: 512 })),
 });
+const IceCandidateSummarySchema = t.Object({
+  host: t.Integer({ minimum: 0, maximum: 64 }),
+  srflx: t.Integer({ minimum: 0, maximum: 64 }),
+  relay: t.Integer({ minimum: 0, maximum: 64 }),
+  udp: t.Integer({ minimum: 0, maximum: 64 }),
+  tcp: t.Integer({ minimum: 0, maximum: 64 }),
+});
 
 export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("ping") }),
@@ -25,6 +32,16 @@ export const BrowserCommandSchema = t.Union([
     clientId: t.String(), publicKey: t.String(), signature: t.String() }),
   t.Object({ type: t.Literal("control.webrtc"), requestId: RequestId, deviceId: DeviceId, sessionId: SessionId,
     sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
+  t.Object({ type: t.Literal("control.transport"), deviceId: DeviceId, sessionId: SessionId,
+    transport: t.Union([t.Literal("webrtc"), t.Literal("relay")]),
+    reason: t.Optional(t.String({ maxLength: 200 })),
+    iceState: t.Optional(t.String({ maxLength: 40 })), connectionState: t.Optional(t.String({ maxLength: 40 })),
+    localCandidates: t.Optional(IceCandidateSummarySchema), remoteCandidates: t.Optional(IceCandidateSummarySchema),
+    selected: t.Optional(t.Object({
+      localType: t.Optional(t.String({ maxLength: 20 })), remoteType: t.Optional(t.String({ maxLength: 20 })),
+      protocol: t.Optional(t.String({ maxLength: 20 })),
+    })),
+  }),
   t.Object({ type: t.Literal("control.frame"), deviceId: DeviceId, sessionId: SessionId, sequence: ControlSequence, ciphertext: ControlCiphertext }),
   t.Object({ type: t.Literal("control.close"), deviceId: DeviceId, sessionId: SessionId }),
   t.Object({ type: t.Literal("lock.sync"), requestId: RequestId, workspaceId: t.String(), clientId: t.String(),
