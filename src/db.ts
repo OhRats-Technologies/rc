@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS processes(
     CHECK(status IN ('starting','running','exited','lost')),
   encrypted INTEGER NOT NULL DEFAULT 0,mcp INTEGER NOT NULL DEFAULT 0,
   output_head TEXT NOT NULL DEFAULT '',output_tail TEXT NOT NULL DEFAULT '',output_chars INTEGER NOT NULL DEFAULT 0,
-  revision INTEGER NOT NULL DEFAULT 0,cols INTEGER NOT NULL DEFAULT 80,rows INTEGER NOT NULL DEFAULT 24,
+  revision INTEGER NOT NULL DEFAULT 0,terminal INTEGER NOT NULL DEFAULT 0,cols INTEGER NOT NULL DEFAULT 80,rows INTEGER NOT NULL DEFAULT 24,
   exit_code INTEGER,signal TEXT,error TEXT,created_by TEXT NOT NULL REFERENCES users(id),
   created_at INTEGER NOT NULL,started_at INTEGER,completed_at INTEGER
 );
@@ -202,6 +202,10 @@ function migrateEncryptedProcesses() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(processes)").all().map(row => row.name);
   if (!columns.includes("encrypted")) db.exec("ALTER TABLE processes ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0");
   if (!columns.includes("mcp")) db.exec("ALTER TABLE processes ADD COLUMN mcp INTEGER NOT NULL DEFAULT 0");
+  if (!columns.includes("terminal")) db.transaction(() => {
+    db.exec("ALTER TABLE processes ADD COLUMN terminal INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE processes SET terminal=1");
+  })();
 }
 
 migrateEncryptedProcesses();

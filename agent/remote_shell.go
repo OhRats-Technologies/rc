@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -34,7 +35,7 @@ func shellCommand(args []string) error {
 	if rows < 2 {
 		rows = 24
 	}
-	processID, err := startAccountProcess(*server, *token, device.ID, cols, rows)
+	processID, err := startAccountProcess(*server, *token, device.ID, true, cols, rows)
 	if err != nil {
 		return err
 	}
@@ -50,7 +51,7 @@ func shellCommand(args []string) error {
 	}
 	defer term.Restore(int(os.Stdin.Fd()), old)
 	if err := control.send(wireMessage{Type: "process.start", ID: processID,
-		Command: `exec "${SHELL:-sh}" -l`, Cols: cols, Rows: rows}); err != nil {
+		Command: `exec "${SHELL:-sh}" -l`, Terminal: &terminalSpec{Cols: cols, Rows: rows, Term: os.Getenv("TERM")}}); err != nil {
 		return err
 	}
 
@@ -84,8 +85,16 @@ func readEncryptedShell(control *remoteControl, processID string, done chan<- er
 			continue
 		}
 		switch message.Type {
-		case "process.output":
-			fmt.Print(message.Output)
+		case "process.stdout":
+			data, decodeErr := base64.RawURLEncoding.DecodeString(message.Data)
+			if decodeErr != nil {
+				done <- decodeErr
+				return
+			}
+			if _, writeErr := os.Stdout.Write(data); writeErr != nil {
+				done <- writeErr
+				return
+			}
 		case "process.exit":
 			if message.ExitCode != nil && *message.ExitCode != 0 {
 				done <- fmt.Errorf("process exited %d", *message.ExitCode)
@@ -103,7 +112,7 @@ func forwardEncryptedShellInput(control *remoteControl, processID string) {
 	for {
 		n, err := reader.Read(buffer)
 		if n > 0 {
-			_ = control.send(wireMessage{Type: "process.input", ID: processID, Input: string(buffer[:n])})
+			_ = control.send(wireMessage{Type: "process.stdin", ID: processID, Data: base64.RawURLEncoding.EncodeToString(buffer[:n])})
 		}
 		if err != nil {
 			return

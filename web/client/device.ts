@@ -5,8 +5,10 @@ const page = document.querySelector<HTMLElement>("[data-device-page]");
 const deviceId = page?.dataset.devicePage || "";
 
 async function start(command: string, cwd = "") {
-  const result = await request<{ processId: string }>({ type: "process.allocate", deviceId, cols: 80, rows: 24 });
-  sessionStorage.setItem(`rc_process_start_${result.processId}`, JSON.stringify({ command, cwd, cols: 80, rows: 24 }));
+  const result = await request<{ processId: string }>({ type: "process.allocate", deviceId, terminal: true, cols: 80, rows: 24 });
+  sessionStorage.setItem(`rc_process_start_${result.processId}`, JSON.stringify({
+    command, cwd, terminal: { cols: 80, rows: 24, term: "xterm-256color" },
+  }));
   location.href = `/devices/${deviceId}/processes/${result.processId}`;
 }
 

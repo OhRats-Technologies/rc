@@ -41,6 +41,11 @@ function appendOutput(state: State, chunk: string) {
   if (chunk.length > room) state.outputTruncated = true;
 }
 
+function decodeProcessData(value: string) {
+  try { return Buffer.from(value, "base64url").toString("utf8"); }
+  catch { return ""; }
+}
+
 function result(state: State, offset = 0): McpProcessResult {
   const start = Math.min(Math.max(0, offset), state.output.length);
   return { processId: state.processId, status: state.status, output: state.output.slice(start), exitCode: state.exitCode,
@@ -78,8 +83,8 @@ export function runMcpProcess(context: McpToolContext, input: {
   const command = String(input.command || "").trim(), cwd = String(input.cwd || "").trim().slice(0, 4096);
   if (!command || command.length > 8192) throw new Error("invalid command");
   const processId = id(), t = now();
-  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
-    VALUES(?,?,?,NULL,'starting',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", payload.userId, t);
+  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,terminal,cols,rows,created_by,created_at)
+    VALUES(?,?,?,NULL,'starting',1,1,0,80,24,?,?)`).run(processId, deviceId, "[mcp]", payload.userId, t);
   logEvent("mcp.process.created", workspaceForDevice(deviceId), payload.userId, deviceId,
     { grantId: payload.id, client: payload.clientName, processId });
   const state: State = { processId, grantId: payload.id, userId: payload.userId, deviceId, status: "running", output: "",
@@ -123,8 +128,8 @@ export async function mcpProcessStatus(context: McpToolContext, processId: strin
 export function handleMcpProcessMessage(process: any, message: AgentClientMessage) {
   if (!process?.mcp) return false;
   const state = states.get(process.id);
-  if (message.type === "process.output") {
-    if (state) { appendOutput(state, message.output || ""); notify(state); }
+  if (message.type === "process.stdout" || message.type === "process.stderr") {
+    if (state) { appendOutput(state, decodeProcessData(message.data || "")); notify(state); }
     return true;
   }
   if (message.type === "process.exit") {

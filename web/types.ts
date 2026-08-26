@@ -30,6 +30,7 @@ export interface RemoteProcess {
   device_id: string;
   command: string;
   encrypted?: boolean;
+  terminal?: boolean;
   cwd: string | null;
   status: ProcessStatus;
   output: string;

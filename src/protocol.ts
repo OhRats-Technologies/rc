@@ -6,6 +6,7 @@ const DeviceId = t.String({ minLength: 1, maxLength: 100 });
 const SessionId = t.String({ minLength: 1, maxLength: 100 });
 const ControlSequence = t.Integer({ minimum: 1 });
 const ControlCiphertext = t.String({ minLength: 1, maxLength: 1_500_000 });
+const ProcessData = t.String({ minLength: 1, maxLength: 131_072, pattern: "^[A-Za-z0-9_-]+$" });
 const TerminalSize = t.Number({ minimum: 2, maximum: 500 });
 const IceServerSchema = t.Object({
   urls: t.Array(t.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 16 }),
@@ -15,7 +16,8 @@ const IceServerSchema = t.Object({
 export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("ping") }),
   t.Object({
-    type: t.Literal("process.allocate"), requestId: RequestId, deviceId: DeviceId, cols: TerminalSize, rows: TerminalSize,
+    type: t.Literal("process.allocate"), requestId: RequestId, deviceId: DeviceId, terminal: t.Optional(t.Boolean()),
+    cols: TerminalSize, rows: TerminalSize,
   }),
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId, deviceId: DeviceId }),
   t.Object({ type: t.Literal("control.open"), requestId: RequestId, deviceId: DeviceId, challenge: t.String(),
@@ -53,7 +55,8 @@ export const AgentClientMessageSchema = t.Union([
   t.Object({ type: t.Literal("heartbeat") }),
   t.Object({ type: t.Literal("process.started"), id: ProcessId }),
   t.Object({ type: t.Literal("process.start.request"), id: ProcessId, userId: t.String({ minLength: 1, maxLength: 100 }) }),
-  t.Object({ type: t.Literal("process.output"), id: ProcessId, output: t.String({ maxLength: 65536 }) }),
+  t.Object({ type: t.Literal("process.stdout"), id: ProcessId, data: ProcessData }),
+  t.Object({ type: t.Literal("process.stderr"), id: ProcessId, data: ProcessData }),
   t.Object({
     type: t.Literal("process.exit"), id: ProcessId, output: t.Optional(t.String({ maxLength: 65536 })),
     exitCode: t.Optional(t.Nullable(t.Integer())), signal: t.Optional(t.String({ maxLength: 32 })),

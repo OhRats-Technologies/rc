@@ -140,12 +140,12 @@ export const agentSocketHandlers = {
         publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
         return;
       }
-      if (msg.type === "process.output") {
+      if (msg.type === "process.stdout" || msg.type === "process.stderr") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
         if (handleMcpProcessMessage(process, msg)) return;
         if (process.encrypted) return;
-        const chunk = msg.output;
+        const chunk = Buffer.from(msg.data, "base64url").toString("utf8");
         const revision = appendProcessOutput(process.id, chunk);
         publishEvent({ kind: "process.output", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { chunk, revision } });
         return;

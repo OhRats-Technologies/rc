@@ -243,8 +243,9 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     params: DeviceParams,
   })
   .post("/devices/:deviceId/processes", ({ rcUser, params, body }) => json(allocateProcess(rcUser!.id, {
-    deviceId: params.deviceId, cols: body.cols || 80, rows: body.rows || 24,
+    deviceId: params.deviceId, terminal: body.terminal, cols: body.cols || 80, rows: body.rows || 24,
   }), 201), {
-    params: DeviceParams, body: t.Object({ cols: t.Optional(t.Number({ minimum: 2, maximum: 500 })), rows: t.Optional(t.Number({ minimum: 2, maximum: 500 })) }),
+    params: DeviceParams, body: t.Object({ terminal: t.Optional(t.Boolean()), cols: t.Optional(t.Number({ minimum: 2, maximum: 500 })),
+      rows: t.Optional(t.Number({ minimum: 2, maximum: 500 })) }),
   })
   .get("/processes/:id", ({ rcUser, params }) => ({ process: getProcess(rcUser!.id, params.id) }), { params: IdParams });

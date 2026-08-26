@@ -102,8 +102,14 @@ func TestMcpOwnerGrantRunsThroughExistingProcessManager(t *testing.T) {
 	for !sawExit {
 		select {
 		case event := <-outbound:
-			if event.Type == "process.output" && event.ID == message.ID && event.Output == "mcp-ok" {
-				sawOutput = true
+			if event.Type == "process.stdout" && event.ID == message.ID {
+				data, decodeErr := base64.RawURLEncoding.DecodeString(event.Data)
+				if decodeErr != nil {
+					t.Fatal(decodeErr)
+				}
+				if string(data) == "mcp-ok" {
+					sawOutput = true
+				}
 			}
 			if event.Type == "process.exit" && event.ID == message.ID {
 				sawExit = true

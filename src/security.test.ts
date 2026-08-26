@@ -277,7 +277,7 @@ describe("MCP transport and OAuth", () => {
     const { userId, deviceId } = await enrolledDevice(), processId = crypto.randomUUID(), t = Date.now();
     q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
       VALUES(?,?,?,NULL,'running',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", userId, t);
-    agentSocketHandlers.message(deviceId, { type: "process.output", id: processId, output: "mcp-secret-output" });
+    agentSocketHandlers.message(deviceId, { type: "process.stdout", id: processId, data: Buffer.from("mcp-secret-output").toString("base64url") });
     const row = q<any>("SELECT output_head,output_tail,output_chars FROM processes WHERE id=?").get(processId);
     expect(row.output_head).toBe(""); expect(row.output_tail).toBe(""); expect(row.output_chars).toBe(0);
   });

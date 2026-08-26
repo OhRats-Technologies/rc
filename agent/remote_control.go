@@ -11,8 +11,10 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 
@@ -268,6 +270,7 @@ func (control *remoteControl) request(message wireMessage) error {
 func (control *remoteControl) close() { _ = control.transport.close() }
 
 func waitForProcess(control *remoteControl, processID string) error {
+	stdinClosed := false
 	for {
 		message, err := control.read()
 		if err != nil {
@@ -276,8 +279,24 @@ func waitForProcess(control *remoteControl, processID string) error {
 		if message.ID != processID {
 			continue
 		}
-		if message.Type == "process.output" {
-			fmt.Print(message.Output)
+		if message.Type == "process.started" && !stdinClosed {
+			if err := control.send(wireMessage{Type: "process.stdin.close", ID: processID}); err != nil {
+				return err
+			}
+			stdinClosed = true
+		}
+		if message.Type == "process.stdout" || message.Type == "process.stderr" {
+			data, decodeErr := base64.RawURLEncoding.DecodeString(message.Data)
+			if decodeErr != nil {
+				return decodeErr
+			}
+			writer := io.Writer(os.Stdout)
+			if message.Type == "process.stderr" {
+				writer = os.Stderr
+			}
+			if _, err := writer.Write(data); err != nil {
+				return err
+			}
 		}
 		if message.Type == "process.exit" {
 			if message.ExitCode != nil && *message.ExitCode != 0 {

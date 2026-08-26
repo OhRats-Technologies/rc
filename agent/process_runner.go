@@ -60,7 +60,10 @@ func runProcessRunner() int {
 	if cwd := processCwd(os.Getenv("OHRATS_PROCESS_CWD")); cwd != "" {
 		cmd.Dir = cwd
 	}
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	cmd.Env = os.Environ()
+	if os.Getenv("OHRATS_PROCESS_TERMINAL") == "1" {
+		cmd.Env = append(cmd.Env, "COLORTERM=truecolor")
+	}
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		return 127

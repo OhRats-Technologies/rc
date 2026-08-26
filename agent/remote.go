@@ -33,8 +33,8 @@ func resolveAccountDevice(server, token, value string) (accountDevice, error) {
 	return accountDevice{}, fmt.Errorf("device %q is ambiguous", value)
 }
 
-func startAccountProcess(server, token, deviceID string, cols, rows int) (string, error) {
-	body := map[string]any{"cols": cols, "rows": rows}
+func startAccountProcess(server, token, deviceID string, terminal bool, cols, rows int) (string, error) {
+	body := map[string]any{"terminal": terminal, "cols": cols, "rows": rows}
 	resp, err := accountJSONRequest(server, token, http.MethodPost, "/api/v1/devices/"+url.PathEscape(deviceID)+"/processes", body)
 	if err != nil {
 		return "", err
@@ -116,7 +116,7 @@ func remoteRunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	processID, err := startAccountProcess(*server, *token, device.ID, 80, 24)
+	processID, err := startAccountProcess(*server, *token, device.ID, false, 80, 24)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func remoteRunCommand(args []string) error {
 	}
 	defer control.close()
 	if err := control.send(wireMessage{Type: "process.start", ID: processID,
-		Command: strings.Join(args[separator+1:], " "), Cols: 80, Rows: 24}); err != nil {
+		Command: strings.Join(args[separator+1:], " ")}); err != nil {
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "Started %s on %s\n", processID, device.Name)

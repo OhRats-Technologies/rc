@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -17,7 +18,11 @@ import (
 type managedProcess struct {
 	cmd          *exec.Cmd
 	terminal     *os.File
+	stdin        io.WriteCloser
+	stdout       io.ReadCloser
+	stderr       io.ReadCloser
 	lifeline     *os.File
+	captures     sync.WaitGroup
 	sessionID    string
 	userID       string
 	secure       bool
@@ -43,7 +48,7 @@ func newProcessManager() *processManager {
 }
 
 func messageSize(message wireMessage) int {
-	return len(message.Output) + len(message.Input) + len(message.Command) + 128
+	return len(message.Output) + len(message.Data) + len(message.Command) + 128
 }
 
 func (manager *processManager) queue(message wireMessage) {
@@ -112,8 +117,10 @@ func (manager *processManager) handle(message wireMessage) {
 	switch message.Type {
 	case "process.start":
 		manager.start(message, "", "")
-	case "process.input":
-		manager.input(message.ID, message.Input)
+	case "process.stdin":
+		manager.input(message.ID, message.Data)
+	case "process.stdin.close":
+		manager.closeInput(message.ID)
 	case "process.resize":
 		manager.resize(message.ID, message.Cols, message.Rows)
 	case "process.signal":
@@ -153,31 +160,68 @@ func (manager *processManager) start(message wireMessage, sessionID, userID stri
 	cmd := exec.Command(executable, "__process-runner")
 	cmd.Env = append(os.Environ(), "OHRATS_PROCESS_COMMAND="+message.Command, "OHRATS_PROCESS_CWD="+message.Cwd)
 	cmd.ExtraFiles = []*os.File{readEnd}
-	terminal, err := pty.StartWithSize(cmd, terminalSize(message.Cols, message.Rows))
+	managed := &managedProcess{cmd: cmd, lifeline: writeEnd, sessionID: sessionID, userID: userID, secure: sessionID != ""}
+	if message.Terminal != nil {
+		term := strings.TrimSpace(message.Terminal.Term)
+		if term == "" {
+			term = "xterm-256color"
+		}
+		cmd.Env = append(cmd.Env, "OHRATS_PROCESS_TERMINAL=1", "TERM="+term)
+		managed.terminal, err = pty.StartWithSize(cmd, terminalSize(message.Terminal.Cols, message.Terminal.Rows))
+	} else {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+		managed.stdin, err = cmd.StdinPipe()
+		if err == nil {
+			managed.stdout, err = cmd.StdoutPipe()
+		}
+		if err == nil {
+			managed.stderr, err = cmd.StderrPipe()
+		}
+		if err == nil {
+			err = cmd.Start()
+		}
+	}
 	_ = readEnd.Close()
 	if err != nil {
 		_ = writeEnd.Close()
 		manager.mu.Unlock()
 		failed := &managedProcess{sessionID: sessionID, userID: userID, secure: sessionID != ""}
-		manager.emit(failed, wireMessage{Type: "process.output", ID: message.ID, Output: fmt.Sprintf("process start failed: %v\r\n", err)})
+		manager.emitBytes(failed, "process.stderr", message.ID, []byte(fmt.Sprintf("process start failed: %v\n", err)))
 		code := -1
 		manager.emit(failed, wireMessage{Type: "process.exit", ID: message.ID, ExitCode: &code})
 		return
 	}
-	managed := &managedProcess{cmd: cmd, terminal: terminal, lifeline: writeEnd, sessionID: sessionID, userID: userID, secure: sessionID != ""}
 	manager.processes[message.ID] = managed
 	manager.mu.Unlock()
 	manager.emit(managed, wireMessage{Type: "process.started", ID: message.ID})
-	go manager.capture(message.ID, managed)
+	if managed.terminal != nil {
+		managed.captures.Add(1)
+		go manager.capture(message.ID, "process.stdout", managed, managed.terminal)
+	} else {
+		managed.captures.Add(2)
+		go manager.capture(message.ID, "process.stdout", managed, managed.stdout)
+		go manager.capture(message.ID, "process.stderr", managed, managed.stderr)
+	}
 	go manager.wait(message.ID, managed)
 }
 
-func (manager *processManager) capture(id string, managed *managedProcess) {
+func (manager *processManager) emitBytes(managed *managedProcess, kind, id string, data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	manager.emit(managed, wireMessage{Type: kind, ID: id, Data: base64.RawURLEncoding.EncodeToString(data)})
+}
+
+func (manager *processManager) capture(id, kind string, managed *managedProcess, reader io.Reader) {
+	defer managed.captures.Done()
+	if reader == nil {
+		return
+	}
 	buffer := make([]byte, 16*1024)
 	for {
-		n, err := managed.terminal.Read(buffer)
+		n, err := reader.Read(buffer)
 		if n > 0 {
-			manager.emit(managed, wireMessage{Type: "process.output", ID: id, Output: string(buffer[:n])})
+			manager.emitBytes(managed, kind, id, buffer[:n])
 		}
 		if err != nil {
 			return
@@ -187,6 +231,7 @@ func (manager *processManager) capture(id string, managed *managedProcess) {
 
 func (manager *processManager) wait(id string, managed *managedProcess) {
 	err := managed.cmd.Wait()
+	managed.captures.Wait()
 	code, signal := 0, ""
 	if err != nil {
 		code = -1
@@ -202,16 +247,39 @@ func (manager *processManager) wait(id string, managed *managedProcess) {
 	delete(manager.processes, id)
 	manager.mu.Unlock()
 	_ = managed.lifeline.Close()
-	_ = managed.terminal.Close()
+	if managed.terminal != nil {
+		_ = managed.terminal.Close()
+	}
+	if managed.stdin != nil {
+		_ = managed.stdin.Close()
+	}
 	manager.emit(managed, wireMessage{Type: "process.exit", ID: id, ExitCode: &code, Signal: signal})
 }
 
 func (manager *processManager) input(id, value string) {
+	data, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil || len(data) == 0 {
+		return
+	}
 	manager.mu.Lock()
 	process := manager.processes[id]
 	manager.mu.Unlock()
-	if process != nil && value != "" {
-		_, _ = io.WriteString(process.terminal, value)
+	if process == nil {
+		return
+	}
+	if process.terminal != nil {
+		_, _ = process.terminal.Write(data)
+	} else if process.stdin != nil {
+		_, _ = process.stdin.Write(data)
+	}
+}
+
+func (manager *processManager) closeInput(id string) {
+	manager.mu.Lock()
+	process := manager.processes[id]
+	manager.mu.Unlock()
+	if process != nil && process.terminal == nil && process.stdin != nil {
+		_ = process.stdin.Close()
 	}
 }
 
@@ -219,7 +287,7 @@ func (manager *processManager) resize(id string, cols, rows int) {
 	manager.mu.Lock()
 	process := manager.processes[id]
 	manager.mu.Unlock()
-	if process != nil {
+	if process != nil && process.terminal != nil {
 		_ = pty.Setsize(process.terminal, terminalSize(cols, rows))
 	}
 }
@@ -232,7 +300,11 @@ func (manager *processManager) signal(id, value string) {
 		return
 	}
 	if strings.EqualFold(value, "INT") {
-		_, _ = process.terminal.Write([]byte{3})
+		if process.terminal != nil {
+			_, _ = process.terminal.Write([]byte{3})
+		} else if process.cmd.Process != nil {
+			signalSession(process.cmd.Process.Pid, syscall.SIGINT)
+		}
 		return
 	}
 	if strings.EqualFold(value, "KILL") {
@@ -253,7 +325,12 @@ func (manager *processManager) shutdown() {
 	manager.mu.Unlock()
 	for _, process := range processes {
 		_ = process.lifeline.Close()
-		_ = process.terminal.Close()
+		if process.terminal != nil {
+			_ = process.terminal.Close()
+		}
+		if process.stdin != nil {
+			_ = process.stdin.Close()
+		}
 	}
 }
 

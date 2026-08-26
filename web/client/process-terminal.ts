@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { api, qs } from "./http";
 import { onEvent } from "./socket";
 import { openControlSession, type ControlSession } from "./control-session";
+import { b64urlToBytes, bytesToB64url } from "./control-client";
 import type { RemoteProcess } from "../types";
 
 const page = qs<HTMLElement>("[data-process-page]"), processId = page.dataset.processPage || "";
@@ -20,7 +21,11 @@ let ctrlNext = false, altNext = false;
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
 fitTerminal(); const observer = new ResizeObserver(fitTerminal); observer.observe(host);
 
-function sendInput(data: string) { if (status === "running" && data) void control?.send({ type: "process.input", id: processId, input: data }); }
+function sendInput(data: string) {
+  if (status === "running" && data) void control?.send({
+    type: "process.stdin", id: processId, data: bytesToB64url(new TextEncoder().encode(data)),
+  });
+}
 if (interactive) terminal.onData(data => {
   if (ctrlNext && data.length === 1) { const code = data.toUpperCase().charCodeAt(0); if (code >= 64 && code <= 95) data = String.fromCharCode(code - 64); ctrlNext = false; }
   if (altNext) { data = `\x1b${data}`; altNext = false; }
@@ -66,7 +71,8 @@ async function connectEncrypted() {
     control = next;
     next.onMessage(message => {
       if (String(message.id || "") !== processId && !["control.result"].includes(message.type)) return;
-      if (message.type === "process.output" && message.output) terminal.write(String(message.output));
+      if (message.type === "process.stdout" && message.data) terminal.write(b64urlToBytes(String(message.data)));
+      if (message.type === "process.stderr" && message.data) terminal.write(b64urlToBytes(String(message.data)));
       if (message.type === "process.started") { status = "running"; qs<HTMLElement>("#process-state").textContent = "RUNNING"; }
       if (message.type === "process.exit") {
         status = "exited"; const signal = String(message.signal || ""), exitCode = Number(message.exitCode ?? -1);
@@ -76,8 +82,10 @@ async function connectEncrypted() {
     });
     const key = `rc_process_start_${processId}`, raw = sessionStorage.getItem(key);
     if (raw) {
-      sessionStorage.removeItem(key); const start = JSON.parse(raw) as { command: string; cwd: string; cols: number; rows: number };
-      await next.send({ type: "process.start", id: processId, command: start.command, cwd: start.cwd, cols: start.cols, rows: start.rows });
+      sessionStorage.removeItem(key); const start = JSON.parse(raw) as {
+        command: string; cwd: string; terminal: { cols: number; rows: number; term?: string };
+      };
+      await next.send({ type: "process.start", id: processId, command: start.command, cwd: start.cwd, terminal: start.terminal });
     } else await next.send({ type: "process.attach", id: processId });
   } catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
 }

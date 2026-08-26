@@ -6,7 +6,7 @@ import { HttpError } from "./errors";
 import { publishEvent } from "./events";
 
 export type StartProcessInput = { deviceId: string; command: string; cwd?: string; cols: number; rows: number };
-export type AllocateProcessInput = { deviceId: string; cols: number; rows: number };
+export type AllocateProcessInput = { deviceId: string; terminal?: boolean; cols: number; rows: number };
 export type ProcessInput = { processId: string; data: string };
 export type ProcessResize = { processId: string; cols: number; rows: number };
 export type ProcessSignal = { processId: string; signal: "INT" | "TERM" | "KILL" };
@@ -38,8 +38,8 @@ export function allocateProcess(userId: string, input: AllocateProcessInput) {
   if (!canOperate(role)) throw new HttpError(403, "operator required");
   if (!isOnline(deviceId)) throw new HttpError(409, "device is offline");
   const cols = boundedSize(input.cols, 80), rows = boundedSize(input.rows, 24), processId = id(), t = now();
-  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,cols,rows,created_by,created_at)
-    VALUES(?,?,?,NULL,'starting',1,?,?,?,?)`).run(processId, deviceId, "[encrypted]", cols, rows, userId, t);
+  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,terminal,cols,rows,created_by,created_at)
+    VALUES(?,?,?,NULL,'starting',1,?,?,?,?,?)`).run(processId, deviceId, "[encrypted]", input.terminal ? 1 : 0, cols, rows, userId, t);
   logEvent("process.created", workspaceForDevice(deviceId), userId, deviceId, { processId, encrypted: true });
   return { processId };
 }

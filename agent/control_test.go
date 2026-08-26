@@ -81,7 +81,7 @@ func TestEncryptedProcessOutputOnlyLeavesAsCiphertext(t *testing.T) {
 		sessions:   map[string]*controlSession{"session": {aead: nodeAEAD, send: func(message wireMessage) bool { outbound <- message; return true }, clientID: "client", userID: "user", role: "owner", canExecute: true}},
 		challenges: map[string]time.Time{}, pendingStarts: map[string]pendingSecureStart{}}
 	processes.setSecureSender(manager.sendFrame)
-	command := wireMessage{Type: "process.start", ID: "secret-process", Command: "printf 'phase34-secret'", Cols: 80, Rows: 24}
+	command := wireMessage{Type: "process.start", ID: "secret-process", Command: "printf 'phase34-secret'"}
 	plain, _ := json.Marshal(command)
 	ciphertext := clientAEAD.Seal(nil, frameNonce(1, 1), plain, frameAAD("session", 1, "c2n"))
 	if err := manager.receiveFrame(wireMessage{Type: "control.frame", SessionID: "session", Sequence: 1,
@@ -107,7 +107,7 @@ func TestEncryptedProcessOutputOnlyLeavesAsCiphertext(t *testing.T) {
 	for !sawExit {
 		select {
 		case message := <-outbound:
-			if message.Type == "process.output" || message.Output == "phase34-secret" {
+			if message.Type == "process.stdout" || message.Type == "process.stderr" || message.Output == "phase34-secret" {
 				t.Fatalf("plaintext terminal output escaped encrypted control: %+v", message)
 			}
 			if message.Type != "control.frame" {
@@ -122,8 +122,14 @@ func TestEncryptedProcessOutputOnlyLeavesAsCiphertext(t *testing.T) {
 			if err := json.Unmarshal(opened, &inner); err != nil {
 				t.Fatal(err)
 			}
-			if inner.Type == "process.output" && inner.Output == "phase34-secret" {
-				sawSecret = true
+			if inner.Type == "process.stdout" {
+				data, decodeErr := base64.RawURLEncoding.DecodeString(inner.Data)
+				if decodeErr != nil {
+					t.Fatal(decodeErr)
+				}
+				if string(data) == "phase34-secret" {
+					sawSecret = true
+				}
 			}
 			if inner.Type == "process.exit" {
 				sawExit = true

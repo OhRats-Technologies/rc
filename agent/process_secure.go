@@ -60,7 +60,7 @@ func (manager *processManager) detachSecureSession(sessionID string) {
 
 func (manager *processManager) secureHandle(sessionID, userID, role string, message wireMessage) {
 	switch message.Type {
-	case "process.attach", "process.input", "process.resize", "process.signal":
+	case "process.attach", "process.stdin", "process.stdin.close", "process.resize", "process.signal":
 		manager.mu.Lock()
 		process := manager.processes[message.ID]
 		allowed := process != nil && (role == "owner" || process.userID == userID)
@@ -71,8 +71,10 @@ func (manager *processManager) secureHandle(sessionID, userID, role string, mess
 		switch message.Type {
 		case "process.attach":
 			manager.attachSecure(process, sessionID)
-		case "process.input":
-			manager.input(message.ID, message.Input)
+		case "process.stdin":
+			manager.input(message.ID, message.Data)
+		case "process.stdin.close":
+			manager.closeInput(message.ID)
 		case "process.resize":
 			manager.resize(message.ID, message.Cols, message.Rows)
 		case "process.signal":
