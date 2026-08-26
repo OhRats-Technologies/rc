@@ -67,7 +67,7 @@ func startService(stateDir string) error {
 		if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 			return installService(stateDir)
 		}
-		return command("launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/%s", os.Getuid(), serviceLabel))
+		return startLaunchAgent(path)
 	case "linux":
 		return command("systemctl", "--user", "start", "rc.service")
 	default:
@@ -96,12 +96,24 @@ func serviceInstalled() bool {
 func restartService() error {
 	switch runtime.GOOS {
 	case "darwin":
-		return command("launchctl", "kickstart", "-k", fmt.Sprintf("gui/%d/%s", os.Getuid(), serviceLabel))
+		home, _ := os.UserHomeDir()
+		return startLaunchAgent(filepath.Join(home, "Library", "LaunchAgents", serviceLabel+".plist"))
 	case "linux":
 		return command("systemctl", "--user", "restart", "rc.service")
 	default:
 		return nil
 	}
+}
+
+func startLaunchAgent(path string) error {
+	domain := fmt.Sprintf("gui/%d", os.Getuid())
+	target := domain + "/" + serviceLabel
+	if exec.Command("launchctl", "print", target).Run() != nil {
+		if err := command("launchctl", "bootstrap", domain, path); err != nil {
+			return err
+		}
+	}
+	return command("launchctl", "kickstart", "-k", target)
 }
 
 func stopService() error {
