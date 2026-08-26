@@ -189,7 +189,6 @@ export function cleanupMcpOAuth() {
   q("DELETE FROM mcp_codes WHERE expires_at<=?").run(t);
   q("DELETE FROM mcp_access_tokens WHERE expires_at<=?").run(t);
   q("DELETE FROM mcp_refresh_tokens WHERE expires_at>0 AND expires_at<=?").run(t);
-  q("DELETE FROM mcp_confirmations WHERE expires_at<=?").run(t);
   q(`DELETE FROM mcp_clients WHERE created_at<?
     AND NOT EXISTS(SELECT 1 FROM mcp_oauth_requests r WHERE r.client_id=mcp_clients.id)
     AND NOT EXISTS(SELECT 1 FROM mcp_grants g WHERE g.client_id=mcp_clients.id)`).run(t - 24 * 60 * 60_000);

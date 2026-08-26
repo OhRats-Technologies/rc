@@ -5,6 +5,7 @@ import { pageActions } from "./routes/page-actions";
 import { pageRoutes } from "./routes/pages";
 import { agentSocketRoute } from "./routes/websocket-agent";
 import { browserSocketRoute } from "./routes/websocket-browser";
+import { sshTunnelRoute } from "./routes/websocket-ssh";
 import { mcpRoutes } from "./routes/mcp";
 import { oauthRoutes } from "./routes/oauth";
 import { pageContext } from "./page-context";
@@ -21,6 +22,7 @@ export const app = new Elysia({ name: "rc" })
   .use(mcpRoutes)
   .use(browserSocketRoute)
   .use(agentSocketRoute)
+  .use(sshTunnelRoute)
   .get("/healthz", () => "ok", { detail: { hide: true } })
   .get("/favicon.ico", () => Response.redirect("https://assets.ohrats.party/assets/logo.092a1cece4d0.svg", 302), { detail: { hide: true } })
   .get("/robots.txt", () => new Response([

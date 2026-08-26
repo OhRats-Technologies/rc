@@ -11,7 +11,7 @@ export function principlesArticle(): DocArticle {
         title: "No inbound device port",
         body: <>
           <p>The RC Node creates an outbound authenticated WebSocket connection to RC. A controlled machine does not need a public SSH port, port-forward, or inbound RC listener.</p>
-          <p>Browser, CLI, API, and MCP requests are routed through the hosted service to the already-connected Node.</p>
+          <p>Browser, CLI, API, MCP, and SSH-gateway requests are routed through the hosted service to the already-connected Node.</p>
         </>,
       },
       {
@@ -43,7 +43,7 @@ export function principlesArticle(): DocArticle {
         body: <>
           <p>Terminal commands, input, output, signals, and lifecycle messages use a client-to-Node AES-256-GCM session key derived from fresh and pinned X25519 material.</p>
           <p>After authorization, browser and CLI clients prefer a direct WebRTC DataChannel to the Node. The hosted service performs signaling. If the direct transport cannot be established or later becomes unavailable, the same encrypted session continues over the hosted WebSocket relay.</p>
-          <p>Standard remote MCP does not use this custom transport; MCP Terminal behavior is documented separately in the <a href="/docs/security#mcp-terminal">security model</a>.</p>
+          <p>Standard remote MCP and gateway-terminated SSH do not use this custom end-to-end transport; their trust models are documented separately in the <a href="/docs/security">security model</a>.</p>
         </>,
       },
       {

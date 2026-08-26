@@ -77,6 +77,15 @@ export function securityArticle(): DocArticle {
         </>,
       },
       {
+        id: "ssh-gateway",
+        title: "SSH gateway",
+        body: <>
+          <p>RC runs stock OpenSSH <code>sshd</code> at the gateway. Clients normally reach it through <code>rc ssh-proxy</code> over the public HTTPS/WebSocket endpoint; Nodes keep only their outbound RC connection and do not expose SSH.</p>
+          <p>Password and keyboard-interactive authentication are disabled. A registered SSH public key is bound to a passkey-backed RC control identity, and the forced bridge routes by the immutable RC device ID. The Node independently verifies that control grant and requires the user to be an Operator or Owner before starting a process.</p>
+          <p>SSH terminates at the RC gateway, so commands, terminal bytes, file contents, and rsync traffic are plaintext in gateway memory while active. A compromised gateway with an active SSH authorization could act as that user. This is a deliberate trust model difference from browser/CLI end-to-end control.</p>
+        </>,
+      },
+      {
         id: "node-updates",
         title: "Node release integrity",
         body: <>

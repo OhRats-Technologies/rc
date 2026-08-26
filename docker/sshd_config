@@ -1,0 +1,27 @@
+Port 2222
+ListenAddress 127.0.0.1
+HostKey /data/ssh_host_ed25519_key
+PidFile /run/sshd-rc.pid
+
+AllowUsers rc
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+AuthenticationMethods publickey
+AuthorizedKeysFile none
+AuthorizedKeysCommand /usr/local/bin/rc-ssh-authorized %t %k
+AuthorizedKeysCommandUser rc
+
+AcceptEnv RC_DEVICE_ID
+PermitUserEnvironment no
+PermitUserRC no
+AllowAgentForwarding no
+AllowTcpForwarding no
+GatewayPorts no
+X11Forwarding no
+PermitTunnel no
+PermitTTY yes
+
+Subsystem sftp internal-sftp
+LogLevel INFO

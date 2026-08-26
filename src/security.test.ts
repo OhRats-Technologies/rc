@@ -18,6 +18,7 @@ let createOAuthRequest: typeof import("./mcp/oauth").createOAuthRequest;
 let denyOAuthRequest: typeof import("./mcp/oauth").denyOAuthRequest;
 let restartOAuthRequest: typeof import("./mcp/oauth").restartOAuthRequest;
 let sha: typeof import("./db").sha;
+let sshPrincipalForDevice: typeof import("./ssh-keys").sshPrincipalForDevice;
 
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "rc-security-test-"));
@@ -29,6 +30,7 @@ beforeAll(async () => {
   ({ consumeStepUp, consumeStepUpOrRecentSession } = await import("./step-up"));
   ({ controlAuthorizationOptions, controlGrantChallenge } = await import("./control-auth"));
   ({ createOAuthRequest, denyOAuthRequest, restartOAuthRequest } = await import("./mcp/oauth"));
+  ({ sshPrincipalForDevice } = await import("./ssh-keys"));
   ({ app } = await import("./app"));
 });
 
@@ -159,6 +161,18 @@ describe("API key scopes", () => {
     } });
     expect((await app.handle(request())).status).toBe(200);
     expect((await app.handle(request())).status).toBe(401);
+  });
+});
+
+describe("SSH gateway authorization", () => {
+  test("routes by immutable device ID and current role", async () => {
+    const { userId, deviceId } = await enrolledDevice(), controlId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
+    q(`INSERT INTO control_clients(id,user_id,signing_public_key,credential_id,grant,assertion,created_at,expires_at,last_used) VALUES(?,?,?,?,?,?,?,?,NULL)`).run(controlId,userId,"public","credential","grant","assertion",t,0);
+    q(`INSERT INTO ssh_keys(id,user_id,name,algorithm,key_data,public_key,control_client_id,created_at,last_used) VALUES(?,?,?,?,?,?,?,?,NULL)`).run(keyId,userId,"Laptop","ssh-ed25519",crypto.randomUUID(),"ssh-ed25519 blob",controlId,t);
+    expect(sshPrincipalForDevice(keyId, deviceId)?.device_id).toBe(deviceId);
+    q("UPDATE devices SET name='Renamed' WHERE id=?").run(deviceId); expect(sshPrincipalForDevice(keyId, deviceId)?.device_id).toBe(deviceId);
+    expect(sshPrincipalForDevice(keyId, "Renamed")).toBeNull();
+    q("UPDATE workspace_members SET role='viewer' WHERE user_id=?").run(userId); expect(sshPrincipalForDevice(keyId, deviceId)).toBeNull();
   });
 });
 

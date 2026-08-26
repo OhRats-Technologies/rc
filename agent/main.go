@@ -56,6 +56,12 @@ func run(args []string) error {
 		return devicesCommand(args[1:])
 	case "device":
 		return deviceCommand(args[1:])
+	case "ssh-key":
+		return sshKeyCommand(args[1:])
+	case "ssh-config":
+		return sshConfigCommand(args[1:])
+	case "ssh-proxy":
+		return sshProxyCommand(args[1:])
 	case "service":
 		return serviceCommand(args[1:])
 	case "update":

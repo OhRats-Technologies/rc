@@ -75,6 +75,13 @@ CREATE TABLE IF NOT EXISTS control_clients(
   signing_public_key TEXT NOT NULL,credential_id TEXT NOT NULL,grant TEXT NOT NULL,assertion TEXT NOT NULL,
   created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_used INTEGER
 );
+CREATE TABLE IF NOT EXISTS ssh_keys(
+  id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,algorithm TEXT NOT NULL,key_data TEXT NOT NULL,public_key TEXT NOT NULL,
+  control_client_id TEXT NOT NULL REFERENCES control_clients(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,last_used INTEGER,
+  UNIQUE(key_data)
+);
 CREATE TABLE IF NOT EXISTS mcp_clients(
   id TEXT PRIMARY KEY,name TEXT NOT NULL,redirect_uris TEXT NOT NULL,created_at INTEGER NOT NULL
 );
@@ -143,6 +150,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_auth_challenges_expiry ON agent_auth_challe
 CREATE INDEX IF NOT EXISTS idx_api_request_nonces_expiry ON api_request_nonces(expires_at);
 CREATE INDEX IF NOT EXISTS idx_control_authorizations_expiry ON control_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_control_clients_user ON control_clients(user_id,expires_at);
+CREATE INDEX IF NOT EXISTS idx_ssh_keys_user ON ssh_keys(user_id,created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ssh_keys_key_data ON ssh_keys(key_data);
 CREATE INDEX IF NOT EXISTS idx_mcp_grants_user ON mcp_grants(user_id,expires_at);
 CREATE INDEX IF NOT EXISTS idx_mcp_oauth_expiry ON mcp_oauth_requests(expires_at);
 CREATE INDEX IF NOT EXISTS idx_mcp_access_expiry ON mcp_access_tokens(expires_at);

@@ -31,6 +31,7 @@ function policy(request: Request) {
   if (path === "/oauth/token") return { name: "mcp-token", limit: 120, windowMs: 5 * 60_000 };
   if (path.startsWith("/api/v1/auth/")) return { name: `auth:${path.split("/").slice(4, 6).join(":")}`, limit: 30, windowMs: 5 * 60_000 };
   if (path === "/api/v1/agent/ws" || path === "/api/v1/ws") return { name: "ws-connect", limit: 30, windowMs: 60_000 };
+  if (path === "/api/v1/ssh/tunnel") return { name: "ssh-tunnel", limit: 60, windowMs: 60_000 };
   if (path.startsWith("/api/v1/") || request.method !== "GET") return { name: "api", limit: 600, windowMs: 60_000 };
   return null;
 }

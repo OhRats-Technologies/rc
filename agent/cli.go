@@ -37,6 +37,9 @@ func printHelp() {
 	helpRow("35;1", "devices", "List devices in your account")
 	helpRow("35;1", "shell DEVICE", "Open a remote terminal")
 	helpRow("35;1", "run DEVICE -- CMD", "Run a remote command")
+	helpRow("35;1", "ssh-key", "Manage SSH public keys")
+	helpRow("35;1", "ssh-config", "Print OpenSSH config for RC devices")
+	helpRow("35;1", "ssh-proxy", "Tunnel OpenSSH through RC HTTPS")
 	fmt.Println()
 	helpRow("34;1", "service", "Manage the background RC Node")
 	helpRow("34;1", "update", "Update this RC Node")
@@ -171,6 +174,12 @@ func commandHelp(command string) error {
 		return shellCommand([]string{"--help"})
 	case "device":
 		return deviceCommand([]string{"--help"})
+	case "ssh-key":
+		return sshKeyCommand([]string{"--help"})
+	case "ssh-config":
+		return sshConfigCommand([]string{"--help"})
+	case "ssh-proxy":
+		return sshProxyCommand([]string{"--help"})
 	case "service":
 		return serviceCommand([]string{"--help"})
 	case "update":

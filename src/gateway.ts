@@ -9,6 +9,8 @@ import { AGENT_CHALLENGE_TTL } from "./config";
 import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-relay";
 import { handleMcpProcessMessage, markMcpProcessLost } from "./mcp/process";
 import { registerMcpSender } from "./mcp/relay";
+import { handleSshProcessMessage } from "./ssh/process";
+import { registerSshSender } from "./ssh/relay";
 
 const agents = new Map<string, SocketWriter>();
 const agentActivity = new Map<string, number>();
@@ -34,6 +36,7 @@ function send(deviceId: string, message: AgentServerMessage) {
 
 registerAgentSender(send);
 registerMcpSender(send);
+registerSshSender(send);
 
 export function createAgentChallenge(deviceId: string) {
   if (!q("SELECT 1 FROM devices WHERE id=?").get(deviceId)) return null;
@@ -136,6 +139,7 @@ export const agentSocketHandlers = {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
         markProcessStarted(process.id);
+        if (handleSshProcessMessage(process, msg)) return;
         if (handleMcpProcessMessage(process, msg)) return;
         publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
         return;
@@ -143,6 +147,7 @@ export const agentSocketHandlers = {
       if (msg.type === "process.stdout" || msg.type === "process.stderr") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
+        if (handleSshProcessMessage(process, msg)) return;
         if (handleMcpProcessMessage(process, msg)) return;
         if (process.encrypted) return;
         const chunk = Buffer.from(msg.data, "base64url").toString("utf8");
@@ -153,6 +158,7 @@ export const agentSocketHandlers = {
       if (msg.type === "process.exit") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
+        handleSshProcessMessage(process, msg);
         const mcp = handleMcpProcessMessage(process, msg);
         const output = process.encrypted ? "" : msg.output || "";
         if (output) appendProcessOutput(process.id, output);

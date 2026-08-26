@@ -63,6 +63,7 @@ export function quickstartArticle(): DocArticle {
           <CopyField value="rc devices"/>
           <CopyField value="rc shell DEVICE"/>
           <p><code>login</code> opens RC for passkey approval. The resulting CLI authorization defaults to until revoked.</p>
+          <p>For standard OpenSSH tooling, register a public key with <code>rc ssh-key add</code> and add the output of <code>rc ssh-config</code> to your SSH config.</p>
         </>,
       },
       {

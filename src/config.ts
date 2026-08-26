@@ -1,4 +1,6 @@
 export const PORT = Number(Bun.env.PORT || 3000);
+export const SSH_DAEMON_PORT = Number(Bun.env.RC_SSH_DAEMON_PORT || 2222);
+export const SSH_INTERNAL_PORT = Number(Bun.env.RC_SSH_INTERNAL_PORT || 3001);
 export const VERSION = "0.11.0";
 export const DATA_DIR = Bun.env.DATA_DIR || "./data";
 export const STATIC_DIR = Bun.env.STATIC_DIR || `${import.meta.dir}/../static`;
@@ -23,3 +25,4 @@ export const AGENT_CHALLENGE_TTL = 30 * 1000;
 export const MAX_WORKSPACES_PER_USER = positiveInt("RC_MAX_WORKSPACES_PER_USER", 10);
 export const MAX_DEVICES_PER_WORKSPACE = positiveInt("RC_MAX_DEVICES_PER_WORKSPACE", 25);
 export const MAX_API_KEYS_PER_USER = positiveInt("RC_MAX_API_KEYS_PER_USER", 10);
+export const MAX_SSH_KEYS_PER_USER = positiveInt("RC_MAX_SSH_KEYS_PER_USER", 20);

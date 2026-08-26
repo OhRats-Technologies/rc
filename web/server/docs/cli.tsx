@@ -36,6 +36,9 @@ export function cliArticle(): DocArticle {
           <tr><td><code>rc devices</code></td><td>List devices, workspaces, online state, and Node version.</td></tr>
           <tr><td><code>rc shell DEVICE</code></td><td>Open the machine's login shell in the current terminal.</td></tr>
           <tr><td><code>rc run DEVICE -- CMD...</code></td><td>Run one command remotely and stream its output.</td></tr>
+          <tr><td><code>rc ssh-key add [PUBLIC_KEY_FILE]</code></td><td>Register an OpenSSH public key against the current passkey-backed CLI identity.</td></tr>
+          <tr><td><code>rc ssh-config</code></td><td>Print OpenSSH config entries using immutable RC device IDs.</td></tr>
+          <tr><td><code>rc ssh-proxy</code></td><td>Carry an OpenSSH connection through RC's HTTPS/WebSocket endpoint.</td></tr>
           <tr><td><code>rc status</code></td><td>Show local enrollment and hosted device status.</td></tr>
           <tr><td><code>rc enroll TOKEN</code></td><td>Enroll this machine. Optional flags: <code>--name</code>, <code>--url</code>, <code>--state-dir</code>.</td></tr>
           <tr><td><code>rc service install|start|stop|status|uninstall</code></td><td>Manage the per-user background Node service.</td></tr>
@@ -44,6 +47,20 @@ export function cliArticle(): DocArticle {
           <tr><td><code>rc config show|path|set|unset</code></td><td>Read or modify the default RC server and enrollment name.</td></tr>
           <tr><td><code>rc uninstall</code></td><td>Remove the service, unregister the device when possible, delete local RC state, and remove the installed binary.</td></tr>
         </tbody></DocTable>,
+      },
+      {
+        id: "openssh",
+        title: "OpenSSH",
+        body: <>
+          <CopyField value="rc ssh-key add ~/.ssh/id_ed25519.pub"/>
+          <CopyField value="rc ssh-config >> ~/.ssh/config"/>
+          <p>The generated hosts are named <code>rc-&lt;device-id&gt;</code>. The full immutable RC device ID is sent to the gateway, so renaming a device does not change which Node an existing entry targets.</p>
+          <CopyField value="ssh rc-DEVICE_ID"/>
+          <CopyField value="scp ./file rc-DEVICE_ID:/tmp/file"/>
+          <CopyField value="sftp rc-DEVICE_ID"/>
+          <CopyField value="rsync -e ssh ./dir/ rc-DEVICE_ID:/tmp/dir/"/>
+          <p>OpenSSH talks to stock <code>sshd</code> at the RC gateway through <code>rc ssh-proxy</code>, so the controlled Node does not expose port 22 and the client works on networks that permit HTTPS/WebSockets but block SSH ports.</p>
+        </>,
       },
       {
         id: "examples",
@@ -68,6 +85,7 @@ export function cliArticle(): DocArticle {
         body: <>
           <p>RC state is stored under <code>~/.config/rc</code> by default. This includes device identity, RC Lock, device pins, CLI session data, configuration, service logs, and the CLI control private key.</p>
           <p>The CLI uses the same X25519/HKDF-SHA256/AES-256-GCM encrypted control protocol as the browser. See <a href="/docs/security#encrypted-control">Browser and CLI encrypted control</a> for the handshake details.</p>
+          <p>OpenSSH is separate from that direct-control protocol. SSH sessions terminate at the RC gateway; see <a href="/docs/security#ssh-gateway">SSH gateway</a>.</p>
         </>,
       },
     ],

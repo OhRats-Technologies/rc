@@ -218,6 +218,12 @@ func connectWithLiveness(ctx context.Context, serverURL string, value state, sta
 				}
 				continue
 			}
+			if strings.HasPrefix(message.Type, "ssh.process.") {
+				if err := handleSshProcess(stateDir, manager, message); err != nil {
+					_ = send(wireMessage{Type: "process.exit", ID: message.ID, Output: err.Error()})
+				}
+				continue
+			}
 			if strings.HasPrefix(message.Type, "process.") || message.Type == "node.update" || message.Type == "node.remove" {
 				continue
 			}

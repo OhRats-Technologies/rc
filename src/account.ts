@@ -87,7 +87,7 @@ export async function apiKeyGrant(request: Request): Promise<ApiKeyGrant | null>
 }
 
 export function requiredApiScope(method: string, path: string): ApiScope | "human" | null {
-  if (path.startsWith("/api/v1/tokens") || path.startsWith("/api/v1/passkeys")) return "human";
+  if (path.startsWith("/api/v1/tokens") || path.startsWith("/api/v1/passkeys") || path.startsWith("/api/v1/ssh/keys")) return "human";
   if (method === "GET") return "read";
   if (/^\/api\/v1\/devices\/[^/]+\/processes$/.test(path)) return "execute";
   if (path.includes("/enrollments") || path.startsWith("/api/v1/devices/")) return "manage-devices";

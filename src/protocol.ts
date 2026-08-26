@@ -8,6 +8,7 @@ const ControlSequence = t.Integer({ minimum: 1 });
 const ControlCiphertext = t.String({ minLength: 1, maxLength: 1_500_000 });
 const ProcessData = t.String({ minLength: 1, maxLength: 131_072, pattern: "^[A-Za-z0-9_-]+$" });
 const TerminalSize = t.Number({ minimum: 2, maximum: 500 });
+const ProcessTerminal = t.Object({ cols: TerminalSize, rows: TerminalSize, term: t.Optional(t.String({ maxLength: 128 })) });
 const IceServerSchema = t.Object({
   urls: t.Array(t.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 16 }),
   username: t.Optional(t.String({ maxLength: 512 })), credential: t.Optional(t.String({ maxLength: 512 })),
@@ -81,6 +82,13 @@ export const AgentServerMessageSchema = t.Union([
     mcpGrant: t.String({ minLength: 1, maxLength: 65536 }), mcpSignature: t.String({ minLength: 1, maxLength: 256 }),
     grant: t.String({ minLength: 1, maxLength: 8192 }), credentialId: t.String({ minLength: 1, maxLength: 2048 }),
     assertion: t.String({ minLength: 1, maxLength: 16384 }) }),
+  t.Object({ type: t.Literal("ssh.process.start"), id: ProcessId, sessionId: SessionId, userId: t.String({ minLength: 1, maxLength: 100 }),
+    command: t.String({ minLength: 1, maxLength: 8192 }), cwd: t.Optional(t.String({ maxLength: 4096 })), terminal: t.Optional(ProcessTerminal),
+    grant: t.String({ minLength: 1, maxLength: 8192 }), credentialId: t.String({ minLength: 1, maxLength: 2048 }), assertion: t.String({ minLength: 1, maxLength: 16384 }) }),
+  t.Object({ type: t.Literal("ssh.process.stdin"), id: ProcessId, sessionId: SessionId, data: ProcessData }),
+  t.Object({ type: t.Literal("ssh.process.stdin.close"), id: ProcessId, sessionId: SessionId }),
+  t.Object({ type: t.Literal("ssh.process.resize"), id: ProcessId, sessionId: SessionId, cols: TerminalSize, rows: TerminalSize }),
+  t.Object({ type: t.Literal("ssh.process.signal"), id: ProcessId, sessionId: SessionId, signal: t.String({ minLength: 1, maxLength: 32 }) }),
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId }),
   t.Object({ type: t.Literal("control.open"), requestId: RequestId, challenge: t.String(), clientId: t.String(), grant: t.String(),
     credentialId: t.String(), assertion: t.String(), publicKey: t.String(), signature: t.String() }),

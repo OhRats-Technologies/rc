@@ -5,9 +5,11 @@ import { now, q } from "./src/db";
 import { recoverInterruptedProcesses } from "./src/gateway";
 import { cleanupMcpOAuth } from "./src/mcp/oauth";
 import { startNodeReleaseRefresh } from "./src/node-release";
+import { startSshInternal } from "./src/ssh/internal";
 
 recoverInterruptedProcesses();
 startNodeReleaseRefresh();
+startSshInternal();
 
 app.listen({
   port: PORT,

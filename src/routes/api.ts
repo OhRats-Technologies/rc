@@ -20,6 +20,7 @@ import { q } from "../db";
 import { checkOrigin, fail, json } from "../http-utils";
 import { allocateProcess, getProcess, listProcesses } from "../process-api";
 import { consumeStepUp, consumeStepUpOrRecentSession, stepUpOptions, verifyStepUp } from "../step-up";
+import { createSshKey, deleteSshKey, listSshKeys } from "../ssh-keys";
 import {
   createEnrollment, createInvite, createWorkspace, deleteWorkspace, joinWorkspace, renameWorkspace, workspaceActivity, workspaceDetail,
 } from "../workspaces";
@@ -175,6 +176,14 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
     if (!deleteApiToken(rcUser!.id, params.id)) throw new HttpError(404, "token not found");
     return { ok: true };
   }, { params: IdParams })
+  .get("/ssh/keys", ({ rcUser }) => ({ keys: listSshKeys(rcUser!.id) }), { detail: { hide: true } })
+  .post("/ssh/keys", async ({ rcUser, body }) => json(await createSshKey(rcUser!.id, body), 201), {
+    body: t.Object({
+      name: t.Optional(t.String({ maxLength: 80 })), publicKey: t.String({ minLength: 1, maxLength: 16384 }),
+      clientId: t.String({ minLength: 1, maxLength: 100 }), signature: t.String({ minLength: 1, maxLength: 512 }),
+    }), detail: { hide: true },
+  })
+  .delete("/ssh/keys/:id", ({ rcUser, params }) => deleteSshKey(rcUser!.id, params.id), { params: IdParams, detail: { hide: true } })
   .get("/workspaces", ({ rcUser }) => ({ workspaces: userWorkspaces(rcUser!.id) }))
   .post("/workspaces", ({ rcUser, body }) => json(createWorkspace(rcUser!, body.name), 201), {
     body: t.Object({ name: t.String({ maxLength: 120 }) }),
