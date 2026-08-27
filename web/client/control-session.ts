@@ -53,6 +53,7 @@ export class ControlSession {
   }
   onMessage(listener: Listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async send(message: SessionMessage) {
+    if (this.closed) throw new Error("Control session closed");
     const plain = new TextEncoder().encode(JSON.stringify(message));
     if (plain.byteLength > 1_048_576) throw new Error("Control message is too large");
     const sequence = ++this.sendSequence;
@@ -67,6 +68,7 @@ export class ControlSession {
     await this.send({ ...message, requestId }); return await result;
   }
   private async receive(sequence: number, ciphertext: string) {
+    if (sequence <= this.receiveSequence) return;
     if (sequence !== this.receiveSequence + 1) { this.close(); return; }
     if (!ciphertext || ciphertext.length > 1_500_000) { this.close(); return; }
     try {

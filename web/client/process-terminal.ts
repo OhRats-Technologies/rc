@@ -32,6 +32,7 @@ try {
 terminal.write(initialOutput);
 let status = page.dataset.processStatus || "", revision = Number(page.dataset.processRevision || 0), frame = 0;
 let control: ControlSession | null = null, controlGeneration = 0;
+let controlConnecting = false;
 let ctrlNext = false, altNext = false;
 let transportMessage = "";
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
@@ -87,7 +88,10 @@ async function resync() {
 }
 
 if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-signal]").forEach(button => button.addEventListener("click", async () => {
-  try { await control?.send({ type: "process.signal", id: processId, signal: button.dataset.signal as "INT" | "TERM" | "KILL" }); }
+  try {
+    if (!control) throw new Error("Control session reconnecting");
+    await control.send({ type: "process.signal", id: processId, signal: button.dataset.signal as "INT" | "TERM" | "KILL" });
+  }
   catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
 }));
 
@@ -101,6 +105,8 @@ if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-terminal-ke
 
 async function connectEncrypted() {
   if (!live || !interactive || !encrypted) return;
+  if (controlConnecting) return;
+  controlConnecting = true;
   const generation = ++controlGeneration; control?.close(); control = null;
   try {
     const next = await openControlSession(page.dataset.deviceId || "", showTransport);
@@ -125,6 +131,7 @@ async function connectEncrypted() {
       await next.send({ type: "process.start", id: processId, command: start.command, cwd: start.cwd, terminal: start.terminal });
     } else await next.send({ type: "process.attach", id: processId });
   } catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
+  finally { if (generation === controlGeneration) controlConnecting = false; }
 }
 
 if (live) onEvent(event => {
