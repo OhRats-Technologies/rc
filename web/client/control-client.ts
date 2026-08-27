@@ -13,8 +13,14 @@ export function bytesToB64url(bytes: ArrayBuffer | Uint8Array) {
 }
 
 export function b64urlToBytes(value: string) {
+  if (!/^[A-Za-z0-9_-]*$/.test(value) || value.length % 4 === 1) throw new Error("Invalid base64url data");
   const base64 = value.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - value.length % 4) % 4);
-  return Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+  try { return Uint8Array.from(atob(base64), char => char.charCodeAt(0)); }
+  catch { throw new Error("Invalid base64url data"); }
+}
+
+export async function importEd25519VerifyKey(value: string) {
+  return await crypto.subtle.importKey("raw", b64urlToBytes(value), { name: "Ed25519" }, false, ["verify"]);
 }
 
 function db() {

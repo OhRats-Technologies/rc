@@ -1,6 +1,6 @@
 import { api } from "./http";
 import { controlChallenge, controlOpen } from "./control-api";
-import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, pinDevice } from "./control-client";
+import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, importEd25519VerifyKey, pinDevice } from "./control-client";
 import type { ControlTransport } from "./control-transport";
 import { openWebRTCControlTransport } from "./control-webrtc";
 import type { ControlTransportStatus } from "./control-webrtc";
@@ -9,10 +9,6 @@ import type { Device } from "../types";
 type SessionMessage = { type: string; [key: string]: unknown };
 type Listener = (message: SessionMessage) => void;
 
-function pemBytes(value: string) {
-  const base64 = value.replace(/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s/g, "");
-  return Uint8Array.from(atob(base64), char => char.charCodeAt(0));
-}
 function nonce(direction: number, sequence: number) {
   const value = new Uint8Array(12); value[0] = direction;
   new DataView(value.buffer).setBigUint64(4, BigInt(sequence)); return value;
@@ -124,7 +120,7 @@ export async function openControlSession(deviceId: string, onTransportStatus: (s
   const signature = bytesToB64url(await crypto.subtle.sign("Ed25519", identity.privateKey, new TextEncoder().encode(payload)));
   const ready = await controlOpen({ deviceId, challenge, clientId: identity.id, publicKey, signature });
   if (ready.transportPublicKey !== expectedTransport || !ready.ephemeralPublicKey) throw new Error("RC Node transport identity changed.");
-  const deviceKey = await crypto.subtle.importKey("spki", pemBytes(identityKey), { name: "Ed25519" }, false, ["verify"]);
+  const deviceKey = await importEd25519VerifyKey(identityKey);
   const verified = await crypto.subtle.verify("Ed25519", deviceKey, b64urlToBytes(ready.signature),
     new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey, ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId)));
   if (!verified) throw new Error("RC Node handshake signature failed.");

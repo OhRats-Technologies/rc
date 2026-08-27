@@ -29,7 +29,7 @@ pub fn enroll(context: &PageContext, selected: &str) -> String {
         "<p class=\"empty-state\">You need to own a workspace before enrolling a device.</p>".into()
     } else {
         format!(
-            "<form data-enrollment-form class=\"simple-form\"><label>Workspace<select name=\"workspaceId\">{}</select></label><button class=\"or-button\" type=\"submit\">CREATE INSTALL COMMAND</button></form><div class=\"enrollment-command\"><span class=\"meta\">INSTALL COMMAND · SHOWN ONCE</span><pre data-enrollment-result></pre><p id=\"enrollment-state\" class=\"meta\"></p></div>",
+            "<form data-enrollment-form class=\"simple-form\"><label>Workspace<select name=\"workspaceId\">{}</select></label><button class=\"or-button\" type=\"submit\">CREATE INSTALL COMMAND</button></form><div class=\"enrollment-command\"><span class=\"meta\">INSTALL COMMAND · SHOWN ONCE</span><div class=\"or-copy-field enrollment-install\" data-enrollment-copy-field hidden><code data-enrollment-result></code><button class=\"or-copy-button\" type=\"button\" aria-label=\"Copy install command\" data-enrollment-copy><span class=\"or-copy-icon\" aria-hidden=\"true\"></span></button></div><p class=\"error\" role=\"alert\" data-enrollment-error></p><p id=\"enrollment-state\" class=\"meta\"></p></div>",
             options
         )
     };

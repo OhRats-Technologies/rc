@@ -16,6 +16,7 @@
     "build": "rm -rf dist && bun run build:client",
     "start": "cargo run --release -p rc-server",
     "typecheck": "tsc --noEmit",
+    "test:web": "bun test web/client/control-client.test.ts",
     "test": "cargo test --workspace --all-targets",
     "smoke:webview": "bun scripts/webview-smoke.ts"
   },

@@ -33,6 +33,14 @@ let control: ControlSession | null = null, controlGeneration = 0;
 let controlConnecting = false;
 let ctrlNext = false, altNext = false;
 let transportMessage = "", reconnectTimer = 0;
+const clientAlert = qs<HTMLElement>("#process-client-alert"), clientError = qs<HTMLElement>("#process-client-error");
+function reportClientError(error: unknown) {
+  clientError.textContent = error instanceof Error ? error.message : String(error);
+  clientAlert.hidden = false;
+}
+document.querySelector<HTMLButtonElement>("[data-process-error-dismiss]")?.addEventListener("click", () => {
+  clientError.textContent = ""; clientAlert.hidden = true;
+});
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
 fitTerminal(); const observer = new ResizeObserver(fitTerminal); observer.observe(host);
 
@@ -56,6 +64,7 @@ function showTransport(status: ControlTransportStatus) {
   element.title = status.reason || "WebRTC DataChannel";
   if (status.phase === "failed" && status.reason) {
     transportMessage = `WebRTC unavailable: ${status.reason}`;
+    reportClientError(transportMessage);
     clearTimeout(reconnectTimer); reconnectTimer = window.setTimeout(() => { control?.close(); control = null; void connectControl(); }, 1000);
   } else if (status.phase === "connected") { clearTimeout(reconnectTimer); transportMessage = ""; }
   const message = qs<HTMLElement>("#process-message");
@@ -107,7 +116,7 @@ if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-signal]").f
     if (!control) throw new Error("Control session reconnecting");
     await control.send({ type: "process.signal", id: processId, signal: button.dataset.signal as "INT" | "TERM" | "KILL" });
   }
-  catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
+  catch (error) { reportClientError(error); }
 }));
 
 const keyValues: Record<string, string> = { ESC: "\x1b", TAB: "\t", LEFT: "\x1b[D", UP: "\x1b[A", DOWN: "\x1b[B", RIGHT: "\x1b[C" };
@@ -128,14 +137,18 @@ async function connectControl() {
     if (generation !== controlGeneration) { next.close(); return; }
     control = next;
     next.onMessage(message => {
-      if (String(message.id || "") !== processId && !["control.result"].includes(message.type)) return;
-      if (message.type === "process.stdout" && message.data) terminal.write(b64urlToBytes(String(message.data)));
-      if (message.type === "process.stderr" && message.data) terminal.write(b64urlToBytes(String(message.data)));
-      if (message.type === "process.started") { status = "running"; qs<HTMLElement>("#process-state").textContent = "RUNNING"; }
-      if (message.type === "process.exit") {
-        status = "exited"; const signal = String(message.signal || ""), exitCode = Number(message.exitCode ?? -1);
-        qs<HTMLElement>("#process-state").textContent = signal || `EXIT ${exitCode}`;
-        const actions = document.querySelector<HTMLElement>("#terminal-actions"); if (actions) actions.hidden = true;
+      try {
+        if (String(message.id || "") !== processId && !["control.result"].includes(message.type)) return;
+        if (message.type === "process.stdout" && message.data) terminal.write(b64urlToBytes(String(message.data)));
+        if (message.type === "process.stderr" && message.data) terminal.write(b64urlToBytes(String(message.data)));
+        if (message.type === "process.started") { status = "running"; qs<HTMLElement>("#process-state").textContent = "RUNNING"; }
+        if (message.type === "process.exit") {
+          status = "exited"; const signal = String(message.signal || ""), exitCode = Number(message.exitCode ?? -1);
+          qs<HTMLElement>("#process-state").textContent = signal || `EXIT ${exitCode}`;
+          const actions = document.querySelector<HTMLElement>("#terminal-actions"); if (actions) actions.hidden = true;
+        }
+      } catch (error) {
+        reportClientError(error); control?.close(); control = null;
       }
     });
     const key = `rc_process_start_${processId}`, raw = sessionStorage.getItem(key);
@@ -148,13 +161,13 @@ async function connectControl() {
       terminal.reset();
       await next.send({ type: "process.attach", id: processId });
     }
-  } catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
+  } catch (error) { reportClientError(error); }
   finally { if (generation === controlGeneration) controlConnecting = false; }
 }
 
 if (live) onEvent(event => {
-  if (event.kind === "rc.connected") { void resync(); return; }
-  if (event.kind === "device.online" && event.deviceId === page.dataset.deviceId) { void resync().then(connectControl); return; }
+  if (event.kind === "rc.connected") { void resync().catch(reportClientError); return; }
+  if (event.kind === "device.online" && event.deviceId === page.dataset.deviceId) { void resync().then(connectControl).catch(reportClientError); return; }
   if (event.processId !== processId) return;
   if (["process.started", "process.exited", "process.lost"].includes(event.kind)) applyProcessEvent(event);
 });

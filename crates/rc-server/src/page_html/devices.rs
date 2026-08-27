@@ -211,7 +211,7 @@ pub fn process(
         message
     };
     let body = format!(
-        "<div class=\"page process-page\" data-process-page=\"{}\" data-device-id=\"{}\" data-process-status=\"{}\" data-process-live=\"{}\" data-process-interactive=\"{}\"><header class=\"page-header process-header\"><div><p class=\"eyebrow\"><a href=\"/devices/{}\">{}</a> / PROCESS</p><h1 class=\"mono process-title\">{}</h1><p class=\"meta\">{} · STARTED BY {} · {}</p></div><span id=\"process-state\" class=\"status{}\">{}</span></header><div id=\"terminal-toolbar\" class=\"terminal-toolbar\"><span class=\"terminal-label\">{}/{}{} </span>{}</div>{}<p id=\"process-message\" class=\"meta process-message\">{}</p></div>",
+        "<div class=\"page process-page\" data-process-page=\"{}\" data-device-id=\"{}\" data-process-status=\"{}\" data-process-live=\"{}\" data-process-interactive=\"{}\"><header class=\"page-header process-header\"><div><p class=\"eyebrow\"><a href=\"/devices/{}\">{}</a> / PROCESS</p><h1 class=\"mono process-title\">{}</h1><p class=\"meta\">{} · STARTED BY {} · {}</p></div><span id=\"process-state\" class=\"status{}\">{}</span></header><div id=\"terminal-toolbar\" class=\"terminal-toolbar\"><span class=\"terminal-label\">{}/{}{} </span>{}</div>{}<div id=\"process-client-alert\" class=\"process-client-alert\" hidden><p id=\"process-client-error\" class=\"error\" role=\"alert\" aria-live=\"polite\"></p><button class=\"text-button\" type=\"button\" data-process-error-dismiss>DISMISS</button></div><p id=\"process-message\" class=\"meta process-message\">{}</p></div>",
         esc(&id),
         esc(&device_id),
         esc(&status),

@@ -21,13 +21,24 @@ document.querySelectorAll<HTMLFormElement>("[data-enrollment-form]").forEach(for
   event.preventDefault();
   const workspaceId = String(new FormData(form).get("workspaceId") || "");
   const output = document.querySelector<HTMLElement>("[data-enrollment-result]");
+  const field = document.querySelector<HTMLElement>("[data-enrollment-copy-field]");
+  const error = document.querySelector<HTMLElement>("[data-enrollment-error]");
   const button = form.querySelector<HTMLButtonElement>("button"); if (button) button.disabled = true;
+  if (error) error.textContent = "";
   try {
     const result = await api<{ install: string; expiresAt: number }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/enrollments`, { method: "POST", body: "{}" });
     if (output) output.textContent = result.install;
+    if (field) field.hidden = false;
   } catch (error) {
-    if (output) output.textContent = error instanceof Error ? error.message : String(error);
+    if (field) field.hidden = true;
+    const message = error instanceof Error ? error.message : String(error);
+    const errorOutput = document.querySelector<HTMLElement>("[data-enrollment-error]"); if (errorOutput) errorOutput.textContent = message;
   } finally { if (button) button.disabled = false; }
+}));
+
+document.querySelectorAll<HTMLButtonElement>("[data-enrollment-copy]").forEach(button => button.addEventListener("click", () => {
+  const value = document.querySelector<HTMLElement>("[data-enrollment-result]")?.textContent || "";
+  if (value) void copyText(value, button);
 }));
 
 document.querySelectorAll<HTMLFormElement>('form[action$="/invites"]').forEach(form => form.addEventListener("submit", async event => {

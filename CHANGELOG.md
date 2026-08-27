@@ -11,6 +11,9 @@ All notable RC changes are recorded here. Published tags are immutable.
 - Refreshed the lockfile from yanked `chacha20` 0.10.1 to 0.10.2 so RustSec audit remains clean.
 - Fixed first-instance setup authorization so the hashed setup cookie is accepted instead of being hashed a second time and rejected.
 - Redirected `/login` to first-instance setup when no user exists and replaced the terse `409 no passkeys registered` response with an actionable authentication error for direct API callers.
+- Imported Node Ed25519 identities as raw base64url keys in the browser, preventing intermittent terminal handshake `atob` failures.
+- Kept terminal client and transport errors visible across live resyncs with an explicit dismiss action.
+- Added the standard copy affordance to one-time device enrollment commands.
 
 ## [0.16.0] - 2026-08-27
 

@@ -256,6 +256,9 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .terminal-host { flex:1; min-width:0; min-height:0; height:auto; padding:10px 0; overflow:hidden; }
 .terminal-host .xterm { height:100%; max-width:100%; }
 .process-message { flex:none; min-height:1.2rem; margin-top:.3rem; }
+.process-client-alert { flex:none; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:.65rem 0; border-bottom:1px solid var(--or-border); }
+.process-client-alert[hidden] { display:none; }
+.process-client-alert .error { margin:0; overflow-wrap:anywhere; }
 .mobile-terminal-keys { flex:none; display:none; grid-template-columns:repeat(8,minmax(38px,1fr)); gap:4px; padding-top:8px; }
 .mobile-terminal-keys button { min-height:36px; border:1px solid var(--or-border); background:var(--or-surface); color:var(--or-text-muted); font-family:var(--or-font-mono); font-size:.62rem; cursor:pointer; }
 .mobile-terminal-keys button.active { background:var(--or-text); color:var(--or-bg); }

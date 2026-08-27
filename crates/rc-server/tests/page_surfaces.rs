@@ -52,6 +52,8 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
                 "process-terminal.js",
                 "process-terminal.css",
                 "data-process-interactive=\"true\"",
+                "id=\"process-client-error\"",
+                "data-process-error-dismiss",
             ],
         ),
         (
@@ -88,6 +90,7 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
             vec![
                 "data-enrollment-form",
                 "data-enrollment-result",
+                "data-enrollment-copy",
                 "pages.js",
                 "live.js",
             ],
