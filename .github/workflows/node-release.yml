@@ -62,103 +62,60 @@ jobs:
           echo "timed out waiting for successful CI on $GITHUB_SHA" >&2
           exit 1
 
-  build:
-    needs: verify
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            os: linux
-            arch: amd64
-          - runner: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            os: linux
-            arch: arm64
-          - runner: macos-15
-            target: aarch64-apple-darwin
-            os: darwin
-            arch: arm64
-          - runner: macos-15
-            target: x86_64-apple-darwin
-            os: darwin
-            arch: amd64
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: ${{ matrix.target }}
-      - name: Verify Rust target
-        env:
-          TARGET: ${{ matrix.target }}
-        run: rustup target list --installed | grep -Fx "$TARGET"
-      - name: Cache Rust release build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-${{ matrix.target }}-release-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.target }}-release-
-      - uses: mlugg/setup-zig@v2
-        if: runner.os == 'Linux'
-        with:
-          version: "0.16.0"
-      - name: Cache cargo-zigbuild
-        if: runner.os == 'Linux'
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-zigbuild
-          key: ${{ runner.os }}-cargo-zigbuild-0.23.2
-      - name: Install cargo-zigbuild
-        if: runner.os == 'Linux'
-        run: command -v cargo-zigbuild >/dev/null || cargo install cargo-zigbuild --version 0.23.2 --locked
-      - name: Build RC on Linux
-        if: runner.os == 'Linux'
-        env:
-          RUSTFLAGS: -D warnings -A linker-messages
-        run: cargo zigbuild --locked --release -p rc-cli --features vendored-openssl --target ${{ matrix.target }}
-      - name: Build RC on macOS
-        if: runner.os == 'macOS'
-        env:
-          RUSTFLAGS: -D warnings
-        run: cargo build --locked --release -p rc-cli --features vendored-openssl --target ${{ matrix.target }}
-      - name: Package RC
-        env:
-          TARGET: ${{ matrix.target }}
-          OS: ${{ matrix.os }}
-          ARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p dist/package
-          cp "target/$TARGET/release/rc" dist/package/rc
-          chmod 0755 dist/package/rc
-          tar -C dist/package -czf "dist/rc-$OS-$ARCH.tar.gz" rc
-      - uses: actions/upload-artifact@v7
-        with:
-          name: rc-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/rc-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
-          if-no-files-found: error
-
   publish:
-    needs: build
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: rc-*
-          path: dist
-          merge-multiple: true
+      - name: Download exact-SHA release assets
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deadline=$(( $(date +%s) + 2400 ))
+          run_id=""
+          ready=0
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            run="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/release-prebuild.yml/runs" \
+              -f branch=main \
+              -f event=push \
+              -f head_sha="$GITHUB_SHA" \
+              -f per_page=10 \
+              --jq '.workflow_runs | if length == 0 then "" else (sort_by(.run_number) | last | [.id, .status, (.conclusion // "pending"), .html_url] | map(tostring) | join("|")) end')"
+            if [ -n "$run" ]; then
+              run_id=${run%%|*}
+              rest=${run#*|}
+              asset_status=${rest%%|*}
+              rest=${rest#*|}
+              conclusion=${rest%%|*}
+              url=${rest#*|}
+              case "$asset_status:$conclusion" in
+                completed:success)
+                  echo "release assets passed for $GITHUB_SHA: $url"
+                  ready=1
+                  break
+                  ;;
+                completed:*)
+                  echo "release assets did not pass for $GITHUB_SHA ($conclusion): $url" >&2
+                  exit 1
+                  ;;
+                *)
+                  echo "waiting for release assets on $GITHUB_SHA ($asset_status): $url"
+                  ;;
+              esac
+            else
+              echo "waiting for release assets to start on $GITHUB_SHA"
+            fi
+            sleep 15
+          done
+          test "$ready" -eq 1 || { echo "timed out waiting for successful release assets on $GITHUB_SHA" >&2; exit 1; }
+          mkdir -p dist
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'rc-*' --dir dist
+          find dist -mindepth 2 -maxdepth 2 -name 'rc-*.tar.gz' -exec mv {} dist/ \;
+          find dist -mindepth 1 -type d -empty -delete
       - name: Validate release assets
         run: |
           test "$(find dist -maxdepth 1 -name 'rc-*.tar.gz' | wc -l)" -eq 4

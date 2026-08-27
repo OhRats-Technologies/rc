@@ -1,0 +1,89 @@
+name: RC release assets
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rc-release-assets-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            os: linux
+            arch: amd64
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            os: linux
+            arch: arm64
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            os: darwin
+            arch: arm64
+          - runner: macos-15
+            target: x86_64-apple-darwin
+            os: darwin
+            arch: amd64
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: ${{ matrix.target }}
+      - name: Verify Rust target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target list --installed | grep -Fx "$TARGET"
+      - name: Restore release build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.target }}
+          add-job-id-key: false
+          cache-workspace-crates: true
+      - uses: mlugg/setup-zig@v2
+        if: runner.os == 'Linux'
+        with:
+          version: "0.16.0"
+      - name: Install cargo-zigbuild
+        if: runner.os == 'Linux'
+        run: command -v cargo-zigbuild >/dev/null || cargo install cargo-zigbuild --version 0.23.2 --locked
+      - name: Build RC on Linux
+        if: runner.os == 'Linux'
+        env:
+          RUSTFLAGS: -D warnings -A linker-messages
+        run: cargo zigbuild --locked --release -p rc-cli --features vendored-openssl --target ${{ matrix.target }}
+      - name: Build RC on macOS
+        if: runner.os == 'macOS'
+        env:
+          RUSTFLAGS: -D warnings
+        run: cargo build --locked --release -p rc-cli --features vendored-openssl --target ${{ matrix.target }}
+      - name: Package RC
+        env:
+          TARGET: ${{ matrix.target }}
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p dist/package
+          cp "target/$TARGET/release/rc" dist/package/rc
+          chmod 0755 dist/package/rc
+          tar -C dist/package -czf "dist/rc-$OS-$ARCH.tar.gz" rc
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rc-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/rc-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          if-no-files-found: error
+          retention-days: 7
