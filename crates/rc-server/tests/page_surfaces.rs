@@ -13,6 +13,7 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
     let ids = seed(&db_path)?;
     let application = app(state);
     let cookie = format!("rc_session={}", ids.session);
+    let oauth_path = "/oauth/authorize?client_id=surface-mcp-client&redirect_uri=http%3A%2F%2Flocalhost%2Fcallback&response_type=code&code_challenge=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa&code_challenge_method=S256&resource=http%3A%2F%2Flocalhost%2Fmcp&scope=mcp%3Aobserve+mcp%3Aterminal&state=surface";
 
     for (path, required) in [
         (
@@ -87,6 +88,15 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
                 "data-cli-client",
                 "AUTHORIZE CLI",
                 "cli-authorize.js",
+            ],
+        ),
+        (
+            oauth_path,
+            vec![
+                "<main class=\"auth-shell\"",
+                "data-mcp-request",
+                "Connect Surface MCP",
+                "mcp-authorize.js",
             ],
         ),
     ] {

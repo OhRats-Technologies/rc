@@ -2113,7 +2113,7 @@ dependencies = [
 
 [[package]]
 name = "rc-cli"
-version = "0.16.0-alpha.1"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "rc-server"
-version = "0.16.0-alpha.1"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "axum",
