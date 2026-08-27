@@ -15,19 +15,19 @@ import (
 )
 
 type managedProcess struct {
-	cmd          *exec.Cmd
-	terminal     *os.File
-	stdin        io.WriteCloser
-	stdout       io.ReadCloser
-	stderr       io.ReadCloser
-	lifeline     *os.File
-	captures     sync.WaitGroup
-	sessionID    string
-	userID       string
-	secure       bool
-	edgeSession  string
-	backlog      []wireMessage
-	backlogBytes int
+	cmd             *exec.Cmd
+	terminal        *os.File
+	stdin           io.WriteCloser
+	stdout          io.ReadCloser
+	stderr          io.ReadCloser
+	lifeline        *os.File
+	captures        sync.WaitGroup
+	sessionID       string
+	userID          string
+	secure          bool
+	edgeSession     string
+	scrollback      []wireMessage
+	scrollbackBytes int
 }
 
 type processManager struct {
@@ -95,12 +95,12 @@ func (manager *processManager) attach(send func(wireMessage) error) {
 	manager.pending = nil
 	manager.pendingBytes = 0
 	manager.mu.Unlock()
+	for _, message := range pending {
+		manager.sendMessage(message)
+	}
 	manager.sendMessage(wireMessage{Type: "process.sync", ProcessIDs: &active})
 	for _, id := range active {
 		manager.sendMessage(wireMessage{Type: "process.started", ID: id})
-	}
-	for _, message := range pending {
-		manager.sendMessage(message)
 	}
 }
 

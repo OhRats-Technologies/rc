@@ -1,15 +1,24 @@
 import { authoritySnapshot, canonicalAuthority } from "./authority";
 import { controlProof, verifyClientSignature } from "./control-auth";
-import { canOperate, deviceRole, logEvent } from "./core";
+import { canOperate, deviceRole } from "./core";
 import { q } from "./db";
 import type { AgentClientMessage, AgentServerMessage, BrowserServerMessage } from "./protocol";
-import { controlIceServers } from "./webrtc";
+import { controlIceServers, type IceServer } from "./webrtc";
 
 type RelaySocket = { send(data: string): unknown };
 type Sender = (deviceId: string, message: AgentServerMessage) => boolean;
 let sendAgent: Sender = () => false;
-const pending = new Map<string, { socket: RelaySocket; deviceId: string; kind: "challenge" | "open" | "webrtc" }>();
-const sessions = new Map<string, { socket: RelaySocket; deviceId: string }>();
+type PendingRequest =
+  | { socket: RelaySocket; deviceId: string; kind: "challenge" | "webrtc" }
+  | { socket: RelaySocket; deviceId: string; kind: "open"; iceServers: IceServer[] };
+const pending = new Map<string, PendingRequest>();
+const sessions = new Map<string, { socket: RelaySocket; deviceId: string; iceServers: IceServer[] }>();
+const transportDiagnostics = new Map<string, { deviceId: string; userId: string; detail: Record<string, unknown>; at: number }>();
+const MAX_TRANSPORT_DIAGNOSTICS = 256;
+
+export function recentControlTransport(deviceId: string) {
+  return [...transportDiagnostics.values()].filter(item => item.deviceId === deviceId).sort((a, b) => b.at - a.at)[0] || null;
+}
 
 export function registerAgentSender(sender: Sender) { sendAgent = sender; }
 function browserSend(socket: RelaySocket, value: BrowserServerMessage) { try { socket.send(JSON.stringify(value)); } catch {} }
@@ -25,13 +34,14 @@ export function requestControlChallenge(userId: string, deviceId: string, reques
   }
 }
 
-export function requestControlOpen(userId: string, input: any, socket: RelaySocket, apiKeyId: string | null = null) {
+export async function requestControlOpen(userId: string, input: any, socket: RelaySocket, apiKeyId: string | null = null) {
   const deviceId = String(input.deviceId || ""), requestId = String(input.requestId || ""), clientId = String(input.clientId || "");
   if (!canOperate(deviceRole(userId, deviceId))) throw new Error("operator required");
   const proof = apiKeyId ? null : controlProof(userId, clientId);
   if (apiKeyId && apiKeyId !== clientId) throw new Error("API control key mismatch");
   if (!apiKeyId && !proof) throw new Error("control client authorization expired");
-  pending.set(requestId, { socket, deviceId, kind: "open" });
+  const iceServers = await controlIceServers();
+  pending.set(requestId, { socket, deviceId, kind: "open", iceServers });
   const sent = sendAgent(deviceId, { type: "control.open", requestId, challenge: String(input.challenge || ""), clientId,
     grant: proof?.grant || "", credentialId: proof?.credentialId || "", assertion: proof?.assertion || "",
     publicKey: String(input.publicKey || ""), signature: String(input.signature || "") });
@@ -44,7 +54,7 @@ export function requestControlWebRTC(userId: string, input: any, socket: RelaySo
     throw new Error("control session unavailable");
   }
   pending.set(requestId, { socket, deviceId: session.deviceId, kind: "webrtc" });
-  if (!sendAgent(session.deviceId, { type: "control.webrtc", requestId, sessionId, sdp: String(input.sdp || ""), iceServers: controlIceServers() })) {
+  if (!sendAgent(session.deviceId, { type: "control.webrtc", requestId, sessionId, sdp: String(input.sdp || ""), iceServers: session.iceServers })) {
     pending.delete(requestId); throw new Error("device is offline");
   }
 }
@@ -58,8 +68,7 @@ export function relayControlFrame(userId: string, input: any, socket: RelaySocke
 export function reportControlTransport(userId: string, input: any, socket: RelaySocket) {
   const sessionId = String(input.sessionId || ""), session = sessions.get(sessionId);
   if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) return;
-  const workspaceId = q<{ workspace_id: string }>("SELECT workspace_id FROM devices WHERE id=?").get(session.deviceId)?.workspace_id || null;
-  logEvent("control.transport", workspaceId, userId, session.deviceId, {
+  const detail = {
     transport: input.transport,
     reason: input.reason || null,
     iceState: input.iceState || null,
@@ -67,7 +76,9 @@ export function reportControlTransport(userId: string, input: any, socket: Relay
     localCandidates: input.localCandidates || null,
     remoteCandidates: input.remoteCandidates || null,
     selected: input.selected || null,
-  });
+  };
+  transportDiagnostics.set(sessionId, { deviceId: session.deviceId, userId, detail, at: Date.now() });
+  while (transportDiagnostics.size > MAX_TRANSPORT_DIAGNOSTICS) transportDiagnostics.delete(transportDiagnostics.keys().next().value!);
 }
 
 export function closeControlSession(input: any, socket: RelaySocket) {
@@ -124,10 +135,10 @@ export function handleControlAgentMessage(deviceId: string, message: AgentClient
   }
   if (message.type === "control.ready") {
     const request = pending.get(message.requestId); if (!request || request.deviceId !== deviceId || request.kind !== "open") return true;
-    pending.delete(message.requestId); sessions.set(message.sessionId, { socket: request.socket, deviceId });
+    pending.delete(message.requestId); sessions.set(message.sessionId, { socket: request.socket, deviceId, iceServers: request.iceServers });
     browserSend(request.socket, { type: "response", requestId: message.requestId, ok: true,
       result: { sessionId: message.sessionId, transportPublicKey: message.transportPublicKey,
-        ephemeralPublicKey: message.ephemeralPublicKey, signature: message.signature, iceServers: controlIceServers() } }); return true;
+        ephemeralPublicKey: message.ephemeralPublicKey, signature: message.signature, iceServers: request.iceServers } }); return true;
   }
   if (message.type === "control.webrtc.ready") {
     const request = pending.get(message.requestId); if (!request || request.deviceId !== deviceId || request.kind !== "webrtc") return true;

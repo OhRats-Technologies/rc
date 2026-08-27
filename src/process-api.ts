@@ -1,20 +1,13 @@
 import { canOperate, deviceRole, logEvent, type Role } from "./core";
 import { id, now, q } from "./db";
 import { isOnline } from "./gateway";
-import { markProcessLost, processJSON, processRow, workspaceForDevice } from "./process-store";
+import { markProcessLost, processJSON, processRow, workspaceForDevice, type ProcessOrigin } from "./process-store";
 import { HttpError } from "./errors";
 import { publishEvent } from "./events";
 
-export type StartProcessInput = { deviceId: string; command: string; cwd?: string; cols: number; rows: number };
-export type AllocateProcessInput = { deviceId: string; terminal?: boolean; cols: number; rows: number };
-export type ProcessInput = { processId: string; data: string };
-export type ProcessResize = { processId: string; cols: number; rows: number };
-export type ProcessSignal = { processId: string; signal: "INT" | "TERM" | "KILL" };
-
-function boundedSize(value: unknown, fallback: number) {
-  const number = Number(value);
-  return Number.isInteger(number) && number >= 2 && number <= 500 ? number : fallback;
-}
+export type AllocateProcessInput = {
+  deviceId: string; origin?: Extract<ProcessOrigin, "browser" | "cli" | "api">; terminal?: boolean;
+};
 
 function processAccess(userId: string, processId: string) {
   const process = processRow(processId);
@@ -28,32 +21,15 @@ function canControl(role: Role, userId: string, process: any) {
   return role === "owner" || (role === "operator" && process.created_by === userId);
 }
 
-export function startProcess(userId: string, input: StartProcessInput) {
-  void userId; void input;
-  throw new HttpError(426, "end-to-end control client required");
-}
-
 export function allocateProcess(userId: string, input: AllocateProcessInput) {
   const deviceId = input.deviceId, role = deviceRole(userId, deviceId);
   if (!canOperate(role)) throw new HttpError(403, "operator required");
   if (!isOnline(deviceId)) throw new HttpError(409, "device is offline");
-  const cols = boundedSize(input.cols, 80), rows = boundedSize(input.rows, 24), processId = id(), t = now();
-  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,terminal,cols,rows,created_by,created_at)
-    VALUES(?,?,?,NULL,'starting',1,?,?,?,?,?)`).run(processId, deviceId, "[encrypted]", input.terminal ? 1 : 0, cols, rows, userId, t);
-  logEvent("process.created", workspaceForDevice(deviceId), userId, deviceId, { processId, encrypted: true });
+  const processId = id(), t = now(), origin = input.origin || "api";
+  q(`INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at)
+    VALUES(?,?,?,'starting',?,?,?)`).run(processId, deviceId, origin, input.terminal ? 1 : 0, userId, t);
+  logEvent("process.created", workspaceForDevice(deviceId), userId, deviceId, { processId, origin, terminal: Boolean(input.terminal) });
   return { processId };
-}
-
-export function inputProcess(userId: string, input: ProcessInput) {
-  void userId; void input; throw new HttpError(426, "end-to-end control client required");
-}
-
-export function resizeRemoteProcess(userId: string, input: ProcessResize) {
-  void userId; void input; throw new HttpError(426, "end-to-end control client required");
-}
-
-export function signalProcess(userId: string, input: ProcessSignal) {
-  void userId; void input; throw new HttpError(426, "end-to-end control client required");
 }
 
 export function listProcesses(userId: string, deviceId: string) {
@@ -72,11 +48,11 @@ export function getProcess(userId: string, processId: string) {
 setInterval(() => {
   const cutoff = now() - 60_000;
   const stale = q<{ id: string; device_id: string }>(
-    "SELECT id,device_id FROM processes WHERE encrypted=1 AND status='starting' AND created_at<?"
+    "SELECT id,device_id FROM processes WHERE origin IN ('browser','cli','api','control') AND status='starting' AND created_at<?"
   ).all(cutoff);
   for (const process of stale) {
-    markProcessLost(process.id, "encrypted process was not acknowledged by the RC Node");
-    publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(process.device_id), deviceId: process.device_id,
-      processId: process.id, detail: { error: "encrypted process was not acknowledged by the RC Node" } });
+    const error = "encrypted process was not acknowledged by the RC Node";
+    markProcessLost(process.id, error);
+    publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(process.device_id), deviceId: process.device_id, processId: process.id, detail: { error } });
   }
 }, 30_000).unref();

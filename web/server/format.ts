@@ -23,19 +23,26 @@ export function processState(process: { status: string; signal?: string | null; 
   return process.signal || `EXIT ${process.exit_code ?? "?"}`;
 }
 
-export const LOGIN_SHELL_COMMAND = 'exec "${SHELL:-sh}" -l';
-export function processLabel(command: string) {
-  if (command === "[encrypted]") return "Encrypted terminal";
-  return command === LOGIN_SHELL_COMMAND ? "Terminal" : command;
+export function processOriginLabel(origin: string) {
+  switch (origin) {
+    case "browser": return "BROWSER";
+    case "cli": return "CLI";
+    case "api": return "API";
+    case "mcp": return "MCP";
+    case "ssh": return "SSH";
+    case "control": return "CONTROL";
+    default: return "LEGACY";
+  }
 }
 
-export function terminalFallback(value: string) {
-  return String(value || "")
-    .replace(/\x1B\][\s\S]*?(?:\x07|\x1B\\)/g, "")
-    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1B[()][0-2A-Z0-9]/g, "")
-    .replace(/\x1B[=>]/g, "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+export function processLabel(process: { origin: string; terminal?: boolean }) {
+  if (process.terminal) return "Terminal";
+  switch (process.origin) {
+    case "mcp": return "MCP process";
+    case "ssh": return "SSH process";
+    case "cli": return "CLI process";
+    case "api": return "API process";
+    case "browser": return "Browser process";
+    default: return "Process";
+  }
 }

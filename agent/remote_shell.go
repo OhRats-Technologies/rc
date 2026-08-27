@@ -35,7 +35,7 @@ func shellCommand(args []string) error {
 	if rows < 2 {
 		rows = 24
 	}
-	processID, err := startAccountProcess(*server, *token, device.ID, true, cols, rows)
+	processID, err := startAccountProcess(*server, *token, device.ID, true)
 	if err != nil {
 		return err
 	}

@@ -28,15 +28,9 @@ export interface Device {
 export interface RemoteProcess {
   id: string;
   device_id: string;
-  command: string;
-  encrypted?: boolean;
-  terminal?: boolean;
-  cwd: string | null;
+  origin: "browser" | "cli" | "api" | "mcp" | "ssh" | "control" | "legacy";
+  terminal: boolean;
   status: ProcessStatus;
-  output: string;
-  revision: number;
-  cols: number;
-  rows: number;
   exit_code: number | null;
   signal: string | null;
   error: string | null;

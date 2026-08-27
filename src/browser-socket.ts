@@ -37,9 +37,9 @@ export const browserSocketHandlers = {
       let result: unknown;
       switch (message.type) {
         case "ping": send(connection, { type: "pong" }); return;
-        case "process.allocate": requireScope(connection, "execute"); result = allocateProcess(userId, message); break;
+        case "process.allocate": requireScope(connection, "execute"); result = allocateProcess(userId, { ...message, origin: "browser" }); break;
         case "control.challenge": requireControlScope(connection); requestControlChallenge(userId, message.deviceId, requestId, connection.socket); return;
-        case "control.open": requireControlScope(connection); requestControlOpen(userId, message, connection.socket, connection.apiKeyId); return;
+        case "control.open": requireControlScope(connection); await requestControlOpen(userId, message, connection.socket, connection.apiKeyId); return;
         case "control.webrtc": requireControlScope(connection); requestControlWebRTC(userId, message, connection.socket); return;
         case "control.transport": requireControlScope(connection); reportControlTransport(userId, message, connection.socket); return;
         case "control.frame": requireControlScope(connection); relayControlFrame(userId, message, connection.socket); return;

@@ -10,9 +10,8 @@ import { b64urlToBytes, bytesToB64url } from "./control-client";
 import type { RemoteProcess } from "../types";
 
 const page = qs<HTMLElement>("[data-process-page]"), processId = page.dataset.processPage || "";
-const transcript = qs<HTMLElement>("#process-transcript"), source = qs<HTMLElement>("#process-terminal-source"), host = qs<HTMLElement>("#terminal-host");
-const live = page.dataset.processLive === "true", interactive = page.dataset.processInteractive === "true", encrypted = page.dataset.processEncrypted === "true";
-const encoded = source.textContent || "", bytes = Uint8Array.from(atob(encoded), value => value.charCodeAt(0)), initialOutput = new TextDecoder().decode(bytes);
+const transcript = qs<HTMLElement>("#process-transcript"), host = qs<HTMLElement>("#terminal-host");
+const live = page.dataset.processLive === "true", interactive = page.dataset.processInteractive === "true";
 const style = getComputedStyle(document.documentElement), color = (name: string) => style.getPropertyValue(name).trim();
 const terminal = new Terminal({ cursorBlink: interactive && page.dataset.processStatus === "running", disableStdin: !interactive, scrollback: 10_000,
   theme: { background: color("--or-bg"), foreground: color("--or-text"), cursor: color("--or-text"), selectionBackground: color("--or-surface-hover") } });
@@ -29,8 +28,7 @@ try {
   webgl?.dispose();
   webgl = null;
 }
-terminal.write(initialOutput);
-let status = page.dataset.processStatus || "", revision = Number(page.dataset.processRevision || 0), frame = 0;
+let status = page.dataset.processStatus || "", frame = 0;
 let control: ControlSession | null = null, controlGeneration = 0;
 let controlConnecting = false;
 let ctrlNext = false, altNext = false;
@@ -78,8 +76,7 @@ function stateText(process: RemoteProcess) {
 }
 async function resync() {
   const { process } = await api<{ process: RemoteProcess }>(`/api/v1/processes/${processId}`);
-  status = process.status; revision = Number(process.revision || 0);
-  if (!encrypted) { terminal.reset(); terminal.write(process.output || ""); }
+  status = process.status;
   terminal.options.cursorBlink = interactive && status === "running"; const state = qs<HTMLElement>("#process-state");
   state.textContent = stateText(process); state.classList.toggle("online", status === "running");
   const actions = document.querySelector<HTMLElement>("#terminal-actions");
@@ -121,8 +118,8 @@ if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-terminal-ke
   sendInput(keyValues[key] || ""); terminal.focus();
 }));
 
-async function connectEncrypted() {
-  if (!live || !interactive || !encrypted) return;
+async function connectControl() {
+  if (!interactive || !["starting", "running"].includes(status)) return;
   if (controlConnecting) return;
   controlConnecting = true;
   const generation = ++controlGeneration; control?.close(); control = null;
@@ -147,25 +144,21 @@ async function connectEncrypted() {
         command: string; cwd: string; terminal: { cols: number; rows: number; term?: string };
       };
       await next.send({ type: "process.start", id: processId, command: start.command, cwd: start.cwd, terminal: start.terminal });
-    } else await next.send({ type: "process.attach", id: processId });
+    } else {
+      terminal.reset();
+      await next.send({ type: "process.attach", id: processId });
+    }
   } catch (error) { qs<HTMLElement>("#process-message").textContent = error instanceof Error ? error.message : String(error); }
   finally { if (generation === controlGeneration) controlConnecting = false; }
 }
 
 if (live) onEvent(event => {
-  if (event.kind === "rc.connected") { if (encrypted) void connectEncrypted(); else void resync(); return; }
+  if (event.kind === "rc.connected") { void resync().then(connectControl); return; }
   if (event.processId !== processId) return;
-  if (["process.started", "process.exited", "process.lost"].includes(event.kind)) { applyProcessEvent(event); return; }
-  if (encrypted) return;
-  if (event.kind === "process.output" && event.detail?.chunk) {
-    const next = Number(event.detail.revision || 0);
-    if (!revision || next === revision + 1) { terminal.write(String(event.detail.chunk)); revision = next; }
-    else void resync();
-    return;
-  }
+  if (["process.started", "process.exited", "process.lost"].includes(event.kind)) applyProcessEvent(event);
 });
 
-if (encrypted) void connectEncrypted();
+void connectControl();
 
 addEventListener("pagehide", () => {
   controlGeneration++; control?.close(); observer.disconnect(); cancelAnimationFrame(frame); webgl?.dispose(); terminal.dispose();

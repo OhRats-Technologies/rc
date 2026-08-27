@@ -23,10 +23,7 @@ const IceCandidateSummarySchema = t.Object({
 
 export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("ping") }),
-  t.Object({
-    type: t.Literal("process.allocate"), requestId: RequestId, deviceId: DeviceId, terminal: t.Optional(t.Boolean()),
-    cols: TerminalSize, rows: TerminalSize,
-  }),
+  t.Object({ type: t.Literal("process.allocate"), requestId: RequestId, deviceId: DeviceId, terminal: t.Optional(t.Boolean()) }),
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId, deviceId: DeviceId }),
   t.Object({ type: t.Literal("control.open"), requestId: RequestId, deviceId: DeviceId, challenge: t.String(),
     clientId: t.String(), publicKey: t.String(), signature: t.String() }),

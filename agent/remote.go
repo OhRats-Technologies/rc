@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 )
 
 func resolveAccountDevice(server, token, value string) (accountDevice, error) {
@@ -33,8 +32,8 @@ func resolveAccountDevice(server, token, value string) (accountDevice, error) {
 	return accountDevice{}, fmt.Errorf("device %q is ambiguous", value)
 }
 
-func startAccountProcess(server, token, deviceID string, terminal bool, cols, rows int) (string, error) {
-	body := map[string]any{"terminal": terminal, "cols": cols, "rows": rows}
+func startAccountProcess(server, token, deviceID string, terminal bool) (string, error) {
+	body := map[string]any{"origin": "cli", "terminal": terminal}
 	resp, err := accountJSONRequest(server, token, http.MethodPost, "/api/v1/devices/"+url.PathEscape(deviceID)+"/processes", body)
 	if err != nil {
 		return "", err
@@ -51,47 +50,6 @@ func startAccountProcess(server, token, deviceID string, terminal bool, cols, ro
 		return "", err
 	}
 	return out.ProcessID, nil
-}
-
-func fetchAccountProcess(server, token, processID string) (accountProcess, error) {
-	resp, err := accountRequest(server, token, http.MethodGet, "/api/v1/processes/"+url.PathEscape(processID))
-	if err != nil {
-		return accountProcess{}, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return accountProcess{}, fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(data)))
-	}
-	var out struct {
-		Process accountProcess `json:"process"`
-	}
-	err = json.NewDecoder(resp.Body).Decode(&out)
-	return out.Process, err
-}
-
-func followAccountProcess(server, token, processID string) error {
-	printed := 0
-	for {
-		process, err := fetchAccountProcess(server, token, processID)
-		if err != nil {
-			return err
-		}
-		if len(process.Output) > printed {
-			fmt.Print(process.Output[printed:])
-			printed = len(process.Output)
-		}
-		if process.Status == "exited" {
-			if process.ExitCode != nil && *process.ExitCode != 0 {
-				return fmt.Errorf("process exited %d", *process.ExitCode)
-			}
-			return nil
-		}
-		if process.Status == "lost" {
-			return errors.New("process lost")
-		}
-		time.Sleep(350 * time.Millisecond)
-	}
 }
 
 func remoteRunCommand(args []string) error {
@@ -116,7 +74,7 @@ func remoteRunCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	processID, err := startAccountProcess(*server, *token, device.ID, false, 80, 24)
+	processID, err := startAccountProcess(*server, *token, device.ID, false)
 	if err != nil {
 		return err
 	}

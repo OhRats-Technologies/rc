@@ -21,9 +21,8 @@ export function startSshProcess(principal: SshPrincipal, command: string, termin
   stdout(data: Buffer): void; stderr(data: Buffer): void; exit(code: number, signal: string, error?: string): void;
 }) {
   const processId = id(), sessionId = id(), t = now();
-  q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,terminal,cols,rows,created_by,created_at)
-    VALUES(?,?,?,NULL,'starting',1,?,?,?,?,?)`).run(processId, principal.deviceId, "[ssh]", terminal ? 1 : 0,
-      terminal?.cols || 80, terminal?.rows || 24, principal.userId, t);
+  q(`INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at)
+    VALUES(?,?,'ssh','starting',?,?,?)`).run(processId, principal.deviceId, terminal ? 1 : 0, principal.userId, t);
   const state: State = { id: processId, sessionId, deviceId: principal.deviceId, userId: principal.userId, exited: false, ...handlers };
   states.set(processId, state);
   logEvent("ssh.process.created", workspaceForDevice(principal.deviceId), principal.userId, principal.deviceId, { processId, keyId: principal.keyId });

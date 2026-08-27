@@ -201,12 +201,6 @@ func (manager *controlManager) authorizedUpdate(sessionID, requestID string) {
 }
 
 func (manager *controlManager) sendFrame(sessionID string, message wireMessage) bool {
-	if message.Type == "process.started" {
-		_ = manager.send(wireMessage{Type: "process.started", ID: message.ID})
-	}
-	if message.Type == "process.exit" {
-		_ = manager.send(wireMessage{Type: "process.exit", ID: message.ID, ExitCode: message.ExitCode, Signal: message.Signal})
-	}
 	manager.mu.Lock()
 	session := manager.sessions[sessionID]
 	if session == nil {

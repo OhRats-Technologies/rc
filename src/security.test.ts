@@ -257,7 +257,6 @@ describe("MCP transport and OAuth", () => {
     const mismatched = mcpRpc("server/discover"); mismatched.headers.set("mcp-method", "tools/list");
     expect((await app.handle(mismatched)).status).toBe(400);
   });
-
   test("PKCE codes and refresh tokens are one-time and scopes filter tools", async () => {
     const seeded = seededMcpCode(q, sha, ["mcp:observe"]);
     const form = new URLSearchParams({ grant_type: "authorization_code", client_id: seeded.clientId, code: seeded.code,
@@ -282,24 +281,19 @@ describe("MCP transport and OAuth", () => {
 
   test("process sync marks hosted rows missing from the Node as lost", async () => {
     const { userId, deviceId } = await enrolledDevice(q), kept = crypto.randomUUID(), stale = crypto.randomUUID(), t = Date.now();
-    for (const processId of [kept, stale]) {
-      q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at,started_at)
-        VALUES(?,?,?,NULL,'running',1,0,80,24,?,?,?)`).run(processId, deviceId, "[encrypted]", userId, t, t);
-    }
+    for (const processId of [kept, stale]) q(`INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at,started_at) VALUES(?,?,'control','running',1,?,?,?)`).run(processId, deviceId, userId, t, t);
     agentSocketHandlers.message(deviceId, { type: "process.sync", ids: [kept] });
     expect(q<any>("SELECT status FROM processes WHERE id=?").get(kept).status).toBe("running");
-    const staleRow = q<any>("SELECT status,error,completed_at FROM processes WHERE id=?").get(stale);
-    expect(staleRow.status).toBe("lost");
-    expect(staleRow.error).toBe("RC Node reconnected without this process");
-    expect(staleRow.completed_at).toBeGreaterThan(0);
+    const row = q<any>("SELECT status,error,completed_at FROM processes WHERE id=?").get(stale);
+    expect([row.status, row.error]).toEqual(["lost", "RC Node reconnected without this process"]); expect(row.completed_at).toBeGreaterThan(0);
   });
 
-  test("MCP process output is relayed without being retained in SQLite", async () => {
+  test("process rows contain lifecycle metadata only", async () => {
     const { userId, deviceId } = await enrolledDevice(q), processId = crypto.randomUUID(), t = Date.now();
-    q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
-      VALUES(?,?,?,NULL,'running',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", userId, t);
+    q(`INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at) VALUES(?,?,'mcp','running',0,?,?)`).run(processId, deviceId, userId, t);
     agentSocketHandlers.message(deviceId, { type: "process.stdout", id: processId, data: Buffer.from("mcp-secret-output").toString("base64url") });
-    const row = q<any>("SELECT output_head,output_tail,output_chars FROM processes WHERE id=?").get(processId);
-    expect(row.output_head).toBe(""); expect(row.output_tail).toBe(""); expect(row.output_chars).toBe(0);
+    const columns = q<{ name: string }>("PRAGMA table_info(processes)").all().map(column => column.name);
+    for (const removed of ["command", "cwd", "encrypted", "mcp", "output_head", "output_tail", "output_chars", "revision", "cols", "rows"]) expect(columns).not.toContain(removed);
+    expect(q<any>("SELECT id,origin,status,terminal FROM processes WHERE id=?").get(processId)).toEqual({ id: processId, origin: "mcp", status: "running", terminal: 0 });
   });
 });

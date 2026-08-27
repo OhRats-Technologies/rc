@@ -1,6 +1,6 @@
 import type { DeviceView } from "../../../src/devices";
 import type { WorkspaceView } from "../../../src/workspaces";
-import { processLabel, processState, relative } from "../format";
+import { processLabel, processOriginLabel, processState, relative } from "../format";
 import { htmlDocument } from "../document";
 import type { User } from "../../../src/core";
 import { SectionBadge } from "../components";
@@ -27,7 +27,7 @@ function DeviceRows({ devices }: { devices: DeviceView[] }) {
 function ProcessRows({ deviceId, processes }: { deviceId: string; processes: RemoteProcess[] }) {
   return <div className="data-list" id="process-list">
     {processes.length ? processes.map(process => <a className="data-row process-row" key={process.id} href={`/devices/${deviceId}/processes/${process.id}`} data-process-row={process.id}>
-      <div><strong className="mono">{processLabel(process.command)}</strong><div className="meta">{process.cwd || "~"} · {process.created_by_name || "Unknown"} · {relative(process.created_at)}</div></div>
+      <div><strong className="mono">{processLabel(process)}</strong><div className="meta">{processOriginLabel(process.origin)} · {process.created_by_name || "Unknown"} · {relative(process.created_at)}</div></div>
       <span className={`status${process.status === "running" ? " online" : ""}`} data-process-status={process.id}>{processState(process)}</span>
     </a>) : <p className="empty-state">No processes yet.</p>}
   </div>;

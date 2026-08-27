@@ -37,8 +37,8 @@ export function securityArticle(): DocArticle {
         title: "Control transport",
         body: <>
           <p>The authenticated RC WebSocket carries control signaling and hosted live events. After the encrypted control session is authorized, browser and CLI clients try to move its opaque encrypted frames onto a reliable ordered WebRTC DataChannel.</p>
-          <p>The managed service currently uses <code>stun.cloudflare.com:3478</code> for ICE candidate discovery. While the direct DataChannel is available, terminal data does not traverse the RC application server. If the direct transport cannot be established or later fails, the same encrypted session continues over the WebSocket relay.</p>
-          <p>WebRTC adds DTLS transport encryption, but RC currently retains its own AES-256-GCM control framing inside the DataChannel. Changing or removing that inner encryption is a separate security change.</p>
+          <p>The managed service uses Cloudflare STUN for ICE discovery and, when configured, asks Cloudflare TURN for short-lived ICE credentials from the RC backend. The long-lived TURN token ID/API token remain server-side; browser and Node receive only the temporary ICE username/credential. ICE prefers direct connectivity and can use TURN relay candidates when necessary. If WebRTC still cannot be established or later fails, the same encrypted session continues over the WebSocket relay.</p>
+          <p>WebRTC adds DTLS transport encryption, but RC currently retains its own AES-256-GCM control framing inside the DataChannel. Transport diagnostics are kept only as bounded in-memory operational state rather than durable audit history. Changing or removing the inner encryption is a separate security change.</p>
         </>,
       },
       {
@@ -63,8 +63,8 @@ export function securityArticle(): DocArticle {
         id: "process-data",
         title: "Process data",
         body: <>
-          <p>SQLite stores process metadata such as process ID, device, state, timestamps, exit code, and signal.</p>
-          <p>Browser and CLI process command, working directory, stdin, stdout, and stderr are not persisted in process history. Direct WebRTC sessions bypass the application server; relay fallback carries only encrypted control frames.</p>
+          <p>SQLite stores lifecycle metadata only: process ID, device, origin, PTY flag, state, attribution, timestamps, exit code, signal, and bounded error text.</p>
+          <p>Browser and CLI command, working directory, terminal geometry, stdin, stdout, stderr, and scrollback are not persisted in process history. Live PTY scrollback is bounded in RC Node memory for reattach while the process is alive. Direct WebRTC sessions bypass the application server; relay fallback carries only encrypted control frames.</p>
         </>,
       },
       {

@@ -39,13 +39,10 @@ CREATE TABLE IF NOT EXISTS revoked_devices(
 );
 CREATE TABLE IF NOT EXISTS processes(
   id TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
-  command TEXT NOT NULL,cwd TEXT,status TEXT NOT NULL DEFAULT 'starting'
-    CHECK(status IN ('starting','running','exited','lost')),
-  encrypted INTEGER NOT NULL DEFAULT 0,mcp INTEGER NOT NULL DEFAULT 0,
-  output_head TEXT NOT NULL DEFAULT '',output_tail TEXT NOT NULL DEFAULT '',output_chars INTEGER NOT NULL DEFAULT 0,
-  revision INTEGER NOT NULL DEFAULT 0,terminal INTEGER NOT NULL DEFAULT 0,cols INTEGER NOT NULL DEFAULT 80,rows INTEGER NOT NULL DEFAULT 24,
-  exit_code INTEGER,signal TEXT,error TEXT,created_by TEXT NOT NULL REFERENCES users(id),
-  created_at INTEGER NOT NULL,started_at INTEGER,completed_at INTEGER
+  origin TEXT NOT NULL DEFAULT 'control' CHECK(origin IN ('browser','cli','api','mcp','ssh','control','legacy')),
+  status TEXT NOT NULL DEFAULT 'starting' CHECK(status IN ('starting','running','exited','lost')),
+  terminal INTEGER NOT NULL DEFAULT 0,exit_code INTEGER,signal TEXT,error TEXT,
+  created_by TEXT NOT NULL REFERENCES users(id),created_at INTEGER NOT NULL,started_at INTEGER,completed_at INTEGER
 );
 CREATE TABLE IF NOT EXISTS auth_sessions(
   token_hash TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -215,17 +212,38 @@ function migrateDeviceTransportKeys() {
 
 migrateDeviceTransportKeys();
 
-function migrateEncryptedProcesses() {
+function migrateProcessMetadata() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(processes)").all().map(row => row.name);
-  if (!columns.includes("encrypted")) db.exec("ALTER TABLE processes ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0");
-  if (!columns.includes("mcp")) db.exec("ALTER TABLE processes ADD COLUMN mcp INTEGER NOT NULL DEFAULT 0");
-  if (!columns.includes("terminal")) db.transaction(() => {
-    db.exec("ALTER TABLE processes ADD COLUMN terminal INTEGER NOT NULL DEFAULT 0");
-    db.exec("UPDATE processes SET terminal=1");
+  const legacy = ["command", "cwd", "encrypted", "mcp", "output_head", "output_tail", "output_chars", "revision", "cols", "rows"]
+    .some(column => columns.includes(column));
+  if (columns.includes("origin") && !legacy) return;
+  const origin = columns.includes("origin") ? "origin"
+    : columns.includes("command") && columns.includes("mcp")
+      ? "CASE WHEN mcp=1 OR command='[mcp]' THEN 'mcp' WHEN command='[ssh]' THEN 'ssh' WHEN command='[encrypted]' THEN 'control' ELSE 'legacy' END"
+      : columns.includes("command")
+        ? "CASE WHEN command='[mcp]' THEN 'mcp' WHEN command='[ssh]' THEN 'ssh' WHEN command='[encrypted]' THEN 'control' ELSE 'legacy' END"
+        : "'legacy'";
+  const terminal = columns.includes("terminal") ? "terminal" : "1";
+  db.transaction(() => {
+    db.exec("DROP TABLE IF EXISTS processes_v2");
+    db.exec(`CREATE TABLE processes_v2(
+      id TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+      origin TEXT NOT NULL DEFAULT 'control' CHECK(origin IN ('browser','cli','api','mcp','ssh','control','legacy')),
+      status TEXT NOT NULL DEFAULT 'starting' CHECK(status IN ('starting','running','exited','lost')),
+      terminal INTEGER NOT NULL DEFAULT 0,exit_code INTEGER,signal TEXT,error TEXT,
+      created_by TEXT NOT NULL REFERENCES users(id),created_at INTEGER NOT NULL,started_at INTEGER,completed_at INTEGER
+    )`);
+    db.exec(`INSERT INTO processes_v2(id,device_id,origin,status,terminal,exit_code,signal,error,created_by,created_at,started_at,completed_at)
+      SELECT id,device_id,${origin},status,${terminal},exit_code,signal,error,created_by,created_at,started_at,completed_at FROM processes`);
+    db.exec("DROP TABLE processes");
+    db.exec("ALTER TABLE processes_v2 RENAME TO processes");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_processes_device ON processes(device_id,created_at)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_processes_status ON processes(device_id,status)");
   })();
 }
 
-migrateEncryptedProcesses();
+migrateProcessMetadata();
+db.exec("DELETE FROM events WHERE kind='control.transport'");
 
 function migrateCliControlKeys() {
   const columns = db.query<{ name: string }, []>("PRAGMA table_info(cli_authorizations)").all().map(row => row.name);

@@ -1,19 +1,24 @@
 package main
 
-const secureBacklogLimit = 1 << 20
+const secureScrollbackLimit = 4 << 20
 
-func (manager *processManager) queueSecure(process *managedProcess, message wireMessage) {
+func secureScrollbackMessage(message wireMessage) bool {
+	return message.Type == "process.stdout" || message.Type == "process.stderr"
+}
+
+func (manager *processManager) rememberSecureOutputLocked(process *managedProcess, message wireMessage) {
+	if !secureScrollbackMessage(message) {
+		return
+	}
 	size := messageSize(message)
-	manager.mu.Lock()
-	for process.backlogBytes+size > secureBacklogLimit && len(process.backlog) > 0 {
-		process.backlogBytes -= messageSize(process.backlog[0])
-		process.backlog = process.backlog[1:]
+	for process.scrollbackBytes+size > secureScrollbackLimit && len(process.scrollback) > 0 {
+		process.scrollbackBytes -= messageSize(process.scrollback[0])
+		process.scrollback = process.scrollback[1:]
 	}
-	if size <= secureBacklogLimit {
-		process.backlog = append(process.backlog, message)
-		process.backlogBytes += size
+	if size <= secureScrollbackLimit {
+		process.scrollback = append(process.scrollback, message)
+		process.scrollbackBytes += size
 	}
-	manager.mu.Unlock()
 }
 
 func (manager *processManager) emit(process *managedProcess, message wireMessage) {
@@ -21,13 +26,19 @@ func (manager *processManager) emit(process *managedProcess, message wireMessage
 		manager.sendMessage(message)
 		return
 	}
+	if message.Type == "process.started" {
+		manager.sendMessage(wireMessage{Type: "process.started", ID: message.ID})
+	}
+	if message.Type == "process.exit" {
+		manager.sendMessage(wireMessage{Type: "process.exit", ID: message.ID, ExitCode: message.ExitCode, Signal: message.Signal})
+	}
 	manager.mu.Lock()
+	manager.rememberSecureOutputLocked(process, message)
 	send, sessionID := manager.secureSend, process.sessionID
 	manager.mu.Unlock()
-	if send != nil && sessionID != "" && send(sessionID, message) {
-		return
+	if send != nil && sessionID != "" {
+		_ = send(sessionID, message)
 	}
-	manager.queueSecure(process, message)
 }
 
 func (manager *processManager) setSecureSender(send func(string, wireMessage) bool) {
@@ -39,13 +50,16 @@ func (manager *processManager) setSecureSender(send func(string, wireMessage) bo
 func (manager *processManager) attachSecure(process *managedProcess, sessionID string) {
 	manager.mu.Lock()
 	process.sessionID = sessionID
-	backlog := append([]wireMessage(nil), process.backlog...)
-	process.backlog = nil
-	process.backlogBytes = 0
-	manager.mu.Unlock()
-	for _, message := range backlog {
-		manager.emit(process, message)
+	send := manager.secureSend
+	if send != nil {
+		for _, message := range process.scrollback {
+			if !send(sessionID, message) {
+				process.sessionID = ""
+				break
+			}
+		}
 	}
+	manager.mu.Unlock()
 }
 
 func (manager *processManager) detachSecureSession(sessionID string) {

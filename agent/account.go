@@ -35,16 +35,6 @@ func (device accountDevice) supports(capability string) bool {
 	return false
 }
 
-type accountProcess struct {
-	ID       string `json:"id"`
-	DeviceID string `json:"device_id"`
-	Status   string `json:"status"`
-	Output   string `json:"output"`
-	Revision int    `json:"revision"`
-	ExitCode *int   `json:"exit_code"`
-	Signal   string `json:"signal"`
-}
-
 func accountRequest(server, token, method, path string) (*http.Response, error) {
 	return accountJSONRequest(server, token, method, path, nil)
 }

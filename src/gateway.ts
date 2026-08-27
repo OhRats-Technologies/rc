@@ -2,7 +2,7 @@ import { logEvent } from "./core";
 import { now, opaque, q, sha } from "./db";
 import { base64urlToBytes, pemPublicKeyToDer } from "./encoding";
 import { publishEvent } from "./events";
-import { appendProcessOutput, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
+import { isDirectControlProcess, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
 import type { AgentClientMessage, AgentServerMessage } from "./protocol";
 import type { SocketWriter } from "./browser-socket";
 import { AGENT_CHALLENGE_TTL } from "./config";
@@ -160,7 +160,7 @@ export const agentSocketHandlers = {
       }
       if (msg.type === "process.start.request") {
         const process = processRow(msg.id);
-        if (process && process.device_id === deviceId && process.encrypted && process.status === "starting" && process.created_by === msg.userId) {
+        if (process && process.device_id === deviceId && isDirectControlProcess(process) && process.status === "starting" && process.created_by === msg.userId) {
           send(deviceId, { type: "process.permit", id: process.id, userId: msg.userId });
         }
         return;
@@ -180,10 +180,6 @@ export const agentSocketHandlers = {
         if (!process || process.device_id !== deviceId) return;
         if (handleSshProcessMessage(process, msg)) return;
         if (handleMcpProcessMessage(process, msg)) return;
-        if (process.encrypted) return;
-        const chunk = Buffer.from(msg.data, "base64url").toString("utf8");
-        const revision = appendProcessOutput(process.id, chunk);
-        publishEvent({ kind: "process.output", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { chunk, revision } });
         return;
       }
       if (msg.type === "process.exit") {
@@ -191,8 +187,6 @@ export const agentSocketHandlers = {
         if (!process || process.device_id !== deviceId) return;
         handleSshProcessMessage(process, msg);
         const mcp = handleMcpProcessMessage(process, msg);
-        const output = process.encrypted ? "" : msg.output || "";
-        if (output) appendProcessOutput(process.id, output);
         const exitCode = msg.exitCode ?? null;
         const signal = msg.signal ? String(msg.signal).slice(0, 32) : null;
         markProcessExited(process.id, exitCode, signal);
