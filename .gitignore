@@ -1,12 +1,13 @@
 .DS_Store
 .env
+__pycache__/
+*.pyc
 node_modules/
 /data/
+/data-v2/
 /dist/
 *.db
 *.db-shm
 *.db-wal
-agent/device.json
-agent/agent
 
 /target/

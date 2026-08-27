@@ -6,12 +6,12 @@
 - [x] Passkey authentication plus proof-of-possession scoped automation API keys
 - [x] Workspace membership and invite links
 - [x] Signed device identity and workspace enrollment tokens
-- [x] Agent heartbeat, reconnect, and capability advertisement
+- [x] RC Node reconnect, signed HTTP bootstrap, and capability advertisement
 - [x] Client-generated Ed25519 API signing keys with replay-resistant request signatures
 - [x] OhRats sidebar/page UI
 - [x] Downloadable Linux/macOS RC Nodes
 - [x] Persistent Coolify deployment
-- [x] One authenticated browser WebSocket for live state plus opaque encrypted PTY relay
+- [x] Cookie-authenticated SSE for live metadata plus direct/TURN WebRTC DataChannels for browser/CLI control
 - [x] PTY-backed process handles with E2E stdin/output/resize/signals and metadata-only hosted history
 - [x] Dedicated process list and PTY routes
 - [x] Kill active process trees when the RC Node stops, crashes, or updates
@@ -22,17 +22,16 @@
 - [x] Node state/config under `~/.config/rc`
 - [x] Installer exits after install/enrollment
 - [x] Remote RC Node updates from the web UI
-- [x] Replay-resistant one-time challenge authentication for RC Nodes
-- [x] Signed release manifest + SHA-256 verification + downgrade protection for RC Node updates
-- [x] Fail-closed signed-manifest pair retries across rolling deployments
+- [x] Replay-resistant signed HTTP proof-of-possession authentication for RC Nodes
+- [x] GitHub Release asset SHA-256 verification and downgrade protection for RC Node updates
 - [x] Application rate limits, security headers, quotas, shorter credential lifetimes, and non-root runtime
 - [x] 30-day passkey-authorized browser/CLI control identities with fresh per-connection X25519 keys
 - [x] Node-local RC Lock authority with Owner-signed mutation and Node-reported synchronization hash
-- [x] Encrypted Node-authorized update/removal with locked-state preservation on server-side deletion
+- [x] Node-authorized update plus server-authoritative revocation tombstones with locked-state preservation
 - [x] Device removal from web, API, and CLI with owner-authorized remote node cleanup
 - [x] Immutable fingerprinted frontend assets
-- [x] Bun-native HTML/TypeScript/CSS production build with no custom asset pipeline
-- [x] Persistent SPA sidebar navigation with no page-remount blink
+- [x] Rust server-rendered HTML with Bun-built TypeScript/CSS browser assets
+- [x] Persistent sidebar navigation across ordinary server-rendered URLs
 - [x] Flat responsive device/process UI without panel stacking
 - [x] First-class API signing-key management route
 - [x] Stateless `/mcp` endpoint with OAuth discovery, PKCE, short-lived access tokens, and rotating refresh tokens

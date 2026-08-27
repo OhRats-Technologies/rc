@@ -1,10 +1,49 @@
 [package]
 name = "rc-server"
-version = "0.1.0"
+version = "0.16.0-alpha.1"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "rc-server"
+path = "src/main.rs"
+
 [dependencies]
-rc-protocol = { path = "../rc-protocol" }
+anyhow.workspace = true
+axum.workspace = true
+base64.workspace = true
+bytes.workspace = true
+dashmap.workspace = true
+ed25519-dalek.workspace = true
+futures-util.workspace = true
+http.workspace = true
+libc.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
 rc-crypto = { path = "../rc-crypto" }
+rc-protocol = { path = "../rc-protocol" }
+reqwest.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tower-http.workspace = true
+tower.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+uuid.workspace = true
+webauthn-rs.workspace = true
+webrtc.workspace = true
+
+[[bin]]
+name = "rc-ssh-helper"
+path = "src/bin/rc-ssh-helper.rs"
+
+[dev-dependencies]
+rc-node = { path = "../rc-node" }
+webauthn-authenticator-rs = { version = "0.5.3", features = ["softpasskey"] }

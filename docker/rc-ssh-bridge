@@ -1,2 +1,3 @@
 #!/bin/sh
-exec bun /app/dist/ssh/bridge.js "$@"
+set -eu
+exec /usr/local/bin/rc-ssh-helper bridge "$@"

@@ -1,0 +1,228 @@
+-- /
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/",
+  "title": "Create RC | RC",
+  "heading": "Create RC",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/fixed_.png"
+}
+-- /login
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/login",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/fixed_login.png"
+}
+-- /signup
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/signup",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/fixed_signup.png"
+}
+-- /setup/surface-smoke-0123456789abcdef0123456789abcdef
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/setup/surface-smoke-0123456789abcdef0123456789abcdef",
+  "title": "Create RC | RC",
+  "heading": "Create RC",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/fixed_setup_surface-smoke-0123456789abcdef0123456789abcdef.png"
+}
+-- /api
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/api",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/fixed_api.png"
+}
+-- /integrations/mcp
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/integrations/mcp",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/fixed_integrations_mcp.png"
+}

@@ -1,39 +1,31 @@
 {
   "name": "rc",
   "private": true,
-  "version": "0.11.0",
+  "version": "0.16.0-alpha.1",
   "scarfSettings": {
     "enabled": false
   },
   "type": "module",
   "scripts": {
-    "dev": "bun run build:client && bun --hot server.ts",
-    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name]-[hash].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name]-[hash].[ext]' ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/copy.ts ./web/client/sidebar.ts ./web/client/openapi.ts ./web/styles.css ./web/public.css ./web/social-card.png",
-    "build:server": "rm -rf dist/server && bun build --target=bun --production --outdir=dist/server ./server.ts",
-    "build:ssh": "rm -rf dist/ssh && bun build --target=bun --production --outdir=dist/ssh ./src/ssh/authorized.ts ./src/ssh/bridge.ts",
-    "build": "rm -rf dist && bun run build:client && bun run build:server && bun run build:ssh",
-    "start": "bun server.ts",
+    "audit": "cargo audit && bun audit",
+    "check:docs": "python3 scripts/check-doc-links.py",
+    "check:source-size": "sh scripts/check-source-size.sh",
+    "check:version": "sh scripts/check-version.sh",
+    "dev": "bun run build:client && cargo run -p rc-server",
+    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name].[ext]' ./web/client/pages.ts ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/sidebar.ts ./web/styles.css ./web/public.css ./web/social-card.png",
+    "build": "rm -rf dist && bun run build:client",
+    "start": "cargo run --release -p rc-server",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "cargo test --workspace --all-targets",
     "smoke:webview": "bun scripts/webview-smoke.ts"
   },
   "dependencies": {
-    "@elysia/eden": "^1.4.10",
-    "@elysia/openapi": "^1.4.15",
-    "@simplewebauthn/server": "^13.3.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-webgl": "^0.19.0",
-    "@xterm/xterm": "^6.0.0",
-    "elysia": "^1.4.29",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
-    "reflect-metadata": "^0.2.2",
-    "swagger-ui-dist": "5.32.14"
+    "@xterm/xterm": "^6.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
     "typescript": "latest"
   }
 }

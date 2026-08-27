@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98"
+          components: rustfmt,clippy
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+      - name: Install repository linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - run: bun install --frozen-lockfile
+      - name: Install RustSec auditor
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: cargo audit
+      - run: bun audit
+      - run: sh scripts/check-version.sh
+      - run: sh scripts/check-source-size.sh
+      - run: python3 scripts/check-doc-links.py
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --all-targets
+      - run: bun run typecheck
+      - run: bun run build:client
+      - name: Validate shell entry points
+        run: |
+          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
+          shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
+          "$(go env GOPATH)/bin/actionlint" -shellcheck shellcheck .github/workflows/*.yml
+      - run: git diff --check
+
+  image:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker build --tag rc-ci .
+      - name: Validate runtime image
+        run: |
+          docker run --rm --entrypoint /bin/sh rc-ci -c '
+            command -v rc-server >/dev/null &&
+            command -v rc-ssh-helper >/dev/null &&
+            command -v sshd >/dev/null &&
+            ! command -v bun >/dev/null 2>&1 &&
+            ! command -v go >/dev/null 2>&1 &&
+            test -d /app/assets &&
+            test -x /usr/local/bin/rc-entrypoint &&
+            test "$(id -u rc)" = 10001 &&
+            test "$(id -g rc)" = 10001 &&
+            rc-server --version
+          '
+      - name: Boot and exercise runtime image
+        run: sh scripts/smoke-container.sh rc-ci

@@ -1,4 +1,4 @@
-name: Node release
+name: RC release
 
 on:
   push:
@@ -14,60 +14,93 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: "1.25.13"
-          cache-dependency-path: agent/go.sum
-      - name: Verify tag matches Node version
-        working-directory: agent
+          toolchain: "1.98"
+          components: rustfmt,clippy
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+      - run: bun install --frozen-lockfile
+      - name: Install RustSec auditor
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: cargo audit
+      - run: bun audit
+      - name: Verify release tag
         run: |
           expected="${GITHUB_REF_NAME#v}"
-          actual="$(sed -n 's/^const version = "\([^"]*\)"/\1/p' types.go)"
-          test "$actual" = "$expected" || {
-            echo "tag $GITHUB_REF_NAME does not match Node version $actual" >&2
-            exit 1
-          }
-      - name: Test Node
-        working-directory: agent
-        run: go test ./...
+          sh scripts/check-version.sh "$expected"
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --all-targets
+      - run: bun run typecheck
+      - run: bun run build:client
+      - run: sh scripts/check-source-size.sh
+      - run: python3 scripts/check-doc-links.py
 
   build:
     needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
     strategy:
       matrix:
         include:
-          - os: linux
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            os: linux
             arch: amd64
-          - os: linux
+          - runner: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            os: linux
             arch: arm64
-          - os: darwin
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            os: darwin
+            arch: arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            os: darwin
             arch: amd64
-          - os: darwin
-            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@v7
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: "1.25.13"
-          cache-dependency-path: agent/go.sum
-      - name: Build Node
-        working-directory: agent
+          toolchain: "1.98"
+          targets: ${{ matrix.target }}
+      - uses: mlugg/setup-zig@v2
+        if: runner.os == 'Linux'
+        with:
+          version: "0.16.0"
+      - name: Install cargo-zigbuild
+        if: runner.os == 'Linux'
+        run: cargo install cargo-zigbuild --version 0.23.2 --locked
+      - name: Build RC on Linux
+        if: runner.os == 'Linux'
         env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-          CGO_ENABLED: "0"
+          RUSTFLAGS: -D warnings -A linker-messages
+        run: cargo zigbuild --locked --release -p rc-cli --target ${{ matrix.target }}
+      - name: Build RC on macOS
+        if: runner.os == 'macOS'
+        env:
+          RUSTFLAGS: -D warnings
+        run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
+      - name: Package RC
+        env:
+          TARGET: ${{ matrix.target }}
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
         run: |
-          mkdir -p dist
-          go build -trimpath -ldflags="-s -w -buildid=" -o "dist/rc-${GOOS}-${GOARCH}" .
+          mkdir -p dist/package
+          cp "target/$TARGET/release/rc" dist/package/rc
+          chmod 0755 dist/package/rc
+          tar -C dist/package -czf "dist/rc-$OS-$ARCH.tar.gz" rc
       - uses: actions/upload-artifact@v7
         with:
           name: rc-${{ matrix.os }}-${{ matrix.arch }}
-          path: agent/dist/rc-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/rc-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
 
   publish:
@@ -81,35 +114,21 @@ jobs:
           pattern: rc-*
           path: dist
           merge-multiple: true
-      - name: Generate release metadata
-        env:
-          VERSION: ${{ github.ref_name }}
+      - name: Validate release assets
         run: |
-          version="${VERSION#v}"
-          sha256sum dist/rc-* | sed 's#  dist/#  #' > SHA256SUMS
-          python3 - "$version" <<'PY'
-          import hashlib, json, pathlib, sys
-
-          version = sys.argv[1]
-          artifacts = []
-          for path in sorted(pathlib.Path("dist").glob("rc-*")):
-              _, os_name, arch = path.name.split("-")
-              artifacts.append({
-                  "os": os_name,
-                  "arch": arch,
-                  "name": path.name,
-                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-              })
-          if len(artifacts) != 4:
-              raise SystemExit(f"expected 4 release binaries, found {len(artifacts)}")
-          pathlib.Path("release.json").write_text(
-              json.dumps({"version": version, "artifacts": artifacts}, indent=2) + "\n"
-          )
-          PY
-      - name: Publish GitHub release
+          test "$(find dist -maxdepth 1 -name 'rc-*.tar.gz' | wc -l)" -eq 4
+          for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64; do
+            test -s "dist/$name.tar.gz"
+            test "$(tar -tzf "dist/$name.tar.gz")" = "rc"
+          done
+      - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --title "RC ${GITHUB_REF_NAME#v}" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" dist/rc-* release.json SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft \
+            --title "RC ${GITHUB_REF_NAME#v}" \
+            --generate-notes \
+            dist/rc-*.tar.gz
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

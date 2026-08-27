@@ -1,4 +1,4 @@
-import { closeControlSession, controlWebRTC, reportControlTransport } from "./control-api";
+import { closeControlSession, controlWebRTC } from "./control-api";
 import type { ControlTransport } from "./control-transport";
 
 type Frame = { type: "control.frame"; sessionId: string; sequence: number; ciphertext: string };
@@ -69,13 +69,10 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
   const frameListeners = new Set<(sequence: number, ciphertext: string) => void>();
   let closing = false, established = false, localCandidates: CandidateSummary | undefined, remoteCandidates: CandidateSummary | undefined;
 
-  const publish = (status: ControlTransportStatus, report = true) => {
-    onStatus(status);
-    if (report) reportControlTransport(sessionId, status);
-  };
+  const publish = (status: ControlTransportStatus) => onStatus(status);
   const fail = (reason: string) => publish({ transport: "webrtc", phase: "failed", reason: reason.slice(0, 200),
     iceState: peer.iceConnectionState, connectionState: peer.connectionState, localCandidates, remoteCandidates });
-  publish({ transport: "webrtc", phase: "connecting" }, false);
+  publish({ transport: "webrtc", phase: "connecting" });
 
   channel.addEventListener("message", async event => {
     if (closing) return;

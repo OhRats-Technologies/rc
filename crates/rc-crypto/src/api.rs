@@ -3,6 +3,15 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ed25519_dalek::{Signer, SigningKey};
 use sha2::{Digest, Sha256};
 
+pub struct ApiRequest<'a> {
+    pub key_id: &'a str,
+    pub timestamp: &'a str,
+    pub nonce: &'a str,
+    pub method: &'a str,
+    pub request_uri: &'a str,
+    pub body: &'a [u8],
+}
+
 pub fn api_payload(
     key_id: &str,
     timestamp: &str,
@@ -37,6 +46,22 @@ pub fn sign_api_seed(
             .sign(payload.as_bytes())
             .to_bytes(),
     ))
+}
+
+pub fn verify_api(
+    public_key: &str,
+    signature: &str,
+    request: ApiRequest<'_>,
+) -> Result<(), CryptoError> {
+    let payload = api_payload(
+        request.key_id,
+        request.timestamp,
+        request.nonce,
+        request.method,
+        request.request_uri,
+        request.body,
+    );
+    crate::verify_ed25519(public_key, payload.as_bytes(), signature)
 }
 
 fn hex_lower(bytes: &[u8]) -> String {

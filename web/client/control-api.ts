@@ -1,5 +1,4 @@
 import { api } from "./http";
-import type { ControlTransportStatus } from "./control-webrtc";
 
 export function controlChallenge(deviceId: string) {
   return api<{ challenge: string }>("/api/v1/control/challenge", { method: "POST", body: JSON.stringify({ deviceId }) });
@@ -14,12 +13,6 @@ export function controlWebRTC(sessionId: string, deviceId: string, sdp: string) 
   return api<{ sdp: string }>(`/api/v1/control/${encodeURIComponent(sessionId)}/webrtc`, {
     method: "POST", body: JSON.stringify({ deviceId, sdp }),
   });
-}
-
-export function reportControlTransport(sessionId: string, status: ControlTransportStatus) {
-  void api(`/api/v1/control/${encodeURIComponent(sessionId)}/transport`, {
-    method: "POST", body: JSON.stringify(status), keepalive: true,
-  }).catch(() => {});
 }
 
 export function closeControlSession(sessionId: string) {

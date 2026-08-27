@@ -1,0 +1,325 @@
+== webview public surfaces ==
+-- /
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/",
+  "title": "Create RC | RC",
+  "heading": "Create RC",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": false
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_.png"
+}
+error: script "smoke:webview" exited with code 1
+-- /login
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/login",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": false
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_login.png"
+}
+error: script "smoke:webview" exited with code 1
+-- /signup
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/signup",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": false
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_signup.png"
+}
+error: script "smoke:webview" exited with code 1
+-- /setup/surface-smoke-0123456789abcdef0123456789abcdef
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/setup/surface-smoke-0123456789abcdef0123456789abcdef",
+  "title": "Create RC | RC",
+  "heading": "Create RC",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": false
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_setup_surface-smoke-0123456789abcdef0123456789abcdef.png"
+}
+error: script "smoke:webview" exited with code 1
+-- /docs
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/docs",
+  "title": "Docs | RC",
+  "heading": "RC documentation",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/public.css",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_docs.png"
+}
+-- /docs/quickstart
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/docs/quickstart",
+  "title": "Docs | RC",
+  "heading": "quickstart",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/public.css",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_docs_quickstart.png"
+}
+-- /docs/security
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/docs/security",
+  "title": "Docs | RC",
+  "heading": "security",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/public.css",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": true
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_docs_security.png"
+}
+-- /api
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/api",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": false
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_api.png"
+}
+error: script "smoke:webview" exited with code 1
+-- /integrations/mcp
+$ bun scripts/webview-smoke.ts
+{
+  "url": "http://127.0.0.1:39250/integrations/mcp",
+  "title": "Sign in | RC",
+  "heading": "Sign in",
+  "overflowX": false,
+  "assets": [
+    {
+      "asset": "http://127.0.0.1:39250/assets/styles.css",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/auth.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-17f27jqv.js",
+      "status": 200
+    },
+    {
+      "asset": "http://127.0.0.1:39250/assets/chunk-aawetdrv.js",
+      "status": 200
+    }
+  ],
+  "required": [
+    {
+      "selector": "main",
+      "present": false
+    },
+    {
+      "selector": "h1",
+      "present": true
+    }
+  ],
+  "errors": [],
+  "screenshot": ".tmp-validation/web_integrations_mcp.png"
+}
+error: script "smoke:webview" exited with code 1

@@ -5,15 +5,24 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# The unified rc release binary includes Node-side WebAuthn verification. Its
+# upstream verifier uses OpenSSL, so release builds enable a static copy rather
+# than depending on target-specific system OpenSSL packages.
+vendored-openssl = ["dep:openssl"]
+
 [dependencies]
 aes-gcm.workspace = true
 base64.workspace = true
 ed25519-dalek.workspace = true
 hkdf.workspace = true
+openssl = { version = "0.10.81", features = ["vendored"], optional = true }
 rand.workspace = true
 rc-protocol = { path = "../rc-protocol" }
 sha2.workspace = true
 thiserror.workspace = true
+url.workspace = true
+webauthn-rs-core.workspace = true
 x25519-dalek.workspace = true
 zeroize.workspace = true
 serde.workspace = true

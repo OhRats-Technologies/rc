@@ -14,7 +14,7 @@ export interface Device {
   hostname: string;
   platform: string;
   arch: string;
-  agent_version: string;
+  version: string;
   capabilities: string[];
   last_seen: number | null;
   created_at: number;

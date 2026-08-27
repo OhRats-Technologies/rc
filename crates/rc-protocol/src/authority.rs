@@ -38,6 +38,22 @@ pub struct AuthorityMcpGrant {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct McpGrantPayload {
+    pub v: u32,
+    pub id: String,
+    pub user_id: String,
+    pub client_id: String,
+    pub client_name: String,
+    #[serde(default)]
+    pub device_ids: Vec<String>,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    pub issued_at: i64,
+    pub expires_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthoritySnapshot {
     pub v: u32,
     pub workspace_id: String,

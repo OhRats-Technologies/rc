@@ -1,0 +1,6 @@
+== bun audit ==
+bun audit v1.4.0 (1381054db)
+
+No vulnerabilities found (checked 28 packages) [1076.00ms]
+== shellcheck ==
+== actionlint ==

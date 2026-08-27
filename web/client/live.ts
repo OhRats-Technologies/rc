@@ -38,7 +38,7 @@ function setPresence(deviceId: string, online: boolean) {
 async function refreshDevice(deviceId: string) {
   const page = document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(deviceId)}"]`); if (!page) return;
   const { device } = await api<{ device: Device }>(`/api/v1/devices/${deviceId}`);
-  page.querySelector<HTMLElement>("#node-agent")!.textContent = device.agent_version;
+  page.querySelector<HTMLElement>("#node-version")!.textContent = device.version;
   const supportsProcess = device.capabilities.includes("process"); page.dataset.supportsProcess = String(supportsProcess);
   const terminal = page.querySelector<HTMLButtonElement>("#open-terminal");
   if (terminal) terminal.disabled = !device.online || !supportsProcess;

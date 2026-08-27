@@ -1,0 +1,16 @@
+[advisories]
+# bincode 1.3.3 is required transitively by webrtc 0.14 -> dtls 0.13.
+# RUSTSEC-2025-0141 is an unmaintained notice, not a vulnerability, and has no
+# patched bincode 1.x release. Remove this exception when upstream migrates.
+ignore = ["RUSTSEC-2025-0141"]
+informational_warnings = ["unmaintained", "unsound", "notice"]
+
+[output]
+deny = ["warnings"]
+format = "terminal"
+quiet = false
+show_tree = true
+
+[yanked]
+enabled = true
+update_index = true

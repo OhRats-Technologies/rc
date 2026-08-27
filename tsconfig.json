@@ -8,8 +8,7 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "allowImportingTsExtensions": true,
-    "jsx": "react-jsx"
+    "allowImportingTsExtensions": true
   },
-  "include": ["server.ts", "src/**/*.ts", "web/**/*.ts", "web/**/*.tsx", "test/**/*.ts"]
+  "include": ["web/**/*.ts", "web/**/*.d.ts", "scripts/**/*.ts"]
 }

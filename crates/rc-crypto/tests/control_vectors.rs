@@ -31,7 +31,7 @@ struct Vector {
 }
 
 #[test]
-fn matches_go_control_crypto() {
+fn matches_control_crypto_fixture() {
     let vector: Vector =
         serde_json::from_str(include_str!("../../../fixtures/control-crypto.json")).unwrap();
     assert_eq!(

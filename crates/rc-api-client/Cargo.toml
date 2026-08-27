@@ -6,5 +6,13 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
-rc-protocol = { path = "../rc-protocol" }
+base64.workspace = true
+ed25519-dalek.workspace = true
+rand.workspace = true
 rc-crypto = { path = "../rc-crypto" }
+rc-protocol = { path = "../rc-protocol" }
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url.workspace = true

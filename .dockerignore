@@ -1,6 +1,10 @@
 .git
 .DS_Store
 data
+data-v2
+dist
+node_modules
+target
 *.db
 *.db-shm
 *.db-wal

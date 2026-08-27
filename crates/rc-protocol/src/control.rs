@@ -66,6 +66,18 @@ pub enum ControlMessage {
     Revoked,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ControlTransportMessage {
+    #[serde(rename = "control.frame")]
+    Frame {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+        sequence: u64,
+        ciphertext: String,
+    },
+}
+
 fn is_zero_u16(value: &u16) -> bool {
     *value == 0
 }

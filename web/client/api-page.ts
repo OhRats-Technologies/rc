@@ -21,6 +21,19 @@ function openCreate() {
 
 function close() { dialog.close(); }
 
+function bindRevoke(revoke: HTMLFormElement) {
+  revoke.addEventListener("submit", async event => {
+    event.preventDefault();
+    try {
+      const id = revoke.action.split("/").at(-2) || "";
+      const step = await freshPasskey();
+      await api(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: "DELETE", headers: stepHeader(step) });
+      await syncOwnedAuthorities(); revoke.closest(".token-row")?.remove();
+      if (!list.querySelector(".token-row")) { const empty = document.createElement("p"); empty.className = "empty-state"; empty.textContent = "No API keys yet."; list.append(empty); }
+    } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }
+  });
+}
+
 function addKey(id: string, name: string, scopes: string[], expiresAt: number, lifetimeLabel: string) {
   list.querySelector(".empty-state")?.remove();
   const row = document.createElement("div"); row.className = "setting-row token-row";
@@ -30,7 +43,7 @@ function addKey(id: string, name: string, scopes: string[], expiresAt: number, l
   title.textContent = name; meta.className = "meta"; meta.textContent = `${scopes.join(" · ").toUpperCase()} · NEVER USED · ${expiresAt === 0 ? "UNTIL REVOKED" : `EXPIRES IN ${lifetimeLabel.toUpperCase()}`}`; copy.append(title, meta); main.append(icon, copy);
   const revoke = document.createElement("form"); revoke.method = "post"; revoke.action = `/api/tokens/${id}/delete`;
   const button = document.createElement("button"); button.className = "text-button"; button.type = "submit"; button.textContent = "REVOKE"; revoke.append(button);
-  row.append(main, revoke); list.prepend(row);
+  row.append(main, revoke); bindRevoke(revoke); list.prepend(row);
 }
 
 document.querySelector<HTMLElement>("[data-api-key-new]")?.addEventListener("click", event => { event.preventDefault(); openCreate(); });
@@ -60,13 +73,4 @@ form.addEventListener("submit", async event => {
 
 copy.addEventListener("click", () => void copyText(copy.dataset.copyValue || "", copy));
 
-list.querySelectorAll<HTMLFormElement>('form[action^="/api/tokens/"][action$="/delete"]').forEach(revoke => revoke.addEventListener("submit", async event => {
-  event.preventDefault();
-  try {
-    const id = revoke.action.split("/").at(-2) || "";
-    const step = await freshPasskey();
-    await api(`/api/v1/tokens/${encodeURIComponent(id)}`, { method: "DELETE", headers: stepHeader(step) });
-    await syncOwnedAuthorities(); revoke.closest(".token-row")?.remove();
-    if (!list.querySelector(".token-row")) { const empty = document.createElement("p"); empty.className = "empty-state"; empty.textContent = "No API keys yet."; list.append(empty); }
-  } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); }
-}));
+list.querySelectorAll<HTMLFormElement>('form[action^="/api/tokens/"][action$="/delete"]').forEach(bindRevoke);
