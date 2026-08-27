@@ -23,6 +23,17 @@ jobs:
         with:
           toolchain: "1.98"
           components: rustfmt,clippy
+      - name: Cache Rust validation build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-audit
+            target
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-ci-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.0"
@@ -33,7 +44,7 @@ jobs:
           go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - run: bun install --frozen-lockfile
       - name: Install RustSec auditor
-        run: cargo install cargo-audit --version 0.22.2 --locked
+        run: command -v cargo-audit >/dev/null || cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo audit
       - run: bun audit
       - run: sh scripts/check-version.sh
@@ -58,7 +69,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: docker build --tag rc-ci .
+      - uses: docker/setup-buildx-action@v3
+      - name: Build runtime image with GitHub cache
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: rc-ci
+          cache-from: type=gha,scope=rc-ci-image
+          cache-to: type=gha,mode=max,scope=rc-ci-image
       - name: Validate runtime image
         run: |
           docker run --rm --entrypoint /bin/sh rc-ci -c '
