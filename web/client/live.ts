@@ -1,6 +1,6 @@
 import { api } from "./http";
 import { onEvent } from "./socket";
-import type { Device, RCEvent, RemoteProcess } from "../types";
+import type { Device, RCEvent } from "../types";
 
 const enrollPage = document.querySelector<HTMLElement>("[data-enroll-page]");
 const enrollWorkspace = enrollPage?.dataset.enrollPage || "";
@@ -32,7 +32,6 @@ function setPresence(deviceId: string, online: boolean) {
     const supportsProcess = page.dataset.supportsProcess === "true";
     const terminal = page.querySelector<HTMLButtonElement>("#open-terminal");
     if (terminal) terminal.disabled = !online || !supportsProcess;
-    if (online) void refreshDevice(deviceId);
   }
 }
 
@@ -57,13 +56,14 @@ function activity(event: RCEvent) {
   list.prepend(row); while (list.children.length > 100) list.lastElementChild?.remove();
 }
 
-async function refreshProcessList(deviceId: string) {
+function updateProcessList(event: RCEvent) {
+  const deviceId = event.deviceId || "", processId = event.processId || "";
+  if (!deviceId || !processId) return;
   const list = document.querySelector<HTMLElement>(`[data-device-page="${CSS.escape(deviceId)}"] #process-list`); if (!list) return;
-  const { processes } = await api<{ processes: RemoteProcess[] }>(`/api/v1/devices/${deviceId}/processes`);
-  for (const process of processes) {
-    const state = list.querySelector<HTMLElement>(`[data-process-status="${CSS.escape(process.id)}"]`);
-    if (state) { state.textContent = process.status === "running" ? "RUNNING" : process.status.toUpperCase(); state.classList.toggle("online", process.status === "running"); }
-  }
+  const state = list.querySelector<HTMLElement>(`[data-process-status="${CSS.escape(processId)}"]`); if (!state) return;
+  const status = event.kind === "process.started" ? "RUNNING" : event.kind === "process.lost" ? "LOST" : event.kind === "process.exited" ? "EXITED" : "";
+  if (!status) return;
+  state.textContent = status; state.classList.toggle("online", status === "RUNNING");
 }
 
 onEvent(event => {
@@ -71,7 +71,7 @@ onEvent(event => {
   if (event.kind === "device.online" && event.deviceId) setPresence(event.deviceId, true);
   if (event.kind === "device.offline" && event.deviceId) setPresence(event.deviceId, false);
   if (event.kind === "device.updated" && event.deviceId) void refreshDevice(event.deviceId);
-  if (event.kind.startsWith("process.") && event.deviceId) void refreshProcessList(event.deviceId);
+  if (event.kind.startsWith("process.")) updateProcessList(event);
   activity(event);
 });
 

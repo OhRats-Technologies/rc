@@ -87,6 +87,24 @@ async function resync() {
   qs<HTMLElement>("#process-message").textContent = process.error || transportMessage; fitTerminal();
 }
 
+function applyProcessEvent(event: { kind: string; detail?: Record<string, unknown> }) {
+  const state = qs<HTMLElement>("#process-state"), actions = document.querySelector<HTMLElement>("#terminal-actions");
+  if (event.kind === "process.started") {
+    status = "running"; state.textContent = "RUNNING"; state.classList.add("online");
+    terminal.options.cursorBlink = interactive; if (actions) actions.hidden = false; return;
+  }
+  if (event.kind === "process.exited") {
+    status = "exited"; state.classList.remove("online"); terminal.options.cursorBlink = false;
+    const signal = String(event.detail?.signal || ""), exitCode = event.detail?.exitCode;
+    state.textContent = signal || `EXIT ${exitCode ?? "?"}`; if (actions) actions.hidden = true; return;
+  }
+  if (event.kind === "process.lost") {
+    status = "lost"; state.textContent = "LOST"; state.classList.remove("online"); terminal.options.cursorBlink = false;
+    if (actions) actions.hidden = true;
+    qs<HTMLElement>("#process-message").textContent = String(event.detail?.error || "Process lost");
+  }
+}
+
 if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-signal]").forEach(button => button.addEventListener("click", async () => {
   try {
     if (!control) throw new Error("Control session reconnecting");
@@ -137,17 +155,14 @@ async function connectEncrypted() {
 if (live) onEvent(event => {
   if (event.kind === "rc.connected") { if (encrypted) void connectEncrypted(); else void resync(); return; }
   if (event.processId !== processId) return;
-  if (encrypted) {
-    if (["process.started", "process.exited", "process.lost"].includes(event.kind)) void resync();
-    return;
-  }
+  if (["process.started", "process.exited", "process.lost"].includes(event.kind)) { applyProcessEvent(event); return; }
+  if (encrypted) return;
   if (event.kind === "process.output" && event.detail?.chunk) {
     const next = Number(event.detail.revision || 0);
     if (!revision || next === revision + 1) { terminal.write(String(event.detail.chunk)); revision = next; }
     else void resync();
     return;
   }
-  if (["process.started", "process.exited", "process.lost"].includes(event.kind)) void resync();
 });
 
 if (encrypted) void connectEncrypted();

@@ -113,6 +113,11 @@ func runNode(args []string) error {
 			return err
 		}
 	}
+	runLock, err := acquireRunLock(dir)
+	if err != nil {
+		return err
+	}
+	defer runLock.Close()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	manager := newProcessManager()
