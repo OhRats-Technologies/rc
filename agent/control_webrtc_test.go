@@ -42,10 +42,12 @@ func TestWebRTCControlFramesBypassRelay(t *testing.T) {
 	}
 	opened := make(chan struct{})
 	received := make(chan wireMessage, 4)
+	receivedText := make(chan bool, 4)
 	channel.OnOpen(func() { close(opened) })
 	channel.OnMessage(func(message webrtc.DataChannelMessage) {
 		var frame wireMessage
 		if json.Unmarshal(message.Data, &frame) == nil {
+			receivedText <- message.IsString
 			received <- frame
 		}
 	})
@@ -113,6 +115,14 @@ func TestWebRTCControlFramesBypassRelay(t *testing.T) {
 	case response = <-received:
 	case <-time.After(time.Second):
 		t.Fatal("client did not receive direct control frame")
+	}
+	select {
+	case isString := <-receivedText:
+		if !isString {
+			t.Fatal("Node sent WebRTC control frame as binary instead of text")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("client did not receive WebRTC frame type")
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(response.Ciphertext)
 	if err != nil {

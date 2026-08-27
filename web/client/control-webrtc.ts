@@ -90,10 +90,15 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     // receiving it is not evidence that the direct channel failed.
     for (const listener of frameListeners) listener(sequence, ciphertext);
   });
-  channel.addEventListener("message", event => {
+  channel.addEventListener("message", async event => {
     if (!direct || closing) return;
-    if (typeof event.data !== "string" || event.data.length > 2_000_000) { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
-    let frame: Frame; try { frame = JSON.parse(String(event.data)) as Frame; } catch { return; }
+    let text: string;
+    if (typeof event.data === "string") text = event.data;
+    else if (event.data instanceof ArrayBuffer) text = new TextDecoder().decode(event.data);
+    else if (event.data instanceof Blob) text = await event.data.text();
+    else { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
+    if (text.length > 2_000_000) { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
+    let frame: Frame; try { frame = JSON.parse(text) as Frame; } catch { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
     if (frame.type !== "control.frame" || frame.sessionId !== sessionId) return;
     for (const listener of frameListeners) listener(Number(frame.sequence), String(frame.ciphertext || ""));
   });

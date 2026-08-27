@@ -34,6 +34,7 @@ export const BrowserCommandSchema = t.Union([
     sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
   t.Object({ type: t.Literal("control.transport"), deviceId: DeviceId, sessionId: SessionId,
     transport: t.Union([t.Literal("webrtc"), t.Literal("relay")]),
+    phase: t.Optional(t.Union([t.Literal("connecting"), t.Literal("connected"), t.Literal("fallback")])),
     reason: t.Optional(t.String({ maxLength: 200 })),
     iceState: t.Optional(t.String({ maxLength: 40 })), connectionState: t.Optional(t.String({ maxLength: 40 })),
     localCandidates: t.Optional(IceCandidateSummarySchema), remoteCandidates: t.Optional(IceCandidateSummarySchema),

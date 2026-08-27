@@ -191,6 +191,7 @@ func connectWithLiveness(ctx context.Context, serverURL string, value state, sta
 	}); err != nil {
 		return err
 	}
+	fmt.Printf("Connected to RC as %s\n", value.DeviceID)
 
 	readDone := make(chan error, 1)
 	manager.attach(send)

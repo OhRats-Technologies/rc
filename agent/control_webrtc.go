@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/pion/webrtc/v4"
@@ -23,6 +24,7 @@ func (manager *controlManager) openWebRTC(message wireMessage) {
 }
 
 func (manager *controlManager) answerWebRTC(message wireMessage) {
+	fmt.Printf("WebRTC offer received for control session %s\n", shortControlID(message.SessionID))
 	if len(message.SDP) == 0 || len(message.SDP) > 131072 || len(message.IceServers) > 8 {
 		manager.controlError(message.RequestID, "invalid WebRTC offer")
 		return
@@ -123,7 +125,7 @@ func (manager *controlManager) bindWebRTC(sessionID, transportID string, channel
 	if valid {
 		session.send = func(message wireMessage) bool {
 			data, err := json.Marshal(message)
-			if err == nil && channel.BufferedAmount() <= 1<<20 && channel.Send(data) == nil {
+			if err == nil && channel.BufferedAmount() <= 1<<20 && channel.SendText(string(data)) == nil {
 				return true
 			}
 			manager.useRelay(sessionID)
@@ -133,7 +135,9 @@ func (manager *controlManager) bindWebRTC(sessionID, transportID string, channel
 	manager.mu.Unlock()
 	if !valid {
 		_ = channel.Close()
+		return
 	}
+	fmt.Printf("WebRTC connected for control session %s\n", shortControlID(sessionID))
 }
 
 func (manager *controlManager) useRelay(sessionID string) {
@@ -162,12 +166,20 @@ func (manager *controlManager) resetWebRTC(sessionID, transportID string) {
 	session.send = manager.relayFrame
 	session.transportID = "relay"
 	session.closeTransport = nil
+	fmt.Printf("WebRTC fell back to relay for control session %s\n", shortControlID(sessionID))
 }
 
 func (manager *controlManager) failWebRTC(sessionID, transportID string, peer *webrtc.PeerConnection, requestID string) {
 	manager.resetWebRTC(sessionID, transportID)
 	_ = peer.Close()
 	manager.controlError(requestID, "WebRTC negotiation failed")
+}
+
+func shortControlID(value string) string {
+	if len(value) <= 8 {
+		return value
+	}
+	return value[:8]
 }
 
 func (manager *controlManager) closeSession(sessionID string) {

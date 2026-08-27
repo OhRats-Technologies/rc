@@ -19,6 +19,7 @@ const fit = new FitAddon(); terminal.loadAddon(fit); host.hidden = false; transc
 let status = page.dataset.processStatus || "", revision = Number(page.dataset.processRevision || 0), frame = 0;
 let control: ControlSession | null = null, controlGeneration = 0;
 let ctrlNext = false, altNext = false;
+let transportMessage = "";
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
 fitTerminal(); const observer = new ResizeObserver(fitTerminal); observer.observe(host);
 
@@ -42,9 +43,10 @@ function showTransport(status: ControlTransportStatus) {
   element.textContent = transportText(status);
   element.title = status.reason || (status.transport === "webrtc" ? "Direct WebRTC DataChannel" : "Encrypted WebSocket relay");
   if (status.transport === "relay" && status.reason) {
-    const message = qs<HTMLElement>("#process-message");
-    if (!message.textContent?.trim()) message.textContent = `WebRTC fallback: ${status.reason}`;
-  }
+    transportMessage = `WebRTC fallback: ${status.reason}`;
+  } else if (status.transport === "webrtc" && status.phase === "connected") transportMessage = "";
+  const message = qs<HTMLElement>("#process-message");
+  if (!message.textContent?.trim() || transportMessage) message.textContent = transportMessage;
 }
 if (interactive) terminal.onData(data => {
   if (ctrlNext && data.length === 1) { const code = data.toUpperCase().charCodeAt(0); if (code >= 64 && code <= 95) data = String.fromCharCode(code - 64); ctrlNext = false; }
@@ -67,7 +69,7 @@ async function resync() {
   state.textContent = stateText(process); state.classList.toggle("online", status === "running");
   const actions = document.querySelector<HTMLElement>("#terminal-actions");
   if (actions) actions.hidden = !["starting", "running"].includes(status);
-  qs<HTMLElement>("#process-message").textContent = process.error || ""; fitTerminal();
+  qs<HTMLElement>("#process-message").textContent = process.error || transportMessage; fitTerminal();
 }
 
 if (interactive) document.querySelectorAll<HTMLButtonElement>("[data-signal]").forEach(button => button.addEventListener("click", async () => {
