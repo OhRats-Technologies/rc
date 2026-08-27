@@ -44,12 +44,14 @@ async function deriveKey(privateKey: CryptoKey, transportKey: string, ephemeralK
 export class ControlSession {
   private sendSequence = 0;
   private receiveSequence = 0;
+  private receiveQueue = new Map<number, string>();
+  private draining = false;
   private listeners = new Set<Listener>();
   private pending = new Map<string, { resolve: (value: SessionMessage) => void; reject: (error: Error) => void; timer: number }>();
   private unsubscribe: () => void;
   private closed = false;
   constructor(readonly deviceId: string, readonly sessionId: string, private key: CryptoKey, private transport: ControlTransport) {
-    this.unsubscribe = transport.onFrame((sequence, ciphertext) => { void this.receive(sequence, ciphertext); });
+    this.unsubscribe = transport.onFrame((sequence, ciphertext) => this.enqueue(sequence, ciphertext));
   }
   onMessage(listener: Listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   async send(message: SessionMessage) {
@@ -67,10 +69,27 @@ export class ControlSession {
     });
     await this.send({ ...message, requestId }); return await result;
   }
+  private enqueue(sequence: number, ciphertext: string) {
+    if (this.closed || sequence <= this.receiveSequence || this.receiveQueue.has(sequence)) return;
+    if (!Number.isSafeInteger(sequence) || sequence <= 0 || sequence > this.receiveSequence + 64 || !ciphertext || ciphertext.length > 1_500_000) {
+      this.close(); return;
+    }
+    this.receiveQueue.set(sequence, ciphertext); void this.drain();
+  }
+  private async drain() {
+    if (this.draining || this.closed) return;
+    this.draining = true;
+    try {
+      while (!this.closed) {
+        const sequence = this.receiveSequence + 1, ciphertext = this.receiveQueue.get(sequence);
+        if (!ciphertext) break;
+        this.receiveQueue.delete(sequence);
+        await this.receive(sequence, ciphertext);
+      }
+    } finally { this.draining = false; }
+  }
   private async receive(sequence: number, ciphertext: string) {
     if (sequence <= this.receiveSequence) return;
-    if (sequence !== this.receiveSequence + 1) { this.close(); return; }
-    if (!ciphertext || ciphertext.length > 1_500_000) { this.close(); return; }
     try {
       const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce(2, sequence), additionalData: aad(this.sessionId, sequence, "n2c") }, this.key, b64urlToBytes(ciphertext));
       this.receiveSequence = sequence; const message = JSON.parse(new TextDecoder().decode(plain)) as SessionMessage;
@@ -85,6 +104,7 @@ export class ControlSession {
   }
   private shutdown() {
     if (this.closed) return; this.closed = true; this.unsubscribe(); this.transport.close(); this.listeners.clear();
+    this.receiveQueue.clear();
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error("Control session closed")); }
     this.pending.clear();
   }
