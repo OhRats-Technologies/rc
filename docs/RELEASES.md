@@ -54,6 +54,8 @@ CI treats Rust linting, Rust tests, browser checks, security checks, static chec
 
 Both Darwin archives build on the standard `macos-15` Apple Silicon runner; Rust cross-compiles the amd64 archive to `x86_64-apple-darwin`, avoiding the substantially slower dedicated Intel runner. Development and CI use the platform OpenSSL required by `webauthn-rs-core`; release builds explicitly enable `rc-cli`'s `vendored-openssl` feature so shipped archives remain self-contained. These caches, build layers, and cross-builds are performance optimizations only; cache misses must still produce the same validated artifacts.
 
+The hosted `rc-server` package uses 64 release codegen units. This keeps its source-only production rebuild parallel without changing the CLI/Node release profile; local throughput checks must remain within measurement noise of Cargo's default 16-CGU server build before changing that value.
+
 ## Post-release fixes
 
 Never move or overwrite a published tag. Fix forward:

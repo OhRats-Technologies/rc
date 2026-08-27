@@ -24,6 +24,12 @@ cargo run -p rc-server
 
 When `RC_SETUP_TOKEN` is unset, the server logs a generated setup URL. The default development database is isolated at `./data-v2/rc-v2.sqlite3` to avoid interpreting a legacy `rc.db`.
 
+The normal development and test profiles keep line-table debug information for useful panic locations while omitting full dependency debug data to reduce compile/link time and `target/` size. When a debugger needs full symbols, opt in explicitly:
+
+```sh
+cargo build --profile debugging
+```
+
 ## Required validation
 
 Run the same checks as CI before committing:
