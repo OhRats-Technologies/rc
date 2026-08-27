@@ -5,8 +5,18 @@ RUN bun install --frozen-lockfile
 COPY web ./web
 RUN bun run build:client
 
-FROM rust:1.98-bookworm AS rust
+FROM lukemathwalker/cargo-chef:latest-rust-1.98-bookworm@sha256:b1ed45bf65418f5daa5348b39f05ec6a6f5950996e0b797dbe38326d18d42e41 AS chef
 WORKDIR /src
+
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY public ./public
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS rust
+COPY --from=planner /src/recipe.json recipe.json
+RUN cargo chef cook --locked --release -p rc-server --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 COPY public ./public
