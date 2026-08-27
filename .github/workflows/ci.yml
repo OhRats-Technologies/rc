@@ -30,10 +30,9 @@ jobs:
       - name: Restore cleaned Rust dependency cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: validation-workspace-v1
+          shared-key: validation
           add-job-id-key: false
           cache-bin: false
-          cache-workspace-crates: true
           save-if: false
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -54,12 +53,24 @@ jobs:
       - name: Restore cleaned Rust dependency cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: validation-workspace-v1
+          shared-key: validation
           add-job-id-key: false
           cache-bin: false
-          cache-workspace-crates: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: "v0.16.0"
+      - name: Enable sccache for Rust tests
+        run: |
+          cat >> "$GITHUB_ENV" <<'EOF'
+          SCCACHE_GHA_ENABLED=true
+          SCCACHE_GHA_VERSION=rc-ci-v1
+          RUSTC_WRAPPER=sccache
+          EOF
       - run: cargo test --workspace --all-targets
+      - name: Report sccache statistics
+        run: sccache --show-stats
 
   web:
     runs-on: ubuntu-latest
