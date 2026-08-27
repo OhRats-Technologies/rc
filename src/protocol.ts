@@ -72,6 +72,7 @@ export const AgentClientMessageSchema = t.Union([
     lockGeneration: t.Optional(t.Integer({ minimum: 0 })),
   }),
   t.Object({ type: t.Literal("heartbeat") }),
+  t.Object({ type: t.Literal("process.sync"), ids: t.Array(ProcessId, { maxItems: 1024 }) }),
   t.Object({ type: t.Literal("process.started"), id: ProcessId }),
   t.Object({ type: t.Literal("process.start.request"), id: ProcessId, userId: t.String({ minLength: 1, maxLength: 100 }) }),
   t.Object({ type: t.Literal("process.stdout"), id: ProcessId, data: ProcessData }),

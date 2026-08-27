@@ -140,6 +140,24 @@ export const agentSocketHandlers = {
         q("UPDATE devices SET last_seen=? WHERE id=?").run(Date.now(), deviceId);
         return;
       }
+      if (msg.type === "process.sync") {
+        const active = new Set(msg.ids);
+        const hosted = q<any>("SELECT id,status FROM processes WHERE device_id=? AND status IN ('starting','running')").all(deviceId);
+        for (const process of hosted) {
+          if (active.has(process.id)) {
+            if (process.status === "starting") {
+              markProcessStarted(process.id);
+              publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
+            }
+            continue;
+          }
+          const error = "RC Node reconnected without this process";
+          markMcpProcessLost(process.id, error);
+          markProcessLost(process.id, error);
+          publishEvent({ kind: "process.lost", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id, detail: { error } });
+        }
+        return;
+      }
       if (msg.type === "process.start.request") {
         const process = processRow(msg.id);
         if (process && process.device_id === deviceId && process.encrypted && process.status === "starting" && process.created_by === msg.userId) {

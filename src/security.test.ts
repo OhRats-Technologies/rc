@@ -280,6 +280,20 @@ describe("MCP transport and OAuth", () => {
     expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: refresh }))).status).toBe(400);
   });
 
+  test("process sync marks hosted rows missing from the Node as lost", async () => {
+    const { userId, deviceId } = await enrolledDevice(q), kept = crypto.randomUUID(), stale = crypto.randomUUID(), t = Date.now();
+    for (const processId of [kept, stale]) {
+      q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at,started_at)
+        VALUES(?,?,?,NULL,'running',1,0,80,24,?,?,?)`).run(processId, deviceId, "[encrypted]", userId, t, t);
+    }
+    agentSocketHandlers.message(deviceId, { type: "process.sync", ids: [kept] });
+    expect(q<any>("SELECT status FROM processes WHERE id=?").get(kept).status).toBe("running");
+    const staleRow = q<any>("SELECT status,error,completed_at FROM processes WHERE id=?").get(stale);
+    expect(staleRow.status).toBe("lost");
+    expect(staleRow.error).toBe("RC Node reconnected without this process");
+    expect(staleRow.completed_at).toBeGreaterThan(0);
+  });
+
   test("MCP process output is relayed without being retained in SQLite", async () => {
     const { userId, deviceId } = await enrolledDevice(q), processId = crypto.randomUUID(), t = Date.now();
     q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
