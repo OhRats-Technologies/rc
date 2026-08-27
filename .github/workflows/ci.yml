@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  rust:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,32 +29,69 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin/cargo-audit
             target
-          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-rust-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-ci-
+            ${{ runner.os }}-cargo-rust-
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --all-targets
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.0"
-      - name: Install repository linters
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes shellcheck
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run build:client
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+      - name: Cache RustSec auditor
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin/cargo-audit
+          key: ${{ runner.os }}-cargo-audit-0.22.2-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-audit-0.22.2-
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
       - run: bun install --frozen-lockfile
       - name: Install RustSec auditor
         run: command -v cargo-audit >/dev/null || cargo install cargo-audit --version 0.22.2 --locked
       - run: cargo audit
       - run: bun audit
+
+  static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Install repository linters
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes shellcheck
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       - run: sh scripts/check-version.sh
       - run: sh scripts/check-source-size.sh
       - run: python3 scripts/check-doc-links.py
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace --all-targets
-      - run: bun run typecheck
-      - run: bun run build:client
       - name: Validate shell entry points
         run: |
           sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
@@ -63,7 +100,7 @@ jobs:
       - run: git diff --check
 
   image:
-    needs: validate
+    needs: [rust, web, security, static]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
