@@ -1,6 +1,7 @@
 import "@xterm/xterm/css/xterm.css";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { api, qs } from "./http";
 import { onEvent } from "./socket";
 import { openControlSession, type ControlSession } from "./control-session";
@@ -15,7 +16,20 @@ const encoded = source.textContent || "", bytes = Uint8Array.from(atob(encoded),
 const style = getComputedStyle(document.documentElement), color = (name: string) => style.getPropertyValue(name).trim();
 const terminal = new Terminal({ cursorBlink: interactive && page.dataset.processStatus === "running", disableStdin: !interactive, scrollback: 10_000,
   theme: { background: color("--or-bg"), foreground: color("--or-text"), cursor: color("--or-text"), selectionBackground: color("--or-surface-hover") } });
-const fit = new FitAddon(); terminal.loadAddon(fit); host.hidden = false; transcript.hidden = true; terminal.open(host); terminal.write(initialOutput);
+const fit = new FitAddon(); terminal.loadAddon(fit); host.hidden = false; transcript.hidden = true; terminal.open(host);
+let webgl: WebglAddon | null = null;
+try {
+  webgl = new WebglAddon();
+  terminal.loadAddon(webgl);
+  webgl.onContextLoss(() => {
+    webgl?.dispose();
+    webgl = null;
+  });
+} catch {
+  webgl?.dispose();
+  webgl = null;
+}
+terminal.write(initialOutput);
 let status = page.dataset.processStatus || "", revision = Number(page.dataset.processRevision || 0), frame = 0;
 let control: ControlSession | null = null, controlGeneration = 0;
 let ctrlNext = false, altNext = false;
@@ -131,4 +145,6 @@ if (live) onEvent(event => {
 
 if (encrypted) void connectEncrypted();
 
-addEventListener("pagehide", () => { controlGeneration++; control?.close(); observer.disconnect(); cancelAnimationFrame(frame); terminal.dispose(); }, { once: true });
+addEventListener("pagehide", () => {
+  controlGeneration++; control?.close(); observer.disconnect(); cancelAnimationFrame(frame); webgl?.dispose(); terminal.dispose();
+}, { once: true });
