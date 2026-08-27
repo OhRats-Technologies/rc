@@ -18,13 +18,14 @@ These values must match:
 - `package.json`
 - `crates/rc-cli/Cargo.toml`
 - `crates/rc-server/Cargo.toml`
+- the newest `CHANGELOG.md` release heading
 - release tag without its leading `v`
 
 Validate them with:
 
 ```sh
-sh scripts/check-version.sh
-sh scripts/check-version.sh 0.16.0-alpha.1
+VERSION="$(sh scripts/check-version.sh)"
+sh scripts/check-version.sh "$VERSION"
 ```
 
 ## Release checklist
@@ -38,8 +39,9 @@ sh scripts/check-version.sh 0.16.0-alpha.1
 7. Create and push an annotated or signed tag:
 
    ```sh
-   git tag -a v0.16.0-alpha.1 -m 'RC 0.16.0-alpha.1'
-   git push origin v0.16.0-alpha.1
+   VERSION="$(sh scripts/check-version.sh)"
+   git tag -a "v$VERSION" -m "RC $VERSION"
+   git push origin "v$VERSION"
    ```
 
 8. Require the `RC release` workflow to pass and publish a non-draft latest release.

@@ -8,7 +8,7 @@ Preserve relevant logs and artifacts, but redact setup tokens, enrollment tokens
 
 ## Supported versions
 
-During the v0.16 alpha, only the newest published v0.16 prerelease is supported. Security fixes move forward to a new immutable tag; published tags are not rewritten. v0.15 is a separate legacy deployment with a separate database and agent.
+Only the newest published v0.16 release is supported. Security fixes move forward to a new immutable tag; published tags are not rewritten. v0.15 is a separate legacy deployment with a separate database and agent.
 
 ## Security model
 

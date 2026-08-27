@@ -5,7 +5,7 @@ This runbook covers a single RC server instance backed by a persistent SQLite vo
 ## Production container
 
 ```sh
-docker build -t rc:0.16.0-alpha.1 .
+docker build -t rc:0.16.0 .
 docker volume create rc-data
 
 export RC_SETUP_TOKEN="$(openssl rand -hex 32)"
@@ -15,7 +15,7 @@ docker run -d --name rc --restart unless-stopped \
   -e PUBLIC_URL=https://rc.example \
   -e RC_SETUP_TOKEN="$RC_SETUP_TOKEN" \
   -e RC_TRUST_PROXY=1 \
-  rc:0.16.0-alpha.1
+  rc:0.16.0
 ```
 
 Terminate TLS at a controlled reverse proxy and forward to port 3000. Preserve WebSocket upgrades for `/api/v1/ssh/tunnel`, disable response buffering for SSE, and use long idle timeouts for SSE and SSH connections. Normal WebRTC media/data does not traverse the reverse proxy.

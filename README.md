@@ -4,7 +4,7 @@ RC is a Rust remote-control platform for managing machines from a browser, CLI, 
 
 The repository contains the server, browser application, Node runtime, CLI, protocol, cryptography, installer, container image, and release automation.
 
-> **v0.16 alpha upgrade boundary**
+> **v0.16 upgrade boundary**
 >
 > v0.16 replaces the Bun/TypeScript server and Go agent with Rust. It writes `rc-v2.sqlite3` and does **not** import v0.15 `rc.db`, passkeys, authority records, or device state. Keep the old database as a rollback artifact, create the first v0.16 account through the setup link, and re-enroll every Node. See [Operations](docs/OPERATIONS.md#upgrading-from-v015).
 

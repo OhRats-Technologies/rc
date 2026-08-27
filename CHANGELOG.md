@@ -2,7 +2,7 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
-## [0.16.0-alpha.1] - 2026-08-27
+## [0.16.0] - 2026-08-27
 
 ### Breaking
 
@@ -32,3 +32,4 @@ All notable RC changes are recorded here. Published tags are immutable.
 - Hardened SSH key parsing, relay framing, process failure persistence, and helper EOF handling.
 - Pinned the container user to UID/GID 10001 and added boot/restart health, permission, and host-key persistence checks.
 - Made unified CLI/Node release artifacts self-contained by statically vendoring the OpenSSL dependency required by upstream WebAuthn COSE verification; HTTP remains Rustls-only.
+- Added semantic main landmarks across authentication, setup, CLI authorization, OAuth consent, and error pages; improved responsive smoke coverage, documentation routing, and singular access labels.
