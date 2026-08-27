@@ -79,26 +79,22 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-      - name: Cache RustSec auditor
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cargo/bin/cargo-audit
-          key: ${{ runner.os }}-cargo-audit-0.22.2-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-audit-0.22.2-
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.0"
       - run: bun install --frozen-lockfile
       - name: Install RustSec auditor
-        run: command -v cargo-audit >/dev/null || cargo install cargo-audit --version 0.22.2 --locked
-      - run: cargo audit
+        run: |
+          archive="$RUNNER_TEMP/cargo-audit.tgz"
+          directory="$RUNNER_TEMP/cargo-audit"
+          curl -fsSL \
+            -o "$archive" \
+            https://github.com/RustSec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2.tgz
+          echo "ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39  $archive" | sha256sum -c -
+          mkdir -p "$directory"
+          tar -xzf "$archive" -C "$directory" --strip-components=1
+          echo "$directory" >> "$GITHUB_PATH"
+      - run: cargo-audit audit
       - run: bun audit
 
   static:
@@ -109,9 +105,19 @@ jobs:
           persist-credentials: false
       - name: Install repository linters
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes shellcheck
-          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install --yes shellcheck
+          fi
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          directory="$RUNNER_TEMP/actionlint"
+          curl -fsSL \
+            -o "$archive" \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $archive" | sha256sum -c -
+          mkdir -p "$directory"
+          tar -xzf "$archive" -C "$directory" actionlint
+          echo "$directory" >> "$GITHUB_PATH"
       - run: sh scripts/check-version.sh
       - run: sh scripts/check-source-size.sh
       - run: python3 scripts/check-doc-links.py
@@ -119,7 +125,7 @@ jobs:
         run: |
           sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
           shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
-          "$(go env GOPATH)/bin/actionlint" -shellcheck shellcheck .github/workflows/*.yml
+          actionlint -shellcheck shellcheck .github/workflows/*.yml
       - run: git diff --check
 
   image:
