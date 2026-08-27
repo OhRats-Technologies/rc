@@ -8,3 +8,5 @@ node_modules/
 *.db-wal
 agent/device.json
 agent/agent
+
+/target/

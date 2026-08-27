@@ -1,0 +1,10 @@
+[package]
+name = "rc-node"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rc-protocol = { path = "../rc-protocol" }
+rc-crypto = { path = "../rc-crypto" }
