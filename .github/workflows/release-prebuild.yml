@@ -60,7 +60,16 @@ jobs:
           version: "0.16.0"
       - name: Install cargo-zigbuild
         if: runner.os == 'Linux'
-        run: command -v cargo-zigbuild >/dev/null || cargo install cargo-zigbuild --version 0.23.2 --locked
+        run: |
+          archive="$RUNNER_TEMP/cargo-zigbuild.tar.xz"
+          directory="$RUNNER_TEMP/cargo-zigbuild"
+          curl -fsSL \
+            -o "$archive" \
+            https://github.com/rust-cross/cargo-zigbuild/releases/download/v0.23.2/cargo-zigbuild-x86_64-unknown-linux-gnu.tar.xz
+          echo "68f56ad657054afc04fa6f6b75a5752cec60378a046ad4e9441b9a06bd51211e  $archive" | sha256sum -c -
+          mkdir -p "$directory"
+          tar -xJf "$archive" -C "$directory" --strip-components=1 cargo-zigbuild-x86_64-unknown-linux-gnu/cargo-zigbuild
+          echo "$directory" >> "$GITHUB_PATH"
       - name: Build RC on Linux
         if: runner.os == 'Linux'
         env:
