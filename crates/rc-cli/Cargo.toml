@@ -9,12 +9,6 @@ license.workspace = true
 name = "rc"
 path = "src/main.rs"
 
-[features]
-# Development and CI use the platform OpenSSL already required by
-# webauthn-rs-core. Release archives enable this explicitly so the unified
-# rc binary remains self-contained on target machines.
-vendored-openssl = ["rc-crypto/vendored-openssl"]
-
 [dependencies]
 anyhow.workspace = true
 base64.workspace = true

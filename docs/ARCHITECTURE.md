@@ -32,7 +32,9 @@ The public HTTP service is the rendezvous and policy plane. It does not carry no
 | Browser/CLI terminal | WebRTC DataChannel | Signed authority plus Node verification | Application-layer encrypted end to end |
 | Node bootstrap/status | HTTPS | Ed25519-signed Node requests | Enrollment, presence, ICE, update metadata |
 | SSH compatibility | WebSocket + local OpenSSH | Registered SSH key bound to a control client | Hosted byte relay to a Node process |
-| MCP | OAuth 2.0 authorization code + PKCE, JSON-RPC/HTTP | Passkey-backed grant with machine and tool scopes | Bounded stdout/stderr retained by the service |
+| MCP | OAuth 2.0 authorization code + PKCE, JSON-RPC/HTTP | Passkey-backed grant with explicit machine and tool scopes | Bounded stdout/stderr retained by the service |
+
+The MCP surface is intentionally small: `machines_list` discovers explicitly granted machines, `process_run` starts one bounded shell command, and `process_status` reads incremental output or completion. Each tool publishes an exact output schema. MCP Terminal grants are immutable, device-specific, Owner-approved, and included in each selected Node's RC Lock; newly enrolled machines require a new or replaced grant rather than inheriting ambient execution authority.
 
 ## Trust boundaries
 
@@ -95,4 +97,4 @@ fixtures              cross-implementation protocol vectors
 
 Production source files are kept below 300 lines and split by responsibility. Wire changes require protocol fixtures and tests before consumers are updated.
 
-The unified `rc` release binary statically vendors OpenSSL only for the upstream Node-side WebAuthn/COSE verifier. HTTP TLS uses Rustls. This keeps macOS and Linux release artifacts independent of host OpenSSL packages and makes cross-compilation reproducible.
+The unified `rc` release binary verifies Node-side ES256 and RS256 WebAuthn assertions with ring and uses Rustls for HTTP TLS. It has no OpenSSL runtime or build dependency, which keeps macOS and Linux release artifacts self-contained and makes cross-compilation reproducible.

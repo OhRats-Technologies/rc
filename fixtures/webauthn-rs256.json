@@ -1,0 +1,18 @@
+{
+  "assertion": {
+    "id": "cmMtcnMyNTYtZml4dHVyZS1jcmVkZW50aWFsLWlkLTAwMDE",
+    "rawId": "cmMtcnMyNTYtZml4dHVyZS1jcmVkZW50aWFsLWlkLTAwMDE",
+    "response": {
+      "authenticatorData": "B9uppMKQ4T8XU3xg8jYjEufq2tyUbIdJgRrZz4swHTsFAAAAAA",
+      "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoicnMyNTYtZml4dHVyZS1jaGFsbGVuZ2UiLCJvcmlnaW4iOiJodHRwczovL3JjLmV4YW1wbGUudGVzdCIsImNyb3NzT3JpZ2luIjpmYWxzZX0",
+      "signature": "WBljDI-v80FX14AP1_SnRwwPvBeOtWt3G9cEDZzWiwzV53igHrlP7c1ZojlJRNpH9DUo1cO-IyvCrKbebiMWvVbQKKhHwTC46pJXDWUHwhcEoPoM8Mln0z9OG64iQS4BkqKSwatDy8cpt1c9qIR-MSLMVaCrW-6WSyz0KMMxgIjDfRtXQnmL8DWenEJ6bMvPN5VeZuJVnMqPc7tVZtLJukMLFDcPtJjMy906YUWwOBFAmaRnmFeZtm2-58tZx0cqeicA1XagNuvxZrx7Bheqvz8OTAG1MMHcCQCTv5uQ-X1EdsaKdenQ0Lc1cepBW1r9Fyf6Sm7Qf6lEc2dvrXx4sQ",
+      "userHandle": null
+    },
+    "type": "public-key"
+  },
+  "challenge": "rs256-fixture-challenge",
+  "credentialId": "cmMtcnMyNTYtZml4dHVyZS1jcmVkZW50aWFsLWlkLTAwMDE",
+  "origin": "https://rc.example.test",
+  "rpId": "rc.example.test",
+  "storedPublicKey": "eyJ0eXBlXyI6IlJTMjU2Iiwia2V5Ijp7IlJTQSI6eyJuIjoidC1leS1UTV9PS292R1lYcDZ3WHRWTzcwb0tyLUNJM2pTcHdGNG1WbnF2cWdoZ1dhdnA2d3NZNFV1U3FXVDFlTmlTTUtDT19IZkVadGlMNDNfZFhwendyMHVfRHBRU2JTdThjbTdkblZreTVTemtvMnpvWnJXUTBxc2ltYnRIdGpGeXhrNUQwa2VoR09QTWtNbXRkZHg4QkJMeGVJeFVzbzFWNl9jbEtYV2Y0a0NYaHBJYURjcFdyMW5PdnhuTUl3SWZXbDdIMVRQRjJpVDd0MWoyamhLWW40d1NCQXEyZnY1WUdLMTFpa3Z4S3hGa1hkVVM1Y3RNVkViWWhqSlZ1TTFKanh3eFRWalVyWXAyN1ZwM0ZwNW9wRUJYcVZDMlN3MWVzeFlEYzNWLXVZWHcxWWxnamoyLVNWUnlEcjVvcm96aVZBcTZRbmY5MjdKczFPeEVEOWlRIiwiZSI6WzEsMCwxXX19fQ=="
+}

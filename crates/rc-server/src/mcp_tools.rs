@@ -50,8 +50,8 @@ pub fn has_scope(scopes: &[String], required: &str) -> bool {
 }
 
 async fn machines(state: &AppState, context: &McpContext) -> anyhow::Result<serde_json::Value> {
-    let allowed = &context.payload.device_ids;
     let all = crate::devices_json(state, &context.payload.user_id).await?;
+    let allowed = &context.payload.device_ids;
     let machines: Vec<_> = all
         .into_iter()
         .filter(|device| {
@@ -124,8 +124,8 @@ async fn process_run(
         .db
         .device_role(&context.payload.user_id, device)?
         .ok_or_else(|| anyhow::anyhow!("operator access is no longer available for this device"))?;
-    if !matches!(role.as_str(), "owner" | "operator") {
-        anyhow::bail!("operator access is no longer available for this device");
+    if role != "owner" {
+        anyhow::bail!("Owner access is no longer available for this device");
     }
     let command = args
         .get("command")

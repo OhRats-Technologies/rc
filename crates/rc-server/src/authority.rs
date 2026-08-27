@@ -154,7 +154,17 @@ fn authority_mcp_grants(
                     .filter_map(|id| id.as_str())
                     .any(|id| devices.contains(id))
             });
-        if terminal && applies {
+        let owner = db.with_connection(|db| {
+            use rusqlite::OptionalExtension;
+            db.query_row(
+                "SELECT 1 FROM workspace_members WHERE workspace_id=? AND user_id=? AND role='owner'",
+                rusqlite::params![workspace_id, user_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .map(|value| value.is_some())
+        })?;
+        if terminal && owner && applies {
             grants.push(AuthorityMcpGrant {
                 id,
                 user_id,

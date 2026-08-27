@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 base64.workspace = true
-ed25519-dalek.workspace = true
+ed25519-dalek = { workspace = true, features = ["pkcs8"] }
 rand.workspace = true
 rc-crypto = { path = "../rc-crypto" }
 rc-protocol = { path = "../rc-protocol" }

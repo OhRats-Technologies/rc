@@ -75,12 +75,12 @@ jobs:
         if: runner.os == 'Linux'
         env:
           RUSTFLAGS: -D warnings -A linker-messages
-        run: cargo zigbuild --locked --release -p rc-cli --features vendored-openssl --target ${{ matrix.target }}
+        run: cargo zigbuild --locked --release -p rc-cli --target ${{ matrix.target }}
       - name: Build RC on macOS
         if: runner.os == 'macOS'
         env:
           RUSTFLAGS: -D warnings
-        run: cargo build --locked --release -p rc-cli --features vendored-openssl --target ${{ matrix.target }}
+        run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
       - name: Package RC
         env:
           TARGET: ${{ matrix.target }}
