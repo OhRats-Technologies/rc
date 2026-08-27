@@ -52,8 +52,12 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.98"
+          toolchain: "1.98.0"
           targets: ${{ matrix.target }}
+      - name: Verify Rust target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: rustup target list --installed | grep -Fx "$TARGET"
       - name: Cache Rust release build
         uses: actions/cache@v4
         with:
