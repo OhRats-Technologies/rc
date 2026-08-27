@@ -6,6 +6,7 @@ node_modules/
 /data/
 /data-v2/
 /dist/
+.tmp-validation/
 *.db
 *.db-shm
 *.db-wal
