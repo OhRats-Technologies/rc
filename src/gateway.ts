@@ -168,9 +168,10 @@ export const agentSocketHandlers = {
       if (msg.type === "process.started") {
         const process = processRow(msg.id);
         if (!process || process.device_id !== deviceId) return;
-        markProcessStarted(process.id);
         if (handleSshProcessMessage(process, msg)) return;
         if (handleMcpProcessMessage(process, msg)) return;
+        if (process.status !== "starting") return;
+        markProcessStarted(process.id);
         publishEvent({ kind: "process.started", workspaceId: workspaceForDevice(deviceId), deviceId, processId: process.id });
         return;
       }

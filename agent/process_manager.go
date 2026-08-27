@@ -95,6 +95,7 @@ func (manager *processManager) attach(send func(wireMessage) error) {
 	manager.pending = nil
 	manager.pendingBytes = 0
 	manager.mu.Unlock()
+	manager.sendMessage(wireMessage{Type: "process.sync", ProcessIDs: active})
 	for _, id := range active {
 		manager.sendMessage(wireMessage{Type: "process.started", ID: id})
 	}
