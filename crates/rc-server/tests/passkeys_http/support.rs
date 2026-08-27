@@ -100,6 +100,13 @@ async fn send(application: &axum::Router, request: Request<Body>) -> anyhow::Res
 }
 
 pub(super) fn test_state(root: &std::path::Path) -> anyhow::Result<AppState> {
+    test_state_with_setup_token(root, None)
+}
+
+pub(super) fn test_state_with_setup_token(
+    root: &std::path::Path,
+    setup_token: Option<&str>,
+) -> anyhow::Result<AppState> {
     AppState::new(Config {
         listen: SocketAddr::from(([127, 0, 0, 1], 0)),
         data_dir: root.to_path_buf(),
@@ -107,7 +114,7 @@ pub(super) fn test_state(root: &std::path::Path) -> anyhow::Result<AppState> {
         public_url: "http://localhost".into(),
         static_dir: root.to_path_buf(),
         trust_proxy: false,
-        setup_token: None,
+        setup_token: setup_token.map(str::to_owned),
         public_signup: false,
         turnstile_site_key: None,
         turnstile_secret_key: None,

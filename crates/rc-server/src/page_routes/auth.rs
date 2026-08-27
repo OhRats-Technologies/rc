@@ -79,6 +79,9 @@ pub(super) async fn login(
         Ok(value) => value,
         Err(error) => return super::internal(error.into()),
     };
+    if users == 0 {
+        return super::redirect("/");
+    }
     let next = query
         .get("next")
         .filter(|value| safe_next(value))

@@ -6,6 +6,17 @@ use rc_server::{AppState, app};
 use support::{form, get, seed, temp_root, test_config};
 
 #[tokio::test]
+async fn login_redirects_to_setup_when_no_user_exists() -> anyhow::Result<()> {
+    let root = temp_root()?;
+    let db_path = root.join("rc.sqlite3");
+    let application = app(AppState::new(test_config(&root, &db_path))?);
+    let response = get(&application, "/login", None).await?;
+    assert_eq!(response.status, StatusCode::SEE_OTHER);
+    assert_eq!(response.location.as_deref(), Some("/"));
+    Ok(())
+}
+
+#[tokio::test]
 async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::Result<()> {
     let root = temp_root()?;
     let db_path = root.join("rc.sqlite3");

@@ -115,8 +115,9 @@ async fn setup_verify(
 }
 
 async fn login_options(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
-    let (ceremony_id, options) =
-        start_login(&state).map_err(|_| ApiError::conflict("no passkeys registered"))?;
+    let (ceremony_id, options) = start_login(&state).map_err(|_| {
+        ApiError::unauthorized("No passkey is registered yet. Complete RC setup first.")
+    })?;
     Ok(Json(
         serde_json::json!({ "ceremonyId": ceremony_id, "options": options.public_key }),
     ))
@@ -238,7 +239,7 @@ fn setup_authorized(state: &AppState, headers: &HeaderMap) -> bool {
     let Some(expected) = state.config.setup_token.as_deref() else {
         return true;
     };
-    cookie(headers, "rc_setup").is_some_and(|token| hash(&token) == hash(expected))
+    cookie(headers, "rc_setup").is_some_and(|token| token == hash(expected))
 }
 fn cookie(headers: &HeaderMap, name: &str) -> Option<String> {
     headers

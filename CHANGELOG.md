@@ -9,6 +9,8 @@ All notable RC changes are recorded here. Published tags are immutable.
 - Added `curl` to the production runtime image so Coolify's configured HTTP health check can mark the Rust server healthy instead of rolling back to the v0.15 container.
 - Added a CI runtime-image assertion for `curl` so the production health-check dependency cannot regress silently.
 - Refreshed the lockfile from yanked `chacha20` 0.10.1 to 0.10.2 so RustSec audit remains clean.
+- Fixed first-instance setup authorization so the hashed setup cookie is accepted instead of being hashed a second time and rejected.
+- Redirected `/login` to first-instance setup when no user exists and replaced the terse `409 no passkeys registered` response with an actionable authentication error for direct API callers.
 
 ## [0.16.0] - 2026-08-27
 
