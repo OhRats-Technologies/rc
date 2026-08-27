@@ -152,6 +152,16 @@ func updateCommand(args []string) error {
 		return err
 	}
 	if serviceInstalled() {
+		dir := resolveStateDir("")
+		if _, err := loadState(dir); errors.Is(err, os.ErrNotExist) {
+			if err := removeService(); err != nil {
+				return fmt.Errorf("updated, but could not remove stale RC Node service: %w", err)
+			}
+			fmt.Println("RC Node updated; removed stale background service because this machine is not enrolled")
+			return nil
+		} else if err != nil {
+			return err
+		}
 		if err := restartService(); err != nil {
 			return fmt.Errorf("updated, but could not restart RC Node: %w", err)
 		}
