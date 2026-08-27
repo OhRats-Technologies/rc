@@ -30,9 +30,10 @@ jobs:
       - name: Restore cleaned Rust dependency cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: validation
+          shared-key: validation-workspace-v1
           add-job-id-key: false
           cache-bin: false
+          cache-workspace-crates: true
           save-if: false
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -53,9 +54,10 @@ jobs:
       - name: Restore cleaned Rust dependency cache
         uses: Swatinem/rust-cache@v2
         with:
-          shared-key: validation
+          shared-key: validation-workspace-v1
           add-job-id-key: false
           cache-bin: false
+          cache-workspace-crates: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo test --workspace --all-targets
 
