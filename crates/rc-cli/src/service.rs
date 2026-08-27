@@ -4,6 +4,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    thread,
+    time::Duration,
 };
 
 const LABEL: &str = "party.ohrats.rc";
@@ -142,29 +144,18 @@ fn install_launch_agent(executable: &Path, state_dir: &Path) -> Result<()> {
     let _ = Command::new("launchctl")
         .args(["bootout", &domain])
         .arg(&path)
-        .status();
-    run_owned(
-        "launchctl",
-        vec![
-            "bootstrap".into(),
-            domain.clone(),
-            path.to_string_lossy().into_owned(),
-        ],
-    )?;
-    run_owned(
-        "launchctl",
-        vec!["kickstart".into(), "-k".into(), format!("{domain}/{LABEL}")],
-    )
+        .output();
+    start_launch_agent(&path)
 }
 
 fn start_launch_agent(path: &Path) -> Result<()> {
     let domain = format!("gui/{}", unsafe { libc::getuid() });
     let target = format!("{domain}/{LABEL}");
-    if !Command::new("launchctl")
+    let loaded = Command::new("launchctl")
         .args(["print", &target])
-        .status()
-        .is_ok_and(|s| s.success())
-    {
+        .output()
+        .is_ok_and(|output| output.status.success());
+    if !loaded {
         run_owned(
             "launchctl",
             vec![
@@ -174,7 +165,30 @@ fn start_launch_agent(path: &Path) -> Result<()> {
             ],
         )?;
     }
-    run("launchctl", &["kickstart", "-k", &target])
+    run("launchctl", &["kickstart", "-k", &target])?;
+    thread::sleep(Duration::from_millis(750));
+    let output = Command::new("launchctl")
+        .args(["print", &target])
+        .output()
+        .context("could not verify RC launchd service")?;
+    if !output.status.success()
+        || !launch_agent_output_running(&String::from_utf8_lossy(&output.stdout))
+    {
+        bail!(
+            "RC background service did not stay running; another `rc run` may be active. Stop it, then run `rc service start`"
+        );
+    }
+    Ok(())
+}
+
+fn launch_agent_output_running(output: &str) -> bool {
+    let mut running = false;
+    let mut pid = false;
+    for line in output.lines().map(str::trim) {
+        running |= line == "state = running";
+        pid |= line.starts_with("pid = ");
+    }
+    running && pid
 }
 
 fn install_systemd(executable: &Path, state_dir: &Path) -> Result<()> {
@@ -251,4 +265,18 @@ fn run_owned(name: &str, args: Vec<String>) -> Result<()> {
         bail!("{name} exited with {status}");
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::launch_agent_output_running;
+
+    #[test]
+    fn launchd_state_requires_running_process() {
+        assert!(launch_agent_output_running("state = running\npid = 123\n"));
+        assert!(!launch_agent_output_running(
+            "state = spawn scheduled\nlast exit code = 1\n"
+        ));
+        assert!(!launch_agent_output_running("state = running\n"));
+    }
 }

@@ -2,6 +2,18 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.16.2] - 2026-08-27
+
+### Fixed
+
+- Made macOS service restart verification fail explicitly when a separately running `rc run` process keeps the singleton lock, instead of reporting a successful update while launchd repeatedly exits.
+- Suppressed noisy `launchctl print` errors while probing whether the per-user service is already loaded.
+
+### Changed
+
+- Cross-build the Intel macOS release archive on the standard Apple Silicon `macos-15` runner, eliminating the dedicated Intel runner bottleneck while preserving the exact `x86_64-apple-darwin` artifact.
+- Build vendored OpenSSL only for release archives; normal development and CI builds use the platform OpenSSL, removing most of the cold workspace-check cost while keeping shipped binaries self-contained.
+
 ## [0.16.1] - 2026-08-27
 
 ### Fixed

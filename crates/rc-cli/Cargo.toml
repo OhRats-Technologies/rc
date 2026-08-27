@@ -1,6 +1,6 @@
 [package]
 name = "rc-cli"
-version = "0.16.1"
+version = "0.16.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -8,6 +8,12 @@ license.workspace = true
 [[bin]]
 name = "rc"
 path = "src/main.rs"
+
+[features]
+# Development and CI use the platform OpenSSL already required by
+# webauthn-rs-core. Release archives enable this explicitly so the unified
+# rc binary remains self-contained on target machines.
+vendored-openssl = ["rc-crypto/vendored-openssl"]
 
 [dependencies]
 anyhow.workspace = true
@@ -19,7 +25,7 @@ libc.workspace = true
 rand.workspace = true
 nix.workspace = true
 rc-api-client = { path = "../rc-api-client" }
-rc-crypto = { path = "../rc-crypto", features = ["vendored-openssl"] }
+rc-crypto = { path = "../rc-crypto" }
 rc-node = { path = "../rc-node" }
 rc-protocol = { path = "../rc-protocol" }
 reqwest.workspace = true

@@ -50,7 +50,7 @@ sh scripts/check-version.sh "$VERSION"
 
 The `CI` workflow on `main` verifies formatting, strict Clippy, all Rust targets, dependency audits, source size, documentation links, browser type/build checks, shell/workflow linting, and the production container smoke test. The `RC release` workflow avoids duplicating those expensive checks: it verifies tag/version equality and `main` ancestry, requires successful `CI` for the exact tagged SHA, then performs warning-free cross-platform builds and validates archive names, count, and contents before publishing. Zig's own deprecated-linker-setting diagnostic is the sole target-toolchain lint suppressed during Linux linking; Rust warnings remain denied.
 
-Both workflows cache Rust dependency/build state. The CI image job also uses the GitHub Actions BuildKit cache, and Linux release jobs cache the `cargo-zigbuild` binary. These caches are performance optimizations only; cache misses must still produce the same validated artifacts.
+Both workflows cache Rust dependency/build state. The CI image job also uses the GitHub Actions BuildKit cache, and Linux release jobs cache the `cargo-zigbuild` binary. Both Darwin archives build on the standard `macos-15` Apple Silicon runner; Rust cross-compiles the amd64 archive to `x86_64-apple-darwin`, avoiding the substantially slower dedicated Intel runner. Development and CI use the platform OpenSSL required by `webauthn-rs-core`; release builds explicitly enable `rc-cli`'s `vendored-openssl` feature so shipped archives remain self-contained. These caches and cross-builds are performance optimizations only; cache misses must still produce the same validated artifacts.
 
 ## Post-release fixes
 
