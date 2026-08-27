@@ -4,7 +4,8 @@ import { artifactRoutes } from "./routes/artifacts";
 import { pageActions } from "./routes/page-actions";
 import { pageRoutes } from "./routes/pages";
 import { agentSocketRoute } from "./routes/websocket-agent";
-import { browserSocketRoute } from "./routes/websocket-browser";
+import { controlHttpRoutes } from "./routes/control-http";
+import { eventRoutes } from "./routes/events";
 import { sshTunnelRoute } from "./routes/websocket-ssh";
 import { mcpRoutes } from "./routes/mcp";
 import { oauthRoutes } from "./routes/oauth";
@@ -18,9 +19,10 @@ export const app = new Elysia({ name: "rc" })
   .use(pageActions)
   .use(artifactRoutes)
   .use(apiRoutes)
+  .use(controlHttpRoutes)
+  .use(eventRoutes)
   .use(oauthRoutes)
   .use(mcpRoutes)
-  .use(browserSocketRoute)
   .use(agentSocketRoute)
   .use(sshTunnelRoute)
   .get("/healthz", () => "ok", { detail: { hide: true } })

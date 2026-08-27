@@ -194,4 +194,5 @@ func (manager *controlManager) closeSession(sessionID string) {
 	}
 	manager.processes.detachSecureSession(sessionID)
 	manager.discardPendingSession(sessionID)
+	_ = manager.send(wireMessage{Type: "control.closed", SessionID: sessionID})
 }

@@ -2,7 +2,6 @@ import { t, type Static } from "elysia";
 
 const RequestId = t.String({ minLength: 1, maxLength: 100 });
 const ProcessId = t.String({ minLength: 1, maxLength: 100 });
-const DeviceId = t.String({ minLength: 1, maxLength: 100 });
 const SessionId = t.String({ minLength: 1, maxLength: 100 });
 const ProcessData = t.String({ minLength: 1, maxLength: 131_072, pattern: "^[A-Za-z0-9_-]+$" });
 const TerminalSize = t.Number({ minimum: 2, maximum: 500 });
@@ -11,51 +10,6 @@ const IceServerSchema = t.Object({
   urls: t.Array(t.String({ minLength: 1, maxLength: 512 }), { minItems: 1, maxItems: 16 }),
   username: t.Optional(t.String({ maxLength: 512 })), credential: t.Optional(t.String({ maxLength: 512 })),
 });
-const IceCandidateSummarySchema = t.Object({
-  host: t.Integer({ minimum: 0, maximum: 64 }),
-  srflx: t.Integer({ minimum: 0, maximum: 64 }),
-  relay: t.Integer({ minimum: 0, maximum: 64 }),
-  udp: t.Integer({ minimum: 0, maximum: 64 }),
-  tcp: t.Integer({ minimum: 0, maximum: 64 }),
-});
-
-export const BrowserCommandSchema = t.Union([
-  t.Object({ type: t.Literal("ping") }),
-  t.Object({ type: t.Literal("process.allocate"), requestId: RequestId, deviceId: DeviceId, terminal: t.Optional(t.Boolean()) }),
-  t.Object({ type: t.Literal("control.challenge"), requestId: RequestId, deviceId: DeviceId }),
-  t.Object({ type: t.Literal("control.open"), requestId: RequestId, deviceId: DeviceId, challenge: t.String(),
-    clientId: t.String(), publicKey: t.String(), signature: t.String() }),
-  t.Object({ type: t.Literal("control.webrtc"), requestId: RequestId, deviceId: DeviceId, sessionId: SessionId,
-    sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
-  t.Object({ type: t.Literal("control.transport"), deviceId: DeviceId, sessionId: SessionId,
-    transport: t.Literal("webrtc"),
-    phase: t.Optional(t.Union([t.Literal("connecting"), t.Literal("connected"), t.Literal("failed")])),
-    reason: t.Optional(t.String({ maxLength: 200 })),
-    iceState: t.Optional(t.String({ maxLength: 40 })), connectionState: t.Optional(t.String({ maxLength: 40 })),
-    localCandidates: t.Optional(IceCandidateSummarySchema), remoteCandidates: t.Optional(IceCandidateSummarySchema),
-    selected: t.Optional(t.Object({
-      localType: t.Optional(t.String({ maxLength: 20 })), remoteType: t.Optional(t.String({ maxLength: 20 })),
-      protocol: t.Optional(t.String({ maxLength: 20 })),
-    })),
-  }),
-  t.Object({ type: t.Literal("control.close"), deviceId: DeviceId, sessionId: SessionId }),
-  t.Object({ type: t.Literal("lock.sync"), requestId: RequestId, workspaceId: t.String(), clientId: t.String(),
-    transitions: t.Array(t.Object({ fromHash: t.String({ minLength: 64, maxLength: 64 }), generation: t.Integer({ minimum: 0 }), signature: t.String() }), { minItems: 1, maxItems: 100 }) }),
-]);
-
-export const RCEventSchema = t.Object({
-  kind: t.String(), workspaceId: t.Optional(t.Nullable(t.String())), deviceId: t.Optional(t.Nullable(t.String())),
-  processId: t.Optional(t.Nullable(t.String())), audit: t.Optional(t.Boolean()), detail: t.Optional(t.Unknown()),
-  at: t.Optional(t.Number()),
-});
-
-export const BrowserServerMessageSchema = t.Union([
-  t.Object({ type: t.Literal("ready") }),
-  t.Object({ type: t.Literal("pong") }),
-  t.Object({ type: t.Literal("event"), event: RCEventSchema }),
-  t.Object({ type: t.Literal("response"), requestId: RequestId, ok: t.Literal(true), result: t.Optional(t.Unknown()) }),
-  t.Object({ type: t.Literal("response"), requestId: RequestId, ok: t.Literal(false), error: t.String() }),
-]);
 
 export const AgentClientMessageSchema = t.Union([
   t.Object({
@@ -80,6 +34,7 @@ export const AgentClientMessageSchema = t.Union([
   t.Object({ type: t.Literal("control.ready"), requestId: RequestId, sessionId: SessionId, transportPublicKey: t.String(), ephemeralPublicKey: t.String(), signature: t.String() }),
   t.Object({ type: t.Literal("control.webrtc.ready"), requestId: RequestId, sessionId: SessionId, sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
   t.Object({ type: t.Literal("control.error"), requestId: t.Optional(RequestId), output: t.String() }),
+  t.Object({ type: t.Literal("control.closed"), sessionId: SessionId }),
   t.Object({ type: t.Literal("lock.state"), lockHash: t.String(), lockGeneration: t.Integer({ minimum: 0 }) }),
 ]);
 
@@ -108,7 +63,5 @@ export const AgentServerMessageSchema = t.Union([
   t.Object({ type: t.Literal("control.close"), sessionId: SessionId }),
 ]);
 
-export type BrowserCommand = Static<typeof BrowserCommandSchema>;
-export type BrowserServerMessage = Static<typeof BrowserServerMessageSchema>;
 export type AgentClientMessage = Static<typeof AgentClientMessageSchema>;
 export type AgentServerMessage = Static<typeof AgentServerMessageSchema>;

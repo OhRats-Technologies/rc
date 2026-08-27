@@ -42,7 +42,7 @@ export function principlesArticle(): DocArticle {
         title: "Browser and CLI control is end-to-end encrypted",
         body: <>
           <p>Terminal commands, input, output, signals, and lifecycle messages use a client-to-Node AES-256-GCM session key derived from fresh and pinned X25519 material.</p>
-          <p>After authorization, browser and CLI clients use a WebRTC DataChannel to the Node. The hosted service performs signaling and provides short-lived TURN credentials when configured. ICE may choose a direct or TURN-relayed route, but browser/CLI control ciphertext does not traverse the hosted WebSocket.</p>
+          <p>After authorization, browser and CLI clients use a WebRTC DataChannel to the Node. The hosted service performs non-trickle signaling over authenticated HTTP and provides short-lived TURN credentials when configured; browser live metadata uses SSE. ICE may choose a direct or TURN-relayed route, but browser/CLI control ciphertext does not traverse hosted HTTP/SSE.</p>
           <p>Standard remote MCP and gateway-terminated SSH do not use this custom end-to-end transport; their trust models are documented separately in the <a href="/docs/security">security model</a>.</p>
         </>,
       },

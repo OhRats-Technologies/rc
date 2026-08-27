@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/pion/webrtc/v4"
+	"net/http"
+	"net/url"
 	"sync"
 	"time"
-
-	"github.com/gorilla/websocket"
-	"github.com/pion/webrtc/v4"
 )
 
 type webrtcControlTransport struct {
@@ -31,7 +31,7 @@ func decodeIceServers(value any) []iceServer {
 	return servers
 }
 
-func openWebRTCClientTransport(conn *websocket.Conn, writeMu *sync.Mutex, deviceID, sessionID string, servers []iceServer) (controlTransport, error) {
+func openWebRTCClientTransport(server, token, deviceID, sessionID string, servers []iceServer) (controlTransport, error) {
 	peer, err := webrtc.NewPeerConnection(webrtc.Configuration{ICEServers: pionIceServers(servers)})
 	if err != nil {
 		return nil, err
@@ -84,18 +84,15 @@ func openWebRTCClientTransport(conn *websocket.Conn, writeMu *sync.Mutex, device
 		_ = peer.Close()
 		return nil, errors.New("WebRTC offer unavailable")
 	}
-	requestID := randomURLBytes(12)
-	if err = writeJSON(conn, writeMu, map[string]any{"type": "control.webrtc", "requestId": requestID, "deviceId": deviceID,
-		"sessionId": sessionID, "sdp": local.SDP}); err != nil {
+	var answer struct {
+		SDP string `json:"sdp"`
+	}
+	if err = controlJSON(server, token, http.MethodPost, "/api/v1/control/"+url.PathEscape(sessionID)+"/webrtc",
+		map[string]any{"deviceId": deviceID, "sdp": local.SDP}, &answer); err != nil {
 		_ = peer.Close()
 		return nil, err
 	}
-	answer, err := waitOuterResponse(conn, requestID)
-	if err != nil {
-		_ = peer.Close()
-		return nil, err
-	}
-	sdp, _ := answer["sdp"].(string)
+	sdp := answer.SDP
 	if sdp == "" || peer.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: sdp}) != nil {
 		_ = peer.Close()
 		return nil, errors.New("WebRTC answer rejected")

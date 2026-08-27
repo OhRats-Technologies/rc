@@ -1,4 +1,4 @@
-import { fire, request } from "./socket";
+import { closeControlSession, controlWebRTC, reportControlTransport } from "./control-api";
 import type { ControlTransport } from "./control-transport";
 
 type Frame = { type: "control.frame"; sessionId: string; sequence: number; ciphertext: string };
@@ -71,7 +71,7 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
 
   const publish = (status: ControlTransportStatus, report = true) => {
     onStatus(status);
-    if (report) fire({ type: "control.transport", deviceId, sessionId, ...status });
+    if (report) reportControlTransport(sessionId, status);
   };
   const fail = (reason: string) => publish({ transport: "webrtc", phase: "failed", reason: reason.slice(0, 200),
     iceState: peer.iceConnectionState, connectionState: peer.connectionState, localCandidates, remoteCandidates });
@@ -90,18 +90,18 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     for (const listener of frameListeners) listener(Number(frame.sequence), String(frame.ciphertext || ""));
   });
   channel.addEventListener("close", () => {
-    if (!closing && established) { fail("WebRTC DataChannel closed"); fire({ type: "control.close", deviceId, sessionId }); }
+    if (!closing && established) { fail("WebRTC DataChannel closed"); closeControlSession(sessionId); }
   });
   peer.addEventListener("connectionstatechange", () => {
     if (!closing && established && peer.connectionState === "failed") {
-      fail("WebRTC peer connection failed"); closing = true; fire({ type: "control.close", deviceId, sessionId }); channel.close(); peer.close();
+      fail("WebRTC peer connection failed"); closing = true; closeControlSession(sessionId); channel.close(); peer.close();
     }
   });
   try {
     await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer);
     const sdp = peer.localDescription?.sdp; if (!sdp) throw new Error("WebRTC offer unavailable");
     localCandidates = candidateSummary(sdp);
-    const answer = await request<{ sdp: string }>({ type: "control.webrtc", deviceId, sessionId, sdp });
+    const answer = await controlWebRTC(sessionId, deviceId, sdp);
     remoteCandidates = candidateSummary(answer.sdp);
     await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp }); await waitForOpen(peer, channel);
     established = true;
@@ -117,7 +117,7 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
       await new Promise(resolve => window.setTimeout(resolve, 1200));
       return openWebRTCControlTransport(deviceId, sessionId, iceServers, onStatus, 1);
     }
-    fail(reason); fire({ type: "control.close", deviceId, sessionId }); throw new Error(`WebRTC control unavailable: ${reason}`);
+    fail(reason); closeControlSession(sessionId); throw new Error(`WebRTC control unavailable: ${reason}`);
   }
   return {
     send(sequence, ciphertext) {
@@ -126,6 +126,6 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
       catch { fail("WebRTC send failed"); channel.close(); return false; }
     },
     onFrame(listener) { frameListeners.add(listener); return () => frameListeners.delete(listener); },
-    close() { if (closing) return; closing = true; peer.close(); fire({ type: "control.close", deviceId, sessionId }); },
+    close() { if (closing) return; closing = true; peer.close(); closeControlSession(sessionId); },
   };
 }

@@ -4,15 +4,15 @@ import { base64urlToBytes, pemPublicKeyToDer } from "./encoding";
 import { publishEvent } from "./events";
 import { isDirectControlProcess, markProcessExited, markProcessLost, markProcessStarted, processRow, workspaceForDevice } from "./process-store";
 import type { AgentClientMessage, AgentServerMessage } from "./protocol";
-import type { SocketWriter } from "./browser-socket";
+type AgentSocket = { send(data: string): unknown; close(code?: number, reason?: string): void };
 import { AGENT_CHALLENGE_TTL } from "./config";
-import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-signaling";
+import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender, releaseDeviceControlSessions } from "./control-signaling";
 import { handleMcpProcessMessage, markMcpProcessLost } from "./mcp/process";
 import { registerMcpSender } from "./mcp/relay";
 import { handleSshProcessMessage } from "./ssh/process";
 import { registerSshSender } from "./ssh/relay";
 
-const agents = new Map<string, SocketWriter>();
+const agents = new Map<string, AgentSocket>();
 const agentActivity = new Map<string, number>();
 const disconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const RECONNECT_GRACE_MS = 45_000;
@@ -26,6 +26,7 @@ export function disconnectDevice(deviceId: string, remove = false) {
   ws?.close(1008, "device removed");
   agents.delete(deviceId);
   agentActivity.delete(deviceId);
+  releaseDeviceControlSessions(deviceId);
 }
 
 function send(deviceId: string, message: AgentServerMessage) {
@@ -108,7 +109,7 @@ setInterval(() => {
 }, 10_000).unref();
 
 export const agentSocketHandlers = {
-  open(deviceId: string, socket: SocketWriter) {
+  open(deviceId: string, socket: AgentSocket) {
     const reconnecting = disconnectTimers.has(deviceId);
     const timer = disconnectTimers.get(deviceId); if (timer) clearTimeout(timer);
     disconnectTimers.delete(deviceId);
@@ -211,10 +212,11 @@ export const agentSocketHandlers = {
       }
     } catch (error) { console.error("agent message", error); }
   },
-  close(deviceId: string, socket: SocketWriter) {
+  close(deviceId: string, socket: AgentSocket) {
     if (agents.get(deviceId) !== socket) return;
     agents.delete(deviceId);
     agentActivity.delete(deviceId);
+    releaseDeviceControlSessions(deviceId);
     publishEvent({ kind: "device.offline", workspaceId: workspaceForDevice(deviceId), deviceId });
     scheduleDisconnect(deviceId);
   },

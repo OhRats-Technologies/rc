@@ -1,11 +1,10 @@
 import { api, qs } from "./http";
-import { request } from "./socket";
 
 const page = document.querySelector<HTMLElement>("[data-device-page]");
 const deviceId = page?.dataset.devicePage || "";
 
 async function start(command: string, cwd = "") {
-  const result = await request<{ processId: string }>({ type: "process.allocate", deviceId, terminal: true });
+  const result = await api<{ processId: string }>(`/api/v1/devices/${encodeURIComponent(deviceId)}/processes`, { method: "POST", body: JSON.stringify({ terminal: true }) });
   sessionStorage.setItem(`rc_process_start_${result.processId}`, JSON.stringify({
     command, cwd, terminal: { cols: 80, rows: 24, term: "xterm-256color" },
   }));

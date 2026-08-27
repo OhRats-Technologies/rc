@@ -1,4 +1,4 @@
-import { onEvent, request } from "./socket";
+import { onEvent } from "./events";
 import { api } from "./http";
 import { openControlSession } from "./control-session";
 import { freshPasskey, stepHeader } from "./step-up";
@@ -205,6 +205,15 @@ document.addEventListener("pointerdown", event => {
 document.addEventListener("keydown", event => { if (event.key === "Escape") document.querySelectorAll<HTMLDetailsElement>(".workspace-menu[open]").forEach(menu => menu.open = false); });
 
 onEvent(event => {
+  if (event.kind === "rc.connected") {
+    void api<{ devices: Array<{ id: string; online: boolean }> }>("/api/v1/devices").then(({ devices }) => {
+      for (const device of devices) {
+        document.querySelectorAll<HTMLElement>(`[data-sidebar-device-status="${CSS.escape(device.id)}"]`).forEach(dot => dot.classList.toggle("online", device.online));
+        document.querySelectorAll<HTMLButtonElement>(`[data-sidebar-device-update="${CSS.escape(device.id)}"]`).forEach(button => { if (!button.dataset.updating) button.disabled = !device.online; });
+      }
+    }).catch(() => {});
+    return;
+  }
   if (!event.deviceId) return;
   if (event.kind === "device.online" || event.kind === "device.offline") {
     const online = event.kind === "device.online";

@@ -251,9 +251,9 @@ export const apiRoutes = new Elysia({ name: "rc.api", prefix: "/api/v1" })
   .get("/devices/:deviceId/processes", ({ rcUser, params }) => ({ processes: listProcesses(rcUser!.id, params.deviceId) }), {
     params: DeviceParams,
   })
-  .post("/devices/:deviceId/processes", ({ rcUser, params, body }) => json(allocateProcess(rcUser!.id, {
-    deviceId: params.deviceId, origin: body.origin === "cli" ? "cli" : "api", terminal: body.terminal,
+  .post("/devices/:deviceId/processes", ({ request, rcUser, params, body }) => json(allocateProcess(rcUser!.id, {
+    deviceId: params.deviceId, origin: request.headers.has("x-rc-key-id") ? "api" : request.headers.has("authorization") ? "cli" : "browser", terminal: body.terminal,
   }), 201), {
-    params: DeviceParams, body: t.Object({ origin: t.Optional(t.Literal("cli")), terminal: t.Optional(t.Boolean()) }),
+    params: DeviceParams, body: t.Object({ terminal: t.Optional(t.Boolean()) }),
   })
   .get("/processes/:id", ({ rcUser, params }) => ({ process: getProcess(rcUser!.id, params.id) }), { params: IdParams });

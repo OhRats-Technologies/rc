@@ -1,5 +1,5 @@
 import { api } from "./http";
-import { onEvent } from "./socket";
+import { onEvent } from "./events";
 import type { Device, RCEvent } from "../types";
 
 const enrollPage = document.querySelector<HTMLElement>("[data-enroll-page]");
@@ -45,6 +45,27 @@ async function refreshDevice(deviceId: string) {
   const processError = page.querySelector<HTMLElement>("#process-error"); if (processError && supportsProcess) processError.textContent = "";
 }
 
+
+async function recoverLiveState() {
+  await recoverEnrollment();
+  try {
+    const { devices } = await api<{ devices: Device[] }>("/api/v1/devices");
+    for (const device of devices) setPresence(device.id, device.online);
+    const page = document.querySelector<HTMLElement>("[data-device-page]");
+    const current = page?.dataset.devicePage || "";
+    if (current) {
+      await refreshDevice(current);
+      const { processes } = await api<{ processes: Array<{ id: string; status: string }> }>(`/api/v1/devices/${encodeURIComponent(current)}/processes`);
+      const list = page?.querySelector<HTMLElement>("#process-list");
+      if (list) for (const process of processes) {
+        const state = list.querySelector<HTMLElement>(`[data-process-status="${CSS.escape(process.id)}"]`);
+        if (!state) continue;
+        state.textContent = process.status.toUpperCase(); state.classList.toggle("online", process.status === "running");
+      }
+    }
+  } catch {}
+}
+
 function activity(event: RCEvent) {
   const workspaceId = document.querySelector<HTMLElement>("[data-activity-page]")?.dataset.activityPage;
   if (!event.audit || !workspaceId || event.workspaceId !== workspaceId) return;
@@ -67,6 +88,7 @@ function updateProcessList(event: RCEvent) {
 }
 
 onEvent(event => {
+  if (event.kind === "rc.connected") { void recoverLiveState(); return; }
   if (event.kind === "device.enrolled" && event.workspaceId === enrollWorkspace && event.deviceId) finishEnrollment(event.deviceId);
   if (event.kind === "device.online" && event.deviceId) setPresence(event.deviceId, true);
   if (event.kind === "device.offline" && event.deviceId) setPresence(event.deviceId, false);
@@ -75,4 +97,4 @@ onEvent(event => {
   activity(event);
 });
 
-void recoverEnrollment();
+void recoverLiveState();

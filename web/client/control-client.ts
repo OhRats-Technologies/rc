@@ -1,6 +1,5 @@
 import { api } from "./http";
 import { passkeyAssertion } from "./webauthn";
-import { request } from "./socket";
 import type { Me } from "../types";
 
 type ControlIdentity = { id: string; publicKey: string; privateKey: CryptoKey };
@@ -86,7 +85,7 @@ export async function syncWorkspaceAuthority(workspaceId: string) {
       new TextEncoder().encode(`rc-authority-v3\n${parent.generation}\n${parent.hash}\n${state.hash}`))),
   })));
   if (!transitions.length) throw new Error("RC Lock state is unavailable for synchronization.");
-  await request({ type: "lock.sync", workspaceId, clientId: identity.id, transitions });
+  await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
   for (let attempt = 0; attempt < 15; attempt++) {
     await new Promise(resolve => window.setTimeout(resolve, 200));
     const next = await api<{ hash: string; devices: number; synced: number }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);

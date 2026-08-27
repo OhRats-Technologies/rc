@@ -30,7 +30,7 @@ function policy(request: Request) {
   if (path === "/oauth/register") return { name: "mcp-register", limit: 20, windowMs: 10 * 60_000 };
   if (path === "/oauth/token") return { name: "mcp-token", limit: 120, windowMs: 5 * 60_000 };
   if (path.startsWith("/api/v1/auth/")) return { name: `auth:${path.split("/").slice(4, 6).join(":")}`, limit: 30, windowMs: 5 * 60_000 };
-  if (path === "/api/v1/agent/ws" || path === "/api/v1/ws") return { name: "ws-connect", limit: 30, windowMs: 60_000 };
+  if (path === "/api/v1/agent/ws") return { name: "ws-connect", limit: 30, windowMs: 60_000 };
   if (path === "/api/v1/ssh/tunnel") return { name: "ssh-tunnel", limit: 60, windowMs: 60_000 };
   if (path.startsWith("/api/v1/") || request.method !== "GET") return { name: "api", limit: 600, windowMs: 60_000 };
   return null;
@@ -51,14 +51,13 @@ function checkRateLimit(request: Request) {
 
 function headers() {
   const secure = PUBLIC_URL.startsWith("https://");
-  const websocket = PUBLIC_URL.replace(/^http/, "ws");
   const turnstile = Bun.env.RC_PUBLIC_SIGNUP === "1" && !!Bun.env.RC_TURNSTILE_SITE_KEY && !!Bun.env.RC_TURNSTILE_SECRET_KEY;
   const csp = [
     "default-src 'self'", "base-uri 'none'", "object-src 'none'", "frame-ancestors 'none'",
     "form-action 'self'", `script-src 'self' https://assets.ohrats.party${turnstile ? " https://challenges.cloudflare.com" : ""}`,
     ...(turnstile ? ["frame-src https://challenges.cloudflare.com"] : []),
     "style-src 'self' 'unsafe-inline' https://assets.ohrats.party https://fonts.googleapis.com", "img-src 'self' https://assets.ohrats.party data:",
-    "font-src 'self' https://assets.ohrats.party https://fonts.gstatic.com data:", `connect-src 'self' ${websocket}`,
+    "font-src 'self' https://assets.ohrats.party https://fonts.gstatic.com data:", "connect-src 'self'",
     ...(secure ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
   return {

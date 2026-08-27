@@ -134,6 +134,16 @@ describe("HTTP hardening", () => {
     }));
     expect(response.status).toBe(400);
   });
+
+  test("browser WebSocket route is removed and SSE is browser-session only", async () => {
+    expect((await app.handle(new Request("http://localhost:3000/api/v1/ws"))).status).toBe(404);
+    expect((await app.handle(new Request("http://localhost:3000/api/v1/events"))).status).toBe(401);
+    const userId = crypto.randomUUID(), token = crypto.randomUUID(), t = Date.now();
+    q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "SSE User", t);
+    q("INSERT INTO auth_sessions(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)").run(sha(token), userId, t, t + 60_000);
+    const response = await app.handle(new Request("http://localhost:3000/api/v1/events", { headers: { cookie: `rc_session=${token}` } }));
+    expect(response.status).toBe(200); expect(response.headers.get("content-type")).toContain("text/event-stream"); await response.body?.cancel();
+  });
 });
 
 describe("API key scopes", () => {
@@ -161,7 +171,6 @@ describe("API key scopes", () => {
     const create = await app.handle(await signed("POST", "/api/v1/workspaces", JSON.stringify({ name: "Denied" })));
     expect(create.status).toBe(403);
   });
-
   test("proof-of-possession request nonces cannot be replayed", async () => {
     const userId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
     const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
@@ -180,7 +189,6 @@ describe("API key scopes", () => {
     expect((await app.handle(request())).status).toBe(401);
   });
 });
-
 describe("SSH gateway authorization", () => {
   test("routes by immutable device ID and current role", async () => {
     const { userId, deviceId } = await enrolledDevice(q), controlId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
@@ -192,7 +200,6 @@ describe("SSH gateway authorization", () => {
     q("UPDATE workspace_members SET role='viewer' WHERE user_id=?").run(userId); expect(sshPrincipalForDevice(keyId, deviceId)).toBeNull();
   });
 });
-
 describe("fresh passkey step-up", () => {
   test("step-up tokens are user-bound and consumed exactly once", () => {
     const userId = crypto.randomUUID(), otherId = crypto.randomUUID(), token = `step_${crypto.randomUUID()}`, t = Date.now();
@@ -204,7 +211,6 @@ describe("fresh passkey step-up", () => {
     expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).not.toThrow();
     expect(() => consumeStepUp(request(), { id: userId, name: "Step User" })).toThrow("fresh passkey verification required");
   });
-
   test("recent WebAuthn browser sessions can add a passkey but stale sessions still need step-up", () => {
     const userId = crypto.randomUUID(), fresh = `sess_${crypto.randomUUID()}`, stale = `sess_${crypto.randomUUID()}`, t = Date.now();
     q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Passkey User", t);
@@ -217,7 +223,6 @@ describe("fresh passkey step-up", () => {
     expect(() => consumeStepUpOrRecentSession(request(fresh), user)).not.toThrow();
     expect(() => consumeStepUpOrRecentSession(request(stale), user)).toThrow("fresh passkey verification required");
   });
-
   test("control authorization stores the exact challenge sent to the browser", async () => {
     const userId = crypto.randomUUID(), t = Date.now();
     q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Control User", t);
@@ -229,7 +234,6 @@ describe("fresh passkey step-up", () => {
     expect(start.options.challenge).toBe(controlGrantChallenge(start.grant));
   });
 });
-
 describe("MCP transport and OAuth", () => {
   test("consent cancellation preserves state and account switching restarts the same OAuth request", () => {
     const userId = crypto.randomUUID(), clientId = `mcp_client_${crypto.randomUUID()}`, t = Date.now();
@@ -248,7 +252,6 @@ describe("MCP transport and OAuth", () => {
     expect(next.searchParams.get("client_id")).toBe(clientId); expect(next.searchParams.get("code_challenge")).toBe(challenge);
     expect(next.searchParams.get("resource")).toBe("http://localhost:3000/mcp");
   });
-
   test("publishes discovery, challenges protected calls, and rejects mismatched method headers", async () => {
     const metadata = await app.handle(new Request("http://localhost:3000/.well-known/oauth-protected-resource"));
     expect((await metadata.json() as any).resource).toBe("http://localhost:3000/mcp");
@@ -278,7 +281,6 @@ describe("MCP transport and OAuth", () => {
     expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: refresh }))).status).toBe(200);
     expect((await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: refresh }))).status).toBe(400);
   });
-
   test("process sync marks hosted rows missing from the Node as lost", async () => {
     const { userId, deviceId } = await enrolledDevice(q), kept = crypto.randomUUID(), stale = crypto.randomUUID(), t = Date.now();
     for (const processId of [kept, stale]) q(`INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at,started_at) VALUES(?,?,'control','running',1,?,?,?)`).run(processId, deviceId, userId, t, t);
@@ -287,7 +289,6 @@ describe("MCP transport and OAuth", () => {
     const row = q<any>("SELECT status,error,completed_at FROM processes WHERE id=?").get(stale);
     expect([row.status, row.error]).toEqual(["lost", "RC Node reconnected without this process"]); expect(row.completed_at).toBeGreaterThan(0);
   });
-
   test("process rows contain lifecycle metadata only", async () => {
     const { userId, deviceId } = await enrolledDevice(q), processId = crypto.randomUUID(), t = Date.now();
     q(`INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at) VALUES(?,?,'mcp','running',0,?,?)`).run(processId, deviceId, userId, t);

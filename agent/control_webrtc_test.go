@@ -157,8 +157,16 @@ func TestWebRTCControlFramesBypassRelay(t *testing.T) {
 		t.Fatal("closed WebRTC session still accepted an outbound frame")
 	}
 	select {
+	case metadata := <-outbound:
+		if metadata.Type != "control.closed" || metadata.SessionID != "session" {
+			t.Fatalf("closed WebRTC session leaked unexpected agent WebSocket payload: %+v", metadata)
+		}
+	default:
+		t.Fatal("closed WebRTC session did not report control.closed metadata")
+	}
+	select {
 	case leaked := <-outbound:
-		t.Fatalf("closed WebRTC session leaked frame to agent WebSocket: %+v", leaked)
+		t.Fatalf("closed WebRTC session leaked extra agent WebSocket payload: %+v", leaked)
 	default:
 	}
 

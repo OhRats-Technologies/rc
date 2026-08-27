@@ -1,5 +1,5 @@
 import { api } from "./http";
-import { request } from "./socket";
+import { controlChallenge, controlOpen } from "./control-api";
 import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, pinDevice } from "./control-client";
 import type { ControlTransport } from "./control-transport";
 import { openWebRTCControlTransport } from "./control-webrtc";
@@ -117,14 +117,12 @@ export async function openControlSession(deviceId: string, onTransportStatus: (s
   const identityKey = String(device.identity_public_key || ""), expectedTransport = String(device.transport_public_key || "");
   if (!identityKey || !expectedTransport) throw new Error("Update this RC Node before opening an encrypted control session.");
   await pinDevice(deviceId, identityKey, expectedTransport);
-  const { challenge } = await request<{ challenge: string }>({ type: "control.challenge", deviceId });
+  const { challenge } = await controlChallenge(deviceId);
   const pair = await crypto.subtle.generateKey({ name: "X25519" }, true, ["deriveBits"]);
   const publicKey = bytesToB64url(await crypto.subtle.exportKey("raw", pair.publicKey));
   const payload = sessionPayload(challenge, deviceId, identity.id, publicKey);
   const signature = bytesToB64url(await crypto.subtle.sign("Ed25519", identity.privateKey, new TextEncoder().encode(payload)));
-  const ready = await request<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string; iceServers?: RTCIceServer[] }>({
-    type: "control.open", deviceId, challenge, clientId: identity.id, publicKey, signature,
-  });
+  const ready = await controlOpen({ deviceId, challenge, clientId: identity.id, publicKey, signature });
   if (ready.transportPublicKey !== expectedTransport || !ready.ephemeralPublicKey) throw new Error("RC Node transport identity changed.");
   const deviceKey = await crypto.subtle.importKey("spki", pemBytes(identityKey), { name: "Ed25519" }, false, ["verify"]);
   const verified = await crypto.subtle.verify("Ed25519", deviceKey, b64urlToBytes(ready.signature),

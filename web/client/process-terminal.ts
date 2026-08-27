@@ -3,7 +3,7 @@ import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { api, qs } from "./http";
-import { onEvent } from "./socket";
+import { onEvent } from "./events";
 import { openControlSession, type ControlSession } from "./control-session";
 import type { ControlTransportStatus } from "./control-webrtc";
 import { b64urlToBytes, bytesToB64url } from "./control-client";
@@ -32,7 +32,7 @@ let status = page.dataset.processStatus || "", frame = 0;
 let control: ControlSession | null = null, controlGeneration = 0;
 let controlConnecting = false;
 let ctrlNext = false, altNext = false;
-let transportMessage = "";
+let transportMessage = "", reconnectTimer = 0;
 const fitTerminal = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { try { fit.fit(); } catch {} }); };
 fitTerminal(); const observer = new ResizeObserver(fitTerminal); observer.observe(host);
 
@@ -56,7 +56,8 @@ function showTransport(status: ControlTransportStatus) {
   element.title = status.reason || "WebRTC DataChannel";
   if (status.phase === "failed" && status.reason) {
     transportMessage = `WebRTC unavailable: ${status.reason}`;
-  } else if (status.phase === "connected") transportMessage = "";
+    clearTimeout(reconnectTimer); reconnectTimer = window.setTimeout(() => { control?.close(); control = null; void connectControl(); }, 1000);
+  } else if (status.phase === "connected") { clearTimeout(reconnectTimer); transportMessage = ""; }
   const message = qs<HTMLElement>("#process-message");
   if (!message.textContent?.trim() || transportMessage) message.textContent = transportMessage;
 }
@@ -152,7 +153,8 @@ async function connectControl() {
 }
 
 if (live) onEvent(event => {
-  if (event.kind === "rc.connected") { void resync().then(connectControl); return; }
+  if (event.kind === "rc.connected") { void resync(); return; }
+  if (event.kind === "device.online" && event.deviceId === page.dataset.deviceId) { void resync().then(connectControl); return; }
   if (event.processId !== processId) return;
   if (["process.started", "process.exited", "process.lost"].includes(event.kind)) applyProcessEvent(event);
 });
@@ -160,5 +162,5 @@ if (live) onEvent(event => {
 void connectControl();
 
 addEventListener("pagehide", () => {
-  controlGeneration++; control?.close(); observer.disconnect(); cancelAnimationFrame(frame); webgl?.dispose(); terminal.dispose();
+  controlGeneration++; clearTimeout(reconnectTimer); control?.close(); observer.disconnect(); cancelAnimationFrame(frame); webgl?.dispose(); terminal.dispose();
 }, { once: true });

@@ -33,7 +33,7 @@ func resolveAccountDevice(server, token, value string) (accountDevice, error) {
 }
 
 func startAccountProcess(server, token, deviceID string, terminal bool) (string, error) {
-	body := map[string]any{"origin": "cli", "terminal": terminal}
+	body := map[string]any{"terminal": terminal}
 	resp, err := accountJSONRequest(server, token, http.MethodPost, "/api/v1/devices/"+url.PathEscape(deviceID)+"/processes", body)
 	if err != nil {
 		return "", err

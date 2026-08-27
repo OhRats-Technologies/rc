@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 )
 
@@ -81,7 +82,13 @@ func (control *remoteControl) request(message wireMessage) error {
 	}
 }
 
-func (control *remoteControl) close() { _ = control.transport.close(); _ = control.signaling.Close() }
+func (control *remoteControl) close() {
+	_ = control.transport.close()
+	resp, err := accountRequest(control.server, control.token, "DELETE", "/api/v1/control/"+url.PathEscape(control.sessionID))
+	if err == nil {
+		_ = resp.Body.Close()
+	}
+}
 
 func waitForProcess(control *remoteControl, processID string) error {
 	stdinClosed := false

@@ -36,8 +36,8 @@ export function securityArticle(): DocArticle {
         id: "control-transport",
         title: "Control transport",
         body: <>
-          <p>The authenticated RC WebSocket carries control-session setup, WebRTC signaling, and hosted live events. Encrypted browser/CLI control frames are carried only by a reliable ordered WebRTC DataChannel.</p>
-          <p>The managed service uses Cloudflare STUN for ICE discovery and asks Cloudflare TURN for short-lived ICE credentials from the RC backend when configured. The long-lived TURN token ID/API token remain server-side; browser and Node receive only the temporary ICE username/credential. ICE prefers direct connectivity and uses TURN relay candidates when necessary. RC does not relay browser/CLI control frames over WebSocket.</p>
+          <p>Authenticated HTTP endpoints carry browser/CLI control-session setup and non-trickle WebRTC signaling. Browser live metadata and lifecycle events use cookie-authenticated Server-Sent Events. Encrypted browser/CLI control frames are carried only by a reliable ordered WebRTC DataChannel.</p>
+          <p>The managed service uses Cloudflare STUN for ICE discovery and asks Cloudflare TURN for short-lived ICE credentials from the RC backend when configured. The long-lived TURN token ID/API token remain server-side; browser and Node receive only the temporary ICE username/credential. ICE prefers direct connectivity and uses TURN relay candidates when necessary. RC does not relay browser/CLI control frames through HTTP, SSE, or WebSocket.</p>
           <p>WebRTC adds DTLS transport encryption, but RC currently retains its own AES-256-GCM control framing inside the DataChannel. Transport diagnostics are kept only as bounded in-memory operational state rather than durable audit history. Changing or removing the inner encryption is a separate security change.</p>
         </>,
       },
