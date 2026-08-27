@@ -5,14 +5,14 @@ import { q } from "./db";
 import type { AgentClientMessage, AgentServerMessage, BrowserServerMessage } from "./protocol";
 import { controlIceServers, type IceServer } from "./webrtc";
 
-type RelaySocket = { send(data: string): unknown };
+type ControlSocket = { send(data: string): unknown };
 type Sender = (deviceId: string, message: AgentServerMessage) => boolean;
 let sendAgent: Sender = () => false;
 type PendingRequest =
-  | { socket: RelaySocket; deviceId: string; kind: "challenge" | "webrtc" }
-  | { socket: RelaySocket; deviceId: string; kind: "open"; iceServers: IceServer[] };
+  | { socket: ControlSocket; deviceId: string; kind: "challenge" | "webrtc" }
+  | { socket: ControlSocket; deviceId: string; kind: "open"; iceServers: IceServer[] };
 const pending = new Map<string, PendingRequest>();
-const sessions = new Map<string, { socket: RelaySocket; deviceId: string; iceServers: IceServer[] }>();
+const sessions = new Map<string, { socket: ControlSocket; deviceId: string; iceServers: IceServer[] }>();
 const transportDiagnostics = new Map<string, { deviceId: string; userId: string; detail: Record<string, unknown>; at: number }>();
 const MAX_TRANSPORT_DIAGNOSTICS = 256;
 
@@ -21,12 +21,12 @@ export function recentControlTransport(deviceId: string) {
 }
 
 export function registerAgentSender(sender: Sender) { sendAgent = sender; }
-function browserSend(socket: RelaySocket, value: BrowserServerMessage) { try { socket.send(JSON.stringify(value)); } catch {} }
-function failure(socket: RelaySocket, requestId: string, error: string) {
+function browserSend(socket: ControlSocket, value: BrowserServerMessage) { try { socket.send(JSON.stringify(value)); } catch {} }
+function failure(socket: ControlSocket, requestId: string, error: string) {
   browserSend(socket, { type: "response", requestId, ok: false, error });
 }
 
-export function requestControlChallenge(userId: string, deviceId: string, requestId: string, socket: RelaySocket) {
+export function requestControlChallenge(userId: string, deviceId: string, requestId: string, socket: ControlSocket) {
   if (!canOperate(deviceRole(userId, deviceId))) throw new Error("operator required");
   pending.set(requestId, { socket, deviceId, kind: "challenge" });
   if (!sendAgent(deviceId, { type: "control.challenge", requestId })) {
@@ -34,7 +34,7 @@ export function requestControlChallenge(userId: string, deviceId: string, reques
   }
 }
 
-export async function requestControlOpen(userId: string, input: any, socket: RelaySocket, apiKeyId: string | null = null) {
+export async function requestControlOpen(userId: string, input: any, socket: ControlSocket, apiKeyId: string | null = null) {
   const deviceId = String(input.deviceId || ""), requestId = String(input.requestId || ""), clientId = String(input.clientId || "");
   if (!canOperate(deviceRole(userId, deviceId))) throw new Error("operator required");
   const proof = apiKeyId ? null : controlProof(userId, clientId);
@@ -48,7 +48,7 @@ export async function requestControlOpen(userId: string, input: any, socket: Rel
   if (!sent) { pending.delete(requestId); throw new Error("device is offline"); }
 }
 
-export function requestControlWebRTC(userId: string, input: any, socket: RelaySocket) {
+export function requestControlWebRTC(userId: string, input: any, socket: ControlSocket) {
   const sessionId = String(input.sessionId || ""), requestId = String(input.requestId || ""), session = sessions.get(sessionId);
   if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) {
     throw new Error("control session unavailable");
@@ -59,13 +59,7 @@ export function requestControlWebRTC(userId: string, input: any, socket: RelaySo
   }
 }
 
-export function relayControlFrame(userId: string, input: any, socket: RelaySocket) {
-  const sessionId = String(input.sessionId || ""), session = sessions.get(sessionId);
-  if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) return false;
-  return sendAgent(session.deviceId, { type: "control.frame", sessionId, sequence: Number(input.sequence), ciphertext: String(input.ciphertext || "") });
-}
-
-export function reportControlTransport(userId: string, input: any, socket: RelaySocket) {
+export function reportControlTransport(userId: string, input: any, socket: ControlSocket) {
   const sessionId = String(input.sessionId || ""), session = sessions.get(sessionId);
   if (!session || session.socket !== socket || session.deviceId !== input.deviceId || !canOperate(deviceRole(userId, session.deviceId))) return;
   const detail = {
@@ -81,13 +75,13 @@ export function reportControlTransport(userId: string, input: any, socket: Relay
   while (transportDiagnostics.size > MAX_TRANSPORT_DIAGNOSTICS) transportDiagnostics.delete(transportDiagnostics.keys().next().value!);
 }
 
-export function closeControlSession(input: any, socket: RelaySocket) {
+export function closeControlSession(input: any, socket: ControlSocket) {
   const sessionId = String(input.sessionId || ""), session = sessions.get(sessionId);
   if (!session || session.socket !== socket) return;
   sessions.delete(sessionId); sendAgent(session.deviceId, { type: "control.close", sessionId });
 }
 
-export function releaseControlSocket(socket: RelaySocket) {
+export function releaseControlSocket(socket: ControlSocket) {
   for (const [requestId, request] of pending) if (request.socket === socket) pending.delete(requestId);
   for (const [sessionId, session] of sessions) if (session.socket === socket) {
     sessions.delete(sessionId); sendAgent(session.deviceId, { type: "control.close", sessionId });
@@ -148,10 +142,6 @@ export function handleControlAgentMessage(deviceId: string, message: AgentClient
   if (message.type === "control.error") {
     const requestId = message.requestId || "", request = pending.get(requestId); if (!request) return true;
     pending.delete(requestId); failure(request.socket, requestId, message.output || "control request rejected"); return true;
-  }
-  if (message.type === "control.frame") {
-    const session = sessions.get(message.sessionId); if (session?.deviceId === deviceId) browserSend(session.socket,
-      { type: "control.frame", sessionId: message.sessionId, sequence: message.sequence, ciphertext: message.ciphertext }); return true;
   }
   if (message.type === "lock.state") {
     q("UPDATE devices SET lock_hash=?,lock_generation=? WHERE id=?")

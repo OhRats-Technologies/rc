@@ -43,21 +43,20 @@ function sendInput(data: string) {
 }
 
 function transportText(status: ControlTransportStatus) {
-  if (status.transport === "webrtc" && status.phase === "connecting") return "WEBRTC…";
-  if (status.transport === "webrtc") {
-    const pair = status.selected, route = pair?.localType && pair?.remoteType ? `${pair.localType}↔${pair.remoteType}` : "DIRECT";
-    return `WEBRTC · ${route}${pair?.protocol ? `/${pair.protocol}` : ""}`.toUpperCase();
-  }
-  return "RELAY · WSS";
+  if (status.phase === "connecting") return "WEBRTC…";
+  if (status.phase === "failed") return "WEBRTC FAILED";
+  const pair = status.selected, turn = pair?.localType === "relay" || pair?.remoteType === "relay";
+  const route = turn ? "TURN" : pair?.localType && pair?.remoteType ? `${pair.localType}↔${pair.remoteType}` : "DIRECT";
+  return `WEBRTC · ${route}${pair?.protocol ? `/${pair.protocol}` : ""}`.toUpperCase();
 }
 
 function showTransport(status: ControlTransportStatus) {
   const element = document.querySelector<HTMLElement>("#control-transport"); if (!element) return;
   element.textContent = transportText(status);
-  element.title = status.reason || (status.transport === "webrtc" ? "Direct WebRTC DataChannel" : "Encrypted WebSocket relay");
-  if (status.transport === "relay" && status.reason) {
-    transportMessage = `WebRTC fallback: ${status.reason}`;
-  } else if (status.transport === "webrtc" && status.phase === "connected") transportMessage = "";
+  element.title = status.reason || "WebRTC DataChannel";
+  if (status.phase === "failed" && status.reason) {
+    transportMessage = `WebRTC unavailable: ${status.reason}`;
+  } else if (status.phase === "connected") transportMessage = "";
   const message = qs<HTMLElement>("#process-message");
   if (!message.textContent?.trim() || transportMessage) message.textContent = transportMessage;
 }

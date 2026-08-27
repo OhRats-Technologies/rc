@@ -4,8 +4,6 @@ const RequestId = t.String({ minLength: 1, maxLength: 100 });
 const ProcessId = t.String({ minLength: 1, maxLength: 100 });
 const DeviceId = t.String({ minLength: 1, maxLength: 100 });
 const SessionId = t.String({ minLength: 1, maxLength: 100 });
-const ControlSequence = t.Integer({ minimum: 1 });
-const ControlCiphertext = t.String({ minLength: 1, maxLength: 1_500_000 });
 const ProcessData = t.String({ minLength: 1, maxLength: 131_072, pattern: "^[A-Za-z0-9_-]+$" });
 const TerminalSize = t.Number({ minimum: 2, maximum: 500 });
 const ProcessTerminal = t.Object({ cols: TerminalSize, rows: TerminalSize, term: t.Optional(t.String({ maxLength: 128 })) });
@@ -30,8 +28,8 @@ export const BrowserCommandSchema = t.Union([
   t.Object({ type: t.Literal("control.webrtc"), requestId: RequestId, deviceId: DeviceId, sessionId: SessionId,
     sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
   t.Object({ type: t.Literal("control.transport"), deviceId: DeviceId, sessionId: SessionId,
-    transport: t.Union([t.Literal("webrtc"), t.Literal("relay")]),
-    phase: t.Optional(t.Union([t.Literal("connecting"), t.Literal("connected"), t.Literal("fallback")])),
+    transport: t.Literal("webrtc"),
+    phase: t.Optional(t.Union([t.Literal("connecting"), t.Literal("connected"), t.Literal("failed")])),
     reason: t.Optional(t.String({ maxLength: 200 })),
     iceState: t.Optional(t.String({ maxLength: 40 })), connectionState: t.Optional(t.String({ maxLength: 40 })),
     localCandidates: t.Optional(IceCandidateSummarySchema), remoteCandidates: t.Optional(IceCandidateSummarySchema),
@@ -40,7 +38,6 @@ export const BrowserCommandSchema = t.Union([
       protocol: t.Optional(t.String({ maxLength: 20 })),
     })),
   }),
-  t.Object({ type: t.Literal("control.frame"), deviceId: DeviceId, sessionId: SessionId, sequence: ControlSequence, ciphertext: ControlCiphertext }),
   t.Object({ type: t.Literal("control.close"), deviceId: DeviceId, sessionId: SessionId }),
   t.Object({ type: t.Literal("lock.sync"), requestId: RequestId, workspaceId: t.String(), clientId: t.String(),
     transitions: t.Array(t.Object({ fromHash: t.String({ minLength: 64, maxLength: 64 }), generation: t.Integer({ minimum: 0 }), signature: t.String() }), { minItems: 1, maxItems: 100 }) }),
@@ -58,7 +55,6 @@ export const BrowserServerMessageSchema = t.Union([
   t.Object({ type: t.Literal("event"), event: RCEventSchema }),
   t.Object({ type: t.Literal("response"), requestId: RequestId, ok: t.Literal(true), result: t.Optional(t.Unknown()) }),
   t.Object({ type: t.Literal("response"), requestId: RequestId, ok: t.Literal(false), error: t.String() }),
-  t.Object({ type: t.Literal("control.frame"), sessionId: SessionId, sequence: ControlSequence, ciphertext: ControlCiphertext }),
 ]);
 
 export const AgentClientMessageSchema = t.Union([
@@ -83,7 +79,6 @@ export const AgentClientMessageSchema = t.Union([
   t.Object({ type: t.Literal("control.challenge"), requestId: RequestId, challenge: t.String() }),
   t.Object({ type: t.Literal("control.ready"), requestId: RequestId, sessionId: SessionId, transportPublicKey: t.String(), ephemeralPublicKey: t.String(), signature: t.String() }),
   t.Object({ type: t.Literal("control.webrtc.ready"), requestId: RequestId, sessionId: SessionId, sdp: t.String({ minLength: 1, maxLength: 131072 }) }),
-  t.Object({ type: t.Literal("control.frame"), sessionId: SessionId, sequence: ControlSequence, ciphertext: ControlCiphertext }),
   t.Object({ type: t.Literal("control.error"), requestId: t.Optional(RequestId), output: t.String() }),
   t.Object({ type: t.Literal("lock.state"), lockHash: t.String(), lockGeneration: t.Integer({ minimum: 0 }) }),
 ]);
@@ -110,7 +105,6 @@ export const AgentServerMessageSchema = t.Union([
     credentialId: t.String(), assertion: t.String(), publicKey: t.String(), signature: t.String() }),
   t.Object({ type: t.Literal("control.webrtc"), requestId: RequestId, sessionId: SessionId, sdp: t.String({ minLength: 1, maxLength: 131072 }),
     iceServers: t.Array(IceServerSchema, { maxItems: 8 }) }),
-  t.Object({ type: t.Literal("control.frame"), sessionId: SessionId, sequence: ControlSequence, ciphertext: ControlCiphertext }),
   t.Object({ type: t.Literal("control.close"), sessionId: SessionId }),
 ]);
 

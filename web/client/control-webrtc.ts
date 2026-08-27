@@ -4,7 +4,7 @@ import type { ControlTransport } from "./control-transport";
 type Frame = { type: "control.frame"; sessionId: string; sequence: number; ciphertext: string };
 export type CandidateSummary = { host: number; srflx: number; relay: number; udp: number; tcp: number };
 export type ControlTransportStatus = {
-  transport: "webrtc" | "relay"; phase?: "connecting" | "connected" | "fallback"; reason?: string;
+  transport: "webrtc"; phase?: "connecting" | "connected" | "failed"; reason?: string;
   iceState?: string; connectionState?: string; localCandidates?: CandidateSummary; remoteCandidates?: CandidateSummary;
   selected?: { localType?: string; remoteType?: string; protocol?: string };
 };
@@ -62,48 +62,40 @@ async function selectedPair(peer: RTCPeerConnection) {
   } catch { return undefined; }
 }
 
-export async function openWebRTCControlTransport(deviceId: string, sessionId: string, iceServers: RTCIceServer[], fallback: ControlTransport,
-  onStatus: StatusReporter = () => {}, attempt = 0): Promise<ControlTransport | null> {
-  if (typeof RTCPeerConnection === "undefined") {
-    const status: ControlTransportStatus = { transport: "relay", phase: "fallback", reason: "WebRTC unavailable in this browser" };
-    onStatus(status); fire({ type: "control.transport", deviceId, sessionId, ...status }); return null;
-  }
+export async function openWebRTCControlTransport(deviceId: string, sessionId: string, iceServers: RTCIceServer[],
+  onStatus: StatusReporter = () => {}, attempt = 0): Promise<ControlTransport> {
+  if (typeof RTCPeerConnection === "undefined") throw new Error("WebRTC unavailable in this browser");
   const peer = new RTCPeerConnection({ iceServers }), channel = peer.createDataChannel("rc-control", { ordered: true });
   const frameListeners = new Set<(sequence: number, ciphertext: string) => void>();
-  let direct = true, closing = false, established = false, localCandidates: CandidateSummary | undefined, remoteCandidates: CandidateSummary | undefined;
-  let lastFinal = "";
+  let closing = false, established = false, localCandidates: CandidateSummary | undefined, remoteCandidates: CandidateSummary | undefined;
 
-  const publish = (status: ControlTransportStatus, persist = true) => {
+  const publish = (status: ControlTransportStatus, report = true) => {
     onStatus(status);
-    if (persist) fire({ type: "control.transport", deviceId, sessionId, ...status });
+    if (report) fire({ type: "control.transport", deviceId, sessionId, ...status });
   };
-  const relay = (reason: string) => {
-    const status: ControlTransportStatus = { transport: "relay", phase: "fallback", reason: reason.slice(0, 200),
-      iceState: peer.iceConnectionState, connectionState: peer.connectionState, localCandidates, remoteCandidates };
-    if (lastFinal !== `relay:${status.reason}`) { lastFinal = `relay:${status.reason}`; publish(status); }
-  };
+  const fail = (reason: string) => publish({ transport: "webrtc", phase: "failed", reason: reason.slice(0, 200),
+    iceState: peer.iceConnectionState, connectionState: peer.connectionState, localCandidates, remoteCandidates });
   publish({ transport: "webrtc", phase: "connecting" }, false);
 
-  const fallbackFrame = fallback.onFrame((sequence, ciphertext) => {
-    if (closing) return;
-    // Relay remains valid during handoff. A late relay frame can race the Node's DataChannel OnOpen callback;
-    // receiving it is not evidence that the direct channel failed.
-    for (const listener of frameListeners) listener(sequence, ciphertext);
-  });
   channel.addEventListener("message", async event => {
-    if (!direct || closing) return;
+    if (closing) return;
     let text: string;
     if (typeof event.data === "string") text = event.data;
     else if (event.data instanceof ArrayBuffer) text = new TextDecoder().decode(event.data);
     else if (event.data instanceof Blob) text = await event.data.text();
-    else { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
-    if (text.length > 2_000_000) { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
-    let frame: Frame; try { frame = JSON.parse(text) as Frame; } catch { direct = false; relay("Invalid WebRTC frame"); peer.close(); return; }
+    else { fail("Invalid WebRTC frame"); channel.close(); return; }
+    if (text.length > 2_000_000) { fail("Invalid WebRTC frame"); channel.close(); return; }
+    let frame: Frame; try { frame = JSON.parse(text) as Frame; } catch { fail("Invalid WebRTC frame"); channel.close(); return; }
     if (frame.type !== "control.frame" || frame.sessionId !== sessionId) return;
     for (const listener of frameListeners) listener(Number(frame.sequence), String(frame.ciphertext || ""));
   });
   channel.addEventListener("close", () => {
-    if (!closing && established && direct) { direct = false; relay("WebRTC DataChannel closed"); }
+    if (!closing && established) { fail("WebRTC DataChannel closed"); fire({ type: "control.close", deviceId, sessionId }); }
+  });
+  peer.addEventListener("connectionstatechange", () => {
+    if (!closing && established && peer.connectionState === "failed") {
+      fail("WebRTC peer connection failed"); closing = true; fire({ type: "control.close", deviceId, sessionId }); channel.close(); peer.close();
+    }
   });
   try {
     await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer);
@@ -114,29 +106,26 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp }); await waitForOpen(peer, channel);
     established = true;
     const selected = await selectedPair(peer);
-    const status: ControlTransportStatus = { transport: "webrtc", phase: "connected", iceState: peer.iceConnectionState,
-      connectionState: peer.connectionState, localCandidates, remoteCandidates, selected };
-    lastFinal = "webrtc"; publish(status);
+    publish({ transport: "webrtc", phase: "connected", iceState: peer.iceConnectionState,
+      connectionState: peer.connectionState, localCandidates, remoteCandidates, selected });
   } catch (error) {
     closing = true;
     const reason = error instanceof Error ? error.message : "WebRTC negotiation failed";
-    fallbackFrame(); peer.close();
+    peer.close();
     if (attempt === 0 && /webrtc|ice|datachannel|timed out|failed/i.test(reason)) {
       onStatus({ transport: "webrtc", phase: "connecting", reason: `Retrying after: ${reason}` });
       await new Promise(resolve => window.setTimeout(resolve, 1200));
-      return openWebRTCControlTransport(deviceId, sessionId, iceServers, fallback, onStatus, 1);
+      return openWebRTCControlTransport(deviceId, sessionId, iceServers, onStatus, 1);
     }
-    relay(reason); return null;
+    fail(reason); fire({ type: "control.close", deviceId, sessionId }); throw new Error(`WebRTC control unavailable: ${reason}`);
   }
   return {
     send(sequence, ciphertext) {
-      if (direct && channel.readyState === "open" && channel.bufferedAmount <= 1_048_576) {
-        try { channel.send(JSON.stringify({ type: "control.frame", sessionId, sequence, ciphertext } satisfies Frame)); return true; }
-        catch { direct = false; relay("WebRTC send failed"); peer.close(); }
-      }
-      direct = false; return fallback.send(sequence, ciphertext);
+      if (channel.readyState !== "open" || channel.bufferedAmount > 1_048_576) return false;
+      try { channel.send(JSON.stringify({ type: "control.frame", sessionId, sequence, ciphertext } satisfies Frame)); return true; }
+      catch { fail("WebRTC send failed"); channel.close(); return false; }
     },
     onFrame(listener) { frameListeners.add(listener); return () => frameListeners.delete(listener); },
-    close() { if (closing) return; closing = true; fallbackFrame(); peer.close(); fallback.close(); },
+    close() { if (closing) return; closing = true; peer.close(); fire({ type: "control.close", deviceId, sessionId }); },
   };
 }

@@ -19,9 +19,7 @@ func pionIceServers(values []iceServer) []webrtc.ICEServer {
 	return servers
 }
 
-func (manager *controlManager) openWebRTC(message wireMessage) {
-	go manager.answerWebRTC(message)
-}
+func (manager *controlManager) openWebRTC(message wireMessage) { go manager.answerWebRTC(message) }
 
 func (manager *controlManager) answerWebRTC(message wireMessage) {
 	fmt.Printf("WebRTC offer received for control session %s\n", shortControlID(message.SessionID))
@@ -63,7 +61,7 @@ func (manager *controlManager) answerWebRTC(message wireMessage) {
 				_ = channel.Close()
 			}
 		})
-		channel.OnClose(func() { manager.resetWebRTC(message.SessionID, transportID) })
+		channel.OnClose(func() { manager.webRTCClosed(message.SessionID, transportID) })
 	})
 	if err = peer.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: message.SDP}); err != nil {
 		manager.failWebRTC(message.SessionID, transportID, peer, message.RequestID)
@@ -91,13 +89,13 @@ func (manager *controlManager) answerWebRTC(message wireMessage) {
 		return
 	}
 	if manager.send(wireMessage{Type: "control.webrtc.ready", RequestID: message.RequestID, SessionID: message.SessionID, SDP: local.SDP}) != nil {
-		manager.resetWebRTC(message.SessionID, transportID)
+		manager.clearWebRTCPeer(message.SessionID, transportID)
 		_ = peer.Close()
 		return
 	}
 	time.AfterFunc(10*time.Second, func() {
 		if peer.ConnectionState() != webrtc.PeerConnectionStateConnected {
-			manager.resetWebRTC(message.SessionID, transportID)
+			manager.clearWebRTCPeer(message.SessionID, transportID)
 			_ = peer.Close()
 		}
 	})
@@ -109,6 +107,7 @@ func (manager *controlManager) registerWebRTCPeer(sessionID, transportID string,
 	var previous func()
 	if session != nil {
 		previous = session.closeTransport
+		session.send = nil
 		session.transportID = transportID
 		session.closeTransport = func() { _ = peer.Close() }
 	}
@@ -128,8 +127,8 @@ func (manager *controlManager) bindWebRTC(sessionID, transportID string, channel
 			if err == nil && channel.BufferedAmount() <= 1<<20 && channel.SendText(string(data)) == nil {
 				return true
 			}
-			manager.useRelay(sessionID)
-			return manager.relayFrame(message)
+			_ = channel.Close()
+			return false
 		}
 	}
 	manager.mu.Unlock()
@@ -140,37 +139,35 @@ func (manager *controlManager) bindWebRTC(sessionID, transportID string, channel
 	fmt.Printf("WebRTC connected for control session %s\n", shortControlID(sessionID))
 }
 
-func (manager *controlManager) useRelay(sessionID string) {
-	manager.mu.Lock()
-	session := manager.sessions[sessionID]
-	var closeTransport func()
-	if session != nil && session.transportID != "relay" {
-		closeTransport = session.closeTransport
-		session.send = manager.relayFrame
-		session.transportID = "relay"
-		session.closeTransport = nil
-	}
-	manager.mu.Unlock()
-	if closeTransport != nil {
-		closeTransport()
-	}
-}
-
-func (manager *controlManager) resetWebRTC(sessionID, transportID string) {
+func (manager *controlManager) clearWebRTCPeer(sessionID, transportID string) {
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
 	session := manager.sessions[sessionID]
 	if session == nil || session.transportID != transportID {
 		return
 	}
-	session.send = manager.relayFrame
-	session.transportID = "relay"
+	session.send = nil
+	session.transportID = ""
 	session.closeTransport = nil
-	fmt.Printf("WebRTC fell back to relay for control session %s\n", shortControlID(sessionID))
+}
+
+func (manager *controlManager) webRTCClosed(sessionID, transportID string) {
+	manager.mu.Lock()
+	session := manager.sessions[sessionID]
+	established := session != nil && session.transportID == transportID && session.send != nil
+	if session != nil && session.transportID == transportID && !established {
+		session.transportID = ""
+		session.closeTransport = nil
+	}
+	manager.mu.Unlock()
+	if established {
+		fmt.Printf("WebRTC closed for control session %s\n", shortControlID(sessionID))
+		manager.closeSession(sessionID)
+	}
 }
 
 func (manager *controlManager) failWebRTC(sessionID, transportID string, peer *webrtc.PeerConnection, requestID string) {
-	manager.resetWebRTC(sessionID, transportID)
+	manager.clearWebRTCPeer(sessionID, transportID)
 	_ = peer.Close()
 	manager.controlError(requestID, "WebRTC negotiation failed")
 }

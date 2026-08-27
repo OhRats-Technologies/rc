@@ -123,7 +123,7 @@ func (manager *controlManager) open(message wireMessage) {
 	}
 	sessionID := randomURLBytes(18)
 	manager.mu.Lock()
-	manager.sessions[sessionID] = &controlSession{aead: aead, send: manager.relayFrame, transportID: "relay", clientID: message.ClientID, userID: userID, role: role,
+	manager.sessions[sessionID] = &controlSession{aead: aead, clientID: message.ClientID, userID: userID, role: role,
 		canExecute: canExecute, canManageDevices: canManageDevices}
 	manager.mu.Unlock()
 	privateBytes, _ := base64.RawStdEncoding.DecodeString(manager.device.PrivateKey)
@@ -207,6 +207,10 @@ func (manager *controlManager) sendFrame(sessionID string, message wireMessage) 
 		manager.mu.Unlock()
 		return false
 	}
+	if session.send == nil {
+		manager.mu.Unlock()
+		return false
+	}
 	plaintext, _ := json.Marshal(message)
 	if len(plaintext) > maxControlPlaintext {
 		manager.mu.Unlock()
@@ -219,10 +223,6 @@ func (manager *controlManager) sendFrame(sessionID string, message wireMessage) 
 	manager.mu.Unlock()
 	return send != nil && send(wireMessage{Type: "control.frame", SessionID: sessionID, Sequence: sequence,
 		Ciphertext: base64.RawURLEncoding.EncodeToString(ciphertext)})
-}
-
-func (manager *controlManager) relayFrame(message wireMessage) bool {
-	return manager.send(message) == nil
 }
 
 func (manager *controlManager) handle(message wireMessage) error {
@@ -245,9 +245,6 @@ func (manager *controlManager) handle(message wireMessage) error {
 		manager.open(message)
 	case "control.webrtc":
 		manager.openWebRTC(message)
-	case "control.frame":
-		manager.useRelay(message.SessionID)
-		return manager.receiveFrame(message)
 	case "process.permit":
 		manager.permitSecureStart(message)
 	case "control.close":

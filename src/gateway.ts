@@ -6,7 +6,7 @@ import { isDirectControlProcess, markProcessExited, markProcessLost, markProcess
 import type { AgentClientMessage, AgentServerMessage } from "./protocol";
 import type { SocketWriter } from "./browser-socket";
 import { AGENT_CHALLENGE_TTL } from "./config";
-import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-relay";
+import { bootstrapAuthority, handleControlAgentMessage, registerAgentSender } from "./control-signaling";
 import { handleMcpProcessMessage, markMcpProcessLost } from "./mcp/process";
 import { registerMcpSender } from "./mcp/relay";
 import { handleSshProcessMessage } from "./ssh/process";

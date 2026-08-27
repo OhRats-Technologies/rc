@@ -3,9 +3,9 @@ import { allocateProcess } from "./process-api";
 import type { BrowserCommand, BrowserServerMessage } from "./protocol";
 import type { ApiScope } from "./account";
 import {
-  closeControlSession, relayControlFrame, releaseControlSocket, reportControlTransport, requestControlChallenge, requestControlOpen, requestControlWebRTC,
+  closeControlSession, releaseControlSocket, reportControlTransport, requestControlChallenge, requestControlOpen, requestControlWebRTC,
   syncWorkspaceAuthority,
-} from "./control-relay";
+} from "./control-signaling";
 
 export type SocketWriter = { send(data: string): unknown; close(code?: number, reason?: string): void };
 type BrowserConnection = { socket: SocketWriter; scopes: ApiScope[] | null; apiKeyId: string | null; unsubscribe?: () => void };
@@ -42,7 +42,6 @@ export const browserSocketHandlers = {
         case "control.open": requireControlScope(connection); await requestControlOpen(userId, message, connection.socket, connection.apiKeyId); return;
         case "control.webrtc": requireControlScope(connection); requestControlWebRTC(userId, message, connection.socket); return;
         case "control.transport": requireControlScope(connection); reportControlTransport(userId, message, connection.socket); return;
-        case "control.frame": requireControlScope(connection); relayControlFrame(userId, message, connection.socket); return;
         case "control.close": closeControlSession(message, connection.socket); return;
         case "lock.sync": result = await syncWorkspaceAuthority(userId, message.workspaceId, message.clientId, message.transitions); break;
       }

@@ -1,7 +1,7 @@
 import { api } from "./http";
 import { request } from "./socket";
 import { b64urlToBytes, bytesToB64url, ensureControlAuthorized, pinDevice } from "./control-client";
-import { websocketControlTransport, type ControlTransport } from "./control-transport";
+import type { ControlTransport } from "./control-transport";
 import { openWebRTCControlTransport } from "./control-webrtc";
 import type { ControlTransportStatus } from "./control-webrtc";
 import type { Device } from "../types";
@@ -131,10 +131,8 @@ export async function openControlSession(deviceId: string, onTransportStatus: (s
     new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey, ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId)));
   if (!verified) throw new Error("RC Node handshake signature failed.");
   const key = await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id);
-  const fallback = websocketControlTransport(deviceId, ready.sessionId);
-  const webRTC = device.capabilities?.includes("webrtc")
-    ? await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || [], fallback, onTransportStatus) : null;
-  if (!device.capabilities?.includes("webrtc")) onTransportStatus({ transport: "relay", phase: "fallback", reason: "RC Node does not advertise WebRTC" });
-  return new ControlSession(deviceId, ready.sessionId, key, webRTC || fallback);
+  if (!device.capabilities?.includes("webrtc")) throw new Error("RC Node does not support WebRTC control");
+  const webRTC = await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || [], onTransportStatus);
+  return new ControlSession(deviceId, ready.sessionId, key, webRTC);
 }
 

@@ -6,14 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 )
 
 type webrtcControlTransport struct {
 	peer      *webrtc.PeerConnection
 	channel   *webrtc.DataChannel
-	fallback  *websocketControlTransport
-	deviceID  string
 	sessionID string
 	incoming  chan wireMessage
 	closed    chan struct{}
@@ -32,7 +31,7 @@ func decodeIceServers(value any) []iceServer {
 	return servers
 }
 
-func openWebRTCClientTransport(fallback *websocketControlTransport, deviceID, sessionID string, servers []iceServer) (controlTransport, error) {
+func openWebRTCClientTransport(conn *websocket.Conn, writeMu *sync.Mutex, deviceID, sessionID string, servers []iceServer) (controlTransport, error) {
 	peer, err := webrtc.NewPeerConnection(webrtc.Configuration{ICEServers: pionIceServers(servers)})
 	if err != nil {
 		return nil, err
@@ -42,8 +41,8 @@ func openWebRTCClientTransport(fallback *websocketControlTransport, deviceID, se
 		_ = peer.Close()
 		return nil, err
 	}
-	transport := &webrtcControlTransport{peer: peer, channel: channel, fallback: fallback,
-		deviceID: deviceID, sessionID: sessionID, incoming: make(chan wireMessage, 128), closed: make(chan struct{})}
+	transport := &webrtcControlTransport{peer: peer, channel: channel, sessionID: sessionID,
+		incoming: make(chan wireMessage, 128), closed: make(chan struct{})}
 	opened := make(chan struct{})
 	var openOnce sync.Once
 	channel.OnOpen(func() { openOnce.Do(func() { close(opened) }) })
@@ -86,12 +85,12 @@ func openWebRTCClientTransport(fallback *websocketControlTransport, deviceID, se
 		return nil, errors.New("WebRTC offer unavailable")
 	}
 	requestID := randomURLBytes(12)
-	if err = writeJSON(fallback.conn, fallback.writeMu, map[string]any{"type": "control.webrtc", "requestId": requestID, "deviceId": deviceID,
+	if err = writeJSON(conn, writeMu, map[string]any{"type": "control.webrtc", "requestId": requestID, "deviceId": deviceID,
 		"sessionId": sessionID, "sdp": local.SDP}); err != nil {
 		_ = peer.Close()
 		return nil, err
 	}
-	answer, err := waitOuterResponse(fallback.conn, requestID)
+	answer, err := waitOuterResponse(conn, requestID)
 	if err != nil {
 		_ = peer.Close()
 		return nil, err
@@ -114,15 +113,16 @@ func (transport *webrtcControlTransport) sendFrame(_, sessionID string, sequence
 	if sessionID != transport.sessionID {
 		return errors.New("invalid control session")
 	}
-	if transport.channel.ReadyState() == webrtc.DataChannelStateOpen && transport.channel.BufferedAmount() <= 1<<20 {
-		data, _ := json.Marshal(wireMessage{Type: "control.frame", SessionID: sessionID, Sequence: sequence, Ciphertext: ciphertext})
-		if err := transport.channel.Send(data); err == nil {
-			return nil
-		}
+	if transport.channel.ReadyState() != webrtc.DataChannelStateOpen || transport.channel.BufferedAmount() > 1<<20 {
+		return errors.New("WebRTC control unavailable")
 	}
-	transport.markClosed()
-	_ = transport.peer.Close()
-	return transport.fallback.sendFrame(transport.deviceID, sessionID, sequence, ciphertext)
+	data, _ := json.Marshal(wireMessage{Type: "control.frame", SessionID: sessionID, Sequence: sequence, Ciphertext: ciphertext})
+	if err := transport.channel.SendText(string(data)); err != nil {
+		transport.markClosed()
+		_ = transport.peer.Close()
+		return errors.New("WebRTC control unavailable")
+	}
+	return nil
 }
 
 func (transport *webrtcControlTransport) readFrame(sessionID string) (uint64, string, error) {
@@ -133,7 +133,7 @@ func (transport *webrtcControlTransport) readFrame(sessionID string) (uint64, st
 	case frame := <-transport.incoming:
 		return frame.Sequence, frame.Ciphertext, nil
 	case <-transport.closed:
-		return transport.fallback.readFrame(sessionID)
+		return 0, "", errors.New("WebRTC control closed")
 	}
 }
 
@@ -143,7 +143,6 @@ func (transport *webrtcControlTransport) markClosed() {
 
 func (transport *webrtcControlTransport) close() error {
 	err := transport.peer.Close()
-	_ = transport.fallback.close()
 	transport.markClosed()
 	return err
 }
