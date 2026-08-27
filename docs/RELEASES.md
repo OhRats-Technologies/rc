@@ -44,11 +44,11 @@ sh scripts/check-version.sh "$VERSION"
    git push origin "v$VERSION"
    ```
 
-8. Require the `RC release` workflow to pass and publish a non-draft latest release. The tag workflow intentionally does not rerun the full integration suite; it verifies the tag/version, requires the tagged commit to be on `main`, then builds and validates the four release archives.
+8. Require the `RC release` workflow to pass and publish a non-draft latest release. The tag workflow intentionally does not rerun the full integration suite; it verifies the tag/version, requires the tagged commit to be on `main`, waits for successful `CI` on that exact commit, then builds and validates the four release archives.
 9. Download the release archive on each available platform, verify its digest/archive shape, and run `rc version` plus `rc --help`.
 10. Test `public/install.sh` and `rc update` against the published release from an isolated temporary home directory.
 
-The `CI` workflow on `main` verifies formatting, strict Clippy, all Rust targets, dependency audits, source size, documentation links, browser type/build checks, shell/workflow linting, and the production container smoke test. The `RC release` workflow avoids duplicating those expensive checks: it verifies tag/version equality and `main` ancestry, then performs warning-free cross-platform builds and validates archive names, count, and contents before publishing. Zig's own deprecated-linker-setting diagnostic is the sole target-toolchain lint suppressed during Linux linking; Rust warnings remain denied.
+The `CI` workflow on `main` verifies formatting, strict Clippy, all Rust targets, dependency audits, source size, documentation links, browser type/build checks, shell/workflow linting, and the production container smoke test. The `RC release` workflow avoids duplicating those expensive checks: it verifies tag/version equality and `main` ancestry, requires successful `CI` for the exact tagged SHA, then performs warning-free cross-platform builds and validates archive names, count, and contents before publishing. Zig's own deprecated-linker-setting diagnostic is the sole target-toolchain lint suppressed during Linux linking; Rust warnings remain denied.
 
 Both workflows cache Rust dependency/build state. The CI image job also uses the GitHub Actions BuildKit cache, and Linux release jobs cache the `cargo-zigbuild` binary. These caches are performance optimizations only; cache misses must still produce the same validated artifacts.
 

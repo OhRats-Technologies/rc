@@ -9,6 +9,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@v7
@@ -21,6 +22,45 @@ jobs:
           sh scripts/check-version.sh "$expected"
           git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Require successful CI for tagged commit
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          deadline=$(( $(date +%s) + 2400 ))
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            run="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
+              -f branch=main \
+              -f event=push \
+              -f head_sha="$GITHUB_SHA" \
+              -f per_page=10 \
+              --jq '.workflow_runs | if length == 0 then "" else (sort_by(.run_number) | last | [.status, (.conclusion // "pending"), .html_url] | join("|")) end')"
+            if [ -n "$run" ]; then
+              ci_status=${run%%|*}
+              rest=${run#*|}
+              conclusion=${rest%%|*}
+              url=${rest#*|}
+              case "$ci_status:$conclusion" in
+                completed:success)
+                  echo "CI passed for $GITHUB_SHA: $url"
+                  exit 0
+                  ;;
+                completed:*)
+                  echo "CI did not pass for $GITHUB_SHA ($conclusion): $url" >&2
+                  exit 1
+                  ;;
+                *)
+                  echo "waiting for CI on $GITHUB_SHA ($ci_status): $url"
+                  ;;
+              esac
+            else
+              echo "waiting for CI to start on $GITHUB_SHA"
+            fi
+            sleep 15
+          done
+          echo "timed out waiting for successful CI on $GITHUB_SHA" >&2
+          exit 1
 
   build:
     needs: verify
