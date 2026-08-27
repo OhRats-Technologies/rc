@@ -159,10 +159,6 @@ deleteConfirm?.addEventListener("click", async () => {
   if (!deleteEndpoint || !deleteConfirm) return;
   deleteConfirm.disabled = true; deleteConfirm.textContent = "Deleting…";
   try {
-    if (deleteMethod === "DELETE" && deleteEndpoint.startsWith("/api/v1/devices/")) {
-      const deviceId = deleteEndpoint.split("/").at(-1) || "", control = await openControlSession(deviceId);
-      try { await control.request({ type: "node.remove" }); } finally { control.close(); }
-    }
     const headers: Record<string, string> = { accept: "application/json" };
     if (deleteEndpoint === "/account/delete") Object.assign(headers, stepHeader(await freshPasskey()));
     await api(deleteEndpoint, { method: deleteMethod, headers }); location.href = deleteRedirect;

@@ -121,7 +121,7 @@ func unregister(serverURL string, value state) error {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
 		return nil
 	}
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -147,6 +147,11 @@ func connectWithLiveness(ctx context.Context, serverURL string, value state, sta
 	}
 	conn, response, err := websocket.DefaultDialer.Dial(u.String(), req.Header)
 	if err != nil {
+		if response != nil && response.StatusCode == http.StatusGone {
+			_ = os.Remove(lockPath(stateDir))
+			_ = os.Remove(statePath(stateDir))
+			return errNodeRemoved
+		}
 		if response != nil && response.StatusCode == http.StatusNotFound {
 			if lockHash(stateDir) != "" {
 				return errLockedServerMissing
@@ -224,7 +229,7 @@ func connectWithLiveness(ctx context.Context, serverURL string, value state, sta
 				}
 				continue
 			}
-			if strings.HasPrefix(message.Type, "process.") || message.Type == "node.update" || message.Type == "node.remove" {
+			if strings.HasPrefix(message.Type, "process.") || message.Type == "node.update" {
 				continue
 			}
 			manager.handle(message)
@@ -267,7 +272,7 @@ func fetchStatus(serverURL string, value state) (remoteNodeStatus, error) {
 		return remoteNodeStatus{}, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode == http.StatusGone || resp.StatusCode == http.StatusNotFound {
 		return remoteNodeStatus{}, errNodeRemoved
 	}
 	if resp.StatusCode != http.StatusOK {

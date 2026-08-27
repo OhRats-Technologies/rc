@@ -61,14 +61,22 @@ export function enrollAgent(input: AgentEnrollInput) {
 export async function handleAgentUnregister(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname !== "/api/v1/agent/self" || !["GET", "DELETE"].includes(req.method)) return null;
   const requestedDevice = url.searchParams.get("device") || "";
-  if (!requestedDevice || !q("SELECT 1 FROM devices WHERE id=?").get(requestedDevice)) return fail("device not found", 404);
+  if (!requestedDevice) return fail("device not found", 404);
+  const active = Boolean(q("SELECT 1 FROM devices WHERE id=?").get(requestedDevice));
+  const revoked = Boolean(q("SELECT 1 FROM revoked_devices WHERE id=?").get(requestedDevice));
+  if (!active && !revoked) return fail("device not found", 404);
   const deviceId = await verifyAgent(req, requestedDevice);
   if (!deviceId) return fail("invalid agent signature", 401);
+  if (revoked) return fail("device removed", 410);
   const device = q<any>("SELECT workspace_id,name,agent_version FROM devices WHERE id=?").get(deviceId);
   if (!device) return fail("device not found", 404);
   if (req.method === "GET") return json({ name: device.name, online: isOnline(deviceId), agentVersion: device.agent_version });
   disconnectDevice(deviceId);
-  q("DELETE FROM devices WHERE id=?").run(deviceId);
+  const publicKey = q<{ public_key: string }>("SELECT public_key FROM devices WHERE id=?").get(deviceId)?.public_key || "";
+  db.transaction(() => {
+    q("INSERT OR REPLACE INTO revoked_devices(id,public_key,revoked_at) VALUES(?,?,?)").run(deviceId, publicKey, now());
+    q("DELETE FROM devices WHERE id=?").run(deviceId);
+  })();
   logEvent("device.unenrolled", device.workspace_id, null, null, { deviceId });
   return json({ ok: true });
 }
@@ -94,10 +102,13 @@ export function removeDevice(user: User, deviceId: string) {
   const role = deviceRole(user.id, deviceId);
   if (!role) throw new HttpError(404, "device not found");
   if (role !== "owner") throw new HttpError(403, "owner required");
-  const device = q<{ workspace_id: string; name: string }>("SELECT workspace_id,name FROM devices WHERE id=?").get(deviceId);
+  const device = q<{ workspace_id: string; name: string; public_key: string }>("SELECT workspace_id,name,public_key FROM devices WHERE id=?").get(deviceId);
   if (!device) throw new HttpError(404, "device not found");
+  db.transaction(() => {
+    q("INSERT OR REPLACE INTO revoked_devices(id,public_key,revoked_at) VALUES(?,?,?)").run(deviceId, device.public_key, now());
+    q("DELETE FROM devices WHERE id=?").run(deviceId);
+  })();
   disconnectDevice(deviceId, true);
-  q("DELETE FROM devices WHERE id=?").run(deviceId);
   logEvent("device.removed", device.workspace_id, user.id, null, { deviceId, name: device.name });
 }
 

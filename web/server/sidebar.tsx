@@ -29,6 +29,7 @@ function DeviceItem({ device, owner, current, overflow, path }: {
             <button type="button" data-device-rename><span className="ui-icon icon-pencil" aria-hidden="true"/>Rename device</button>
             {canUpdate && <button type="button" data-sidebar-device-update={device.id} disabled={!device.online}>Update node</button>}
             <button className="danger-text" type="button" data-delete-kind="device" data-delete-name={device.name}
+              data-delete-description="Deletes from RC immediately. If the Node is asleep or offline, it clears its old enrollment the next time it connects."
               data-delete-endpoint={`/api/v1/devices/${device.id}`}><span className="ui-icon icon-trash" aria-hidden="true"/>Delete device</button>
           </div>
         </div>

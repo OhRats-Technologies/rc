@@ -39,11 +39,16 @@ registerMcpSender(send);
 registerSshSender(send);
 
 export function createAgentChallenge(deviceId: string) {
-  if (!q("SELECT 1 FROM devices WHERE id=?").get(deviceId)) return null;
   const challenge = opaque("agent"), t = now();
   q("DELETE FROM agent_auth_challenges WHERE expires_at<=?").run(t);
-  q("INSERT INTO agent_auth_challenges(challenge_hash,device_id,created_at,expires_at) VALUES(?,?,?,?)")
-    .run(sha(challenge), deviceId, t, t + AGENT_CHALLENGE_TTL);
+  q("DELETE FROM revoked_agent_auth_challenges WHERE expires_at<=?").run(t);
+  if (q("SELECT 1 FROM devices WHERE id=?").get(deviceId)) {
+    q("INSERT INTO agent_auth_challenges(challenge_hash,device_id,created_at,expires_at) VALUES(?,?,?,?)")
+      .run(sha(challenge), deviceId, t, t + AGENT_CHALLENGE_TTL);
+  } else if (q("SELECT 1 FROM revoked_devices WHERE id=?").get(deviceId)) {
+    q("INSERT INTO revoked_agent_auth_challenges(challenge_hash,device_id,created_at,expires_at) VALUES(?,?,?,?)")
+      .run(sha(challenge), deviceId, t, t + AGENT_CHALLENGE_TTL);
+  } else return null;
   return { challenge, expiresAt: t + AGENT_CHALLENGE_TTL };
 }
 
@@ -51,8 +56,14 @@ export async function verifyAgent(request: Request, deviceId: string): Promise<s
   const challenge = request.headers.get("x-rc-challenge") || "";
   const sig = request.headers.get("x-rc-signature") || "";
   if (!deviceId || !challenge || !sig) return null;
-  const row = q<any>(`SELECT d.public_key FROM agent_auth_challenges c JOIN devices d ON d.id=c.device_id
+  let revoked = false;
+  let row = q<any>(`SELECT d.public_key FROM agent_auth_challenges c JOIN devices d ON d.id=c.device_id
     WHERE c.challenge_hash=? AND c.device_id=? AND c.expires_at>?`).get(sha(challenge), deviceId, now());
+  if (!row) {
+    revoked = true;
+    row = q<any>(`SELECT d.public_key FROM revoked_agent_auth_challenges c JOIN revoked_devices d ON d.id=c.device_id
+      WHERE c.challenge_hash=? AND c.device_id=? AND c.expires_at>?`).get(sha(challenge), deviceId, now());
+  }
   if (!row) return null;
   try {
     const key = await crypto.subtle.importKey("spki", pemPublicKeyToDer(row.public_key), { name: "Ed25519" }, false, ["verify"]);
@@ -60,7 +71,8 @@ export async function verifyAgent(request: Request, deviceId: string): Promise<s
     const payload = `rc-auth-v2\n${deviceId}\n${challenge}\n${request.method}\n${path}`;
     const ok = await crypto.subtle.verify("Ed25519", key, base64urlToBytes(sig), new TextEncoder().encode(payload));
     if (!ok) return null;
-    const consumed = q(`DELETE FROM agent_auth_challenges WHERE challenge_hash=? AND device_id=? AND expires_at>?`)
+    const table = revoked ? "revoked_agent_auth_challenges" : "agent_auth_challenges";
+    const consumed = q(`DELETE FROM ${table} WHERE challenge_hash=? AND device_id=? AND expires_at>?`)
       .run(sha(challenge), deviceId, now()).changes;
     return consumed === 1 ? deviceId : null;
   } catch { return null; }

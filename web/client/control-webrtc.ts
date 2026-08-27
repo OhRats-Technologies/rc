@@ -86,8 +86,8 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
 
   const fallbackFrame = fallback.onFrame((sequence, ciphertext) => {
     if (closing) return;
-    // Relay is the session's safe transport while ICE is negotiating. An early relay frame must not abort the direct attempt.
-    if (established && direct) { direct = false; relay("Node resumed the WebSocket relay"); peer.close(); }
+    // Relay remains valid during handoff. A late relay frame can race the Node's DataChannel OnOpen callback;
+    // receiving it is not evidence that the direct channel failed.
     for (const listener of frameListeners) listener(sequence, ciphertext);
   });
   channel.addEventListener("message", event => {

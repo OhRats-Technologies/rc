@@ -13,8 +13,11 @@ export const agentSocketRoute = new Elysia({ name: "rc.websocket.agent", detail:
     query: AgentQuery,
     body: AgentClientMessageSchema,
     async beforeHandle({ request, query }) {
-      if (!q("SELECT 1 FROM devices WHERE id=?").get(query.device)) return fail("device not found", 404);
+      const active = Boolean(q("SELECT 1 FROM devices WHERE id=?").get(query.device));
+      const revoked = Boolean(q("SELECT 1 FROM revoked_devices WHERE id=?").get(query.device));
+      if (!active && !revoked) return fail("device not found", 404);
       if (await verifyAgent(request, query.device) !== query.device) return fail("invalid agent signature", 401);
+      if (revoked) return fail("device removed", 410);
     },
     open(ws) { agentSocketHandlers.open(ws.data.query.device, ws.raw); },
     message(ws, message) { agentSocketHandlers.message(ws.data.query.device, message); },

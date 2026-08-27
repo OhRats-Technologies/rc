@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { enrolledDevice, mcpRpc, seededMcpCode } from "./security-test-fixtures";
 
 let dataDir = "";
 let app: typeof import("./app").app;
@@ -19,6 +20,7 @@ let denyOAuthRequest: typeof import("./mcp/oauth").denyOAuthRequest;
 let restartOAuthRequest: typeof import("./mcp/oauth").restartOAuthRequest;
 let sha: typeof import("./db").sha;
 let sshPrincipalForDevice: typeof import("./ssh-keys").sshPrincipalForDevice;
+let removeDevice: typeof import("./devices").removeDevice;
 
 beforeAll(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "rc-security-test-"));
@@ -31,28 +33,15 @@ beforeAll(async () => {
   ({ controlAuthorizationOptions, controlGrantChallenge } = await import("./control-auth"));
   ({ createOAuthRequest, denyOAuthRequest, restartOAuthRequest } = await import("./mcp/oauth"));
   ({ sshPrincipalForDevice } = await import("./ssh-keys"));
+  ({ removeDevice } = await import("./devices"));
   ({ app } = await import("./app"));
 });
 
 afterAll(async () => { if (dataDir) await rm(dataDir, { recursive: true, force: true }); });
 
-async function enrolledDevice() {
-  const userId = crypto.randomUUID(), workspaceId = crypto.randomUUID(), deviceId = crypto.randomUUID(), t = Date.now();
-  const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
-  const spki = new Uint8Array(await crypto.subtle.exportKey("spki", pair.publicKey));
-  const body = Buffer.from(spki).toString("base64").match(/.{1,64}/g)?.join("\n") || "";
-  const publicKey = `-----BEGIN PUBLIC KEY-----\n${body}\n-----END PUBLIC KEY-----\n`;
-  q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "Security Test", t);
-  q("INSERT INTO workspaces(id,name,created_by,created_at) VALUES(?,?,?,?)").run(workspaceId, "Test", userId, t);
-  q("INSERT INTO workspace_members(workspace_id,user_id,role,joined_at) VALUES(?,?,?,?)").run(workspaceId, userId, "owner", t);
-  q(`INSERT INTO devices(id,workspace_id,name,hostname,platform,arch,public_key,agent_version,capabilities,last_seen,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?)`).run(deviceId, workspaceId, "Node", "node", "darwin", "arm64", publicKey, "0.7.0", "[]", t, t);
-  return { userId, deviceId, privateKey: pair.privateKey };
-}
-
 describe("agent authentication", () => {
   test("a signed challenge is accepted exactly once", async () => {
-    const { deviceId, privateKey } = await enrolledDevice();
+    const { deviceId, privateKey } = await enrolledDevice(q);
     const challenge = createAgentChallenge(deviceId)!;
     const path = "/api/v1/agent/self";
     const payload = `rc-auth-v2\n${deviceId}\n${challenge.challenge}\nGET\n${path}`;
@@ -63,6 +52,31 @@ describe("agent authentication", () => {
     });
     expect(await verifyAgent(request(), deviceId)).toBe(deviceId);
     expect(await verifyAgent(request(), deviceId)).toBeNull();
+  });
+
+  test("deleted devices keep only a revocation identity for signed reconciliation", async () => {
+    const { userId, deviceId, privateKey } = await enrolledDevice(q);
+    removeDevice({ id: userId, name: "Security Test" }, deviceId);
+    expect(q("SELECT 1 FROM devices WHERE id=?").get(deviceId)).toBeNull();
+    expect(q("SELECT public_key FROM revoked_devices WHERE id=?").get(deviceId)).toBeTruthy();
+
+    const challenge = createAgentChallenge(deviceId)!;
+    const path = "/api/v1/agent/ws";
+    const payload = `rc-auth-v2\n${deviceId}\n${challenge.challenge}\nGET\n${path}`;
+    const signature = new Uint8Array(await crypto.subtle.sign("Ed25519", privateKey, new TextEncoder().encode(payload)));
+    const request = new Request(`http://localhost:3000${path}?device=${deviceId}`, {
+      headers: { "x-rc-challenge": challenge.challenge, "x-rc-signature": Buffer.from(signature).toString("base64url") },
+    });
+    expect(await verifyAgent(request, deviceId)).toBe(deviceId);
+    expect(q("SELECT 1 FROM revoked_devices WHERE id=?").get(deviceId)).toBeTruthy();
+
+    const next = createAgentChallenge(deviceId)!;
+    const nextPayload = `rc-auth-v2\n${deviceId}\n${next.challenge}\nGET\n/api/v1/agent/self`;
+    const nextSignature = new Uint8Array(await crypto.subtle.sign("Ed25519", privateKey, new TextEncoder().encode(nextPayload)));
+    const response = await app.handle(new Request(`http://localhost:3000/api/v1/agent/self?device=${deviceId}`, {
+      headers: { "x-rc-challenge": next.challenge, "x-rc-signature": Buffer.from(nextSignature).toString("base64url") },
+    }));
+    expect(response.status).toBe(410);
   });
 });
 
@@ -169,7 +183,7 @@ describe("API key scopes", () => {
 
 describe("SSH gateway authorization", () => {
   test("routes by immutable device ID and current role", async () => {
-    const { userId, deviceId } = await enrolledDevice(), controlId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
+    const { userId, deviceId } = await enrolledDevice(q), controlId = crypto.randomUUID(), keyId = crypto.randomUUID(), t = Date.now();
     q(`INSERT INTO control_clients(id,user_id,signing_public_key,credential_id,grant,assertion,created_at,expires_at,last_used) VALUES(?,?,?,?,?,?,?,?,NULL)`).run(controlId,userId,"public","credential","grant","assertion",t,0);
     q(`INSERT INTO ssh_keys(id,user_id,name,algorithm,key_data,public_key,control_client_id,created_at,last_used) VALUES(?,?,?,?,?,?,?,?,NULL)`).run(keyId,userId,"Laptop","ssh-ed25519",crypto.randomUUID(),"ssh-ed25519 blob",controlId,t);
     expect(sshPrincipalForDevice(keyId, deviceId)?.device_id).toBe(deviceId);
@@ -216,30 +230,6 @@ describe("fresh passkey step-up", () => {
   });
 });
 
-function mcpRpc(method: string, id = 1, params?: Record<string, unknown>, token = "") {
-  const headers: Record<string, string> = { "content-type": "application/json", "mcp-protocol-version": "2026-07-28", "mcp-method": method };
-  if (method === "tools/call") headers["mcp-name"] = String(params?.name || "");
-  if (token) headers.authorization = `Bearer ${token}`;
-  return new Request("http://localhost:3000/mcp", { method: "POST", headers,
-    body: JSON.stringify({ jsonrpc: "2.0", id, method, ...(params ? { params } : {}) }) });
-}
-
-function seededMcpCode(scopes: string[]) {
-  const userId = crypto.randomUUID(), clientId = `mcp_client_${crypto.randomUUID()}`, grantId = crypto.randomUUID(), t = Date.now();
-  const code = `mcp_code_${crypto.randomUUID()}`, verifier = "a".repeat(43);
-  const digest = new Bun.CryptoHasher("sha256").update(verifier).digest();
-  const challenge = Buffer.from(digest).toString("base64url"), redirect = "http://127.0.0.1:49152/callback";
-  const grant = JSON.stringify({ v: 1, id: grantId, userId, clientId, clientName: "MCP Test", deviceIds: [], scopes,
-    issuedAt: t, expiresAt: t + 60 * 60_000 });
-  q("INSERT INTO users(id,name,created_at) VALUES(?,?,?)").run(userId, "MCP User", t);
-  q("INSERT INTO mcp_clients(id,name,redirect_uris,created_at) VALUES(?,?,?,?)").run(clientId, "MCP Test", JSON.stringify([redirect]), t);
-  q(`INSERT INTO mcp_grants(id,user_id,client_id,name,grant,control_client_id,grant_signature,credential_id,control_grant,control_assertion,created_at,expires_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(grantId, userId, clientId, "MCP Test", grant, "control", "sig", "credential", "grant", "assertion", t, t + 60 * 60_000);
-  q("INSERT INTO mcp_codes(code_hash,grant_id,redirect_uri,code_challenge,resource,expires_at) VALUES(?,?,?,?,?,?)")
-    .run(sha(code), grantId, redirect, challenge, "http://localhost:3000/mcp", t + 60_000);
-  return { clientId, code, verifier, redirect };
-}
-
 describe("MCP transport and OAuth", () => {
   test("consent cancellation preserves state and account switching restarts the same OAuth request", () => {
     const userId = crypto.randomUUID(), clientId = `mcp_client_${crypto.randomUUID()}`, t = Date.now();
@@ -269,7 +259,7 @@ describe("MCP transport and OAuth", () => {
   });
 
   test("PKCE codes and refresh tokens are one-time and scopes filter tools", async () => {
-    const seeded = seededMcpCode(["mcp:observe"]);
+    const seeded = seededMcpCode(q, sha, ["mcp:observe"]);
     const form = new URLSearchParams({ grant_type: "authorization_code", client_id: seeded.clientId, code: seeded.code,
       redirect_uri: seeded.redirect, code_verifier: seeded.verifier, resource: "http://localhost:3000/mcp" });
     const token = await app.handle(new Request("http://localhost:3000/oauth/token", { method: "POST", body: form }));
@@ -291,7 +281,7 @@ describe("MCP transport and OAuth", () => {
   });
 
   test("MCP process output is relayed without being retained in SQLite", async () => {
-    const { userId, deviceId } = await enrolledDevice(), processId = crypto.randomUUID(), t = Date.now();
+    const { userId, deviceId } = await enrolledDevice(q), processId = crypto.randomUUID(), t = Date.now();
     q(`INSERT INTO processes(id,device_id,command,cwd,status,encrypted,mcp,cols,rows,created_by,created_at)
       VALUES(?,?,?,NULL,'running',1,1,80,24,?,?)`).run(processId, deviceId, "[mcp]", userId, t);
     agentSocketHandlers.message(deviceId, { type: "process.stdout", id: processId, data: Buffer.from("mcp-secret-output").toString("base64url") });

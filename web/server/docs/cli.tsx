@@ -43,7 +43,7 @@ export function cliArticle(): DocArticle {
           <tr><td><code>rc enroll TOKEN</code></td><td>Enroll this machine. Optional flags: <code>--name</code>, <code>--url</code>, <code>--state-dir</code>.</td></tr>
           <tr><td><code>rc service install|start|stop|status|uninstall</code></td><td>Manage the per-user background Node service.</td></tr>
           <tr><td><code>rc update</code></td><td>Verify and install a newer GitHub Node release, then restart the service if installed.</td></tr>
-          <tr><td><code>rc device delete ID</code></td><td>Owner-authorized remote removal followed by hosted device deletion.</td></tr>
+          <tr><td><code>rc device delete ID</code></td><td>Delete a device from RC immediately. A sleeping Node reconciles the revocation when it next connects.</td></tr>
           <tr><td><code>rc config show|path|set|unset</code></td><td>Read or modify the default RC server and enrollment name.</td></tr>
           <tr><td><code>rc uninstall</code></td><td>Remove the service, unregister the device when possible, delete local RC state, and remove the installed binary.</td></tr>
         </tbody></DocTable>,

@@ -126,15 +126,6 @@ func deviceCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	control, err := openRemoteControl(*server, *token, device)
-	if err != nil {
-		return fmt.Errorf("secure device removal: %w", err)
-	}
-	if err := control.request(wireMessage{Type: "node.remove"}); err != nil {
-		control.close()
-		return fmt.Errorf("secure device removal: %w", err)
-	}
-	control.close()
 	if err := deleteAccountDevice(*server, *token, device.ID); err != nil {
 		return err
 	}

@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"os"
 	"sync"
 	"time"
 )
@@ -166,16 +165,6 @@ func (manager *controlManager) receiveFrame(message wireMessage) error {
 	var command wireMessage
 	if json.Unmarshal(plaintext, &command) != nil {
 		return errors.New("invalid encrypted control command")
-	}
-	if command.Type == "node.remove" {
-		if !canManageDevices {
-			return errors.New("owner required")
-		}
-		manager.sendFrame(message.SessionID, wireMessage{Type: "control.result", RequestID: command.RequestID, Output: "ok"})
-		manager.processes.shutdown()
-		_ = os.Remove(lockPath(manager.stateDir))
-		_ = os.Remove(statePath(manager.stateDir))
-		return errNodeRemoved
 	}
 	if command.Type == "node.update" {
 		if !canManageDevices {

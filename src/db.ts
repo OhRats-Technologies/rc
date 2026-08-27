@@ -34,6 +34,9 @@ CREATE TABLE IF NOT EXISTS devices(
   public_key TEXT NOT NULL UNIQUE,transport_public_key TEXT NOT NULL DEFAULT '',lock_hash TEXT NOT NULL DEFAULT '',agent_version TEXT NOT NULL,capabilities TEXT NOT NULL DEFAULT '[]',
   lock_generation INTEGER NOT NULL DEFAULT 0,last_seen INTEGER,created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS revoked_devices(
+  id TEXT PRIMARY KEY,public_key TEXT NOT NULL,revoked_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS processes(
   id TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
   command TEXT NOT NULL,cwd TEXT,status TEXT NOT NULL DEFAULT 'starting'
@@ -133,6 +136,10 @@ CREATE TABLE IF NOT EXISTS agent_auth_challenges(
   challenge_hash TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
   created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS revoked_agent_auth_challenges(
+  challenge_hash TEXT PRIMARY KEY,device_id TEXT NOT NULL REFERENCES revoked_devices(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS events(
   id INTEGER PRIMARY KEY AUTOINCREMENT,workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,
@@ -147,6 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_events_workspace ON events(workspace_id,created_a
 CREATE INDEX IF NOT EXISTS idx_cli_authorizations_expiry ON cli_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_cli_sessions_user ON cli_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_auth_challenges_expiry ON agent_auth_challenges(expires_at);
+CREATE INDEX IF NOT EXISTS idx_revoked_agent_auth_challenges_expiry ON revoked_agent_auth_challenges(expires_at);
 CREATE INDEX IF NOT EXISTS idx_api_request_nonces_expiry ON api_request_nonces(expires_at);
 CREATE INDEX IF NOT EXISTS idx_control_authorizations_expiry ON control_authorizations(expires_at);
 CREATE INDEX IF NOT EXISTS idx_control_clients_user ON control_clients(user_id,expires_at);
