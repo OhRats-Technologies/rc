@@ -1,6 +1,6 @@
 package main
 
-const version = "0.15.7"
+const version = "0.15.8"
 
 type state struct {
 	DeviceID            string `json:"deviceId"`
@@ -74,7 +74,7 @@ type wireMessage struct {
 	Ciphertext         string        `json:"ciphertext,omitempty"`
 	SDP                string        `json:"sdp,omitempty"`
 	IceServers         []iceServer   `json:"iceServers,omitempty"`
-	ProcessIDs         []string      `json:"ids,omitempty"`
+	ProcessIDs         *[]string     `json:"ids,omitempty"`
 	Snapshot           string        `json:"snapshot,omitempty"`
 	McpGrant           string        `json:"mcpGrant,omitempty"`
 	McpSignature       string        `json:"mcpSignature,omitempty"`
