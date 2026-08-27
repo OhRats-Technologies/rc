@@ -15,7 +15,7 @@ RUN cargo build --locked --release -p rc-server --bin rc-server --bin rc-ssh-hel
 FROM debian:bookworm-slim
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates gosu openssh-server tini \
+      ca-certificates curl gosu openssh-server tini \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid 10001 rc \
  && useradd --uid 10001 --gid 10001 --home-dir /home/rc --create-home --shell /bin/sh rc \

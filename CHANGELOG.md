@@ -2,6 +2,13 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.16.1] - 2026-08-27
+
+### Fixed
+
+- Added `curl` to the production runtime image so Coolify's configured HTTP health check can mark the Rust server healthy instead of rolling back to the v0.15 container.
+- Added a CI runtime-image assertion for `curl` so the production health-check dependency cannot regress silently.
+
 ## [0.16.0] - 2026-08-27
 
 ### Breaking

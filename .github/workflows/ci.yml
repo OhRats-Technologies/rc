@@ -120,6 +120,7 @@ jobs:
           docker run --rm --entrypoint /bin/sh rc-ci -c '
             command -v rc-server >/dev/null &&
             command -v rc-ssh-helper >/dev/null &&
+            command -v curl >/dev/null &&
             command -v sshd >/dev/null &&
             ! command -v bun >/dev/null 2>&1 &&
             ! command -v go >/dev/null 2>&1 &&
