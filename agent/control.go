@@ -185,8 +185,13 @@ func (manager *controlManager) receiveFrame(message wireMessage) error {
 }
 
 func (manager *controlManager) authorizedUpdate(sessionID, requestID string) {
-	if err := replaceExecutable(); err != nil {
+	updated, err := replaceExecutable()
+	if err != nil {
 		manager.sendFrame(sessionID, wireMessage{Type: "control.result", RequestID: requestID, Output: err.Error()})
+		return
+	}
+	if !updated {
+		manager.sendFrame(sessionID, wireMessage{Type: "control.result", RequestID: requestID, Output: "already up to date"})
 		return
 	}
 	manager.sendFrame(sessionID, wireMessage{Type: "control.result", RequestID: requestID, Output: "ok"})

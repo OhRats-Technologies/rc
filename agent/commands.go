@@ -148,8 +148,13 @@ func updateCommand(args []string) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if err := replaceExecutable(); err != nil {
+	updated, err := replaceExecutable()
+	if err != nil {
 		return err
+	}
+	if !updated {
+		fmt.Printf("RC %s is already up to date\n", version)
+		return nil
 	}
 	if serviceInstalled() {
 		dir := resolveStateDir("")

@@ -42,7 +42,7 @@ func printHelp() {
 	helpRow("35;1", "ssh-proxy", "Tunnel OpenSSH through RC HTTPS")
 	fmt.Println()
 	helpRow("34;1", "service", "Manage the background RC Node")
-	helpRow("34;1", "update", "Update this RC Node")
+	helpRow("34;1", "update", "Update this RC Node if newer")
 	helpRow("34;1", "device delete ID", "Remove a device from RC")
 	helpRow("34;1", "config", "Read or change node configuration")
 	helpRow("34;1", "uninstall", "Unenroll and remove this node")
