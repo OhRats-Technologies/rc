@@ -176,17 +176,17 @@ metadata-only.
 
 ## 4.5. RC 0.18 dogfood release
 
-- [ ] Ship the existing native Node/controller path together with the new
+- [x] Ship the existing native Node/controller path together with the new
   Wasmtime kernel rather than replacing working remote control prematurely.
-- [ ] Install package-manager, local/HTTP/GitHub/OCI source providers, and
+- [x] Install package-manager, local/HTTP/GitHub/OCI source providers, and
   local diagnostics as a portable core component bundle.
-- [ ] Dispatch component-provided top-level commands through `rc` while
+- [x] Dispatch component-provided top-level commands through `rc` while
   retaining native Node/controller commands until their WIT ports are ready.
-- [ ] Make `rc update` update managed components and `rc upgrade` refresh the
+- [x] Make `rc update` update managed components and `rc upgrade` refresh the
   native platform/core bundle.
-- [ ] Publish four native `rc` assets, four native kernel assets, and one
+- [x] Publish four native `rc` assets, four native kernel assets, and one
   portable core-component bundle without rebuilding Wasm per platform.
-- [ ] Install 0.18 on a real enrolled Mac, verify the component graph and
+- [x] Install 0.18 on a real enrolled Mac, verify the component graph and
   package commands, then execute a GUI process through production RC.
 
 Acceptance: 0.18 can be dogfooded on an enrolled machine without losing the
@@ -199,8 +199,10 @@ commands run through the installed Wasm kernel.
   asset, and event-stream WIT packages.
 - [x] Implement the native HTTP listener as a capability-scoped kernel adapter
   and route requests to active components.
-- [x] Move the landing page, sign-in/setup surfaces, and public docs into the
-  `ohrats:webui-shell` component.
+- [x] Move the exact canonical landing page and complete public documentation
+  catalog into the `ohrats:webui-shell` component without reconstructed copy or
+  layout.
+- [ ] Move sign-in/setup surfaces into identity-backed component routes.
 - [ ] Move passkey ceremony handling, authenticated shell, sidebar, account,
   workspace, device, API, MCP, CLI authorization, and error views into
   componentized routes as their domain services become available.

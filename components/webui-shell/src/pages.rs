@@ -1,56 +1,110 @@
 use crate::{PAGES, document};
 
+#[derive(Clone, Copy)]
+enum PublicPage {
+    Landing,
+    Quickstart,
+    Principles,
+    Security,
+    Authentication,
+    Cli,
+    Mcp,
+    Api,
+}
+
 pub struct RenderedPage {
     pub status: u16,
     pub cache_control: &'static str,
     pub body: String,
 }
 
-pub fn render(path: &str) -> Option<RenderedPage> {
-    let (title, body, cache) = match path {
-        "/" => (
-            "Remote control",
-            landing(),
-            "public, max-age=0, must-revalidate",
-        ),
-        "/login" => ("Sign in", login(), "no-store"),
-        "/setup" => ("Set up RC", setup(), "no-store"),
-        "/docs" => (
-            "Documentation",
-            docs(),
-            "public, max-age=0, must-revalidate",
-        ),
-        "/docs/cli" => (
-            "CLI",
-            article(
-                "CLI",
-                "Install RC, sign in with a passkey, then use rc devices, rc shell, and rc run.",
-            ),
-            "public, max-age=0, must-revalidate",
-        ),
-        "/docs/api" => (
-            "API",
-            article(
-                "API",
-                "Automation clients use scoped proof-of-possession signing keys. Browser sessions administer those keys.",
-            ),
-            "public, max-age=0, must-revalidate",
-        ),
-        "/docs/mcp" => (
-            "MCP",
-            article(
-                "MCP",
-                "RC exposes a focused machine/process tool surface through OAuth and explicit machine grants.",
-            ),
-            "public, max-age=0, must-revalidate",
-        ),
+pub fn render(path: &str, public_signup: bool, public_url: &str) -> Option<RenderedPage> {
+    let page = match path {
+        "/" => PublicPage::Landing,
+        "/docs" => PublicPage::Quickstart,
+        "/docs/principles" => PublicPage::Principles,
+        "/docs/security" => PublicPage::Security,
+        "/docs/authentication" => PublicPage::Authentication,
+        "/docs/cli" => PublicPage::Cli,
+        "/docs/mcp" => PublicPage::Mcp,
+        "/docs/api" => PublicPage::Api,
         _ => return registered(path),
     };
     Some(RenderedPage {
         status: 200,
-        cache_control: cache,
-        body: document::public(title, &body),
+        cache_control: "public, max-age=0, must-revalidate",
+        body: render_public(page, public_signup, public_url),
     })
+}
+
+fn render_public(page: PublicPage, public_signup: bool, public_url: &str) -> String {
+    let template = match (page, public_signup) {
+        (PublicPage::Landing, true) => include_str!("../assets/public_snapshots/landing-open.html"),
+        (PublicPage::Landing, false) => {
+            include_str!("../assets/public_snapshots/landing-closed.html")
+        }
+        (PublicPage::Quickstart, true) => {
+            include_str!("../assets/public_snapshots/quickstart-open.html")
+        }
+        (PublicPage::Quickstart, false) => {
+            include_str!("../assets/public_snapshots/quickstart-closed.html")
+        }
+        (PublicPage::Principles, true) => {
+            include_str!("../assets/public_snapshots/principles-open.html")
+        }
+        (PublicPage::Principles, false) => {
+            include_str!("../assets/public_snapshots/principles-closed.html")
+        }
+        (PublicPage::Security, true) => {
+            include_str!("../assets/public_snapshots/security-open.html")
+        }
+        (PublicPage::Security, false) => {
+            include_str!("../assets/public_snapshots/security-closed.html")
+        }
+        (PublicPage::Authentication, true) => {
+            include_str!("../assets/public_snapshots/authentication-open.html")
+        }
+        (PublicPage::Authentication, false) => {
+            include_str!("../assets/public_snapshots/authentication-closed.html")
+        }
+        (PublicPage::Cli, true) => include_str!("../assets/public_snapshots/cli-open.html"),
+        (PublicPage::Cli, false) => include_str!("../assets/public_snapshots/cli-closed.html"),
+        (PublicPage::Mcp, true) => include_str!("../assets/public_snapshots/mcp-open.html"),
+        (PublicPage::Mcp, false) => include_str!("../assets/public_snapshots/mcp-closed.html"),
+        (PublicPage::Api, true) => include_str!("../assets/public_snapshots/api-open.html"),
+        (PublicPage::Api, false) => include_str!("../assets/public_snapshots/api-closed.html"),
+    };
+    let rendered = template
+        .replace(
+            "__PUBLIC_URL__",
+            &document::escape(public_url.trim_end_matches('/')),
+        )
+        .replace("__ASSET_VERSION__", env!("CARGO_PKG_VERSION"))
+        .replace("/assets/styles.css", crate::STYLES_PATH)
+        .replace("/assets/public.css", crate::PUBLIC_STYLES_PATH)
+        .replace("/assets/copy.js", crate::COPY_SCRIPT_PATH)
+        .replace("/assets/social-card.png", crate::SOCIAL_CARD_PATH);
+    currentize(page, rendered)
+}
+
+fn currentize(page: PublicPage, html: String) -> String {
+    match page {
+        PublicPage::Cli => html.replace(
+            "<tr><td><code>rc update</code></td><td>Check the latest GitHub Node release. If newer, verify/install it and restart the service if installed; otherwise leave the binary and service untouched.</td></tr>",
+            "<tr><td><code>rc</code> / <code>rc --help</code></td><td>Show grouped native, kernel, and active component commands.</td></tr><tr><td><code>rc add SPEC</code> / <code>rc remove NAME</code></td><td>Install or remove a managed WebAssembly component.</td></tr><tr><td><code>rc install</code> / <code>rc list</code></td><td>Restore the locked component set or inspect installed components.</td></tr><tr><td><code>rc outdated [NAME...]</code></td><td>Show available managed-component updates.</td></tr><tr><td><code>rc update [NAME...]</code></td><td>Update managed WebAssembly components without replacing the native RC platform.</td></tr><tr><td><code>rc upgrade</code></td><td>Upgrade the native RC platform and refresh its core component bundle.</td></tr>",
+        ),
+        PublicPage::Principles => html
+            .replace("Node releases are isolated from RC deploys", "Native releases are isolated from component updates")
+            .replace(
+                "GitHub Actions builds and publishes version-tagged Node/CLI releases independently of the RC control-plane deployment.</p><p>The installer and updater download GitHub Release assets directly, verify the selected artifact SHA-256 and reported version, and refuse downgrades.",
+                "GitHub Actions publishes native RC and kernel artifacts independently from portable WebAssembly components.</p><p><code>rc update</code> changes managed components. <code>rc upgrade</code> verifies GitHub release digests, refreshes the native platform and core component bundle, and refuses native downgrades.",
+            ),
+        PublicPage::Security => html.replace(
+            "GitHub Releases are the Node release trust boundary. The updater reads the published release manifest, verifies the selected artifact SHA-256, verifies the downloaded binary&#x27;s reported version, and refuses downgrades.</p><p>Node releases are published independently of RC runtime deployments, so a normal control-plane deploy does not rebuild or replace Node binaries.",
+            "GitHub Releases are the native RC release trust boundary. <code>rc upgrade</code> verifies the selected RC, kernel, and core-component artifact digests, validates the downloaded executables and component graph, and refuses native downgrades.</p><p>Managed WebAssembly components update independently through <code>rc update</code>; a component-only update does not replace the native RC binary or kernel.",
+        ),
+        _ => html,
+    }
 }
 
 fn registered(path: &str) -> Option<RenderedPage> {
@@ -59,42 +113,35 @@ fn registered(path: &str) -> Option<RenderedPage> {
             .borrow()
             .values()
             .find(|page| page.path == path)
-            .map(|page| {
-                let body = format!(
-                    "<article class=\"page\"><p class=\"eyebrow\">RC</p><h1>{}</h1><p>{}</p><pre>{}</pre></article>",
-                    document::escape(&page.title),
-                    document::escape(&page.summary),
-                    document::escape(&page.content)
-                );
-                RenderedPage {
-                    status: 200,
-                    cache_control: "no-store",
-                    body: document::public(&page.title, &body),
-                }
+            .map(|page| RenderedPage {
+                status: 200,
+                cache_control: "no-store",
+                body: document::registered(&page.title, &page.summary, &page.content),
             })
     })
 }
 
-fn landing() -> String {
-    "<section class=\"hero\"><p class=\"eyebrow\">REMOTE CONTROL</p><h1>Your machines, without opening SSH to the Internet.</h1><p>RC coordinates passkey-backed access while encrypted terminal sessions connect directly to the Node whenever possible.</p><div class=\"actions\"><a class=\"or-button\" href=\"/login\">SIGN IN</a><a href=\"/docs\">READ THE DOCS →</a></div></section><section class=\"features\"><article><h2>Private by default</h2><p>Human terminal traffic remains end-to-end encrypted between controller and Node.</p></article><article><h2>One runtime</h2><p>Browser, CLI, SSH, API, and MCP access share the same authority model.</p></article><article><h2>Composable</h2><p>The RC kernel loads capability-scoped WebAssembly components independently.</p></article></section>".into()
-}
+#[cfg(test)]
+mod tests {
+    use super::render;
 
-fn login() -> String {
-    "<section class=\"auth\"><p class=\"eyebrow\">RC</p><h1>Sign in</h1><p>Use a passkey registered with this RC instance.</p><form method=\"post\" action=\"/api/v1/auth/start\"><button class=\"or-button\" type=\"submit\">CONTINUE WITH PASSKEY</button></form></section>".into()
-}
-
-fn setup() -> String {
-    "<section class=\"auth\"><p class=\"eyebrow\">FIRST ACCOUNT</p><h1>Set up RC</h1><p>Create the first passkey-backed owner account using the protected setup URL supplied by the operator.</p></section>".into()
-}
-
-fn docs() -> String {
-    "<article class=\"page\"><p class=\"eyebrow\">DOCUMENTATION</p><h1>RC reference</h1><ul class=\"doc-list\"><li><a href=\"/docs/cli\">CLI</a></li><li><a href=\"/docs/api\">API</a></li><li><a href=\"/docs/mcp\">MCP</a></li></ul></article>".into()
-}
-
-fn article(title: &str, text: &str) -> String {
-    format!(
-        "<article class=\"page\"><p class=\"eyebrow\">DOCUMENTATION</p><h1>{}</h1><p>{}</p></article>",
-        document::escape(title),
-        document::escape(text)
-    )
+    #[test]
+    fn renders_the_canonical_landing_and_documentation_layout() {
+        let landing = render("/", true, "https://rc.ohrats.party").unwrap().body;
+        assert!(
+            landing.contains(
+                "Remote Control<br/><span class=\"hero-muted\">for your machines.</span>"
+            )
+        );
+        assert!(landing.contains("<link rel=\"canonical\" href=\"https://rc.ohrats.party/\"/>"));
+        let docs = render("/docs", false, "https://rc.example").unwrap().body;
+        for marker in [
+            "docs-sidebar",
+            "docs-mobile-catalog",
+            "docs-toc",
+            "Quickstart",
+        ] {
+            assert!(docs.contains(marker), "missing {marker}");
+        }
+    }
 }

@@ -218,6 +218,7 @@ world diagnostics-reporter {
 
 world webui-shell {
     include plugin;
+    import state-store;
     export ohrats:rc-webui/slots@0.1.0;
     export ohrats:rc-http/handler@0.1.0;
 }

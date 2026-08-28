@@ -4,6 +4,7 @@ wit_bindgen::generate!({
     generate_all,
 });
 
+mod config;
 mod document;
 mod http;
 mod pages;
@@ -46,11 +47,18 @@ impl Guest for WebUiShell {
                 },
             ],
             requires: Vec::new(),
-            commands: vec![Command {
-                name: "ui-pages".into(),
-                summary: "List active WebUI page contributions".into(),
-                usage: "rc ui-pages".into(),
-            }],
+            commands: vec![
+                Command {
+                    name: "ui-pages".into(),
+                    summary: "List active WebUI page contributions".into(),
+                    usage: "rc ui-pages".into(),
+                },
+                Command {
+                    name: "webui-config".into(),
+                    summary: "Read or change WebUI deployment configuration".into(),
+                    usage: "rc webui-config [public-signup BOOL|public-url URL|auto]".into(),
+                },
+            ],
         }
     }
 
@@ -63,6 +71,9 @@ impl Guest for WebUiShell {
     }
 
     fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
+        if command == "webui-config" {
+            return config::invoke(&args);
+        }
         if command != "ui-pages" || !args.is_empty() {
             return Err("usage: rc ui-pages".into());
         }

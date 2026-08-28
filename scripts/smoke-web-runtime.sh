@@ -64,23 +64,38 @@ wait_code() {
 wait_code /healthz 200 "$directory/health"
 grep -Fx ok "$directory/health" >/dev/null
 wait_code / 200 "$directory/home.html"
-grep -F '<h1>Your machines, without opening SSH to the Internet.</h1>' "$directory/home.html" >/dev/null
-wait_code /login 200 "$directory/login.html"
-grep -F '<h1>Sign in</h1>' "$directory/login.html" >/dev/null
-wait_code /setup 200 "$directory/setup.html"
-grep -F '<h1>Set up RC</h1>' "$directory/setup.html" >/dev/null
+grep -F 'Remote Control<br/><span class="hero-muted">for your machines.</span>' "$directory/home.html" >/dev/null
+wait_code /login 404 "$directory/login.html"
+wait_code /setup 404 "$directory/setup.html"
 wait_code /docs 200 "$directory/docs.html"
-grep -F '<h1>RC reference</h1>' "$directory/docs.html" >/dev/null
+grep -F 'class="docs-sidebar"' "$directory/docs.html" >/dev/null
+grep -F 'class="docs-toc"' "$directory/docs.html" >/dev/null
+grep -F '<h1>Quickstart</h1>' "$directory/docs.html" >/dev/null
+wait_code /docs/principles 200 "$directory/principles.html"
+grep -F '<h1>Principles</h1>' "$directory/principles.html" >/dev/null
+wait_code /docs/security 200 "$directory/security.html"
+grep -F '<h1>Security model</h1>' "$directory/security.html" >/dev/null
+wait_code /docs/authentication 200 "$directory/authentication.html"
+grep -F '<h1>Authentication</h1>' "$directory/authentication.html" >/dev/null
+wait_code /docs/cli 200 "$directory/cli.html"
+grep -F 'rc --help' "$directory/cli.html" >/dev/null
+wait_code /docs/mcp 200 "$directory/mcp.html"
+wait_code /docs/api 200 "$directory/api.html"
 wait_code /not-real 404 "$directory/missing"
 grep -Fx 'not found' "$directory/missing" >/dev/null
 wait_code /diagnostics 404 "$directory/no-diagnostics"
 
-css=$(grep -o '/assets/rc\.[0-9a-f]*\.css' "$directory/home.html" | head -1)
-test -n "$css"
-curl -fsS -D "$directory/css.headers" "$base$css" -o "$directory/rc.css"
-grep -Fi 'cache-control: public, max-age=31536000, immutable' "$directory/css.headers" >/dev/null
-grep -F '.public-header' "$directory/rc.css" >/dev/null
-curl -fsS -I "$base$css" | grep -Fi 'content-type: text/css' >/dev/null
+for css in $(grep -o '/assets/rc\.[0-9a-f]*\.css' "$directory/home.html" | sort -u); do
+  curl -fsS -D "$directory/css.headers" "$base$css" -o "$directory/$(basename "$css")"
+  grep -Fi 'cache-control: public, max-age=31536000, immutable' "$directory/css.headers" >/dev/null
+  curl -fsS -I "$base$css" | grep -Fi 'content-type: text/css' >/dev/null
+done
+script=$(grep -o '/assets/rc\.[0-9a-f]*\.js' "$directory/docs.html" | head -1)
+test -n "$script"
+curl -fsS "$base$script" | grep -F 'navigator.clipboard.writeText' >/dev/null
+card=$(grep -o '/assets/rc\.[0-9a-f]*\.png' "$directory/home.html" | head -1)
+test -n "$card"
+curl -fsS -I "$base$card" | grep -Fi 'content-type: image/png' >/dev/null
 
 # Route contributions appear and disappear while the same native listener runs.
 temporary="$components/diagnostics-ui.wasm.new"
