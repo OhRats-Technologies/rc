@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:websocket-fixture-test"
+version = "0.1.0"
+world = "ohrats:rc-plugin/websocket-test@0.1.0"
+wit = ["plugin", "websocket"]
+
+[build]
+kind = "rust"
+package = "rc-websocket-fixture-test"
+artifact = "websocket-fixture-test"

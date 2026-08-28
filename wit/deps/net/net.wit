@@ -1,0 +1,44 @@
+package ohrats:rc-net@0.1.0;
+
+/// Kernel-owned host adapter for capability-scoped outbound byte streams.
+///
+/// This import is not a dynamically selected component service and never grants ambient
+/// network access. Before resolving or connecting, the kernel MUST exact-match both the host
+/// string and port against the calling component's endpoint allowlist. It MUST NOT widen a
+/// grant through DNS aliases, resolved addresses, host normalization, suffix matching, or an
+/// implicit default. Callers without an exact endpoint grant receive an error.
+interface byte-stream-host {
+    record endpoint {
+        host: string,
+        port: u16,
+    }
+
+    record stream-limits {
+        connect-timeout-ms: u64,
+        idle-timeout-ms: u64,
+        max-lifetime-ms: u64,
+        max-pending-write-bytes: u64,
+    }
+
+    variant read-result {
+        data(list<u8>),
+        would-block,
+        eof,
+    }
+
+    variant write-result {
+        accepted(u64),
+        would-block,
+    }
+
+    resource connection {
+        /// Accepts a prefix only; callers retain and retry the unaccepted suffix.
+        write: func(bytes: list<u8>) -> result<write-result, string>;
+        /// Returns at most max-bytes and never blocks the component invocation.
+        read: func(max-bytes: u64) -> result<read-result, string>;
+        close-write: func() -> result<_, string>;
+        close: func(reason: string);
+    }
+
+    connect: func(remote: endpoint, limits: stream-limits) -> result<connection, string>;
+}

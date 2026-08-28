@@ -1,0 +1,74 @@
+package ohrats:rc-websocket@0.1.0;
+
+interface types {
+    record header {
+        name: string,
+        value: string,
+    }
+
+    record open-request {
+        route: string,
+        query: string,
+        headers: list<header>,
+        principal: option<string>,
+    }
+
+    /// All values are kernel-enforced ceilings. Components may choose lower limits.
+    record session-limits {
+        max-message-bytes: u64,
+        max-queued-outbound-bytes: u64,
+        idle-timeout-ms: u64,
+        max-lifetime-ms: u64,
+    }
+
+    variant message {
+        text(string),
+        binary(list<u8>),
+        ping(list<u8>),
+        pong(list<u8>),
+    }
+
+    record close-frame {
+        code: u16,
+        reason: string,
+    }
+
+    variant inbound {
+        message(message),
+        peer-close(option<close-frame>),
+        disconnected(string),
+    }
+
+    variant outbound {
+        message(message),
+        close(close-frame),
+    }
+
+    record outbound-batch {
+        /// Ordered frames whose total encoded payload is no greater than the poll budget.
+        frames: list<outbound>,
+        /// True when another immediate poll can make progress without new input.
+        more: bool,
+    }
+}
+
+interface handler {
+    use types.{inbound, open-request, outbound-batch, session-limits};
+
+    resource session {
+        /// Delivers exactly one validated peer event in transport order.
+        inbound: func(event: inbound) -> result<_, string>;
+        /// Returns deterministic ordered output bounded by max-bytes.
+        poll: func(max-bytes: u64) -> result<outbound-batch, string>;
+        /// Idempotent disconnect cleanup. No output may be produced afterward.
+        close: func(reason: string);
+    }
+
+    record opened-session {
+        session: session,
+        limits: session-limits,
+    }
+
+    /// None declines the route before HTTP upgrade. The native host owns upgrade mechanics.
+    open: func(request: open-request) -> result<option<opened-session>, string>;
+}
