@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { hasTurnServer, peerConfiguration, waitForGathering } from "./control-webrtc";
+import { directIceServers, hasTurnServer, peerConfiguration, waitForGathering } from "./control-webrtc";
 
 class FakePeer extends EventTarget {
   iceGatheringState: RTCIceGatheringState = "gathering";
@@ -18,10 +18,20 @@ test("ICE gathering deadline keeps the partially gathered offer usable", async (
   expect(await waitForGathering(peer as unknown as RTCPeerConnection, 1)).toBe("partial");
 });
 
-test("the first WebRTC attempt permits direct and relayed candidates", () => {
-  const servers: RTCIceServer[] = [{ urls: "stun:stun.cloudflare.com:3478" }];
+test("the first WebRTC attempt excludes TURN so a working direct route wins", () => {
+  const servers: RTCIceServer[] = [{
+    urls: ["stun:stun.cloudflare.com:3478", "turn:turn.cloudflare.com:3478?transport=udp"],
+    username: "temporary-user",
+    credential: "temporary-secret",
+  }];
+  const direct = [{
+    urls: ["stun:stun.cloudflare.com:3478"],
+    username: "temporary-user",
+    credential: "temporary-secret",
+  }];
+  expect(directIceServers(servers)).toEqual(direct);
   expect(peerConfiguration(servers, 0)).toEqual({
-    iceServers: servers,
+    iceServers: direct,
     iceCandidatePoolSize: 1,
     iceTransportPolicy: "all",
   });

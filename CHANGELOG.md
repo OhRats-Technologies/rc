@@ -2,6 +2,23 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.18.1] - 2026-08-28
+
+### Changed
+
+- Running `rc` without a command now prints the complete top-level help instead of a short banner. Native, kernel, and active WebAssembly component commands are grouped by account, remote control, Node, OpenSSH, components, diagnostics, platform, kernel, and extension surfaces.
+- Added top-level `rc help COMPONENT_COMMAND` dispatch so dynamically registered component commands have the same discoverable help flow as native commands.
+
+### Fixed
+
+- Made the first browser WebRTC attempt genuinely direct by excluding TURN URLs while retaining host and STUN candidates. TURN is now used only by a relay-only second attempt after direct WebRTC fails, rather than being allowed to win the first ICE race.
+- Read the browser-selected ICE candidate pair from transport statistics before falling back to nominated-pair discovery, so the terminal reports the actual direct or relayed route.
+
+### Validation
+
+- Added browser coverage that advertises an unreachable TURN server and requires encrypted terminal control to succeed over a non-relay candidate pair.
+- Exercised the same direct-first flow from a secure HTTPS origin with a virtual passkey, separately enrolled Node, RC Lock synchronization, and a non-relay UDP DataChannel.
+
 ## [0.18.0] - 2026-08-28
 
 ### Added

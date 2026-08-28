@@ -2,9 +2,10 @@ mod account;
 mod commands;
 mod component_cli;
 mod control_client;
+mod help;
 mod service;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(
@@ -230,6 +231,11 @@ enum ServiceCommand {
 async fn main() {
     if std::env::args().nth(1).as_deref() == Some("__process-runner") {
         std::process::exit(rc_node::run_process_runner());
+    }
+    let args = std::env::args_os().collect::<Vec<_>>();
+    if help::top_level_requested(&args) {
+        help::print(&Cli::command());
+        return;
     }
     match component_cli::dispatch_if_component_command() {
         Ok(Some(code)) => std::process::exit(code),

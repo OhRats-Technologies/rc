@@ -78,7 +78,7 @@ rc upgrade
 rc list
 ```
 
-`rc update` updates managed components. `rc upgrade` updates the native RC platform and core bundle. Run `rc commands` to inspect commands provided by active components.
+`rc update` updates managed components. `rc upgrade` updates the native RC platform and core bundle. Run `rc` with no command for grouped help, or `rc commands` to inspect commands provided by active components.
 
 ## Develop
 

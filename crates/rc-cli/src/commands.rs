@@ -4,16 +4,14 @@ mod ssh;
 mod terminal;
 mod update;
 
-use crate::{Command, account};
+use crate::{Cli, Command, account};
 use anyhow::{Result, bail};
+use clap::CommandFactory as _;
 
 pub async fn run(command: Option<Command>) -> Result<()> {
     match command {
         None => {
-            println!(
-                "RC {}\n\nRemote control and device node.\n\nRun rc --help for commands.",
-                rc_cli::VERSION
-            );
+            crate::help::print(&Cli::command());
             Ok(())
         }
         Some(Command::Version) => {

@@ -54,7 +54,9 @@ const data = join(directory, "data"), nodeState = join(directory, "node");
 await mkdir(data); await mkdir(nodeState);
 const port = Number(process.env.RC_E2E_PORT || await freePort());
 const sshPort = await freePort(), sshInternalPort = await freePort();
-const base = `http://localhost:${port}`;
+const localBase = `http://localhost:${port}`;
+const base = (process.env.RC_E2E_PUBLIC_URL || localBase).replace(/\/$/, "");
+const nodeBase = (process.env.RC_E2E_NODE_URL || localBase).replace(/\/$/, "");
 const setupToken = `e2e-${crypto.randomUUID()}`;
 const server = Bun.spawn([serverBinary], {
   env: {
@@ -77,7 +79,7 @@ let target: { id: string; webSocketDebuggerUrl: string } | null = null;
 let socket: WebSocket | null = null;
 
 try {
-  await waitForHttp(`${base}/healthz`);
+  await waitForHttp(`${localBase}/healthz`);
   const createdTarget = await fetch(`${cdp}/json/new?${encodeURIComponent("about:blank")}`, { method: "PUT" })
     .then(async response => {
       if (!response.ok) throw new Error(`create Chrome target: ${response.status} ${await response.text()}`);
@@ -136,7 +138,31 @@ try {
   await call("Page.addScriptToEvaluateOnNewDocument", { source: `
     (() => {
       const original = SubtleCrypto.prototype.decrypt;
+      const originalFetch = window.fetch.bind(window);
       Object.defineProperty(window, "__rcE2EOutput", { value: "", writable: true, configurable: true });
+      Object.defineProperty(window, "__rcE2ERtc", { value: { offers: [], answers: [] }, configurable: true });
+      const summarizeCandidates = sdp => String(sdp || "").split(String.fromCharCode(10)).filter(line => line.startsWith("a=candidate:"))
+        .map(line => { const fields = line.slice(12).trim().split(" ").filter(Boolean), typeAt = fields.indexOf("typ"), address = fields[4] || "";
+          return { protocol: fields[2] || "", address: address.endsWith(".local") ? "mdns" : address.includes(":") ? "ipv6" : "ipv4", type: typeAt >= 0 ? fields[typeAt + 1] : "" }; });
+      window.fetch = async (...args) => {
+        const input = args[0], options = args[1] || {};
+        const requestUrl = new URL(typeof input === "string" ? input : input.url, location.href);
+        const signaling = requestUrl.pathname.startsWith("/api/v1/control/") && requestUrl.pathname.endsWith("/webrtc");
+        if (signaling && typeof options.body === "string") {
+          try { window.__rcE2ERtc.offers.push(summarizeCandidates(JSON.parse(options.body).sdp)); } catch {}
+        }
+        const response = await originalFetch(...args);
+        if (signaling && response.ok) {
+          try { window.__rcE2ERtc.answers.push(summarizeCandidates((await response.clone().json()).sdp)); } catch {}
+        }
+        if (requestUrl.pathname !== "/api/v1/control/open" || !response.ok) return response;
+        const body = await response.clone().json();
+        body.iceServers = [...(body.iceServers || []), {
+          urls: "turn:127.0.0.1:9?transport=udp", username: "e2e", credential: "unreachable",
+        }];
+        const headers = new Headers(response.headers); headers.delete("content-length");
+        return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers });
+      };
       SubtleCrypto.prototype.decrypt = async function(...args) {
         const result = await original.apply(this, args);
         try {
@@ -169,7 +195,7 @@ try {
   const enrollment = await browserFetch<{ token: string }>(`/api/v1/workspaces/${workspace.id}/enrollments`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:"{}"
   }`);
-  const enroll = Bun.spawn([binary, "enroll", enrollment.token, "--url", base, "--name", "Browser E2E Node", "--state-dir", nodeState], {
+  const enroll = Bun.spawn([binary, "enroll", enrollment.token, "--url", nodeBase, "--name", "Browser E2E Node", "--state-dir", nodeState], {
     stdout: "pipe", stderr: "pipe",
   });
   const [code, output, error] = await Promise.all([enroll.exited, readStream(enroll.stdout), readStream(enroll.stderr)]);
@@ -182,11 +208,22 @@ try {
   }`);
   await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${process.processId}`)},JSON.stringify({command:"printf 'RC_BROWSER_E2E_OK\\n'; sleep 0.2; exit 0",cwd:"",terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${process.processId}`)};return true})()`);
   await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${process.processId}`)}) && document.readyState === "complete"`, 20_000, "process page");
-  await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('WEBRTC') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "WebRTC control transport");
+  try {
+    await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('WEBRTC') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "WebRTC control transport");
+  } catch (failure) {
+    const diagnostics = await evaluate(`({ transport: document.querySelector('#control-transport')?.textContent,
+      title: document.querySelector('#control-transport')?.title, message: document.querySelector('#process-message')?.textContent,
+      clientError: document.querySelector('#process-client-error')?.textContent,
+      rtc: window.__rcE2ERtc, scripts: Array.from(document.scripts).map(script => script.src),
+      resources: performance.getEntriesByType('resource').filter(entry => entry.name.includes('/api/v1/control/') || entry.name.includes('/assets/process-terminal'))
+        .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
+    throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
+  }
   await waitFor(`document.querySelector('#process-state')?.textContent?.includes('EXIT 0')`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
   if (!terminalText.includes("RC_BROWSER_E2E_OK")) throw new Error("terminal output did not traverse encrypted WebRTC control");
   const transport = await evaluate<string>(`document.querySelector('#control-transport')?.textContent || ""`);
+  if (transport.includes("TURN")) throw new Error(`direct browser route unexpectedly used ${transport}`);
   console.log(`browser command passed over ${transport}`);
 
   await evaluate(`(()=>{document.querySelector('form[action="/account/logout"]').requestSubmit();return true})()`);

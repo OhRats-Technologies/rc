@@ -30,7 +30,7 @@ async fn exact_landing_and_documentation_surfaces_are_preserved() -> anyhow::Res
         ("/docs/principles", "The Node enforces execution authority"),
         ("/docs/security", "Browser and CLI encrypted control"),
         ("/docs/authentication", "Control identities"),
-        ("/docs/cli", "rc shell DEVICE"),
+        ("/docs/cli", "rc --help"),
         ("/docs/mcp", "OAuth and Node verification"),
         ("/docs/api", "Canonical payload"),
     ] {
