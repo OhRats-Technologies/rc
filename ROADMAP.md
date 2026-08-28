@@ -240,6 +240,9 @@ contribution smoke tests already pass through the native kernel listener.
     browser sessions, logout, and restart persistence through identity components.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
+  - [x] Define and exercise component-owned durable device registry, hashed
+    one-time enrollment, immutable Node keys, tombstone revocation, presence
+    leases, and transport-neutral rendezvous metadata services.
 - [ ] Port control authorization, TURN provider, signaling, and events.
 - [ ] Port MCP OAuth and the five-tool process harness.
 - [ ] Port the OpenSSH gateway integration.

@@ -1,0 +1,117 @@
+package ohrats:rc-devices@0.1.0;
+
+interface types {
+    record device {
+        id: string,
+        workspace-id: string,
+        name: string,
+        hostname: string,
+        platform: string,
+        arch: string,
+        identity-public-key: string,
+        transport-public-key: string,
+        version: string,
+        capabilities: list<string>,
+        last-seen-at-ms: option<u64>,
+        created-at-ms: u64,
+    }
+
+    record enrollment-input {
+        name: string,
+        hostname: string,
+        platform: string,
+        arch: string,
+        identity-public-key: string,
+        transport-public-key: string,
+        version: string,
+        capabilities: list<string>,
+    }
+
+    record issued-enrollment {
+        token: string,
+        expires-at-ms: u64,
+    }
+
+    variant enrollment-error {
+        invalid-token,
+        expired-token,
+        token-used,
+        duplicate-identity(string),
+        device-limit,
+        invalid-input(string),
+        failure(string),
+    }
+
+    record tombstone {
+        device-id: string,
+        identity-public-key: string,
+        revoked-at-ms: u64,
+    }
+
+    variant node-status {
+        active(device),
+        revoked(tombstone),
+        unknown,
+    }
+
+    record node-update {
+        hostname: string,
+        platform: string,
+        arch: string,
+        version: string,
+        capabilities: list<string>,
+        lock-hash: string,
+        lock-generation: u64,
+        rendezvous: option<string>,
+    }
+
+    record presence {
+        device-id: string,
+        online: bool,
+        last-seen-at-ms: option<u64>,
+        lease-expires-at-ms: option<u64>,
+        lock-hash: string,
+        lock-generation: u64,
+        rendezvous: option<string>,
+    }
+}
+
+interface registry {
+    use types.{device, node-status, tombstone};
+
+    get: func(id: string) -> result<option<device>, string>;
+    all: func(workspace-id: option<string>) -> result<list<device>, string>;
+    rename: func(id: string, name: string) -> result<device, string>;
+    revoke: func(id: string, revoked-at-ms: u64) -> result<option<tombstone>, string>;
+    resolve-node: func(id: string, identity-public-key: string) -> result<node-status, string>;
+}
+
+interface enrollments {
+    use types.{device, enrollment-error, enrollment-input, issued-enrollment};
+
+    issue: func(
+        workspace-id: string,
+        created-by: string,
+        now-ms: u64,
+        expires-at-ms: u64,
+    ) -> result<issued-enrollment, string>;
+    consume: func(
+        token: string,
+        now-ms: u64,
+        input: enrollment-input,
+    ) -> result<device, enrollment-error>;
+}
+
+interface presence {
+    use types.{node-status, node-update, presence};
+
+    renew: func(
+        id: string,
+        identity-public-key: string,
+        now-ms: u64,
+        lease-expires-at-ms: u64,
+        update: node-update,
+    ) -> result<node-status, string>;
+    get: func(id: string, now-ms: u64) -> result<option<presence>, string>;
+    expire: func(now-ms: u64) -> result<u64, string>;
+}

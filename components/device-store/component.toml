@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:device-store"
+version = "0.1.0"
+world = "ohrats:rc-plugin/device-store@0.1.0"
+wit = ["devices", "plugin", "storage"]
+
+[build]
+kind = "rust"
+package = "rc-device-store"
+artifact = "device-store"

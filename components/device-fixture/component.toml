@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:device-fixture"
+version = "0.1.0"
+world = "ohrats:rc-plugin/device-fixture@0.1.0"
+wit = ["devices", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-device-fixture"
+artifact = "device-fixture"
