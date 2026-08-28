@@ -3,7 +3,7 @@ mod support;
 
 use axum::http::StatusCode;
 use rc_server::{AppState, app};
-use support::{fetch_metadata_form, form, get, seed, temp_root, test_config};
+use support::{form, form_without_origin, get, seed, temp_root, test_config};
 
 #[tokio::test]
 async fn login_redirects_to_setup_when_no_user_exists() -> anyhow::Result<()> {
@@ -271,7 +271,7 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
         0
     );
 
-    let logged_out = fetch_metadata_form(&application, "/account/logout", &cookie, "").await?;
+    let logged_out = form_without_origin(&application, "/account/logout", &cookie, "").await?;
     assert_eq!(logged_out.status, StatusCode::SEE_OTHER);
     assert_eq!(logged_out.location.as_deref(), Some("/"));
     assert!(
@@ -288,5 +288,11 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
         )?,
         0
     );
+    let old_session = get(&application, "/devices", Some(&cookie)).await?;
+    assert_eq!(old_session.status, StatusCode::SEE_OTHER);
+    assert_eq!(old_session.location.as_deref(), Some("/login"));
+    let landing = get(&application, "/", None).await?;
+    assert_eq!(landing.status, StatusCode::OK);
+    assert!(landing.body.contains("Remote control for your machines"));
     Ok(())
 }

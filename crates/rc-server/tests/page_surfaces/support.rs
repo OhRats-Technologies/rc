@@ -159,7 +159,7 @@ pub(super) async fn form(
     .await
 }
 
-pub(super) async fn fetch_metadata_form(
+pub(super) async fn form_without_origin(
     application: &axum::Router,
     path: &str,
     cookie: &str,
@@ -169,7 +169,6 @@ pub(super) async fn fetch_metadata_form(
         application,
         Request::post(path)
             .header(header::COOKIE, cookie)
-            .header("sec-fetch-site", "same-origin")
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Body::from(body.to_owned()))?,
     )

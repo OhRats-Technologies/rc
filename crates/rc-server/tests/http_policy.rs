@@ -74,7 +74,7 @@ async fn browser_form_routes_require_the_configured_origin() -> anyhow::Result<(
     let rejected = application
         .clone()
         .oneshot(
-            Request::post("/account/logout")
+            Request::post("/account/name")
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .body(Body::empty())?,
         )
@@ -84,34 +84,60 @@ async fn browser_form_routes_require_the_configured_origin() -> anyhow::Result<(
     let accepted = application
         .clone()
         .oneshot(
-            Request::post("/account/logout")
+            Request::post("/account/name")
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header(header::ORIGIN, "https://localhost")
                 .body(Body::empty())?,
         )
         .await?;
-    assert_eq!(accepted.status(), StatusCode::SEE_OTHER);
+    assert_eq!(accepted.status(), StatusCode::UNAUTHORIZED);
 
     let fetch_metadata = application
         .clone()
         .oneshot(
-            Request::post("/account/logout")
+            Request::post("/account/name")
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header("sec-fetch-site", "same-origin")
                 .body(Body::empty())?,
         )
         .await?;
-    assert_eq!(fetch_metadata.status(), StatusCode::SEE_OTHER);
+    assert_eq!(fetch_metadata.status(), StatusCode::UNAUTHORIZED);
 
     let cross_site = application
         .oneshot(
-            Request::post("/account/logout")
+            Request::post("/account/name")
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
                 .header("sec-fetch-site", "cross-site")
                 .body(Body::empty())?,
         )
         .await?;
     assert_eq!(cross_site.status(), StatusCode::FORBIDDEN);
+    Ok(())
+}
+
+#[tokio::test]
+async fn logout_is_reliable_without_origin_metadata() -> anyhow::Result<()> {
+    let root = temp_root("logout-origin")?;
+    let application = app(test_state(&root, "https://localhost")?);
+    for headers in [
+        Vec::<(&str, &str)>::new(),
+        vec![(header::ORIGIN.as_str(), "null")],
+        vec![(header::ORIGIN.as_str(), "https://attacker.invalid")],
+        vec![("sec-fetch-site", "cross-site")],
+    ] {
+        let mut request = Request::post("/account/logout")
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded");
+        for (name, value) in headers {
+            request = request.header(name, value);
+        }
+        let response = application
+            .clone()
+            .oneshot(request.body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(header_value(&response, header::LOCATION.as_str()), "/");
+        assert!(header_value(&response, header::SET_COOKIE.as_str()).contains("Max-Age=0"));
+    }
     Ok(())
 }
 
