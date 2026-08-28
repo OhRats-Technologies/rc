@@ -1,0 +1,16 @@
+package ohrats:rc-plugin@0.1.0;
+
+world workspace-store {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    export ohrats:rc-workspaces/directory@0.1.0;
+    export ohrats:rc-workspaces/memberships@0.1.0;
+    export ohrats:rc-workspaces/invitations@0.1.0;
+}
+
+world workspace-fixture {
+    include plugin;
+    import ohrats:rc-workspaces/directory@0.1.0;
+    import ohrats:rc-workspaces/memberships@0.1.0;
+    import ohrats:rc-workspaces/invitations@0.1.0;
+}

@@ -1,0 +1,10 @@
+schema = 1
+[component]
+id = "ohrats:workspace-store"
+version = "0.1.0"
+world = "ohrats:rc-plugin/workspace-store@0.1.0"
+wit = ["plugin", "storage", "workspace-worlds", "workspaces"]
+[build]
+kind = "rust"
+package = "rc-workspace-store"
+artifact = "workspace-store"

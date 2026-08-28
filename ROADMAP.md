@@ -239,6 +239,11 @@ contribution smoke tests already pass through the native kernel listener.
   - [x] Route setup/login WebAuthn registration and authentication ceremonies,
     browser sessions, logout, and restart persistence through identity components.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
+  - [x] Add the typed workspace/membership/invitation package and durable
+    workspace-store component, including atomic Personal workspace creation,
+    Owner and membership invariants, non-Owner expiring/single-use hashed
+    invitations, deletion cleanup, and restart smoke coverage.
+  - [ ] Port and locally enforce signed authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
 - [ ] Port control authorization, TURN provider, signaling, and events.
 - [ ] Port MCP OAuth and the five-tool process harness.
