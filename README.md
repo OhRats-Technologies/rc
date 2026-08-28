@@ -18,6 +18,8 @@ The repository contains the server, browser application, Node runtime, CLI, prot
 | `rc-api-client` | Proof-of-possession API client and control bootstrap |
 | `rc-protocol` | Shared wire messages and authority structures |
 | `rc-crypto` | Request signatures, key agreement, control encryption, and WebAuthn helpers |
+| `rc-context` | Typed runtime services, revertible effect scopes, and dependency reconciliation |
+| `rc-mesh` | Realm-isolated route broker and encrypted transport substrate |
 | `web/` | Browser TypeScript and CSS bundled by Bun; Bun is not present in the runtime image |
 
 ## Run the server locally
@@ -103,6 +105,7 @@ The server logs a generated setup URL when `RC_SETUP_TOKEN` is unset. Never use 
 ## Documentation
 
 - [Architecture and data flows](docs/ARCHITECTURE.md)
+- [Runtime context and mesh architecture](docs/CONTEXT_AND_MESH.md)
 - [Deployment, backup, recovery, and upgrades](docs/OPERATIONS.md)
 - [Development and test matrix](docs/DEVELOPMENT.md)
 - [Proof-of-possession HTTP API](docs/API.md)

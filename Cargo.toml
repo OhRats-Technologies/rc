@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+  "crates/rc-context",
+  "crates/rc-mesh",
   "crates/rc-protocol",
   "crates/rc-crypto",
   "crates/rc-api-client",

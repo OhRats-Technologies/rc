@@ -31,6 +31,8 @@ async fn signed_control_http_routes_drive_live_node_signaling() -> anyhow::Resul
         ssh_daemon_port: 2222,
         ssh_internal_port: 3001,
         mcp_access_ttl_minutes: 15,
+        execution_history: rc_server::ExecutionHistory::None,
+        execution_history_ttl_hours: 168,
     })?;
     state.turn = TurnProvider::fixed(Vec::new());
     state.control = ControlHub::new(state.nodes.clone(), state.turn.clone());

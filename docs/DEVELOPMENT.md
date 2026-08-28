@@ -72,6 +72,8 @@ sh scripts/smoke-container.sh rc-ci
 | Direct encrypted control | `rc-node/tests/control_webrtc.rs`, cross-language fixtures |
 | RC Lock authority | `control_authority`, `lock_authority` |
 | Process isolation and parity | `process_parity`, process-manager unit tests |
+| Runtime context, effect cleanup, and mesh routing substrate | `rc-context/tests/runtime.rs`, `rc-mesh/tests/broker.rs` |
+| Private-by-default process lifecycle | `execution_history`, `events_sse`, `node_webrtc` |
 | MCP OAuth and tool restrictions | `mcp_oauth`, MCP route/tool tests |
 | HTTP policy, CSP, cache, rate limits | `http_policy` |
 | CLI parsing and command safety | `rc-cli` unit tests and release smoke tests |

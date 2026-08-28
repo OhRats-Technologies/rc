@@ -3,6 +3,7 @@ mod rtc;
 
 use anyhow::{Result, bail};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use bytes::Bytes;
 use ed25519_dalek::Signer;
 use rand::RngCore;
 use rc_api_client::{ApiClient, ControlChallenge, ControlReady, Credential, Device};
@@ -10,6 +11,7 @@ use rc_crypto::{
     decrypt_frame, derive_client_key, encrypt_frame, ready_payload, session_payload,
     verify_ed25519, x25519_public,
 };
+use rc_mesh::EncryptedFrameTransport;
 use rc_protocol::{ControlMessage, ControlTransportMessage};
 use serde::Serialize;
 use std::{
@@ -20,7 +22,7 @@ use std::{
     },
 };
 use tokio::sync::mpsc;
-use webrtc::{data_channel::RTCDataChannel, peer_connection::RTCPeerConnection};
+use webrtc::peer_connection::RTCPeerConnection;
 
 const FRAME_LIMIT: usize = 1_500_000;
 const PLAINTEXT_LIMIT: usize = 1_048_576;
@@ -38,7 +40,7 @@ pub struct ControlSender {
     session_id: String,
     key: [u8; 32],
     sequence: Arc<AtomicU64>,
-    channel: Arc<RTCDataChannel>,
+    transport: Arc<dyn EncryptedFrameTransport>,
 }
 
 pub struct ControlReceiver {
@@ -144,14 +146,14 @@ impl RemoteControl {
             &device.id,
             &client_id,
         )?;
-        let (peer, channel, incoming) =
+        let (peer, transport, incoming) =
             rtc::open_webrtc(&api, &device.id, &ready.session_id, &ready.ice_servers).await?;
         Ok(Self {
             sender: ControlSender {
                 session_id: ready.session_id.clone(),
                 key,
                 sequence: Arc::new(AtomicU64::new(0)),
-                channel,
+                transport,
             },
             receiver: ControlReceiver {
                 session_id: ready.session_id.clone(),
@@ -195,8 +197,8 @@ impl ControlSender {
             sequence,
             ciphertext,
         };
-        self.channel
-            .send_text(serde_json::to_string(&frame)?)
+        self.transport
+            .send(Bytes::from(serde_json::to_vec(&frame)?))
             .await?;
         Ok(())
     }

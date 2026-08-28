@@ -1,4 +1,4 @@
-use crate::{Database, now_ms};
+use crate::{Database, ExecutionPolicy, now_ms};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -16,18 +16,38 @@ pub struct RcEvent {
 }
 
 #[derive(Clone)]
-pub struct EventHub(Arc<broadcast::Sender<RcEvent>>);
+pub struct EventHub {
+    sender: Arc<broadcast::Sender<RcEvent>>,
+    execution: ExecutionPolicy,
+}
 
 impl Default for EventHub {
     fn default() -> Self {
-        let (tx, _) = broadcast::channel(1024);
-        Self(Arc::new(tx))
+        Self::new(ExecutionPolicy::default())
     }
 }
 
 impl EventHub {
+    pub fn new(execution: ExecutionPolicy) -> Self {
+        let (sender, _) = broadcast::channel(1024);
+        Self {
+            sender: Arc::new(sender),
+            execution,
+        }
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<RcEvent> {
-        self.0.subscribe()
+        self.sender.subscribe()
+    }
+
+    pub fn cleanup_transient(db: &Database) -> rusqlite::Result<()> {
+        db.with_connection(|connection| {
+            connection.execute(
+                "DELETE FROM events WHERE kind IN ('device.online','device.offline','rc.connected')",
+                [],
+            )?;
+            Ok(())
+        })
     }
 
     pub fn emit(
@@ -44,23 +64,30 @@ impl EventHub {
             .get("processId")
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
-        db.with_connection(|connection| {
-            connection.execute(
-                "INSERT INTO events(workspace_id,user_id,device_id,kind,detail,created_at) VALUES(?,?,?,?,?,?)",
-                rusqlite::params![workspace_id,user_id,device_id,kind,serde_json::to_string(&detail).unwrap_or_else(|_|"{}".into()),at],
-            )?;
-            Ok(())
-        })?;
-        let _ = self.0.send(RcEvent {
+        let audit = !is_transient(kind) && self.execution.should_persist_event(kind);
+        if audit {
+            db.with_connection(|connection| {
+                connection.execute(
+                    "INSERT INTO events(workspace_id,user_id,device_id,kind,detail,created_at) VALUES(?,?,?,?,?,?)",
+                    rusqlite::params![workspace_id,user_id,device_id,kind,serde_json::to_string(&detail).unwrap_or_else(|_|"{}".into()),at],
+                )?;
+                Ok(())
+            })?;
+        }
+        let _ = self.sender.send(RcEvent {
             kind: kind.to_owned(),
             workspace_id: workspace_id.map(str::to_owned),
             user_id: user_id.map(str::to_owned),
             device_id: device_id.map(str::to_owned),
             process_id,
-            audit: true,
+            audit,
             detail,
             at,
         });
         Ok(())
     }
+}
+
+fn is_transient(kind: &str) -> bool {
+    matches!(kind, "device.online" | "device.offline" | "rc.connected")
 }

@@ -60,6 +60,7 @@ pub fn device(
     context: &PageContext,
     device: &serde_json::Value,
     processes: &[serde_json::Value],
+    retains_history: bool,
 ) -> String {
     let id = string(device, "id");
     let name = string(device, "name");
@@ -73,9 +74,23 @@ pub fn device(
     let can_operate = matches!(role.as_str(), "owner" | "operator");
     let can_manage = role == "owner";
     let process_rows: String = if role == "viewer" {
-        "<p class=\"empty-state\">Process history is available to operators and owners.</p>".into()
+        format!(
+            "<p class=\"empty-state\">{} are available to operators and owners.</p>",
+            if retains_history {
+                "Process records"
+            } else {
+                "Active processes"
+            }
+        )
     } else if processes.is_empty() {
-        "<p class=\"empty-state\">No processes yet.</p>".into()
+        format!(
+            "<p class=\"empty-state\">No {}.</p>",
+            if retains_history {
+                "process records"
+            } else {
+                "active processes"
+            }
+        )
     } else {
         processes
             .iter()
@@ -115,9 +130,10 @@ pub fn device(
         String::new()
     };
     let body = format!(
-        "<div class=\"page\" data-device-page=\"{}\" data-supports-process=\"{}\"><section class=\"device-overview\"><header class=\"page-header device-header\"><div><p class=\"eyebrow\">DEVICE</p><div class=\"page-title-row device-title-row\"><span class=\"ui-icon device-platform-icon device-title-platform {}\"></span><h1 data-device-title-view>{}</h1>{}</div><p class=\"error device-title-error\" data-device-title-error></p><p class=\"meta\">{} · {}/{}</p></div><div class=\"device-header-actions\"><span id=\"device-status\" class=\"status{}\">{}</span>{}{}</div></header><dl class=\"facts\"><div><dt>HOST</dt><dd>{}</dd></div><div><dt>NODE VERSION</dt><dd id=\"node-version\">{}</dd></div></dl><p id=\"process-error\" class=\"error\">{}</p></section><section class=\"content-section\"><div class=\"section-heading\"><div><div class=\"badge-container\"><span class=\"badge-text\">01 Processes</span><div class=\"badge-line\"></div></div><h2>History</h2></div></div><div class=\"data-list\" id=\"process-list\">{}</div></section></div>",
+        "<div class=\"page\" data-device-page=\"{}\" data-supports-process=\"{}\" data-retains-process-history=\"{}\"><section class=\"device-overview\"><header class=\"page-header device-header\"><div><p class=\"eyebrow\">DEVICE</p><div class=\"page-title-row device-title-row\"><span class=\"ui-icon device-platform-icon device-title-platform {}\"></span><h1 data-device-title-view>{}</h1>{}</div><p class=\"error device-title-error\" data-device-title-error></p><p class=\"meta\">{} · {}/{}</p></div><div class=\"device-header-actions\"><span id=\"device-status\" class=\"status{}\">{}</span>{}{}</div></header><dl class=\"facts\"><div><dt>HOST</dt><dd>{}</dd></div><div><dt>NODE VERSION</dt><dd id=\"node-version\">{}</dd></div></dl><p id=\"process-error\" class=\"error\">{}</p></section><section class=\"content-section\"><div class=\"section-heading\"><div><div class=\"badge-container\"><span class=\"badge-text\">01 Processes</span><div class=\"badge-line\"></div></div><h2>{}</h2></div></div><div class=\"data-list\" id=\"process-list\">{}</div></section></div>",
         esc(&id),
         supports_process,
+        retains_history,
         format::platform_icon(&platform),
         esc(&name),
         rename,
@@ -135,6 +151,7 @@ pub fn device(
         } else {
             "This RC Node is too old for terminals. Run rc update on the device."
         },
+        if retains_history { "History" } else { "Active" },
         process_rows
     );
     authenticated_document(context, &name, body, &["live", "device"], &[])

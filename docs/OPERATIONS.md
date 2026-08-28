@@ -41,6 +41,8 @@ Only the HTTP port normally needs external exposure. The SSH daemon and internal
 | `RC_SSH_DAEMON_PORT` | `2222` | Loopback OpenSSH daemon port |
 | `RC_SSH_INTERNAL_PORT` | `3001` | Loopback SSH helper bridge port |
 | `RC_MCP_ACCESS_TTL_MINUTES` | `15` | Positive MCP access-token lifetime |
+| `RC_EXECUTION_HISTORY` | `none` | `none` removes completed process metadata and does not audit process events; `metadata` retains lifecycle metadata only |
+| `RC_EXECUTION_HISTORY_TTL_HOURS` | `168` | Positive retention window used only in `metadata` mode |
 | `RUST_LOG` | `rc_server=info,tower_http=info` | `tracing_subscriber` filter |
 
 Changing `PUBLIC_URL` changes the WebAuthn relying-party origin. Existing passkeys may stop working when the hostname changes. Treat the external origin as durable configuration.
@@ -68,6 +70,8 @@ Opening `/` directly does not authorize first-account creation when `RC_SETUP_TO
 - `rc service status` delegates to launchd or systemd.
 
 Alert on repeated restarts, SQLite errors, authentication rate-limit spikes, sustained Node disconnects, and failed release updates.
+
+Execution history is private by default. Live process and presence events still reach authenticated SSE clients, but are not inserted into the audit table. Setting `RC_EXECUTION_HISTORY=metadata` retains only process ID, device, origin, terminal flag, attribution, timestamps, final state, exit code/signal, and bounded error text. Command text, cwd, stdin, stdout, stderr, and terminal transcripts are never persisted by this policy.
 
 ## Backup
 

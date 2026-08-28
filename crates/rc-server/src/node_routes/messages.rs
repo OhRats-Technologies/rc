@@ -107,6 +107,7 @@ fn apply_sync(state: &AppState, device_id: &str, ids: &[String]) -> anyhow::Resu
                 "error":"Node reconnected without this process"
             }),
         )?;
+        state.execution.finalize(&state.db, &process.id)?;
     }
     Ok(())
 }
@@ -146,6 +147,7 @@ fn apply_exit(
                 "signal":signal
             }),
         )?;
+        state.execution.finalize(&state.db, &process.id)?;
     }
     Ok(())
 }

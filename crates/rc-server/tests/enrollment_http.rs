@@ -189,6 +189,8 @@ fn test_config(root: &std::path::Path, db_path: &std::path::Path) -> Config {
         ssh_daemon_port: 2222,
         ssh_internal_port: 3001,
         mcp_access_ttl_minutes: 15,
+        execution_history: rc_server::ExecutionHistory::None,
+        execution_history_ttl_hours: 168,
     }
 }
 

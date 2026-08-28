@@ -87,6 +87,20 @@ impl Database {
         )
     }
 
+    pub fn mark_process_lost(
+        &self,
+        device_id: &str,
+        id: &str,
+        reason: &str,
+    ) -> rusqlite::Result<Option<ProcessLifecycle>> {
+        self.transition_process(
+            device_id,
+            id,
+            "UPDATE processes SET status='lost',error=?,completed_at=? WHERE id=? AND device_id=? AND status IN ('starting','running')",
+            params![reason, now_ms(), id, device_id],
+        )
+    }
+
     fn transition_process<P: rusqlite::Params>(
         &self,
         device_id: &str,

@@ -75,6 +75,12 @@ Routes enforce the narrowest relevant scope in addition to workspace roles. A ke
 
 Browser-session-only operations, including creating/revoking credentials and destructive account actions, require a fresh passkey step-up and cannot be performed with an API key.
 
+## Process completion visibility
+
+Completed execution history is not durable by default. While a process is starting or running, its row is available for authorization and reconciliation. After completion/loss, the server keeps the final metadata in a bounded in-memory cache for approximately five minutes so an API client can observe the terminal state, then removes it. The cache disappears on server restart and is never included in device process-history lists.
+
+Deployments that explicitly set `RC_EXECUTION_HISTORY=metadata` retain completed lifecycle metadata for the configured TTL. Neither mode stores command text, cwd, stdin, stdout, stderr, or terminal transcripts.
+
 ## Errors
 
 JSON failures use:

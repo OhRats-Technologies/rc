@@ -116,16 +116,23 @@ pub fn process_json(
          JOIN devices d ON d.id=p.device_id \
          JOIN workspace_members wm ON wm.workspace_id=d.workspace_id \
          LEFT JOIN users u ON u.id=p.created_by \
-         WHERE p.id=? AND wm.user_id=?"
+         WHERE p.id=? AND wm.user_id=?{}",
+        state.execution.completed_process_filter(),
     );
-    Ok(state.db.with_connection(|db| {
+    let stored = state.db.with_connection(|db| {
         db.query_row(
             &query,
             rusqlite::params![process_id, user_id],
             process_row_json,
         )
         .optional()
-    })?)
+    })?;
+    if stored.is_some() {
+        return Ok(stored);
+    }
+    Ok(state
+        .execution
+        .recent_process(&state.db, user_id, process_id)?)
 }
 
 pub fn processes_for_device(
@@ -138,8 +145,9 @@ pub fn processes_for_device(
          JOIN devices d ON d.id=p.device_id \
          JOIN workspace_members wm ON wm.workspace_id=d.workspace_id \
          LEFT JOIN users u ON u.id=p.created_by \
-         WHERE p.device_id=? AND wm.user_id=? \
-         ORDER BY p.created_at DESC LIMIT 200"
+         WHERE p.device_id=? AND wm.user_id=?{} \
+         ORDER BY p.created_at DESC LIMIT 200",
+        state.execution.completed_process_filter(),
     );
     Ok(state.db.with_connection(|db| {
         let mut statement = db.prepare(&query)?;

@@ -27,6 +27,8 @@ fn signed_client_auth_binds_request_and_rejects_replay() -> anyhow::Result<()> {
         ssh_daemon_port: 2222,
         ssh_internal_port: 3001,
         mcp_access_ttl_minutes: 15,
+        execution_history: rc_server::ExecutionHistory::None,
+        execution_history_ttl_hours: 168,
     })?;
 
     let signing = SigningKey::from_bytes(&[7_u8; 32]);

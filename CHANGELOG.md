@@ -2,6 +2,30 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.17.0] - 2026-08-27
+
+### Added
+
+- Added `rc-context`, a typed runtime context with service leases, reverse-order synchronous/asynchronous effect cleanup, dependency-driven component activation, realm inheritance/isolation, and rollback-safe component replacement.
+- Added `rc-mesh`, the realm-isolated mesh substrate for bounded opaque envelopes, cost-ordered route-provider failover, coordinator-role policy, revocation-freshness leases, and transport-independent encrypted frames.
+- Decoupled CLI control encryption from WebRTC through `EncryptedFrameTransport`; WebRTC remains the only active browser/CLI transport while authenticated QUIC routing is developed behind the same authority boundary.
+- Added exact MCP output schemas and the grant-bound `process_cancel` tool for INT, TERM, or KILL requests against active MCP processes.
+- Added deterministic RS256 WebAuthn assertion coverage alongside the existing real-authenticator ES256 tests.
+
+### Changed
+
+- Disabled durable execution history by default. RC retains process rows only while they are needed for authorization, at-most-once execution, and reconnect reconciliation, then removes them after broadcasting the live final event.
+- Kept final process metadata in a bounded five-minute in-memory cache so API/detail clients can observe completion without creating durable history.
+- Made process and presence events live-only by default. `RC_EXECUTION_HISTORY=metadata` explicitly enables bounded lifecycle metadata retention; command text and process streams are never persisted.
+- Reworked Node connection cleanup around owned effect scopes so secure sinks and control sessions unwind in reverse acquisition order.
+- Replaced Node-side OpenSSL/WebAuthn verification with ring-based ES256 and RS256 verification, removed release-only vendored OpenSSL, and reduced duplicate or unused HTTP/runtime dependencies.
+
+### Fixed
+
+- Completed and reconciled hosted SSH/MCP process rows on exit or disconnect instead of leaving stale active metadata.
+- Removed completed rows from the default device process list while preserving live terminal completion state and avoiding post-exit resync errors.
+- Rechecked current Owner authority before MCP execution or cancellation and kept execution-capable grants out of RC Lock after demotion.
+
 ## [0.16.2] - 2026-08-27
 
 ### Fixed

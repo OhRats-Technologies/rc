@@ -88,8 +88,12 @@ pub(super) fn configure(
                     };
                     super::messages::apply(&app, &device, &value);
                     control.handle_node_message(&device, &value);
-                    ssh.handle(&device, &value);
-                    mcp.handle(&device, &value);
+                    if let Some((process_id, exit_code, signal)) = ssh.handle(&device, &value) {
+                        app.complete_hosted_process(&device, &process_id, exit_code, &signal);
+                    }
+                    if let Some((process_id, exit_code, signal)) = mcp.handle(&device, &value) {
+                        app.complete_hosted_process(&device, &process_id, exit_code, &signal);
+                    }
                     super::messages::bootstrap_lock_if_needed(&nodes, &db, &device, &value).await;
                     super::messages::permit_start_if_authorized(&nodes, &db, &device, &value).await;
                     nodes.publish(NodeInbound {

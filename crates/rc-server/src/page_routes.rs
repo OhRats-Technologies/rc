@@ -3,6 +3,9 @@ mod auth;
 mod context;
 mod data;
 mod docs;
+mod responses;
+
+use responses::{internal, not_found, redirect};
 
 use crate::{
     AppState, cli_authorization_preview, mcp_resource, process_json, processes_for_device,
@@ -99,7 +102,13 @@ async fn device(
             Err(error) => return internal(error),
         }
     };
-    Html(crate::page_html::device(&context, &device, &processes)).into_response()
+    Html(crate::page_html::device(
+        &context,
+        &device,
+        &processes,
+        state.execution.persists_process_metadata(),
+    ))
+    .into_response()
 }
 
 async fn process(
@@ -273,23 +282,4 @@ async fn workspace_activity(
         Err(error) => return internal(error),
     };
     Html(crate::page_html::activity(&context, &workspace, &events)).into_response()
-}
-
-pub(super) fn redirect(location: &str) -> Response {
-    (StatusCode::SEE_OTHER, [("location", location.to_owned())]).into_response()
-}
-fn not_found() -> Response {
-    (
-        StatusCode::NOT_FOUND,
-        Html(crate::page_html::error(404, "Not found")),
-    )
-        .into_response()
-}
-pub(super) fn internal(error: anyhow::Error) -> Response {
-    tracing::error!(%error,"page rendering failed");
-    (
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Html(crate::page_html::error(500, "Internal server error")),
-    )
-        .into_response()
 }

@@ -2062,10 +2062,12 @@ dependencies = [
 
 [[package]]
 name = "rc-cli"
-version = "0.16.2"
+version = "0.17.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "base64 0.22.1",
+ "bytes",
  "clap",
  "ed25519-dalek",
  "futures-util",
@@ -2074,6 +2076,7 @@ dependencies = [
  "rand 0.8.8",
  "rc-api-client",
  "rc-crypto",
+ "rc-mesh",
  "rc-node",
  "rc-protocol",
  "reqwest",
@@ -2083,6 +2086,17 @@ dependencies = [
  "tokio-tungstenite",
  "url",
  "webrtc",
+]
+
+[[package]]
+name = "rc-context"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "parking_lot",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]
@@ -2106,6 +2120,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "rc-mesh"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytes",
+ "parking_lot",
+ "rc-context",
+ "serde",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
 name = "rc-node"
 version = "0.1.0"
 dependencies = [
@@ -2119,7 +2147,9 @@ dependencies = [
  "parking_lot",
  "rand 0.8.8",
  "rc-api-client",
+ "rc-context",
  "rc-crypto",
+ "rc-mesh",
  "rc-protocol",
  "reqwest",
  "semver",
@@ -2146,7 +2176,7 @@ dependencies = [
 
 [[package]]
 name = "rc-server"
-version = "0.16.2"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2159,7 +2189,9 @@ dependencies = [
  "libc",
  "parking_lot",
  "rand 0.8.8",
+ "rc-context",
  "rc-crypto",
+ "rc-mesh",
  "rc-node",
  "rc-protocol",
  "reqwest",

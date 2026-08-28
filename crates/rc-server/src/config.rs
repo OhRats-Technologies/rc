@@ -1,3 +1,4 @@
+use crate::ExecutionHistory;
 use std::{env, net::SocketAddr, path::PathBuf};
 
 #[derive(Debug, Clone)]
@@ -17,6 +18,8 @@ pub struct Config {
     pub ssh_daemon_port: u16,
     pub ssh_internal_port: u16,
     pub mcp_access_ttl_minutes: u64,
+    pub execution_history: ExecutionHistory,
+    pub execution_history_ttl_hours: u64,
 }
 
 impl Config {
@@ -49,6 +52,10 @@ impl Config {
             ssh_daemon_port: positive_u16("RC_SSH_DAEMON_PORT", 2222),
             ssh_internal_port: positive_u16("RC_SSH_INTERNAL_PORT", 3001),
             mcp_access_ttl_minutes: positive_u64("RC_MCP_ACCESS_TTL_MINUTES", 15),
+            execution_history: ExecutionHistory::parse(
+                &env::var("RC_EXECUTION_HISTORY").unwrap_or_else(|_| "none".into()),
+            )?,
+            execution_history_ttl_hours: positive_u64("RC_EXECUTION_HISTORY_TTL_HOURS", 168),
         })
     }
 }

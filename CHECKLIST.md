@@ -12,7 +12,7 @@
 - [x] Downloadable Linux/macOS RC Nodes
 - [x] Persistent Coolify deployment
 - [x] Cookie-authenticated SSE for live metadata plus direct/TURN WebRTC DataChannels for browser/CLI control
-- [x] PTY-backed process handles with E2E stdin/output/resize/signals and metadata-only hosted history
+- [x] PTY-backed process handles with E2E stdin/output/resize/signals and no completed execution history by default
 - [x] Dedicated process list and PTY routes
 - [x] Kill active process trees when the RC Node stops, crashes, or updates
 - [x] Never replay an ambiguous process start
@@ -37,4 +37,7 @@
 - [x] Stateless `/mcp` endpoint with OAuth discovery, PKCE, short-lived access tokens, and rotating refresh tokens
 - [x] Explicit device-scoped MCP Observe / Terminal grants with fresh passkey approval, current Owner checks, and Node-side RC Lock enforcement
 - [x] MCP non-persistent terminal output relay
+- [x] MCP process cancellation with grant-bound active-process checks
+- [x] Typed runtime context with reverse effect cleanup, dependency activation, realm isolation, and rollback-safe replacement
+- [x] Realm-isolated mesh route broker and transport-independent encrypted-frame interface
 - [x] Keep maintained source files under 300 LOC

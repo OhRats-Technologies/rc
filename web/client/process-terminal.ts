@@ -166,8 +166,14 @@ async function connectControl() {
 }
 
 if (live) onEvent(event => {
-  if (event.kind === "rc.connected") { void resync().catch(reportClientError); return; }
-  if (event.kind === "device.online" && event.deviceId === page.dataset.deviceId) { void resync().then(connectControl).catch(reportClientError); return; }
+  if (event.kind === "rc.connected") {
+    if (["starting", "running"].includes(status)) void resync().catch(reportClientError);
+    return;
+  }
+  if (event.kind === "device.online" && event.deviceId === page.dataset.deviceId) {
+    if (["starting", "running"].includes(status)) void resync().then(connectControl).catch(reportClientError);
+    return;
+  }
   if (event.processId !== processId) return;
   if (["process.started", "process.exited", "process.lost"].includes(event.kind)) applyProcessEvent(event);
 });

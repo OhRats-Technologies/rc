@@ -32,15 +32,15 @@ The public HTTP service is the rendezvous and policy plane. It does not carry no
 | Browser/CLI terminal | WebRTC DataChannel | Signed authority plus Node verification | Application-layer encrypted end to end |
 | Node bootstrap/status | HTTPS | Ed25519-signed Node requests | Enrollment, presence, ICE, update metadata |
 | SSH compatibility | WebSocket + local OpenSSH | Registered SSH key bound to a control client | Hosted byte relay to a Node process |
-| MCP | OAuth 2.0 authorization code + PKCE, JSON-RPC/HTTP | Passkey-backed grant with explicit machine and tool scopes | Bounded stdout/stderr retained by the service |
+| MCP | OAuth 2.0 authorization code + PKCE, JSON-RPC/HTTP | Passkey-backed grant with explicit machine and tool scopes | Bounded in-memory stdout/stderr retained only for the live MCP process lifecycle |
 
-The MCP surface is intentionally small: `machines_list` discovers explicitly granted machines, `process_run` starts one bounded shell command, and `process_status` reads incremental output or completion. Each tool publishes an exact output schema. MCP Terminal grants are immutable, device-specific, Owner-approved, and included in each selected Node's RC Lock; newly enrolled machines require a new or replaced grant rather than inheriting ambient execution authority.
+The MCP surface is intentionally small: `machines_list` discovers explicitly granted machines, `process_run` starts one bounded shell command, `process_cancel` signals a process created by the same grant, and `process_status` reads incremental output or completion. Each tool publishes an exact output schema. MCP Terminal grants are immutable, device-specific, Owner-approved, and included in each selected Node's RC Lock; newly enrolled machines require a new or replaced grant rather than inheriting ambient execution authority.
 
 ## Trust boundaries
 
 ### RC server
 
-The server stores users, passkeys, browser sessions, workspaces, membership, devices, clients, grants, process metadata, and events. It validates request signatures, scopes, grants, replay nonces, and role requirements. It is trusted for identity and authorization decisions, but normal human terminal plaintext is not required at this boundary.
+The server stores users, passkeys, browser sessions, workspaces, membership, devices, clients, grants, and durable security/product events. Active process metadata exists for authorization and reconciliation, but completed execution history and process events are not persisted by default. It validates request signatures, scopes, grants, replay nonces, and role requirements. It is trusted for identity and authorization decisions, but normal human terminal plaintext is not required at this boundary.
 
 ### RC Node
 
@@ -59,11 +59,19 @@ Browser and CLI controllers create local signing and transport material. CLI acc
 5. Both sides derive session keys from authenticated key agreement.
 6. Control messages and process streams use sequence-bound AES-GCM frames over the DataChannel.
 7. The Node validates the process permit and RC Lock before executing.
-8. Lifecycle metadata is reflected to SQLite and SSE; process output remains on the direct channel for browser/CLI control.
+8. Active lifecycle metadata is reflected to SQLite and live SSE. Completion is broadcast and then removed by default; process output remains on the direct channel for browser/CLI control.
 
 Reconnect reconciliation marks server-side `starting` or `running` processes as `lost` when the Node reports they no longer exist.
 
 ## Persistence
+
+Completed execution history is disabled by default. `RC_EXECUTION_HISTORY=metadata` is an explicit opt-in for bounded lifecycle metadata; command text and streams remain non-persistent in every mode. Presence and transport-connectivity events are live-only.
+
+## Runtime context and mesh substrate
+
+`rc-context` mediates typed services, component requirements, and revertible cleanup effects. Server workspace contexts inherit global services while remaining isolated from sibling workspaces. Node connection resources are unwound through an effect scope when a transport ends.
+
+`rc-mesh` provides realm/peer/service identifiers, bounded opaque envelopes, provider leases, cost-ordered failover, and the `EncryptedFrameTransport` interface now used by CLI WebRTC control. This release establishes the safe seam for later QUIC providers; the production network remains WebRTC-only until authenticated peer routing and revocation-freshness semantics are complete. See [Runtime context and mesh architecture](CONTEXT_AND_MESH.md).
 
 The Rust server uses SQLite WAL mode with foreign keys and a busy timeout. The default development database is `./data-v2/rc-v2.sqlite3`; the container default is `/data/rc-v2.sqlite3`. The data directory is mode `0700` and the main database is mode `0600` on Unix.
 
@@ -85,6 +93,8 @@ Node state defaults to `~/.config/rc`:
 crates/rc-server      HTTP service and persistence
 crates/rc-cli         rc executable and service integration
 crates/rc-node        Node runtime, process manager, WebRTC, update
+crates/rc-context     typed component services and effect ownership
+crates/rc-mesh        realm-isolated routing and transport substrate
 crates/rc-api-client  signed HTTP and control bootstrap client
 crates/rc-protocol    serialized protocol structures
 crates/rc-crypto      cryptographic primitives

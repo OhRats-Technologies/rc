@@ -17,7 +17,9 @@ signal-hook.workspace = true
 nix.workspace = true
 parking_lot.workspace = true
 rc-api-client = { path = "../rc-api-client" }
+rc-context = { path = "../rc-context" }
 rc-crypto = { path = "../rc-crypto" }
+rc-mesh = { path = "../rc-mesh" }
 rc-protocol = { path = "../rc-protocol" }
 reqwest.workspace = true
 serde.workspace = true

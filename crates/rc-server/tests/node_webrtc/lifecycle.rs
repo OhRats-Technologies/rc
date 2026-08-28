@@ -51,7 +51,7 @@ pub(super) async fn exercise(
     let started =
         support::assert_event(&mut lifecycle, "process.started", &harness.device_id).await?;
     assert_eq!(started.process_id.as_deref(), Some(lifecycle_id.as_str()));
-    assert!(started.audit);
+    assert!(!started.audit);
     assert_eq!(started.detail["processId"], lifecycle_id);
     transport
         .send(&NodeToServer::ProcessStarted {
@@ -70,6 +70,7 @@ pub(super) async fn exercise(
     let exited =
         support::assert_event(&mut lifecycle, "process.exited", &harness.device_id).await?;
     assert_eq!(exited.process_id.as_deref(), Some(lifecycle_id.as_str()));
+    assert!(!exited.audit);
     assert_eq!(exited.detail["exitCode"], 17);
     transport
         .send(&NodeToServer::ProcessExit {

@@ -47,17 +47,17 @@ impl SshHub {
             .map(|(_, session)| (session.device_id, session.process_id))
     }
 
-    pub fn handle(&self, device_id: &str, message: &NodeToServer) -> bool {
+    pub fn handle(&self, device_id: &str, message: &NodeToServer) -> Option<(String, i32, String)> {
         let (session_id, relay, terminal) = match message {
             NodeToServer::SshStdout { session_id, data } => {
                 let Ok(bytes) = URL_SAFE_NO_PAD.decode(data) else {
-                    return true;
+                    return None;
                 };
                 (session_id, SshRelay::Stdout(bytes), false)
             }
             NodeToServer::SshStderr { session_id, data } => {
                 let Ok(bytes) = URL_SAFE_NO_PAD.decode(data) else {
-                    return true;
+                    return None;
                 };
                 (session_id, SshRelay::Stderr(bytes), false)
             }
@@ -73,33 +73,43 @@ impl SshHub {
                 },
                 true,
             ),
-            _ => return false,
+            _ => return None,
         };
-        if let Some(session) = self.sessions.get(session_id)
-            && session.device_id == device_id
-        {
+        let completion = self.sessions.get(session_id).and_then(|session| {
+            if session.device_id != device_id {
+                return None;
+            }
             let _ = session.sender.send(relay);
-        }
-        if terminal {
+            terminal.then(|| match message {
+                NodeToServer::SshExit {
+                    exit_code, signal, ..
+                } => (session.process_id.clone(), *exit_code, signal.clone()),
+                _ => unreachable!(),
+            })
+        });
+        if completion.is_some() {
             self.sessions.remove(session_id);
         }
-        true
+        completion
     }
 
-    pub fn release_device(&self, device_id: &str) {
+    pub fn release_device(&self, device_id: &str) -> Vec<String> {
         let ids: Vec<_> = self
             .sessions
             .iter()
             .filter(|entry| entry.value().device_id == device_id)
             .map(|entry| entry.key().clone())
             .collect();
+        let mut processes = Vec::with_capacity(ids.len());
         for id in ids {
             if let Some((_, session)) = self.sessions.remove(&id) {
+                processes.push(session.process_id);
                 let _ = session.sender.send(SshRelay::Exit {
                     code: 255,
                     signal: "DISCONNECTED".into(),
                 });
             }
         }
+        processes
     }
 }

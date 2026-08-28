@@ -104,6 +104,43 @@ pub(super) fn status_descriptor() -> serde_json::Value {
     })
 }
 
+pub(super) fn cancel_descriptor() -> serde_json::Value {
+    serde_json::json!({
+        "name": "process_cancel",
+        "title": "Cancel a running process",
+        "description": "Request INT, TERM, or KILL for a running process created by this same MCP grant. Use process_status afterward to observe the final state.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "processId": {"type": "string", "minLength": 1, "maxLength": 100},
+                "signal": {
+                    "type": "string",
+                    "enum": ["INT", "TERM", "KILL"],
+                    "default": "TERM",
+                },
+            },
+            "required": ["processId"],
+        },
+        "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "processId": {"type": "string"},
+                "signal": {"type": "string", "enum": ["INT", "TERM", "KILL"]},
+                "accepted": {"type": "boolean"},
+            },
+            "required": ["processId", "signal", "accepted"],
+        },
+        "annotations": {
+            "readOnlyHint": false,
+            "destructiveHint": true,
+            "idempotentHint": true,
+            "openWorldHint": false,
+        },
+    })
+}
+
 fn process_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
@@ -124,11 +161,16 @@ fn process_output_schema() -> serde_json::Value {
 
 #[cfg(test)]
 mod tests {
-    use super::{machines_descriptor, run_descriptor, status_descriptor};
+    use super::{cancel_descriptor, machines_descriptor, run_descriptor, status_descriptor};
 
     #[test]
     fn structured_tools_publish_output_schemas() {
-        for descriptor in [machines_descriptor(), run_descriptor(), status_descriptor()] {
+        for descriptor in [
+            machines_descriptor(),
+            run_descriptor(),
+            cancel_descriptor(),
+            status_descriptor(),
+        ] {
             assert!(descriptor.get("outputSchema").is_some());
         }
     }

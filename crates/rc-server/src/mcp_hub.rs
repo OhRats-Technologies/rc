@@ -68,31 +68,27 @@ impl McpHub {
         );
     }
 
-    pub fn handle(&self, device_id: &str, message: &NodeToServer) -> bool {
+    pub fn handle(&self, device_id: &str, message: &NodeToServer) -> Option<(String, i32, String)> {
         match message {
             NodeToServer::McpStdout { process_id, data }
             | NodeToServer::McpStderr { process_id, data } => {
-                let Some(state) = self.states.get(process_id).map(|entry| entry.clone()) else {
-                    return true;
-                };
+                let state = self.states.get(process_id).map(|entry| entry.clone())?;
                 if state.device_id != device_id {
-                    return true;
+                    return None;
                 }
                 if let Ok(bytes) = URL_SAFE_NO_PAD.decode(data) {
                     append(&state, &bytes);
                 }
-                true
+                None
             }
             NodeToServer::McpExit {
                 process_id,
                 exit_code,
                 signal,
             } => {
-                let Some(state) = self.states.get(process_id).map(|entry| entry.clone()) else {
-                    return true;
-                };
+                let state = self.states.get(process_id).map(|entry| entry.clone())?;
                 if state.device_id != device_id {
-                    return true;
+                    return None;
                 }
                 let mut inner = state.inner.lock();
                 inner.status = "exited";
@@ -101,9 +97,9 @@ impl McpHub {
                 inner.updated_at = crate::now_ms();
                 drop(inner);
                 state.notify.notify_waiters();
-                true
+                Some((process_id.clone(), *exit_code, signal.clone()))
             }
-            _ => false,
+            _ => None,
         }
     }
 
@@ -147,16 +143,37 @@ impl McpHub {
         Ok(snapshot(process_id, &state, offset))
     }
 
-    pub fn release_device(&self, device_id: &str) {
+    pub fn running_device(
+        &self,
+        process_id: &str,
+        grant_id: &str,
+        user_id: &str,
+    ) -> anyhow::Result<String> {
+        let state = self
+            .states
+            .get(process_id)
+            .map(|entry| entry.clone())
+            .ok_or_else(|| anyhow::anyhow!("process is unavailable for this MCP grant"))?;
+        if state.grant_id != grant_id || state.user_id != user_id {
+            anyhow::bail!("process is unavailable for this MCP grant");
+        }
+        if state.inner.lock().status != "running" {
+            anyhow::bail!("process is no longer running");
+        }
+        Ok(state.device_id.clone())
+    }
+
+    pub fn release_device(&self, device_id: &str) -> Vec<String> {
         let ids: Vec<_> = self
             .states
             .iter()
             .filter(|entry| entry.device_id == device_id)
             .map(|entry| entry.key().clone())
             .collect();
-        for id in ids {
-            self.mark_lost(&id, "RC Node disconnected");
+        for id in &ids {
+            self.mark_lost(id, "RC Node disconnected");
         }
+        ids
     }
 
     fn cleanup(&self) {

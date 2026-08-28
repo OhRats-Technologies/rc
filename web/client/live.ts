@@ -85,6 +85,16 @@ function updateProcessList(event: RCEvent) {
   const status = event.kind === "process.started" ? "RUNNING" : event.kind === "process.lost" ? "LOST" : event.kind === "process.exited" ? "EXITED" : "";
   if (!status) return;
   state.textContent = status; state.classList.toggle("online", status === "RUNNING");
+  const page = list.closest<HTMLElement>("[data-device-page]");
+  if (status !== "RUNNING" && page?.dataset.retainsProcessHistory !== "true") {
+    state.closest<HTMLElement>("[data-process-row]")?.remove();
+    if (!list.querySelector("[data-process-row]")) {
+      const empty = document.createElement("p");
+      empty.className = "empty-state";
+      empty.textContent = "No active processes.";
+      list.append(empty);
+    }
+  }
 }
 
 onEvent(event => {

@@ -8,39 +8,48 @@ async fn ssh_hub_routes_only_the_bound_device_and_closes_on_exit() -> anyhow::Re
     let hub = SshHub::default();
     let mut receiver = hub.register("session", "device-a", "process");
 
-    assert!(hub.handle(
-        "device-b",
-        &NodeToServer::SshStdout {
-            session_id: "session".into(),
-            data: URL_SAFE_NO_PAD.encode(b"wrong device"),
-        },
-    ));
+    assert!(
+        hub.handle(
+            "device-b",
+            &NodeToServer::SshStdout {
+                session_id: "session".into(),
+                data: URL_SAFE_NO_PAD.encode(b"wrong device"),
+            },
+        )
+        .is_none()
+    );
     assert!(
         tokio::time::timeout(Duration::from_millis(25), receiver.recv())
             .await
             .is_err()
     );
 
-    assert!(hub.handle(
-        "device-a",
-        &NodeToServer::SshStdout {
-            session_id: "session".into(),
-            data: URL_SAFE_NO_PAD.encode(b"stdout"),
-        },
-    ));
+    assert!(
+        hub.handle(
+            "device-a",
+            &NodeToServer::SshStdout {
+                session_id: "session".into(),
+                data: URL_SAFE_NO_PAD.encode(b"stdout"),
+            },
+        )
+        .is_none()
+    );
     match receiver.recv().await {
         Some(SshRelay::Stdout(data)) => assert_eq!(data, b"stdout"),
         other => anyhow::bail!("unexpected SSH stdout relay: {other:?}"),
     }
 
-    assert!(hub.handle(
-        "device-a",
-        &NodeToServer::SshExit {
-            session_id: "session".into(),
-            exit_code: 7,
-            signal: "TERM".into(),
-        },
-    ));
+    assert_eq!(
+        hub.handle(
+            "device-a",
+            &NodeToServer::SshExit {
+                session_id: "session".into(),
+                exit_code: 7,
+                signal: "TERM".into(),
+            },
+        ),
+        Some(("process".into(), 7, "TERM".into()))
+    );
     match receiver.recv().await {
         Some(SshRelay::Exit { code, signal }) => {
             assert_eq!(code, 7);
@@ -56,7 +65,7 @@ async fn ssh_hub_routes_only_the_bound_device_and_closes_on_exit() -> anyhow::Re
 async fn ssh_hub_marks_live_sessions_disconnected() -> anyhow::Result<()> {
     let hub = SshHub::default();
     let mut receiver = hub.register("session", "device", "process");
-    hub.release_device("device");
+    assert_eq!(hub.release_device("device"), vec!["process"]);
     match receiver.recv().await {
         Some(SshRelay::Exit { code, signal }) => {
             assert_eq!(code, 255);
@@ -72,24 +81,30 @@ async fn mcp_hub_is_grant_scoped_bounded_and_reconciles_exit() -> anyhow::Result
     let hub = McpHub::default();
     hub.register("process", "grant", "user", "device");
 
-    assert!(hub.handle(
-        "other-device",
-        &NodeToServer::McpStdout {
-            process_id: "process".into(),
-            data: URL_SAFE_NO_PAD.encode(b"wrong"),
-        },
-    ));
+    assert!(
+        hub.handle(
+            "other-device",
+            &NodeToServer::McpStdout {
+                process_id: "process".into(),
+                data: URL_SAFE_NO_PAD.encode(b"wrong"),
+            },
+        )
+        .is_none()
+    );
     let empty = hub.result("process", "grant", "user", 0, 0).await?;
     assert!(empty.output.is_empty());
 
     let oversized = vec![b'x'; 256 * 1024 + 4096];
-    assert!(hub.handle(
-        "device",
-        &NodeToServer::McpStdout {
-            process_id: "process".into(),
-            data: URL_SAFE_NO_PAD.encode(&oversized),
-        },
-    ));
+    assert!(
+        hub.handle(
+            "device",
+            &NodeToServer::McpStdout {
+                process_id: "process".into(),
+                data: URL_SAFE_NO_PAD.encode(&oversized),
+            },
+        )
+        .is_none()
+    );
     let output = hub.result("process", "grant", "user", 0, 0).await?;
     assert_eq!(output.output.len(), 256 * 1024);
     assert_eq!(output.next_offset, 256 * 1024);
@@ -107,14 +122,17 @@ async fn mcp_hub_is_grant_scoped_bounded_and_reconciles_exit() -> anyhow::Result
             .is_err()
     );
 
-    assert!(hub.handle(
-        "device",
-        &NodeToServer::McpExit {
-            process_id: "process".into(),
-            exit_code: 3,
-            signal: String::new(),
-        },
-    ));
+    assert_eq!(
+        hub.handle(
+            "device",
+            &NodeToServer::McpExit {
+                process_id: "process".into(),
+                exit_code: 3,
+                signal: String::new(),
+            },
+        ),
+        Some(("process".into(), 3, String::new()))
+    );
     let exited = hub
         .result("process", "grant", "user", 256 * 1024, 0)
         .await?;
@@ -128,9 +146,26 @@ async fn mcp_hub_is_grant_scoped_bounded_and_reconciles_exit() -> anyhow::Result
 async fn mcp_hub_marks_running_processes_lost_on_disconnect() -> anyhow::Result<()> {
     let hub = McpHub::default();
     hub.register("process", "grant", "user", "device");
-    hub.release_device("device");
+    assert_eq!(hub.release_device("device"), vec!["process"]);
     let result = hub.result("process", "grant", "user", 0, 0).await?;
     assert_eq!(result.status, "lost");
     assert_eq!(result.error.as_deref(), Some("RC Node disconnected"));
+    Ok(())
+}
+
+#[test]
+fn mcp_cancel_target_is_bound_to_the_originating_grant_and_user() -> anyhow::Result<()> {
+    let hub = McpHub::default();
+    hub.register("process", "grant", "user", "device");
+
+    assert_eq!(hub.running_device("process", "grant", "user")?, "device");
+    assert!(
+        hub.running_device("process", "other-grant", "user")
+            .is_err()
+    );
+    assert!(
+        hub.running_device("process", "grant", "other-user")
+            .is_err()
+    );
     Ok(())
 }

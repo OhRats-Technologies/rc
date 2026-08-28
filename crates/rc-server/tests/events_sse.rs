@@ -56,7 +56,13 @@ async fn browser_event_stream_delivers_default_message_events_for_live_clients()
     assert_eq!(event["kind"], "process.started");
     assert_eq!(event["deviceId"], "device-events");
     assert_eq!(event["processId"], "process-events");
-    assert_eq!(event["audit"], true);
+    assert_eq!(event["audit"], false);
+    let persisted: i64 = rusqlite::Connection::open(&db_path)?.query_row(
+        "SELECT count(*) FROM events WHERE kind='process.started'",
+        [],
+        |row| row.get(0),
+    )?;
+    assert_eq!(persisted, 0);
     Ok(())
 }
 
@@ -103,6 +109,8 @@ fn test_config(root: &std::path::Path, db_path: &std::path::Path) -> Config {
         ssh_daemon_port: 2222,
         ssh_internal_port: 3001,
         mcp_access_ttl_minutes: 15,
+        execution_history: rc_server::ExecutionHistory::None,
+        execution_history_ttl_hours: 168,
     }
 }
 

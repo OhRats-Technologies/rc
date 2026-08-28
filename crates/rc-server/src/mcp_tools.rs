@@ -1,7 +1,8 @@
+mod cancel;
 mod descriptors;
 
 use crate::{AppState, McpGrantRecord, McpProcessResult, now_ms};
-use descriptors::{machines_descriptor, run_descriptor, status_descriptor};
+use descriptors::{cancel_descriptor, machines_descriptor, run_descriptor, status_descriptor};
 use rc_protocol::{McpGrantPayload, ServerToNode};
 use uuid::Uuid;
 
@@ -15,6 +16,7 @@ pub fn tools_for(context: &McpContext) -> Vec<serde_json::Value> {
     let mut tools = vec![machines_descriptor(), status_descriptor()];
     if has_scope(&context.payload.scopes, "mcp:terminal") {
         tools.insert(1, run_descriptor());
+        tools.insert(2, cancel_descriptor());
     }
     tools
 }
@@ -22,7 +24,7 @@ pub fn tools_for(context: &McpContext) -> Vec<serde_json::Value> {
 pub fn registered_scope(name: &str) -> Option<&'static str> {
     match name {
         "machines_list" | "process_status" => Some("mcp:observe"),
-        "process_run" => Some("mcp:terminal"),
+        "process_run" | "process_cancel" => Some("mcp:terminal"),
         _ => None,
     }
 }
@@ -36,6 +38,7 @@ pub async fn call_tool(
     match name {
         "machines_list" => machines(state, context).await,
         "process_run" => process_run(state, context, args).await,
+        "process_cancel" => cancel::cancel(state, context, args).await,
         "process_status" => process_status(state, context, args).await,
         _ => anyhow::bail!("Tool is not available: {name}"),
     }
@@ -183,16 +186,7 @@ async fn process_run(
         .await;
     if sent.is_err() {
         state.mcp.mark_lost(&process_id, "RC Node is offline");
-        if let Err(error) = state.db.with_connection(|db| {
-            db.execute(
-                "UPDATE processes SET status='lost',error='RC Node is offline',completed_at=? \
-                 WHERE id=?",
-                rusqlite::params![now_ms(), process_id],
-            )?;
-            Ok(())
-        }) {
-            tracing::error!(%error, %process_id, "failed to persist offline MCP process");
-        }
+        state.lose_hosted_process(device, &process_id, "RC Node is offline");
     }
     let result = state
         .mcp
@@ -266,7 +260,11 @@ fn complete_result(result: McpProcessResult) -> anyhow::Result<serde_json::Value
     };
     Ok(complete(serde_json::to_value(&result)?, text, false))
 }
-fn complete(value: serde_json::Value, text: String, is_error: bool) -> serde_json::Value {
+pub(super) fn complete(
+    value: serde_json::Value,
+    text: String,
+    is_error: bool,
+) -> serde_json::Value {
     let mut out = serde_json::json!({
         "resultType": "complete",
         "content": [{"type": "text", "text": text}],

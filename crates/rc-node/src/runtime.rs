@@ -14,6 +14,9 @@ pub struct NodeRuntime {
     outbound: mpsc::UnboundedSender<NodeToServer>,
     lifecycle: mpsc::UnboundedReceiver<NodeToServer>,
     pending: VecDeque<NodeToServer>,
+    services: rc_context::Context,
+    mesh: rc_mesh::RouteBroker,
+    _service_leases: Vec<rc_context::ServiceLease>,
 }
 
 impl NodeRuntime {
@@ -81,17 +84,42 @@ impl NodeRuntime {
             };
             relay_tx.send(message).is_ok()
         });
+        let services = rc_context::Context::root("rc-node");
+        let mesh = rc_mesh::RouteBroker::default();
+        let mesh_policy = rc_mesh::MeshPolicy::default();
+        let service_leases = vec![
+            services
+                .provide(manager.clone())
+                .expect("fresh Node context accepts process manager"),
+            services
+                .provide(Arc::new(mesh.clone()))
+                .expect("fresh Node context accepts route broker"),
+            services
+                .provide(Arc::new(mesh_policy))
+                .expect("fresh Node context accepts mesh policy"),
+        ];
         Self {
             manager,
             state_dir,
             outbound: tx,
             lifecycle,
             pending: VecDeque::new(),
+            services,
+            mesh,
+            _service_leases: service_leases,
         }
     }
 
     pub fn manager(&self) -> &ProcessManager {
         &self.manager
+    }
+
+    pub fn context(&self) -> &rc_context::Context {
+        &self.services
+    }
+
+    pub fn mesh(&self) -> &rc_mesh::RouteBroker {
+        &self.mesh
     }
 
     pub fn shutdown(&self) {
@@ -117,11 +145,15 @@ impl NodeRuntime {
         self.manager.set_secure_sink(move |session_id, event| {
             secure_control.send_process_event(session_id, event)
         });
+        let mut effects = rc_context::EffectScope::new();
+        let manager = self.manager.clone();
+        effects.defer(move || manager.clear_secure_sink());
+        let cleanup_control = control.clone();
+        effects.defer_async(move || async move { cleanup_control.shutdown().await });
         let result = self
             .run_connected(server, state, version, transport, &control)
             .await;
-        self.manager.clear_secure_sink();
-        control.shutdown().await;
+        effects.revert().await;
         result
     }
 

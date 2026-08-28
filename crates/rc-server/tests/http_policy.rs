@@ -110,6 +110,8 @@ fn test_state(root: &std::path::Path, public_url: &str) -> anyhow::Result<AppSta
         ssh_daemon_port: 2222,
         ssh_internal_port: 3001,
         mcp_access_ttl_minutes: 15,
+        execution_history: rc_server::ExecutionHistory::None,
+        execution_history_ttl_hours: 168,
     })
 }
 

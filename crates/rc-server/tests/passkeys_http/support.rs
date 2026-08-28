@@ -123,6 +123,8 @@ pub(super) fn test_state_with_setup_token(
         ssh_daemon_port: 2222,
         ssh_internal_port: 3001,
         mcp_access_ttl_minutes: 15,
+        execution_history: rc_server::ExecutionHistory::None,
+        execution_history_ttl_hours: 168,
     })
 }
 

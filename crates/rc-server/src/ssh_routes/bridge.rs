@@ -124,7 +124,11 @@ async fn bridge_socket(state: AppState, principal: SshPrincipal, mut socket: Web
         .is_err()
     {
         state.ssh.remove(&session_id);
-        mark_process_lost(&state, &process_id, "RC Node disconnected before SSH start");
+        state.lose_hosted_process(
+            &principal.device_id,
+            &process_id,
+            "RC Node disconnected before SSH start",
+        );
         let _ = send_exit(&mut socket, 255, Some("RC Node is offline")).await;
         let _ = socket.close().await;
         return;
@@ -197,18 +201,6 @@ fn insert_process(
         )?;
         Ok(())
     })
-}
-
-fn mark_process_lost(state: &AppState, process_id: &str, reason: &str) {
-    if let Err(error) = state.db.with_connection(|db| {
-        db.execute(
-            "UPDATE processes SET status='lost',error=?,completed_at=? WHERE id=?",
-            rusqlite::params![reason, now_ms(), process_id],
-        )?;
-        Ok(())
-    }) {
-        tracing::error!(%error, %process_id, "failed to mark SSH process lost");
-    }
 }
 
 fn touch_key(state: &AppState, key_id: &str) {

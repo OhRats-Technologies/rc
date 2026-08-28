@@ -1,6 +1,9 @@
 use super::{FRAME_LIMIT, encode_path};
 use anyhow::{Context, Result, bail};
+use async_trait::async_trait;
+use bytes::Bytes;
 use rc_api_client::{ApiClient, WebRtcAnswer};
+use rc_mesh::{EncryptedFrameTransport, FrameTransportError};
 use rc_protocol::{ControlTransportMessage, IceServer};
 use serde::Serialize;
 use std::sync::Arc;
@@ -22,7 +25,7 @@ pub(super) async fn open_webrtc(
     servers: &[IceServer],
 ) -> Result<(
     Arc<RTCPeerConnection>,
-    Arc<RTCDataChannel>,
+    Arc<dyn EncryptedFrameTransport>,
     mpsc::Receiver<ControlTransportMessage>,
 )> {
     let config = RTCConfiguration {
@@ -108,5 +111,21 @@ pub(super) async fn open_webrtc(
     tokio::time::timeout(std::time::Duration::from_secs(8), open_rx)
         .await
         .context("WebRTC connection timed out")??;
-    Ok((peer, channel, rx))
+    Ok((peer, Arc::new(WebRtcFrameTransport { channel }), rx))
+}
+
+struct WebRtcFrameTransport {
+    channel: Arc<RTCDataChannel>,
+}
+
+#[async_trait]
+impl EncryptedFrameTransport for WebRtcFrameTransport {
+    async fn send(&self, frame: Bytes) -> Result<(), FrameTransportError> {
+        let text = String::from_utf8(frame.to_vec()).map_err(|_| FrameTransportError::Rejected)?;
+        self.channel
+            .send_text(text)
+            .await
+            .map(|_| ())
+            .map_err(|_| FrameTransportError::Closed)
+    }
 }

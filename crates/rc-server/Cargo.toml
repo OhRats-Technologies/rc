@@ -1,6 +1,6 @@
 [package]
 name = "rc-server"
-version = "0.16.2"
+version = "0.17.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -22,6 +22,8 @@ libc.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
 rc-crypto = { path = "../rc-crypto" }
+rc-context = { path = "../rc-context" }
+rc-mesh = { path = "../rc-mesh" }
 rc-protocol = { path = "../rc-protocol" }
 reqwest.workspace = true
 rusqlite.workspace = true
