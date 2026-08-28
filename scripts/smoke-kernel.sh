@@ -4,12 +4,20 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-scripts/build-component.sh components/fixture-provider >/dev/null
-scripts/build-component.sh components/fixture-consumer >/dev/null
-scripts/build-component.sh components/fixture-broken >/dev/null
-scripts/build-component.sh components/fixture-collision >/dev/null
-scripts/build-component.sh components/fixture-trap >/dev/null
-scripts/build-component.sh components/fixture-limit >/dev/null
+if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
+  scripts/build-component.sh components/fixture-provider >/dev/null
+  scripts/build-component.sh components/fixture-consumer >/dev/null
+  scripts/build-component.sh components/fixture-broken >/dev/null
+  scripts/build-component.sh components/fixture-collision >/dev/null
+  scripts/build-component.sh components/fixture-trap >/dev/null
+  scripts/build-component.sh components/fixture-limit >/dev/null
+fi
+for fixture in provider consumer broken collision trap limit; do
+  test -f "dist/components/fixture-$fixture.wasm" || {
+    echo "missing fixture artifact: fixture-$fixture.wasm" >&2
+    exit 1
+  }
+done
 cargo build --manifest-path kernel/Cargo.toml --locked >/dev/null
 
 directory=$(mktemp -d)

@@ -41,6 +41,8 @@ def main() -> int:
             errors.append(f"{relative}: must own an independent Cargo workspace")
         if not (manifest.parent / "Cargo.lock").is_file():
             errors.append(f"{relative}: missing independent Cargo.lock")
+        if manifest != kernel and not (manifest.parent / "component.toml").is_file():
+            errors.append(f"{relative}: missing component.toml")
         for dependency in local_paths(manifest, data):
             if manifest == kernel and ROOT / "crates" in dependency.parents:
                 errors.append(f"{relative}: kernel depends on legacy crate {dependency}")

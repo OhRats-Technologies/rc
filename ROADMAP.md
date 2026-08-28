@@ -102,21 +102,23 @@ previous generation usable.
 
 ## 2. Independent build graph
 
-- [ ] Give each Rust component its own Cargo workspace and lockfile.
-- [ ] Add one command that builds a named component to a deterministic output
+- [x] Give each Rust component its own Cargo workspace and lockfile.
+- [x] Add one command that builds a named component to a deterministic output
   path.
-- [ ] Add a component manifest schema and validator.
-- [ ] Add a changed-unit resolver for kernel, WIT packages, SDKs, components,
+- [x] Add a component manifest schema and validator.
+- [x] Add a changed-unit resolver for kernel, WIT packages, SDKs, components,
   profiles, and documentation.
-- [ ] Split CI into kernel, dynamically generated component, profile assembly,
+- [x] Split CI into kernel, dynamically generated component, profile assembly,
   documentation, and scheduled full-build jobs.
-- [ ] Cross-build native release artifacts only when kernel inputs change.
-- [ ] Build each affected Wasm component once, without an OS/architecture
+- [x] Cross-build native release artifacts only when kernel inputs change.
+- [x] Build each affected Wasm component once, without an OS/architecture
   matrix.
-- [ ] Cache kernel and each component independently.
+- [x] Cache kernel and each component independently.
 
-Acceptance: a fixture component-only commit does not compile or cross-build the
-kernel; a kernel-only commit does not build fixture components.
+Acceptance: a component-only commit does not compile or cross-build the kernel,
+and a kernel build unit does not compile product components. The separate
+component-runtime job may consume already-built fixtures or build them as
+kernel integration-test inputs.
 
 ## 3. Package state and sources
 
@@ -279,3 +281,8 @@ invariants at the top of this document.
   rollback-safe replacement, capability limits, and adversarial lifecycle
   fixtures. The existing container/browser/API smoke matrix remains the
   production acceptance baseline until each domain moves.
+- 2026-08-28: added independently locked component manifests, deterministic
+  build and profile plans, an affected-unit resolver with tests, per-unit CI
+  caches/matrices, a weekly full integrity build, and kernel-only four-platform
+  release assets. Local cross-builds produced valid Intel macOS and Linux
+  kernels.

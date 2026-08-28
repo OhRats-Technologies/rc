@@ -47,10 +47,9 @@ pub fn states(entries: &mut BTreeMap<String, Entry>) -> bool {
         let ids = entries.keys().cloned().collect::<Vec<_>>();
         for id in ids {
             let entry = entries.get_mut(&id).expect("entry disappeared");
-            if activate_pending(entry, &id, &services, &active_commands) {
-                progress = true;
-                changed = true;
-            }
+            let pending = activate_pending(entry, &id, &services, &active_commands);
+            progress |= pending.progress;
+            changed |= pending.changed;
             if entry.current.is_active() && !requirements_met(&entry.current, &services) {
                 entry.current.deactivate();
                 entry.error = None;
@@ -82,23 +81,38 @@ pub fn states(entries: &mut BTreeMap<String, Entry>) -> bool {
     changed
 }
 
+#[derive(Clone, Copy)]
+struct Transition {
+    changed: bool,
+    progress: bool,
+}
+
 fn activate_pending(
     entry: &mut Entry,
     id: &str,
     services: &graph::Services,
     commands: &BTreeMap<String, String>,
-) -> bool {
+) -> Transition {
     let Some(mut pending) = entry.pending.take() else {
-        return false;
+        return Transition {
+            changed: false,
+            progress: false,
+        };
     };
     if !requirements_met(&pending, services) {
         entry.pending = Some(pending);
-        return false;
+        return Transition {
+            changed: false,
+            progress: false,
+        };
     }
     if let Some(error) = command_conflict(&pending, id, commands) {
         entry.error = Some(format!("replacement activation failed: {error}"));
         entry.rejected_digest = Some(pending.digest.clone());
-        return false;
+        return Transition {
+            changed: true,
+            progress: false,
+        };
     }
     match pending.activate() {
         Ok(()) => {
@@ -106,12 +120,18 @@ fn activate_pending(
             entry.current = pending;
             entry.error = None;
             entry.rejected_digest = None;
-            true
+            Transition {
+                changed: true,
+                progress: true,
+            }
         }
         Err(error) => {
             entry.error = Some(format!("replacement activation failed: {error:#}"));
             entry.rejected_digest = Some(pending.digest.clone());
-            false
+            Transition {
+                changed: true,
+                progress: false,
+            }
         }
     }
 }

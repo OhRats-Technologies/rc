@@ -5,6 +5,11 @@ data-v2
 dist
 node_modules
 target
+kernel
+components
+wit
+schemas
+ROADMAP.md
 *.db
 *.db-shm
 *.db-wal

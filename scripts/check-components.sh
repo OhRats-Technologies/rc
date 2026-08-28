@@ -5,16 +5,12 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 rustup target add wasm32-wasip2 >/dev/null
+python3 scripts/validate-components.py
 
 for manifest in components/*/Cargo.toml; do
-  component=${manifest%/Cargo.toml}
-  cargo fmt --manifest-path "$manifest" --all -- --check
-  cargo clippy \
-    --manifest-path "$manifest" \
-    --target wasm32-wasip2 \
-    --all-targets \
-    -- -D warnings
-  scripts/build-component.sh "$component" >/dev/null
+  name=${manifest#components/}
+  name=${name%/Cargo.toml}
+  scripts/check-component.sh "$name"
 done
 
 echo "components: ok"

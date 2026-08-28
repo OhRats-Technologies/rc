@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://rc.ohrats.party/schemas/profile-v1.json",
+  "title": "RC component profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "profile"],
+  "properties": {
+    "schema": { "const": 1 },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "components"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9:._/-]{0,127}$"
+        },
+        "components": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

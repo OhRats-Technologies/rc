@@ -1,0 +1,8 @@
+schema = 1
+
+[profile]
+id = "ohrats:kernel-smoke"
+components = [
+  "fixture-consumer",
+  "fixture-provider",
+]

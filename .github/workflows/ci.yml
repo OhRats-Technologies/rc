@@ -13,102 +13,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  rust-lint:
+  changes:
     runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
+    outputs:
+      kernel: ${{ steps.affected.outputs.kernel }}
+      components: ${{ steps.affected.outputs.components }}
+      component-matrix: ${{ steps.affected.outputs.component_matrix }}
+      legacy-rust: ${{ steps.affected.outputs.legacy_rust }}
+      legacy-security: ${{ steps.affected.outputs.legacy_security }}
+      web: ${{ steps.affected.outputs.web }}
+      image: ${{ steps.affected.outputs.image }}
+      profiles: ${{ steps.affected.outputs.profiles }}
+      profile-matrix: ${{ steps.affected.outputs.profile_matrix }}
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          components: rustfmt,clippy
-      - name: Restore cleaned Rust dependency cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: validation
-          add-job-id-key: false
-          cache-bin: false
-          save-if: false
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-
-  rust-test:
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-      - name: Restore cleaned Rust dependency cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: validation
-          add-job-id-key: false
-          cache-bin: false
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Set up sccache
-        uses: mozilla-actions/sccache-action@v0.0.11
-        with:
-          version: "v0.16.0"
-      - name: Enable sccache for Rust tests
+      - id: affected
+        name: Resolve affected build units
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
-          cat >> "$GITHUB_ENV" <<'EOF'
-          SCCACHE_GHA_ENABLED=true
-          SCCACHE_GHA_VERSION=rc-ci-v1
-          RUSTC_WRAPPER=sccache
-          EOF
-      - run: cargo test --workspace --all-targets
-      - name: Report sccache statistics
-        run: sccache --show-stats
-
-  web:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.0"
-      - run: bun install --frozen-lockfile
-      - run: bun run typecheck
-      - run: bun run test:web
-      - run: bun run build:client
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.4.0"
-      - run: bun install --frozen-lockfile
-      - name: Install RustSec auditor
-        run: |
-          archive="$RUNNER_TEMP/cargo-audit.tgz"
-          directory="$RUNNER_TEMP/cargo-audit"
-          curl -fsSL \
-            -o "$archive" \
-            https://github.com/RustSec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2.tgz
-          echo "ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39  $archive" | sha256sum -c -
-          mkdir -p "$directory"
-          tar -xzf "$archive" -C "$directory" --strip-components=1
-          echo "$directory" >> "$GITHUB_PATH"
-      - run: cargo-audit audit
-      - run: bun audit
+          if [ -z "$BASE_SHA" ]; then
+            python3 scripts/affected-units.py --all --github-output "$GITHUB_OUTPUT"
+          else
+            python3 scripts/affected-units.py --base "$BASE_SHA" --github-output "$GITHUB_OUTPUT"
+          fi
 
   static:
     runs-on: ubuntu-latest
@@ -134,15 +65,259 @@ jobs:
       - run: sh scripts/check-version.sh
       - run: sh scripts/check-source-size.sh
       - run: python3 scripts/check-component-boundaries.py
+      - run: python3 scripts/validate-components.py
+      - run: python3 scripts/validate-profiles.py
+      - run: python3 scripts/test-affected-units.py
       - run: python3 scripts/check-doc-links.py
-      - name: Validate shell entry points
+      - name: Validate shell entry points and workflows
         run: |
-          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/build-component.sh scripts/check-components.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh scripts/smoke-kernel.sh
-          shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/build-component.sh scripts/check-components.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh scripts/smoke-kernel.sh
+          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh \
+            scripts/build-component.sh scripts/check-component.sh scripts/check-components.sh \
+            scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh \
+            scripts/smoke-kernel.sh
+          shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
+            public/install.sh scripts/build-component.sh scripts/check-component.sh \
+            scripts/check-components.sh scripts/check-source-size.sh scripts/check-version.sh \
+            scripts/smoke-container.sh scripts/smoke-kernel.sh
           actionlint -shellcheck shellcheck .github/workflows/*.yml
       - run: git diff --check
 
+  kernel:
+    needs: changes
+    if: needs.changes.outputs.kernel == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt,clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - run: cargo fmt --manifest-path kernel/Cargo.toml --all -- --check
+      - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+
+  components:
+    needs: changes
+    if: needs.changes.outputs.components != '[]'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.component-matrix) }}
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+          components: rustfmt,clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: components/${{ matrix.name }} -> target
+          shared-key: rc-component-${{ matrix.name }}
+          add-job-id-key: false
+      - run: python3 scripts/validate-components.py
+      - run: scripts/check-component.sh "${{ matrix.name }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rc-component-${{ matrix.name }}
+          path: dist/components/${{ matrix.name }}.wasm
+          if-no-files-found: error
+          retention-days: 7
+
+  component-runtime:
+    needs: [changes, components]
+    if: always() && needs.changes.outputs.kernel == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/fixture-provider -> target
+            components/fixture-consumer -> target
+            components/fixture-broken -> target
+            components/fixture-collision -> target
+            components/fixture-trap -> target
+            components/fixture-limit -> target
+          shared-key: rc-component-runtime
+          add-job-id-key: false
+      - uses: actions/download-artifact@v7
+        if: needs.changes.outputs.components != '[]'
+        with:
+          pattern: rc-component-*
+          path: dist/components
+          merge-multiple: true
+      - name: Exercise live component reconciliation
+        env:
+          COMPONENTS: ${{ needs.changes.outputs.components }}
+        run: |
+          if [ "$COMPONENTS" = '[]' ]; then
+            scripts/smoke-kernel.sh
+          else
+            RC_SKIP_COMPONENT_BUILD=1 scripts/smoke-kernel.sh
+          fi
+
+  profiles:
+    needs: changes
+    if: needs.changes.outputs.profiles != '[]'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.profile-matrix) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 scripts/validate-components.py
+      - run: python3 scripts/validate-profiles.py
+      - run: python3 scripts/assemble-profile.py "${{ matrix.name }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rc-profile-${{ matrix.name }}
+          path: dist/profiles/${{ matrix.name }}.json
+          if-no-files-found: error
+          retention-days: 7
+
+  legacy-rust-lint:
+    needs: changes
+    if: needs.changes.outputs.legacy-rust == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt,clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: legacy-validation
+          add-job-id-key: false
+          cache-bin: false
+          save-if: false
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  legacy-rust-test:
+    needs: changes
+    if: needs.changes.outputs.legacy-rust == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: legacy-validation
+          add-job-id-key: false
+          cache-bin: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: mozilla-actions/sccache-action@v0.0.11
+        with:
+          version: "v0.16.0"
+      - name: Enable sccache
+        run: |
+          cat >> "$GITHUB_ENV" <<'EOF'
+          SCCACHE_GHA_ENABLED=true
+          SCCACHE_GHA_VERSION=rc-ci-v1
+          RUSTC_WRAPPER=sccache
+          EOF
+      - run: cargo test --workspace --all-targets --locked
+      - run: sccache --show-stats
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test:web
+      - run: bun run build:client
+
+  dependency-security:
+    needs: changes
+    if: needs.changes.outputs.legacy-security == 'true' || needs.changes.outputs.kernel == 'true' || needs.changes.outputs.components != '[]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        if: needs.changes.outputs.legacy-security == 'true'
+        with:
+          bun-version: "1.4.0"
+      - run: bun install --frozen-lockfile
+        if: needs.changes.outputs.legacy-security == 'true'
+      - name: Install RustSec auditor
+        run: |
+          archive="$RUNNER_TEMP/cargo-audit.tgz"
+          directory="$RUNNER_TEMP/cargo-audit"
+          curl -fsSL \
+            -o "$archive" \
+            https://github.com/RustSec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2.tgz
+          echo "ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39  $archive" | sha256sum -c -
+          mkdir -p "$directory"
+          tar -xzf "$archive" -C "$directory" --strip-components=1
+          echo "$directory" >> "$GITHUB_PATH"
+      - run: cargo-audit audit
+        if: needs.changes.outputs.legacy-security == 'true'
+      - run: bun audit
+        if: needs.changes.outputs.legacy-security == 'true'
+      - run: cargo-audit audit --file kernel/Cargo.lock
+        if: needs.changes.outputs.kernel == 'true'
+      - name: Audit affected component locks
+        if: needs.changes.outputs.components != '[]'
+        env:
+          COMPONENTS: ${{ needs.changes.outputs.components }}
+        run: |
+          printf '%s' "$COMPONENTS" | jq -r '.[]' | while read -r name; do
+            cargo-audit audit --file "components/$name/Cargo.lock"
+          done
+
   image:
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -172,5 +347,4 @@ jobs:
             test "$(id -g rc)" = 10001 &&
             rc-server --version
           '
-      - name: Boot and exercise runtime image
-        run: sh scripts/smoke-container.sh rc-ci
+      - run: sh scripts/smoke-container.sh rc-ci
