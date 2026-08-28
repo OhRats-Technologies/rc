@@ -98,7 +98,7 @@ fn form_requires_same_origin(method: &http::Method, path: &str) -> bool {
     ) {
         return false;
     }
-    path.starts_with("/account/")
+    (path.starts_with("/account/") && path != "/account/logout")
         || path == "/workspaces"
         || path.starts_with("/workspaces/")
         || (path.starts_with("/devices/") && path.ends_with("/rename"))

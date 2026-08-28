@@ -29,6 +29,12 @@ All notable RC changes are recorded here. Published tags are immutable.
 
 - The production browser/CLI control path remains direct/TURN WebRTC. RC 0.18 ships the reviewed authority, topology, and lifecycle substrate but does not yet enable peer listeners, automatic discovery, root tunnelling, offline enrollment forwarding, or artifact caching.
 
+## [0.17.2] - 2026-08-28
+
+### Fixed
+
+- Versioned every RC-owned JavaScript and stylesheet URL with the application release so an already-open browser cannot reuse a still-fresh entry bundle from the previous deployment after navigation.
+
 ## [0.17.1] - 2026-08-28
 
 ### Fixed
