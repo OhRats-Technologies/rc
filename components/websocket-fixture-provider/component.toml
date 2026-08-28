@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:websocket-fixture-provider"
+version = "0.1.0"
+world = "ohrats:rc-plugin/websocket-provider@0.1.0"
+wit = ["net", "plugin", "websocket"]
+
+[build]
+kind = "rust"
+package = "rc-websocket-fixture-provider"
+artifact = "websocket-fixture-provider"
