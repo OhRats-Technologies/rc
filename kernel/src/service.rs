@@ -60,6 +60,24 @@ struct Provider {
     handle: InstanceHandle,
 }
 
+#[derive(Clone)]
+pub(crate) struct PinnedProvider(Provider);
+
+impl PinnedProvider {
+    pub(crate) fn component_id(&self) -> &str {
+        &self.0.component_id
+    }
+
+    pub(crate) fn call(
+        &self,
+        service: &str,
+        function: &str,
+        params: &[Val],
+    ) -> wasmtime::Result<Vec<Val>> {
+        call::provider_owned(&self.0, service, function, params)
+    }
+}
+
 impl ServiceRegistryHost for HostState {
     fn providers(
         &mut self,
@@ -169,6 +187,18 @@ impl ServiceRegistry {
                 let result = call::provider_owned(&provider, service, function, params);
                 (provider.component_id, result)
             })
+            .collect())
+    }
+
+    pub(crate) fn pinned(
+        &self,
+        service: &str,
+        requirement: &VersionReq,
+    ) -> wasmtime::Result<Vec<PinnedProvider>> {
+        Ok(self
+            .matching(service, requirement)?
+            .into_iter()
+            .map(PinnedProvider)
             .collect())
     }
 

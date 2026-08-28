@@ -1,0 +1,11 @@
+package ohrats:rc-plugin@0.1.0;
+
+world http-stream-provider {
+    include plugin;
+    export ohrats:rc-http/stream-handler@0.1.0;
+}
+
+world http-stream-finite {
+    include plugin;
+    export ohrats:rc-http/handler@0.1.0;
+}

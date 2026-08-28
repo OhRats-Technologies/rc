@@ -9,14 +9,27 @@ use semver::VersionReq;
 use std::{net::SocketAddr, thread};
 use wasmtime::component::Val;
 
+mod limit;
+mod stream;
+
+use limit::StreamLimiter;
+
 const HANDLER_SERVICE: &str = "ohrats:rc-http/handler";
+const STREAM_SERVICE: &str = "ohrats:rc-http/stream-handler";
 const MAX_BODY: usize = 2 * 1024 * 1024;
 const MAX_HEADERS: usize = 128;
 const MAX_HEADER_BYTES: usize = 8 * 1024;
 
+#[derive(Clone)]
+struct ServerState {
+    registry: ServiceRegistry,
+    stream_limiter: StreamLimiter,
+}
+
 pub fn run(mut runtime: Runtime, listen: Option<SocketAddr>) -> anyhow::Result<()> {
     let listen = listen.unwrap_or_else(default_listen);
     let registry = runtime.service_registry();
+    let stream_limiter = StreamLimiter::configured()?;
     let tokio = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
@@ -29,7 +42,10 @@ pub fn run(mut runtime: Runtime, listen: Option<SocketAddr>) -> anyhow::Result<(
     });
     println!("RC kernel HTTP listening on {actual_listen}");
     tokio.block_on(async move {
-        let app = Router::new().fallback(dispatch).with_state(registry);
+        let app = Router::new().fallback(dispatch).with_state(ServerState {
+            registry,
+            stream_limiter,
+        });
         axum::serve(
             listener,
             app.into_make_service_with_connect_info::<SocketAddr>(),
@@ -43,14 +59,14 @@ pub fn run(mut runtime: Runtime, listen: Option<SocketAddr>) -> anyhow::Result<(
 }
 
 async fn dispatch(
-    State(registry): State<ServiceRegistry>,
+    State(state): State<ServerState>,
     ConnectInfo(remote): ConnectInfo<SocketAddr>,
     request: Request<Body>,
 ) -> Response<Body> {
     if request.uri().path() == "/healthz" {
         return plain(StatusCode::OK, "ok");
     }
-    match component_request(registry, remote, request).await {
+    match component_request(state, remote, request).await {
         Ok(Some(response)) => response,
         Ok(None) => plain(StatusCode::NOT_FOUND, "not found"),
         Err(error) => {
@@ -61,7 +77,7 @@ async fn dispatch(
 }
 
 async fn component_request(
-    registry: ServiceRegistry,
+    state: ServerState,
     remote: SocketAddr,
     request: Request<Body>,
 ) -> anyhow::Result<Option<Response<Body>>> {
@@ -69,8 +85,19 @@ async fn component_request(
     let body = to_bytes(body, MAX_BODY).await?;
     let value = request_value(&parts, remote, &body)?;
     let requirement = VersionReq::parse("^0.1")?;
-    let calls = registry.call_all(HANDLER_SERVICE, &requirement, "handle", &[value])?;
-    let mut first_error = None;
+    let stream_result = stream::open(
+        state.registry.pinned(STREAM_SERVICE, &requirement)?,
+        &value,
+        &state.stream_limiter,
+    );
+    let mut first_error = match stream_result {
+        Ok(Some(response)) => return Ok(Some(response)),
+        Ok(None) => None,
+        Err(error) => Some(error),
+    };
+    let calls = state
+        .registry
+        .call_all(HANDLER_SERVICE, &requirement, "handle", &[value])?;
     for (provider, result) in calls {
         match result.and_then(parse_handler_result) {
             Ok(Some(response)) => return Ok(Some(response)),

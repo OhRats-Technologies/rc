@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:http-stream-fixture"
+version = "0.1.0"
+world = "ohrats:rc-plugin/http-stream-provider@0.1.0"
+wit = ["plugin"]
+
+[build]
+kind = "rust"
+package = "rc-http-stream-fixture"
+artifact = "http-stream-fixture"
