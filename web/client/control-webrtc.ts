@@ -23,14 +23,21 @@ function candidateSummary(sdp = ""): CandidateSummary {
   return result;
 }
 
-function waitForGathering(peer: RTCPeerConnection) {
-  if (peer.iceGatheringState === "complete") return Promise.resolve();
-  return new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(() => { cleanup(); reject(new Error("browser ICE gathering timed out")); }, 5000);
-    const change = () => { if (peer.iceGatheringState === "complete") { cleanup(); resolve(); } };
+type IceGatheringPeer = Pick<RTCPeerConnection, "iceGatheringState" | "addEventListener" | "removeEventListener">;
+
+export function waitForGathering(peer: IceGatheringPeer, maxWaitMs = 15_000) {
+  if (peer.iceGatheringState === "complete") return Promise.resolve("complete" as const);
+  return new Promise<"complete" | "partial">(resolve => {
+    const finish = (result: "complete" | "partial") => { cleanup(); resolve(result); };
+    const timer = globalThis.setTimeout(() => finish("partial"), maxWaitMs);
+    const change = () => { if (peer.iceGatheringState === "complete") finish("complete"); };
     const cleanup = () => { clearTimeout(timer); peer.removeEventListener("icegatheringstatechange", change); };
     peer.addEventListener("icegatheringstatechange", change);
   });
+}
+
+function candidateCount(value: CandidateSummary) {
+  return value.host + value.srflx + value.relay;
 }
 
 function waitForOpen(peer: RTCPeerConnection, channel: RTCDataChannel) {
@@ -98,6 +105,7 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer);
     const sdp = peer.localDescription?.sdp; if (!sdp) throw new Error("WebRTC offer unavailable");
     localCandidates = candidateSummary(sdp);
+    if (candidateCount(localCandidates) === 0) throw new Error("browser ICE gathering produced no usable candidates");
     const answer = await controlWebRTC(sessionId, deviceId, sdp);
     remoteCandidates = candidateSummary(answer.sdp);
     await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp }); await waitForOpen(peer, channel);

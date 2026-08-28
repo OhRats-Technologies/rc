@@ -114,7 +114,13 @@ fn same_origin(state: &AppState, headers: &HeaderMap) -> bool {
         .or_else(|| headers.get(header::REFERER))
         .and_then(|value| value.to_str().ok())
         .and_then(|value| url::Url::parse(value).ok());
-    supplied.is_some_and(|value| value.origin() == expected)
+    if let Some(value) = supplied {
+        return value.origin() == expected;
+    }
+    headers
+        .get("sec-fetch-site")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.eq_ignore_ascii_case("same-origin"))
 }
 
 fn rate_policy(path: &str) -> Option<(&'static str, u32, u64)> {

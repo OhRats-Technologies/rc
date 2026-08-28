@@ -58,11 +58,14 @@ pub(super) async fn home(
         .filter(|value| safe_next(value))
         .map(String::as_str)
         .unwrap_or("/devices");
-    Html(crate::page_html::auth(crate::page_html::AuthPage::Login {
-        next,
-        signup: public_signup_configured(&state, users),
-    }))
-    .into_response()
+    if next != "/devices" {
+        return Html(crate::page_html::auth(crate::page_html::AuthPage::Login {
+            next,
+            signup: public_signup_configured(&state, users),
+        }))
+        .into_response();
+    }
+    Html(crate::page_html::landing()).into_response()
 }
 
 pub(super) async fn login(

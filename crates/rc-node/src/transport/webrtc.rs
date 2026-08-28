@@ -32,11 +32,15 @@ pub async fn complete_local_description(
 ) -> anyhow::Result<String> {
     let mut complete = peer.gathering_complete_promise().await;
     peer.set_local_description(description).await?;
-    tokio::time::timeout(std::time::Duration::from_secs(8), complete.recv())
-        .await
-        .map_err(|_| anyhow::anyhow!("ICE gathering timed out"))?;
-    peer.local_description()
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(15), complete.recv()).await;
+    let sdp = peer
+        .local_description()
         .await
         .map(|value| value.sdp)
-        .ok_or_else(|| anyhow::anyhow!("missing local SDP"))
+        .ok_or_else(|| anyhow::anyhow!("missing local SDP"))?;
+    anyhow::ensure!(
+        sdp.contains("a=candidate:"),
+        "ICE gathering produced no candidates"
+    );
+    Ok(sdp)
 }

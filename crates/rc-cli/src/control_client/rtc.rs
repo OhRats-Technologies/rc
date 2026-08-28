@@ -80,14 +80,15 @@ pub(super) async fn open_webrtc(
     let offer = peer.create_offer(None).await?;
     let mut gather = peer.gathering_complete_promise().await;
     peer.set_local_description(offer).await?;
-    tokio::time::timeout(std::time::Duration::from_secs(8), gather.recv())
-        .await
-        .context("WebRTC ICE gathering timed out")?;
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(15), gather.recv()).await;
     let sdp = peer
         .local_description()
         .await
         .ok_or_else(|| anyhow::anyhow!("WebRTC offer unavailable"))?
         .sdp;
+    if !sdp.contains("a=candidate:") {
+        bail!("WebRTC ICE gathering produced no candidates");
+    }
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Offer<'a> {
