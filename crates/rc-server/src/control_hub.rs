@@ -28,6 +28,15 @@ enum PendingKind {
     WebRtc,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ControlIceMode {
+    Host,
+    #[default]
+    Stun,
+    Relay,
+}
+
 struct Pending {
     kind: PendingKind,
     device_id: String,

@@ -1,4 +1,6 @@
-use crate::{AppState, AuthPrincipal, ControlSignalError, authenticate, control_proof};
+use crate::{
+    AppState, AuthPrincipal, ControlIceMode, ControlSignalError, authenticate, control_proof,
+};
 use axum::{
     Json, Router,
     body::Bytes,
@@ -126,7 +128,7 @@ struct WebRtcRequest {
     device_id: String,
     sdp: String,
     #[serde(default)]
-    relay: bool,
+    mode: ControlIceMode,
 }
 
 #[derive(Serialize)]
@@ -157,7 +159,7 @@ async fn webrtc(
             &session_id,
             &input.device_id,
             &input.sdp,
-            input.relay,
+            input.mode,
         )
         .await
         .map_err(signal_error)?;

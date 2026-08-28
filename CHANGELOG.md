@@ -2,6 +2,20 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.18.3] - 2026-08-28
+
+### Fixed
+
+- Split browser control ICE into three deterministic stages: host-only LAN WebRTC, STUN-assisted direct WebRTC, then TURN relay only if both direct stages fail.
+- Kept the Node ICE agent flexible during TURN fallback. The browser alone is relay-only on the fallback attempt, restoring the working Cloudflare TURN path while still guaranteeing that the selected browser route traverses TURN.
+- Reduced the first direct ICE checklist to local host candidates only. This avoids burying the viable LAN pair under the Mac Node's many physical, bridge, tunnel, IPv4, IPv6, and server-reflexive candidates.
+- Reduced ICE-gathering waits for the staged attempts so a blocked STUN server does not delay the LAN path or TURN fallback unnecessarily.
+
+### Validation
+
+- Reproduced the failure in the real authenticated Chrome terminal using a persistent CDP connection, then proved the same Chrome mDNS host candidate connects directly to a local `webrtc-rs` peer over UDP.
+- Added browser tests for host-only, STUN-only, and TURN-relay configurations and exercised the full virtual-passkey browser topology over a direct non-TURN candidate pair.
+
 ## [0.18.2] - 2026-08-28
 
 ### Fixed

@@ -18,7 +18,20 @@ test("ICE gathering deadline keeps the partially gathered offer usable", async (
   expect(await waitForGathering(peer as unknown as RTCPeerConnection, 1)).toBe("partial");
 });
 
-test("the first WebRTC attempt excludes TURN so a working direct route wins", () => {
+test("the first WebRTC attempt is host-only for a small LAN checklist", () => {
+  const servers: RTCIceServer[] = [{
+    urls: ["stun:stun.cloudflare.com:3478", "turn:turn.cloudflare.com:3478?transport=udp"],
+    username: "temporary-user",
+    credential: "temporary-secret",
+  }];
+  expect(peerConfiguration(servers, 0)).toEqual({
+    iceServers: [],
+    iceCandidatePoolSize: 1,
+    iceTransportPolicy: "all",
+  });
+});
+
+test("the second WebRTC attempt uses STUN but still excludes TURN", () => {
   const servers: RTCIceServer[] = [{
     urls: ["stun:stun.cloudflare.com:3478", "turn:turn.cloudflare.com:3478?transport=udp"],
     username: "temporary-user",
@@ -30,24 +43,24 @@ test("the first WebRTC attempt excludes TURN so a working direct route wins", ()
     credential: "temporary-secret",
   }];
   expect(directIceServers(servers)).toEqual(direct);
-  expect(peerConfiguration(servers, 0)).toEqual({
+  expect(peerConfiguration(servers, 1)).toEqual({
     iceServers: direct,
     iceCandidatePoolSize: 1,
     iceTransportPolicy: "all",
   });
 });
 
-test("the retry becomes relay-only when TURN is available", () => {
+test("the final WebRTC attempt becomes browser-relay-only when TURN is available", () => {
   const servers: RTCIceServer[] = [{
     urls: ["stun:stun.cloudflare.com:3478", "turn:turn.cloudflare.com:3478?transport=udp"],
     username: "temporary-user",
     credential: "temporary-secret",
   }];
   expect(hasTurnServer(servers)).toBe(true);
-  expect(peerConfiguration(servers, 1).iceTransportPolicy).toBe("relay");
+  expect(peerConfiguration(servers, 2).iceTransportPolicy).toBe("relay");
 });
 
-test("the retry still permits host candidates when no TURN server exists", () => {
+test("the STUN attempt still permits host candidates when no TURN server exists", () => {
   const servers: RTCIceServer[] = [{ urls: ["stun:stun.cloudflare.com:3478"] }];
   expect(hasTurnServer(servers)).toBe(false);
   expect(peerConfiguration(servers, 1).iceTransportPolicy).toBe("all");

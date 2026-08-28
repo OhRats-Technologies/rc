@@ -29,9 +29,9 @@ export function directIceServers(iceServers: RTCIceServer[]) {
 
 export function peerConfiguration(iceServers: RTCIceServer[], attempt = 0): RTCConfiguration {
   return {
-    iceServers: attempt === 0 ? directIceServers(iceServers) : iceServers,
+    iceServers: attempt === 0 ? [] : attempt === 1 ? directIceServers(iceServers) : iceServers,
     iceCandidatePoolSize: 1,
-    iceTransportPolicy: attempt > 0 && hasTurnServer(iceServers) ? "relay" : "all",
+    iceTransportPolicy: attempt > 1 && hasTurnServer(iceServers) ? "relay" : "all",
   };
 }
 
@@ -130,11 +130,12 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     }
   });
   try {
-    await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer);
+    await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer, attempt === 0 ? 2_000 : 8_000);
     const sdp = peer.localDescription?.sdp; if (!sdp) throw new Error("WebRTC offer unavailable");
     localCandidates = candidateSummary(sdp);
     if (candidateCount(localCandidates) === 0) throw new Error("browser ICE gathering produced no usable candidates");
-    const answer = await controlWebRTC(sessionId, deviceId, sdp, attempt > 0);
+    const mode = attempt === 0 ? "host" : attempt === 1 ? "stun" : "relay";
+    const answer = await controlWebRTC(sessionId, deviceId, sdp, mode);
     remoteCandidates = candidateSummary(answer.sdp);
     await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp }); await waitForOpen(peer, channel);
     established = true;
@@ -146,11 +147,16 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     closing = true;
     const reason = error instanceof Error ? error.message : "WebRTC negotiation failed";
     peer.close();
-    if (attempt === 0 && /webrtc|ice|datachannel|timed out|failed/i.test(reason)) {
-      const mode = hasTurnServer(iceServers) ? " with TURN relay" : "";
+    if (attempt < 2 && /webrtc|ice|datachannel|timed out|failed/i.test(reason)) {
+      const hasStun = directIceServers(iceServers).length > 0;
+      const next = attempt === 0 && hasStun ? 1 : hasTurnServer(iceServers) ? 2 : -1;
+      if (next < 0) {
+        fail(reason); closeControlSession(sessionId); throw new Error(`WebRTC control unavailable: ${reason}`);
+      }
+      const mode = next === 1 ? " with STUN" : " with TURN relay";
       onStatus({ transport: "webrtc", phase: "connecting", reason: `Retrying${mode} after: ${reason}` });
       await new Promise(resolve => window.setTimeout(resolve, 1200));
-      return openWebRTCControlTransport(deviceId, sessionId, iceServers, onStatus, 1, reason);
+      return openWebRTCControlTransport(deviceId, sessionId, iceServers, onStatus, next, reason);
     }
     fail(reason); closeControlSession(sessionId); throw new Error(`WebRTC control unavailable: ${reason}`);
   }

@@ -3,27 +3,11 @@ use std::sync::Arc;
 use webrtc::{
     api::APIBuilder,
     ice_transport::ice_server::RTCIceServer,
-    peer_connection::{
-        RTCPeerConnection, configuration::RTCConfiguration,
-        policy::ice_transport_policy::RTCIceTransportPolicy,
-    },
+    peer_connection::{RTCPeerConnection, configuration::RTCConfiguration},
 };
 
-pub async fn peer_connection(
-    servers: &[IceServer],
-    relay_only: bool,
-) -> anyhow::Result<Arc<RTCPeerConnection>> {
-    let configuration = peer_configuration(servers, relay_only);
-    Ok(Arc::new(
-        APIBuilder::new()
-            .build()
-            .new_peer_connection(configuration)
-            .await?,
-    ))
-}
-
-fn peer_configuration(servers: &[IceServer], relay_only: bool) -> RTCConfiguration {
-    RTCConfiguration {
+pub async fn peer_connection(servers: &[IceServer]) -> anyhow::Result<Arc<RTCPeerConnection>> {
+    let configuration = RTCConfiguration {
         ice_servers: servers
             .iter()
             .map(|server| RTCIceServer {
@@ -32,13 +16,14 @@ fn peer_configuration(servers: &[IceServer], relay_only: bool) -> RTCConfigurati
                 credential: server.credential.clone(),
             })
             .collect(),
-        ice_transport_policy: if relay_only {
-            RTCIceTransportPolicy::Relay
-        } else {
-            RTCIceTransportPolicy::All
-        },
         ..Default::default()
-    }
+    };
+    Ok(Arc::new(
+        APIBuilder::new()
+            .build()
+            .new_peer_connection(configuration)
+            .await?,
+    ))
 }
 
 pub async fn complete_local_description(
@@ -58,28 +43,4 @@ pub async fn complete_local_description(
         "ICE gathering produced no candidates"
     );
     Ok(sdp)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::peer_configuration;
-    use rc_protocol::IceServer;
-    use webrtc::peer_connection::policy::ice_transport_policy::RTCIceTransportPolicy;
-
-    #[test]
-    fn relay_attempt_restricts_the_node_ice_agent() {
-        let servers = vec![IceServer {
-            urls: vec!["turn:turn.example.test:3478?transport=udp".into()],
-            username: "user".into(),
-            credential: "secret".into(),
-        }];
-        assert_eq!(
-            peer_configuration(&servers, false).ice_transport_policy,
-            RTCIceTransportPolicy::All
-        );
-        assert_eq!(
-            peer_configuration(&servers, true).ice_transport_policy,
-            RTCIceTransportPolicy::Relay
-        );
-    }
 }

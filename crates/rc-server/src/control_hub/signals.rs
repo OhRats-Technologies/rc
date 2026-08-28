@@ -1,5 +1,6 @@
 use super::{
-    ControlHub, ControlReady, ControlReply, ControlSession, ControlSignalError, PendingKind,
+    ControlHub, ControlIceMode, ControlReady, ControlReply, ControlSession, ControlSignalError,
+    PendingKind,
 };
 use rc_protocol::{ControlProof, ServerToNode};
 use uuid::Uuid;
@@ -89,7 +90,7 @@ impl ControlHub {
         session_id: &str,
         device_id: &str,
         sdp: &str,
-        relay_only: bool,
+        mode: ControlIceMode,
     ) -> Result<String, ControlSignalError> {
         let session = self
             .inner
@@ -103,10 +104,10 @@ impl ControlHub {
         {
             return Err(ControlSignalError::Unavailable);
         }
-        let ice_servers = if relay_only {
-            session.ice_servers.clone()
-        } else {
-            direct_ice_servers(&session.ice_servers)
+        let ice_servers = match mode {
+            ControlIceMode::Host => Vec::new(),
+            ControlIceMode::Stun => direct_ice_servers(&session.ice_servers),
+            ControlIceMode::Relay => session.ice_servers.clone(),
         };
         let request_id = Uuid::new_v4().to_string();
         let reply = self
@@ -124,7 +125,6 @@ impl ControlHub {
                     session_id: session_id.to_owned(),
                     sdp: sdp.to_owned(),
                     ice_servers,
-                    relay_only,
                 },
             )
             .await?;
