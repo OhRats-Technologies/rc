@@ -6,6 +6,14 @@ on:
     paths:
       - kernel/**
       - wit/**
+      - Cargo.toml
+      - Cargo.lock
+      - crates/rc-api-client/**
+      - crates/rc-context/**
+      - crates/rc-crypto/**
+      - crates/rc-mesh/**
+      - crates/rc-node/**
+      - crates/rc-protocol/**
       - .github/workflows/kernel-release.yml
 
 permissions:

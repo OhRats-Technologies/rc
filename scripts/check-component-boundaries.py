@@ -9,6 +9,10 @@ import tomllib
 
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+KERNEL_HOST_ADAPTERS = {
+    (ROOT / "crates" / "rc-node").resolve(),
+    (ROOT / "crates" / "rc-protocol").resolve(),
+}
 
 
 def load(path: pathlib.Path) -> dict:
@@ -44,7 +48,11 @@ def main() -> int:
         if manifest != kernel and not (manifest.parent / "component.toml").is_file():
             errors.append(f"{relative}: missing component.toml")
         for dependency in local_paths(manifest, data):
-            if manifest == kernel and ROOT / "crates" in dependency.parents:
+            if (
+                manifest == kernel
+                and ROOT / "crates" in dependency.parents
+                and dependency not in KERNEL_HOST_ADAPTERS
+            ):
                 errors.append(f"{relative}: kernel depends on legacy crate {dependency}")
             if manifest != kernel and dependency == (ROOT / "kernel").resolve():
                 errors.append(f"{relative}: component depends on native kernel")

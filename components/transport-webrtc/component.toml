@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:transport-webrtc"
+version = "0.1.0"
+world = "ohrats:rc-plugin/transport-webrtc@0.1.0"
+wit = ["plugin", "transport"]
+
+[build]
+kind = "rust"
+package = "rc-transport-webrtc"
+artifact = "transport-webrtc"

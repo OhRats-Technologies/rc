@@ -172,6 +172,47 @@ impl ServiceRegistry {
             .collect())
     }
 
+    pub fn call_one(
+        &self,
+        service: &str,
+        requirement: &VersionReq,
+        selection: SelectionMode,
+        function: &str,
+        params: &[Val],
+    ) -> wasmtime::Result<Vec<Val>> {
+        let key = match selection {
+            SelectionMode::Single => None,
+            SelectionMode::Keyed => Some(match params.first() {
+                Some(Val::String(value)) => value.as_str(),
+                _ => {
+                    return Err(wasmtime::format_err!(
+                        "keyed service {service} requires a string key as its first argument"
+                    ));
+                }
+            }),
+        };
+        let provider = self
+            .matching(service, requirement)?
+            .into_iter()
+            .find(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key)))
+            .ok_or_else(|| {
+                wasmtime::format_err!("service {service} {requirement} is unavailable")
+            })?;
+        call::provider_owned(&provider, service, function, params)
+    }
+
+    pub fn has_provider(
+        &self,
+        service: &str,
+        requirement: &VersionReq,
+        key: Option<&str>,
+    ) -> wasmtime::Result<bool> {
+        Ok(self
+            .matching(service, requirement)?
+            .into_iter()
+            .any(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key))))
+    }
+
     fn matching(&self, service: &str, requirement: &VersionReq) -> wasmtime::Result<Vec<Provider>> {
         Ok(self
             .providers

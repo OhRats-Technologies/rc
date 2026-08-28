@@ -2,7 +2,9 @@ use super::fixture::recv_hosted;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_crypto::encrypt_frame;
 use rc_node::ControlManager;
-use rc_protocol::{ControlMessage, ControlTransportMessage, NodeToServer, ServerToNode};
+use rc_protocol::{
+    ControlIceMode, ControlMessage, ControlTransportMessage, NodeToServer, ServerToNode,
+};
 use std::{sync::Arc, time::Duration};
 use tokio::sync::{mpsc, oneshot};
 use webrtc::{
@@ -68,6 +70,7 @@ pub(super) async fn connect_peer(
                 request_id: "webrtc".into(),
                 session_id: session_id.to_owned(),
                 sdp: offer_sdp,
+                mode: ControlIceMode::Host,
                 ice_servers: Vec::new(),
             },
         )

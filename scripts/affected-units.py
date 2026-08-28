@@ -12,7 +12,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALL_ZERO = "0" * 40
-KERNEL_WIT = {"http", "plugin", "storage"}
+KERNEL_WIT = {"http", "plugin", "process", "storage", "transport"}
 
 
 def component_metadata() -> dict[str, set[str]]:
@@ -158,6 +158,11 @@ RUNTIME_TOOLING = {
         "fixture-consumer",
         "fixture-provider",
         "fixture-provider-v2",
+    },
+    "scripts/smoke-node-components.sh": {
+        "process-policy",
+        "transport-test",
+        "transport-webrtc",
     },
     "scripts/smoke-identity.sh": {"identity-fixture", "identity-store"},
     "scripts/smoke-packages.sh": {

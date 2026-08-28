@@ -63,6 +63,19 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["identity-store", "storage-fixture"])
 
+    def test_process_wit_change_rebuilds_kernel_and_policy(self) -> None:
+        value = self.resolve("wit/deps/process/process.wit")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["process-policy"])
+
+    def test_transport_wit_change_rebuilds_kernel_and_providers(self) -> None:
+        value = self.resolve("wit/deps/transport/transport.wit")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["transport-test", "transport-webrtc"],
+        )
+
     def test_identity_wit_change_rebuilds_identity_units(self) -> None:
         value = self.resolve("wit/deps/identity/identity.wit")
         self.assertFalse(value["kernel"])

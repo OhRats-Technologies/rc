@@ -1,0 +1,84 @@
+package ohrats:rc-process@0.1.0;
+
+interface types {
+    enum channel {
+        control,
+        ssh,
+        mcp,
+    }
+
+    enum action {
+        attach,
+        input,
+        close-input,
+        resize,
+        signal,
+    }
+
+    record principal {
+        user-id: string,
+        role: string,
+        can-execute: bool,
+        can-manage-devices: bool,
+    }
+
+    record terminal {
+        cols: u16,
+        rows: u16,
+        term: string,
+    }
+
+    record start-request {
+        process-id: string,
+        command: string,
+        cwd: string,
+        terminal: option<terminal>,
+        channel: channel,
+        principal: principal,
+    }
+
+    record start-plan {
+        command: string,
+        cwd: string,
+        terminal: option<terminal>,
+    }
+
+    record access-request {
+        process-id: string,
+        owner-user-id: string,
+        action: action,
+        principal: principal,
+    }
+
+    record resize-request {
+        access: access-request,
+        cols: u16,
+        rows: u16,
+    }
+
+    record terminal-size {
+        cols: u16,
+        rows: u16,
+    }
+
+    record signal-request {
+        access: access-request,
+        signal: string,
+    }
+}
+
+interface policy {
+    use types.{
+        access-request,
+        resize-request,
+        signal-request,
+        start-plan,
+        start-request,
+        terminal-size,
+    };
+
+    authorize-start: func(request: start-request) -> result<start-plan, string>;
+    authorize-access: func(request: access-request) -> result<_, string>;
+    normalize-resize: func(request: resize-request) -> result<terminal-size, string>;
+    normalize-signal: func(request: signal-request) -> result<string, string>;
+}

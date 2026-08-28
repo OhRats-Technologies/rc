@@ -1,0 +1,35 @@
+package ohrats:rc-transport@0.1.0;
+
+interface types {
+    enum ice-mode {
+        host,
+        stun,
+        relay,
+    }
+
+    record ice-server {
+        urls: list<string>,
+        username: string,
+        credential: string,
+    }
+
+    record answer-request {
+        mode: ice-mode,
+        ice-servers: list<ice-server>,
+    }
+
+    record answer-plan {
+        ice-servers: list<ice-server>,
+        gather-timeout-ms: u32,
+        connect-timeout-ms: u32,
+    }
+}
+
+interface provider {
+    use types.{answer-plan, answer-request};
+
+    plan-answer: func(
+        transport: string,
+        request: answer-request,
+    ) -> result<answer-plan, string>;
+}

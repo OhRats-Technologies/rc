@@ -11,6 +11,15 @@ pub struct IceServer {
     pub credential: String,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ControlIceMode {
+    Host,
+    #[default]
+    Stun,
+    Relay,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeHello {
@@ -151,6 +160,8 @@ pub enum ServerToNode {
         request_id: String,
         session_id: String,
         sdp: String,
+        #[serde(default)]
+        mode: ControlIceMode,
         ice_servers: Vec<IceServer>,
     },
     ControlClose {

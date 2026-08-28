@@ -266,3 +266,18 @@ world identity-fixture {
     import ohrats:rc-session/lookup@0.1.0;
     import ohrats:rc-session/management@0.1.0;
 }
+
+world process-policy {
+    include plugin;
+    export ohrats:rc-process/policy@0.1.0;
+}
+
+world transport-webrtc {
+    include plugin;
+    export ohrats:rc-transport/provider@0.1.0;
+}
+
+world transport-test {
+    include plugin;
+    export ohrats:rc-transport/provider@0.1.0;
+}

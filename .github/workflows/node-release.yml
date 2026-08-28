@@ -127,7 +127,10 @@ jobs:
         run: |
           run_id=$(scripts/find-compatible-workflow-run.sh \
             kernel-release.yml "$GITHUB_SHA" \
-            kernel wit .github/workflows/kernel-release.yml)
+            kernel wit Cargo.toml Cargo.lock \
+            crates/rc-api-client crates/rc-context crates/rc-crypto crates/rc-mesh \
+            crates/rc-node crates/rc-protocol \
+            .github/workflows/kernel-release.yml)
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
             --pattern 'rc-kernel-*' --dir dist/kernel
           find dist/kernel -mindepth 2 -maxdepth 2 -name 'rc-kernel-*.tar.gz' \
@@ -144,6 +147,7 @@ jobs:
             components/package-manager components/local-source components/http-source \
             components/oci-source components/github-source components/diagnostics-store \
             components/diagnostics-reporter components/diagnostics-cli \
+            components/process-policy components/transport-webrtc \
             scripts/build-component.sh scripts/check-component.sh \
             .github/workflows/core-components.yml)
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
@@ -161,7 +165,7 @@ jobs:
             test -s "dist/$name.tar.gz"
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc-kernel"
           done
-          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 8
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 10
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

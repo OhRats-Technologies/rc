@@ -1,5 +1,8 @@
 use super::{CONTROL_CIPHERTEXT_LIMIT, ControlManager};
-use crate::transport::webrtc::{complete_local_description, peer_connection};
+use crate::{
+    TransportAnswerRequest,
+    transport::webrtc::{complete_local_description_with_timeout, peer_connection},
+};
 use ::webrtc::{
     data_channel::{
         RTCDataChannel, data_channel_message::DataChannelMessage,
@@ -11,8 +14,8 @@ use ::webrtc::{
     },
 };
 use rc_api_client::random_url_bytes;
-use rc_protocol::{ControlTransportMessage, NodeToServer};
-use std::{sync::Arc, time::Duration};
+use rc_protocol::{ControlIceMode, ControlTransportMessage, NodeToServer};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 
 impl ControlManager {
@@ -21,9 +24,10 @@ impl ControlManager {
         request_id: String,
         session_id: String,
         sdp: String,
+        mode: ControlIceMode,
         ice_servers: Vec<rc_protocol::IceServer>,
     ) {
-        if sdp.is_empty() || sdp.len() > 131_072 || ice_servers.len() > 8 {
+        if sdp.is_empty() || sdp.len() > 131_072 {
             self.control_error(request_id, "invalid WebRTC offer");
             return;
         }
@@ -31,7 +35,18 @@ impl ControlManager {
             self.control_error(request_id, "control session unavailable");
             return;
         }
-        let peer = match peer_connection(&ice_servers).await {
+        let plan = match self
+            .0
+            .transport_policy
+            .answer_plan("webrtc", TransportAnswerRequest { mode, ice_servers })
+        {
+            Ok(value) => value,
+            Err(error) => {
+                self.control_error(request_id, error);
+                return;
+            }
+        };
+        let peer = match peer_connection(&plan.ice_servers).await {
             Ok(value) => value,
             Err(_) => {
                 self.control_error(request_id, "WebRTC unavailable");
@@ -69,22 +84,25 @@ impl ControlManager {
                 return;
             }
         };
-        let answer = match complete_local_description(&peer, answer).await {
-            Ok(value) => value,
-            Err(_) => {
-                self.fail_webrtc(&session_id, &transport_id, peer, &request_id)
-                    .await;
-                return;
-            }
-        };
+        let answer =
+            match complete_local_description_with_timeout(&peer, answer, plan.gather_timeout).await
+            {
+                Ok(value) => value,
+                Err(_) => {
+                    self.fail_webrtc(&session_id, &transport_id, peer, &request_id)
+                        .await;
+                    return;
+                }
+            };
         self.emit(NodeToServer::ControlWebrtcAnswer {
             request_id,
             session_id: session_id.clone(),
             sdp: answer,
         });
         let manager = self.clone();
+        let connect_timeout = plan.connect_timeout;
         tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(10)).await;
+            tokio::time::sleep(connect_timeout).await;
             if peer.connection_state() != RTCPeerConnectionState::Connected {
                 manager
                     .clear_transport(&session_id, &transport_id, true)

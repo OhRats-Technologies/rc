@@ -1,4 +1,4 @@
-use crate::{config, runtime::Runtime, server, watch};
+use crate::{config, node, runtime::Runtime, server, watch};
 use clap::{Parser, Subcommand};
 use std::{net::SocketAddr, path::PathBuf};
 
@@ -43,6 +43,19 @@ enum KernelCommand {
     Repair,
     /// Write a consistent online backup of kernel-owned durable state.
     Backup { destination: PathBuf },
+    /// Run an enrolled RC Node through component-provided policies.
+    Node {
+        #[arg(long)]
+        state_dir: Option<PathBuf>,
+        #[arg(long)]
+        server: Option<String>,
+        #[arg(long)]
+        runner: Option<PathBuf>,
+        #[arg(long)]
+        agent_version: Option<String>,
+    },
+    #[command(hide = true)]
+    PolicyCheck,
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -77,6 +90,21 @@ pub fn run() -> anyhow::Result<()> {
             println!("backup written to {}", destination.display());
             Ok(())
         }
+        Some(KernelCommand::Node {
+            state_dir,
+            server,
+            runner,
+            agent_version,
+        }) => node::run(
+            runtime,
+            node::Options {
+                state_dir,
+                server,
+                runner,
+                agent_version,
+            },
+        ),
+        Some(KernelCommand::PolicyCheck) => node::check(&runtime),
         None => dispatch_plugin(&mut runtime, arguments.plugin_args),
     }
 }
@@ -148,6 +176,7 @@ fn print_help(runtime: &Runtime) -> anyhow::Result<()> {
     println!("  commands           Show active component commands");
     println!("  repair             Diagnose failed components");
     println!("  backup PATH        Back up kernel durable state");
+    println!("  node               Run an enrolled Node with component policies");
     let commands = runtime.commands()?;
     if !commands.is_empty() {
         println!();

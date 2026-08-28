@@ -139,7 +139,7 @@ fn parse_component_commands(listing: &str) -> Vec<ComponentCommand> {
     commands
 }
 
-fn kernel_path() -> Option<PathBuf> {
+pub(crate) fn kernel_path() -> Option<PathBuf> {
     if let Some(value) = std::env::var_os("RC_KERNEL").filter(|value| !value.is_empty()) {
         return Some(PathBuf::from(value));
     }

@@ -1,4 +1,5 @@
 mod node;
+pub(crate) mod node_runtime;
 mod remote;
 mod ssh;
 mod terminal;
@@ -46,7 +47,7 @@ pub async fn run(command: Option<Command>) -> Result<()> {
                 if !command.is_empty() {
                     bail!("remote command requires a DEVICE");
                 }
-                node::run_node(url, state_dir).await
+                node_runtime::run(url, state_dir)
             }
         }
         Some(Command::Shell { device, url, token }) => remote::shell(device, url, token).await,

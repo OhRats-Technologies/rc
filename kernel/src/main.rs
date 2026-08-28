@@ -8,6 +8,7 @@ mod durable;
 mod graph;
 mod host;
 mod network;
+mod node;
 mod reconcile;
 mod runtime;
 mod server;

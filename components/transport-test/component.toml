@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:transport-test"
+version = "0.1.0"
+world = "ohrats:rc-plugin/transport-test@0.1.0"
+wit = ["plugin", "transport"]
+
+[build]
+kind = "rust"
+package = "rc-transport-test"
+artifact = "transport-test"

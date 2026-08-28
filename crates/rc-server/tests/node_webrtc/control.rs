@@ -93,10 +93,12 @@ pub(super) async fn exercise(
             request_id,
             session_id,
             sdp,
+            mode,
             ice_servers,
         }) => {
             assert_eq!(session_id, "control-session");
             assert_eq!(sdp, "client-offer");
+            assert_eq!(mode, rc_server::ControlIceMode::Stun);
             assert!(ice_servers.is_empty());
             request_id
         }

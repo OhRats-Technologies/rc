@@ -13,6 +13,8 @@ on:
       - components/diagnostics-store/**
       - components/diagnostics-reporter/**
       - components/diagnostics-cli/**
+      - components/process-policy/**
+      - components/transport-webrtc/**
       - scripts/build-component.sh
       - scripts/check-component.sh
       - .github/workflows/core-components.yml
@@ -48,13 +50,16 @@ jobs:
             components/diagnostics-store -> target
             components/diagnostics-reporter -> target
             components/diagnostics-cli -> target
+            components/process-policy -> target
+            components/transport-webrtc -> target
           shared-key: rc-core-components
           add-job-id-key: false
       - name: Build bootstrap components
         run: |
           for component in \
             package-manager local-source http-source oci-source github-source \
-            diagnostics-store diagnostics-reporter diagnostics-cli
+            diagnostics-store diagnostics-reporter diagnostics-cli \
+            process-policy transport-webrtc
           do
             scripts/check-component.sh "$component"
           done
@@ -63,12 +68,13 @@ jobs:
           mkdir -p dist/core/components
           for component in \
             package-manager local-source http-source oci-source github-source \
-            diagnostics-store diagnostics-reporter diagnostics-cli
+            diagnostics-store diagnostics-reporter diagnostics-cli \
+            process-policy transport-webrtc
           do
             cp "dist/components/$component.wasm" "dist/core/components/$component.wasm"
           done
           tar -C dist/core -czf dist/rc-core-components.tar.gz components
-          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 8
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 10
       - uses: actions/upload-artifact@v7
         with:
           name: rc-core-components

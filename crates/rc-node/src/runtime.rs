@@ -1,6 +1,6 @@
 use crate::{
-    ControlManager, NODE_CAPABILITIES, NodeState, ProcessEvent, ProcessManager, ServerTransport,
-    lock_metadata,
+    ControlManager, NODE_CAPABILITIES, NativeProcessPolicy, NativeTransportPolicy, NodeState,
+    ProcessEvent, ProcessManager, ProcessPolicy, ServerTransport, TransportPolicy, lock_metadata,
 };
 use rc_protocol::{NodeHello, NodeToServer};
 use std::{collections::VecDeque, io, path::PathBuf, sync::Arc};
@@ -17,10 +17,26 @@ pub struct NodeRuntime {
     services: rc_context::Context,
     mesh: rc_mesh::RouteBroker,
     _service_leases: Vec<rc_context::ServiceLease>,
+    process_policy: Arc<dyn ProcessPolicy>,
+    transport_policy: Arc<dyn TransportPolicy>,
 }
 
 impl NodeRuntime {
     pub fn new(runner: PathBuf, state_dir: PathBuf) -> Self {
+        Self::new_with_policies(
+            runner,
+            state_dir,
+            Arc::new(NativeProcessPolicy),
+            Arc::new(NativeTransportPolicy),
+        )
+    }
+
+    pub fn new_with_policies(
+        runner: PathBuf,
+        state_dir: PathBuf,
+        process_policy: Arc<dyn ProcessPolicy>,
+        transport_policy: Arc<dyn TransportPolicy>,
+    ) -> Self {
         let (tx, lifecycle) = mpsc::unbounded_channel();
         let event_tx = tx.clone();
         let manager = Arc::new(ProcessManager::new(runner, move |event| {
@@ -107,6 +123,8 @@ impl NodeRuntime {
             services,
             mesh,
             _service_leases: service_leases,
+            process_policy,
+            transport_policy,
         }
     }
 
@@ -134,12 +152,14 @@ impl NodeRuntime {
         version: &str,
     ) -> anyhow::Result<()> {
         let transport = ServerTransport::connect(server, state).await?;
-        let control = ControlManager::new(
+        let control = ControlManager::new_with_policies(
             state.clone(),
             self.state_dir.clone(),
             self.manager.clone(),
             self.outbound.clone(),
             version,
+            self.process_policy.clone(),
+            self.transport_policy.clone(),
         );
         let secure_control = control.clone();
         self.manager.set_secure_sink(move |session_id, event| {

@@ -5,6 +5,7 @@ mod signals;
 use crate::{NodeHub, TurnProvider};
 use dashmap::DashMap;
 use parking_lot::Mutex;
+pub use rc_protocol::ControlIceMode;
 use rc_protocol::IceServer;
 use std::sync::Arc;
 use tokio::sync::oneshot;
@@ -26,15 +27,6 @@ enum PendingKind {
     Challenge,
     Open,
     WebRtc,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ControlIceMode {
-    Host,
-    #[default]
-    Stun,
-    Relay,
 }
 
 struct Pending {

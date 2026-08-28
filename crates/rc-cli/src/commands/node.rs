@@ -2,70 +2,10 @@ use super::{encode, env_nonempty};
 use crate::{ConfigCommand, DeviceCommand, account};
 use anyhow::{Context, Result, bail};
 use rc_node::{
-    DEFAULT_SERVER, EnrollmentError, NodeConfig, NodeRuntime, acquire_run_lock, config_path,
-    fetch_status, load_config, load_state, resolve_state_dir, save_config, save_state,
+    DEFAULT_SERVER, EnrollmentError, NodeConfig, config_path, fetch_status, load_config,
+    load_state, resolve_state_dir, save_config, save_state,
 };
 use std::io;
-
-pub(super) async fn run_node(url: Option<String>, state_dir: Option<String>) -> Result<()> {
-    let dir = resolve_state_dir(state_dir.as_deref());
-    let config = load_config(&dir).unwrap_or_default();
-    let server = url
-        .or_else(|| env_nonempty("RC_URL"))
-        .or_else(|| (!config.server.is_empty()).then_some(config.server))
-        .unwrap_or_else(|| DEFAULT_SERVER.into());
-    let state = match load_state(&dir) {
-        Ok(value) => value,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            bail!("not enrolled; run rc enroll TOKEN")
-        }
-        Err(error) => return Err(error.into()),
-    };
-    let _run_lock = acquire_run_lock(&dir)?;
-    let runner = std::env::current_exe().context("resolve RC executable")?;
-    let mut runtime = NodeRuntime::new(runner, dir.clone());
-    println!("Connecting to {server} as {}", state.device_id);
-    let shutdown = shutdown_signal();
-    tokio::pin!(shutdown);
-    loop {
-        tokio::select! {
-            _ = &mut shutdown => break,
-            result = runtime.connect_once(&server, &state, rc_cli::VERSION) => {
-                if let Err(error) = result {
-                    eprintln!("connection ended: {error}");
-                }
-            }
-        }
-        tokio::select! {
-            _ = &mut shutdown => break,
-            _ = tokio::time::sleep(std::time::Duration::from_secs(3)) => {}
-        }
-    }
-    runtime.shutdown();
-    Ok(())
-}
-
-async fn shutdown_signal() {
-    #[cfg(unix)]
-    {
-        let mut terminate =
-            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok();
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {}
-            _ = async {
-                if let Some(signal) = terminate.as_mut() {
-                    signal.recv().await;
-                } else {
-                    std::future::pending::<()>().await;
-                }
-            } => {}
-        }
-    }
-    #[cfg(not(unix))]
-    {
-        let _ = tokio::signal::ctrl_c().await;
-    }
-}
 
 pub(super) async fn status(url: Option<String>, state_dir: Option<String>) -> Result<()> {
     let dir = resolve_state_dir(state_dir.as_deref());

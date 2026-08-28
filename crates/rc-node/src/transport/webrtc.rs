@@ -30,9 +30,18 @@ pub async fn complete_local_description(
     peer: &RTCPeerConnection,
     description: webrtc::peer_connection::sdp::session_description::RTCSessionDescription,
 ) -> anyhow::Result<String> {
+    complete_local_description_with_timeout(peer, description, std::time::Duration::from_secs(15))
+        .await
+}
+
+pub async fn complete_local_description_with_timeout(
+    peer: &RTCPeerConnection,
+    description: webrtc::peer_connection::sdp::session_description::RTCSessionDescription,
+    timeout: std::time::Duration,
+) -> anyhow::Result<String> {
     let mut complete = peer.gathering_complete_promise().await;
     peer.set_local_description(description).await?;
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(15), complete.recv()).await;
+    let _ = tokio::time::timeout(timeout, complete.recv()).await;
     let sdp = peer
         .local_description()
         .await

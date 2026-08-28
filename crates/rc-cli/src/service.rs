@@ -21,7 +21,7 @@ pub fn command(command: ServiceCommand) -> Result<()> {
         ServiceCommand::Start => {
             rc_node::load_state(&dir)
                 .context("enroll this machine before starting the RC service")?;
-            start(&dir)
+            install(&dir)
         }
         ServiceCommand::Stop => stop(),
         ServiceCommand::Status => status(),
@@ -31,10 +31,10 @@ pub fn command(command: ServiceCommand) -> Result<()> {
 
 pub fn install(state_dir: &Path) -> Result<()> {
     fs::create_dir_all(state_dir)?;
-    let executable = std::env::current_exe()?;
+    let (executable, arguments) = crate::commands::node_runtime::arguments(state_dir)?;
     match std::env::consts::OS {
-        "macos" => install_launch_agent(&executable, state_dir),
-        "linux" => install_systemd(&executable, state_dir),
+        "macos" => install_launch_agent(&executable, &arguments, state_dir),
+        "linux" => install_systemd(&executable, &arguments),
         other => bail!("background service is not supported on {other}"),
     }
 }
@@ -45,25 +45,7 @@ pub fn installed() -> bool {
 
 pub fn restart() -> Result<()> {
     let dir = rc_node::resolve_state_dir(None);
-    match std::env::consts::OS {
-        "macos" => start_launch_agent(&launch_agent_path()?),
-        "linux" => run("systemctl", &["--user", "restart", "rc.service"]),
-        _ => start(&dir),
-    }
-}
-
-pub fn start(state_dir: &Path) -> Result<()> {
-    match std::env::consts::OS {
-        "macos" => {
-            let path = launch_agent_path()?;
-            if !path.exists() {
-                return install(state_dir);
-            }
-            start_launch_agent(&path)
-        }
-        "linux" => run("systemctl", &["--user", "start", "rc.service"]),
-        other => bail!("background service is not supported on {other}"),
-    }
+    install(&dir)
 }
 
 pub fn stop() -> Result<()> {
@@ -124,7 +106,7 @@ pub fn remove() -> Result<()> {
     }
 }
 
-fn install_launch_agent(executable: &Path, state_dir: &Path) -> Result<()> {
+fn install_launch_agent(executable: &Path, arguments: &[String], state_dir: &Path) -> Result<()> {
     let path = launch_agent_path()?;
     let parent = path
         .parent()
@@ -132,10 +114,12 @@ fn install_launch_agent(executable: &Path, state_dir: &Path) -> Result<()> {
     fs::create_dir_all(parent)?;
     let log = state_dir.join("node.log");
     let escape = |value: &Path| xml(value.to_string_lossy().as_ref());
+    let mut program_arguments = format!("<string>{}</string>", escape(executable));
+    for argument in arguments {
+        program_arguments.push_str(&format!("<string>{}</string>", xml(argument)));
+    }
     let plist = format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{LABEL}</string><key>ProgramArguments</key><array><string>{}</string><string>run</string><string>--state-dir</string><string>{}</string></array><key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict><key>ThrottleInterval</key><integer>3</integer><key>StandardOutPath</key><string>{}</string><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",
-        escape(executable),
-        escape(state_dir),
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>Label</key><string>{LABEL}</string><key>ProgramArguments</key><array>{program_arguments}</array><key>RunAtLoad</key><true/><key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict><key>ThrottleInterval</key><integer>3</integer><key>StandardOutPath</key><string>{}</string><key>StandardErrorPath</key><string>{}</string></dict></plist>\n",
         escape(&log),
         escape(&log)
     );
@@ -191,7 +175,7 @@ fn launch_agent_output_running(output: &str) -> bool {
     running && pid
 }
 
-fn install_systemd(executable: &Path, state_dir: &Path) -> Result<()> {
+fn install_systemd(executable: &Path, arguments: &[String]) -> Result<()> {
     if Command::new("systemctl").arg("--version").output().is_err() {
         bail!("systemd user services are unavailable; run `rc run` manually");
     }
@@ -200,10 +184,12 @@ fn install_systemd(executable: &Path, state_dir: &Path) -> Result<()> {
         .parent()
         .context("RC systemd service path has no parent directory")?;
     fs::create_dir_all(parent)?;
+    let command = std::iter::once(quote(executable))
+        .chain(arguments.iter().map(|argument| quote_text(argument)))
+        .collect::<Vec<_>>()
+        .join(" ");
     let unit = format!(
-        "[Unit]\nDescription=RC Node\nAfter=network-online.target\n\n[Service]\nExecStart={} run --state-dir {}\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=default.target\n",
-        quote(executable),
-        quote(state_dir)
+        "[Unit]\nDescription=RC Node\nAfter=network-online.target\n\n[Service]\nExecStart={command}\nRestart=on-failure\nRestartSec=3\n\n[Install]\nWantedBy=default.target\n"
     );
     fs::write(&path, unit)?;
     run("systemctl", &["--user", "daemon-reload"])?;
@@ -245,12 +231,10 @@ fn xml(value: &str) -> String {
         .replace('"', "&quot;")
 }
 fn quote(path: &Path) -> String {
-    format!(
-        "\"{}\"",
-        path.to_string_lossy()
-            .replace('\\', "\\\\")
-            .replace('"', "\\\"")
-    )
+    quote_text(path.to_string_lossy().as_ref())
+}
+fn quote_text(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
 fn run(name: &str, args: &[&str]) -> Result<()> {
     let status = Command::new(name).args(args).status()?;

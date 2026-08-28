@@ -20,6 +20,8 @@ pub const CORE_COMPONENTS: &[&str] = &[
     "local-source",
     "oci-source",
     "package-manager",
+    "process-policy",
+    "transport-webrtc",
 ];
 
 pub fn runtime_complete() -> bool {
@@ -45,7 +47,8 @@ pub fn install(
     version: &str,
 ) -> anyhow::Result<()> {
     let executable = std::env::current_exe()?;
-    let bin_dir = executable
+    let platform_target = platform_target(&executable)?;
+    let bin_dir = platform_target
         .parent()
         .ok_or_else(|| anyhow::anyhow!("invalid executable path"))?;
     let kernel_target = bin_dir.join("rc-kernel");
@@ -68,9 +71,19 @@ pub fn install(
         let replacement = bin_dir.join(format!(".rc-update-{}", std::process::id()));
         write_executable(&replacement, &rc)?;
         validate_rc(&replacement, version)?;
-        replace_file(&replacement, &executable)?;
+        replace_file(&replacement, &platform_target)?;
     }
     Ok(())
+}
+
+fn platform_target(executable: &Path) -> anyhow::Result<PathBuf> {
+    if executable.file_name().and_then(|value| value.to_str()) == Some("rc-kernel") {
+        return executable
+            .parent()
+            .map(|parent| parent.join("rc"))
+            .ok_or_else(|| anyhow::anyhow!("invalid kernel executable path"));
+    }
+    Ok(executable.to_owned())
 }
 
 fn validate_kernel(
@@ -248,39 +261,4 @@ fn replace_file(source: &Path, destination: &Path) -> anyhow::Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{CORE_COMPONENTS, extract_single};
-    use flate2::{Compression, write::GzEncoder};
-    use tar::{Builder, Header};
-
-    #[test]
-    fn core_bundle_has_unique_names() {
-        let mut names = CORE_COMPONENTS.to_vec();
-        names.sort_unstable();
-        names.dedup();
-        assert_eq!(names.len(), CORE_COMPONENTS.len());
-    }
-
-    #[test]
-    fn single_archive_rejects_extra_entries() -> anyhow::Result<()> {
-        assert_eq!(
-            extract_single(&archive(&[("rc", b"ok")])?, "rc", 10)?,
-            b"ok"
-        );
-        assert!(extract_single(&archive(&[("rc", b"ok"), ("extra", b"bad")])?, "rc", 10).is_err());
-        Ok(())
-    }
-
-    fn archive(entries: &[(&str, &[u8])]) -> anyhow::Result<Vec<u8>> {
-        let encoder = GzEncoder::new(Vec::new(), Compression::default());
-        let mut builder = Builder::new(encoder);
-        for (name, contents) in entries {
-            let mut header = Header::new_gnu();
-            header.set_size(contents.len() as u64);
-            header.set_mode(0o755);
-            header.set_cksum();
-            builder.append_data(&mut header, *name, *contents)?;
-        }
-        Ok(builder.into_inner()?.finish()?)
-    }
-}
+mod tests;

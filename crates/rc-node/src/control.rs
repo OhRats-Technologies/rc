@@ -2,9 +2,13 @@ mod auth;
 mod direct;
 mod hosted;
 mod lifecycle;
+mod process;
 mod webrtc;
 
-use crate::{MeshAuthority, NodeState, ProcessManager, bootstrap_lock, sync_lock};
+use crate::{
+    MeshAuthority, NativeProcessPolicy, NativeTransportPolicy, NodeState, ProcessManager,
+    ProcessPolicy, TransportPolicy, bootstrap_lock, sync_lock,
+};
 use ::webrtc::peer_connection::RTCPeerConnection;
 use parking_lot::Mutex;
 use rc_protocol::{
@@ -35,6 +39,8 @@ struct ControlInner {
     sessions: Mutex<HashMap<String, ControlSession>>,
     pending_starts: Mutex<HashMap<(String, String), PendingStart>>,
     mesh: Mutex<Option<Arc<MeshAuthority>>>,
+    process_policy: Arc<dyn ProcessPolicy>,
+    transport_policy: Arc<dyn TransportPolicy>,
 }
 
 struct ControlSession {
@@ -75,6 +81,27 @@ impl ControlManager {
         outbound: mpsc::UnboundedSender<NodeToServer>,
         version: impl Into<String>,
     ) -> Self {
+        Self::new_with_policies(
+            state,
+            state_dir,
+            processes,
+            outbound,
+            version,
+            Arc::new(NativeProcessPolicy),
+            Arc::new(NativeTransportPolicy),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_with_policies(
+        state: NodeState,
+        state_dir: PathBuf,
+        processes: Arc<ProcessManager>,
+        outbound: mpsc::UnboundedSender<NodeToServer>,
+        version: impl Into<String>,
+        process_policy: Arc<dyn ProcessPolicy>,
+        transport_policy: Arc<dyn TransportPolicy>,
+    ) -> Self {
         let mesh = MeshAuthority::from_lock(&state, &state_dir)
             .ok()
             .map(Arc::new);
@@ -88,6 +115,8 @@ impl ControlManager {
             sessions: Mutex::new(HashMap::new()),
             pending_starts: Mutex::new(HashMap::new()),
             mesh: Mutex::new(mesh),
+            process_policy,
+            transport_policy,
         }))
     }
 
@@ -159,9 +188,10 @@ impl ControlManager {
                 request_id,
                 session_id,
                 sdp,
+                mode,
                 ice_servers,
             } => {
-                self.answer_webrtc(request_id, session_id, sdp, ice_servers)
+                self.answer_webrtc(request_id, session_id, sdp, mode, ice_servers)
                     .await
             }
             ServerToNode::ControlClose { session_id } => self.close_session(&session_id).await,
@@ -249,23 +279,4 @@ impl ControlManager {
             }
         }
     }
-}
-
-fn validate_start(
-    id: &str,
-    command: &str,
-    _cwd: &str,
-    terminal: Option<&TerminalSpec>,
-) -> anyhow::Result<()> {
-    if id.is_empty() || command.trim().is_empty() {
-        anyhow::bail!("invalid process start");
-    }
-    if let Some(terminal) = terminal
-        && (!(2..=500).contains(&terminal.cols)
-            || !(2..=500).contains(&terminal.rows)
-            || terminal.term.len() > 128)
-    {
-        anyhow::bail!("invalid terminal specification");
-    }
-    Ok(())
 }
