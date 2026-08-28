@@ -17,6 +17,7 @@ test -f "$manifest" || {
 
 rustup target add wasm32-wasip2 >/dev/null
 cargo fmt --manifest-path "$manifest" --all -- --check
+cargo test --manifest-path "$manifest" --locked
 cargo clippy \
   --manifest-path "$manifest" \
   --target wasm32-wasip2 \

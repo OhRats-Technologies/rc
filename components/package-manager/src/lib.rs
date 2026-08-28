@@ -1,3 +1,5 @@
+mod cache;
+mod catalog;
 mod commands;
 mod source;
 mod state;

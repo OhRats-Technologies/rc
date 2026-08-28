@@ -50,7 +50,11 @@ impl LoadedComponent {
         let component = Component::new(engine, bytes).map_err(|error| {
             anyhow::anyhow!("failed to compile component {}: {error}", path.display())
         })?;
-        let mut store = host::store(environment, path.display().to_string())?;
+        let mut store = host::store(
+            environment,
+            path.display().to_string(),
+            ServiceRegistry::default(),
+        )?;
         let linker = service::linker(
             engine,
             &component,
@@ -76,7 +80,11 @@ impl LoadedComponent {
     pub fn activate(&mut self, registry: &ServiceRegistry) -> anyhow::Result<()> {
         let engine = self.component.engine();
         let linker = service::linker(engine, &self.component, &self.descriptor, registry, false)?;
-        let mut store = host::store(&self.environment, self.descriptor.id.clone())?;
+        let mut store = host::store(
+            &self.environment,
+            self.descriptor.id.clone(),
+            registry.clone(),
+        )?;
         let instance = linker.instantiate(&mut store, &self.component)?;
         let bindings = Plugin::new(&mut store, &instance)?;
         store.set_fuel(ACTIVATION_FUEL)?;

@@ -12,7 +12,7 @@ pub struct DesiredState {
 
 #[derive(Deserialize, Serialize)]
 pub struct DesiredComponent {
-    pub source: String,
+    pub spec: String,
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -26,13 +26,16 @@ pub struct LockedComponent {
     pub name: String,
     pub id: String,
     pub version: String,
-    pub source: String,
+    pub spec: String,
+    pub resolved_source: String,
     pub digest: String,
 }
 
 impl DesiredState {
     pub fn load() -> Result<Self, String> {
-        load(DESIRED)
+        let value: Self = load(DESIRED)?.unwrap_or_default();
+        validate_schema(value.schema, DESIRED)?;
+        Ok(value)
     }
 
     pub fn save(&mut self) -> Result<(), String> {
@@ -43,7 +46,9 @@ impl DesiredState {
 
 impl LockState {
     pub fn load() -> Result<Self, String> {
-        load(LOCK)
+        let value: Self = load(LOCK)?.unwrap_or_default();
+        validate_schema(value.schema, LOCK)?;
+        Ok(value)
     }
 
     pub fn save(&mut self) -> Result<(), String> {
@@ -67,15 +72,25 @@ impl LockState {
     }
 }
 
-fn load<T: Default + for<'de> Deserialize<'de>>(name: &str) -> Result<T, String> {
+fn load<T: for<'de> Deserialize<'de>>(name: &str) -> Result<Option<T>, String> {
     let Some(bytes) = crate::ohrats::rc_plugin::state_store::read(name)? else {
-        return Ok(T::default());
+        return Ok(None);
     };
     let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
-    toml::from_str(&text).map_err(|error| format!("invalid {name}: {error}"))
+    toml::from_str(&text)
+        .map(Some)
+        .map_err(|error| format!("invalid {name}: {error}"))
 }
 
 fn save(name: &str, value: &impl Serialize) -> Result<(), String> {
     let text = toml::to_string_pretty(value).map_err(|error| error.to_string())?;
     crate::ohrats::rc_plugin::state_store::write(name, text.as_bytes())
+}
+
+fn validate_schema(schema: u32, name: &str) -> Result<(), String> {
+    if matches!(schema, 0 | 1) {
+        Ok(())
+    } else {
+        Err(format!("unsupported {name} schema {schema}"))
+    }
 }

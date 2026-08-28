@@ -5,6 +5,7 @@ mod config;
 mod descriptor;
 mod graph;
 mod host;
+mod network;
 mod reconcile;
 mod runtime;
 mod service;

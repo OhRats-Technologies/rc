@@ -65,6 +65,11 @@ interface component-store {
     remove: func(name: string) -> result<bool, string>;
 }
 
+interface artifact-cache {
+    read: func(digest: string) -> result<option<list<u8>>, string>;
+    write: func(digest: string, artifact: list<u8>) -> result<_, string>;
+}
+
 interface state-store {
     read: func(name: string) -> result<option<list<u8>>, string>;
     write: func(name: string, value: list<u8>) -> result<_, string>;
@@ -73,6 +78,45 @@ interface state-store {
 
 interface local-files {
     read: func(path: string) -> result<list<u8>, string>;
+}
+
+interface catalog-store {
+    read: func(namespace: string) -> result<option<list<u8>>, string>;
+}
+
+interface service-registry {
+    record provider {
+        component-id: string,
+        version: string,
+        priority: s32,
+        keys: list<string>,
+    }
+
+    providers: func(name: string, version: string) -> result<list<provider>, string>;
+}
+
+interface http-client {
+    record header {
+        name: string,
+        value: string,
+    }
+
+    record request {
+        method: string,
+        url: string,
+        headers: list<header>,
+        body: list<u8>,
+        max-response-bytes: u64,
+    }
+
+    record response {
+        status: u16,
+        final-url: string,
+        headers: list<header>,
+        body: list<u8>,
+    }
+
+    send: func(request: request) -> result<response, string>;
 }
 
 interface package-source {
@@ -113,19 +157,44 @@ world greeter-consumer {
 world kernel-plugin {
     include plugin;
     import component-store;
+    import artifact-cache;
     import state-store;
     import local-files;
+    import catalog-store;
+    import service-registry;
+    import http-client;
 }
 
 world package-manager {
     include plugin;
     import component-store;
+    import artifact-cache;
     import state-store;
+    import catalog-store;
+    import service-registry;
     import package-source;
 }
 
 world local-source {
     include plugin;
     import local-files;
+    export package-source;
+}
+
+world http-source {
+    include plugin;
+    import http-client;
+    export package-source;
+}
+
+world github-source {
+    include plugin;
+    import http-client;
+    export package-source;
+}
+
+world oci-source {
+    include plugin;
+    import http-client;
     export package-source;
 }

@@ -3,6 +3,8 @@ schema = 1
 [profile]
 id = "ohrats:package-smoke"
 components = [
+  "http-source",
   "local-source",
+  "oci-source",
   "package-manager",
 ]

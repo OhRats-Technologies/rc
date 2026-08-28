@@ -1,5 +1,5 @@
 [package]
-name = "rc-package-manager"
+name = "rc-oci-source"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.98"
@@ -9,9 +9,9 @@ license = "UNLICENSED"
 crate-type = ["cdylib"]
 
 [dependencies]
-semver = "1.0.28"
 serde = { version = "1.0.228", features = ["derive"] }
-toml = "0.8.23"
+serde_json = "1.0.145"
+sha2 = "0.10.9"
 wit-bindgen = "0.61.1"
 
 [workspace]

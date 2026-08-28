@@ -1,8 +1,10 @@
 use crate::{
-    ohrats::rc_plugin::component_store,
-    source,
+    cache,
+    ohrats::rc_plugin::component_store::{self, InstalledComponent},
+    source::{self, ResolvedPackage},
     state::{DesiredComponent, DesiredState, LockState, LockedComponent},
 };
+use std::collections::{BTreeMap, BTreeSet};
 
 pub fn invoke(command: &str, args: &[String]) -> Result<u32, String> {
     match command {
@@ -17,19 +19,25 @@ pub fn invoke(command: &str, args: &[String]) -> Result<u32, String> {
 }
 
 fn add(args: &[String]) -> Result<u32, String> {
-    let source = one(args, "rc add <source>")?;
-    let artifact = source::resolve(source)?;
-    let installed =
-        component_store::install(&artifact.name, &artifact.bytes, Some(&artifact.digest))?;
+    let spec = one(args, "rc add <spec>")?;
+    let resolved = source::resolve(spec, false)?;
+    cache::remember(&resolved.artifact)?;
+    let name = managed_name(&resolved);
+    let installed = component_store::install(
+        &name,
+        &resolved.artifact.bytes,
+        Some(&resolved.artifact.digest),
+    )?;
+    validate_catalog(&resolved, &installed)?;
     let mut desired = DesiredState::load()?;
     desired.components.insert(
-        installed.name.clone(),
+        name.clone(),
         DesiredComponent {
-            source: artifact.source.clone(),
+            spec: spec.to_owned(),
         },
     );
     let mut lock = LockState::load()?;
-    lock.replace(locked(&installed, artifact.source));
+    lock.replace(locked(&installed, spec, &resolved.artifact.source));
     desired.save()?;
     lock.save()?;
     println!("added {} {}", installed.id, installed.version);
@@ -38,10 +46,13 @@ fn add(args: &[String]) -> Result<u32, String> {
 
 fn remove(args: &[String]) -> Result<u32, String> {
     let name = one(args, "rc remove <name>")?;
+    let mut desired = DesiredState::load()?;
+    if !desired.components.contains_key(name) {
+        return Err(format!("managed component {name:?} is not in rc.toml"));
+    }
     if !component_store::remove(name)? {
         return Err(format!("managed component {name:?} is not installed"));
     }
-    let mut desired = DesiredState::load()?;
     let mut lock = LockState::load()?;
     desired.components.remove(name);
     lock.remove(name);
@@ -53,7 +64,32 @@ fn remove(args: &[String]) -> Result<u32, String> {
 
 fn install(args: &[String]) -> Result<u32, String> {
     none(args, "rc install")?;
-    sync(&[], false)
+    let desired = DesiredState::load()?;
+    let lock = LockState::load()?;
+    validate_lock(&desired, &lock)?;
+    let installed = installed_by_name()?;
+    for value in &lock.component {
+        if installed
+            .get(&value.name)
+            .is_some_and(|current| current.digest == value.digest)
+        {
+            continue;
+        }
+        let bytes = cache::exact(value)?;
+        let actual = component_store::install(&value.name, &bytes, Some(&value.digest))?;
+        validate_locked(value, &actual)?;
+    }
+    let desired_names = lock
+        .component
+        .iter()
+        .map(|value| value.name.as_str())
+        .collect::<BTreeSet<_>>();
+    for value in installed.values() {
+        if value.managed && !desired_names.contains(value.name.as_str()) {
+            component_store::remove(&value.name)?;
+        }
+    }
+    Ok(0)
 }
 
 fn list(args: &[String]) -> Result<u32, String> {
@@ -71,71 +107,174 @@ fn list(args: &[String]) -> Result<u32, String> {
 fn outdated(args: &[String]) -> Result<u32, String> {
     let desired = DesiredState::load()?;
     let lock = LockState::load()?;
-    println!("NAME\tCURRENT\tAVAILABLE");
-    for (name, value) in selected(&desired, args)? {
-        let artifact = source::resolve(&value.source)?;
+    println!("NAME\tCURRENT\tTARGET\tLATEST");
+    for name in selected_names(&desired, args)? {
+        let value = desired.components.get(&name).expect("selected component");
+        let resolved = source::resolve(&value.spec, false)?;
         let current = lock
-            .find(name)
-            .map(|item| item.digest.as_str())
+            .find(&name)
+            .map(|item| item.version.as_str())
             .unwrap_or("-");
-        if current != artifact.digest {
-            println!("{name}\t{current}\t{}", artifact.digest);
+        let (target, latest) = versions(&resolved);
+        let changed = lock
+            .find(&name)
+            .is_none_or(|item| item.digest != resolved.artifact.digest);
+        if changed || target != latest {
+            println!("{name}\t{current}\t{target}\t{latest}");
         }
     }
     Ok(0)
 }
 
 fn update(args: &[String]) -> Result<u32, String> {
-    sync(args, true)
-}
-
-fn sync(names: &[String], announce: bool) -> Result<u32, String> {
-    let desired = DesiredState::load()?;
+    let (names, use_latest) = update_args(args)?;
+    let mut desired = DesiredState::load()?;
     let mut lock = LockState::load()?;
-    for (name, value) in selected(&desired, names)? {
-        let artifact = source::resolve(&value.source)?;
+    for name in selected_names(&desired, &names)? {
+        let spec = desired
+            .components
+            .get(&name)
+            .expect("selected component")
+            .spec
+            .clone();
+        let resolved = source::resolve(&spec, use_latest)?;
+        if use_latest && let Some(choice) = &resolved.catalog {
+            desired
+                .components
+                .get_mut(&name)
+                .expect("selected component")
+                .spec = choice.updated_spec();
+        }
         if lock
-            .find(name)
-            .is_some_and(|item| item.digest == artifact.digest)
+            .find(&name)
+            .is_some_and(|item| item.digest == resolved.artifact.digest)
         {
             continue;
         }
-        let installed = component_store::install(name, &artifact.bytes, Some(&artifact.digest))?;
-        lock.replace(locked(&installed, artifact.source));
-        if announce {
-            println!("updated {} {}", installed.id, installed.version);
-        }
+        cache::remember(&resolved.artifact)?;
+        let installed = component_store::install(
+            &name,
+            &resolved.artifact.bytes,
+            Some(&resolved.artifact.digest),
+        )?;
+        validate_catalog(&resolved, &installed)?;
+        lock.replace(locked(&installed, &spec, &resolved.artifact.source));
+        println!("updated {} {}", installed.id, installed.version);
     }
+    desired.save()?;
     lock.save()?;
     Ok(0)
 }
 
-fn selected<'a>(
-    desired: &'a DesiredState,
-    names: &[String],
-) -> Result<Vec<(&'a String, &'a DesiredComponent)>, String> {
-    if names.is_empty() {
-        return Ok(desired.components.iter().collect());
-    }
-    names
-        .iter()
-        .map(|name| {
-            desired
-                .components
-                .get_key_value(name)
-                .ok_or_else(|| format!("unknown managed component {name:?}"))
-        })
-        .collect()
+fn installed_by_name() -> Result<BTreeMap<String, InstalledComponent>, String> {
+    Ok(component_store::installed()?
+        .into_iter()
+        .map(|value| (value.name.clone(), value))
+        .collect())
 }
 
-fn locked(value: &component_store::InstalledComponent, source: String) -> LockedComponent {
+fn validate_lock(desired: &DesiredState, lock: &LockState) -> Result<(), String> {
+    let desired = desired.components.keys().collect::<BTreeSet<_>>();
+    let locked = lock
+        .component
+        .iter()
+        .map(|value| &value.name)
+        .collect::<BTreeSet<_>>();
+    if desired == locked {
+        Ok(())
+    } else {
+        Err("rc.lock does not match rc.toml; run rc update".into())
+    }
+}
+
+fn validate_locked(expected: &LockedComponent, actual: &InstalledComponent) -> Result<(), String> {
+    if expected.id == actual.id
+        && expected.version == actual.version
+        && expected.digest == actual.digest
+    {
+        Ok(())
+    } else {
+        Err(format!(
+            "locked component {} has unexpected metadata",
+            expected.name
+        ))
+    }
+}
+
+fn validate_catalog(value: &ResolvedPackage, installed: &InstalledComponent) -> Result<(), String> {
+    let Some(choice) = &value.catalog else {
+        return Ok(());
+    };
+    let expected_id = format!("{}:{}", choice.namespace, choice.package);
+    if installed.id != expected_id || installed.version != choice.target.to_string() {
+        return Err(format!(
+            "catalog selected {expected_id} {}, artifact contains {} {}",
+            choice.target, installed.id, installed.version
+        ));
+    }
+    Ok(())
+}
+
+fn managed_name(value: &ResolvedPackage) -> String {
+    value
+        .catalog
+        .as_ref()
+        .map(|choice| choice.package.clone())
+        .unwrap_or_else(|| value.artifact.name.clone())
+}
+
+fn locked(value: &InstalledComponent, spec: &str, source: &str) -> LockedComponent {
     LockedComponent {
         name: value.name.clone(),
         id: value.id.clone(),
         version: value.version.clone(),
-        source,
+        spec: spec.into(),
+        resolved_source: source.into(),
         digest: value.digest.clone(),
     }
+}
+
+fn versions(value: &ResolvedPackage) -> (String, String) {
+    value.catalog.as_ref().map_or_else(
+        || {
+            (
+                short_digest(&value.artifact.digest),
+                short_digest(&value.artifact.digest),
+            )
+        },
+        |choice| (choice.target.to_string(), choice.latest.to_string()),
+    )
+}
+
+fn short_digest(value: &str) -> String {
+    value.chars().take(19).collect()
+}
+
+fn selected_names(desired: &DesiredState, names: &[String]) -> Result<Vec<String>, String> {
+    if names.is_empty() {
+        return Ok(desired.components.keys().cloned().collect());
+    }
+    for name in names {
+        if !desired.components.contains_key(name) {
+            return Err(format!("unknown managed component {name:?}"));
+        }
+    }
+    Ok(names.to_vec())
+}
+
+fn update_args(args: &[String]) -> Result<(Vec<String>, bool), String> {
+    let mut names = Vec::new();
+    let mut latest = false;
+    for value in args {
+        if value == "--latest" {
+            latest = true;
+        } else if value.starts_with('-') {
+            return Err(format!("unknown update option {value:?}"));
+        } else {
+            names.push(value.clone());
+        }
+    }
+    Ok((names, latest))
 }
 
 fn one<'a>(args: &'a [String], usage: &str) -> Result<&'a str, String> {

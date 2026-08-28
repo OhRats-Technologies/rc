@@ -1,5 +1,10 @@
 use crate::{
-    bindings::Plugin,
+    bindings::{
+        Plugin,
+        ohrats::rc_plugin::service_registry::{
+            Host as ServiceRegistryHost, Provider as ProviderDescription,
+        },
+    },
     component::LoadedComponent,
     descriptor::{SelectionMode, ValidatedDescriptor, ValidatedRequirement},
     host::{self, HostState},
@@ -49,6 +54,34 @@ struct Provider {
     priority: i32,
     keys: Vec<String>,
     handle: InstanceHandle,
+}
+
+impl ServiceRegistryHost for HostState {
+    fn providers(
+        &mut self,
+        name: String,
+        version: String,
+    ) -> Result<Vec<ProviderDescription>, String> {
+        let requirement = VersionReq::parse(&version).map_err(|error| error.to_string())?;
+        self.registry
+            .providers
+            .read()
+            .map_err(|_| "service registry poisoned".to_owned())
+            .map(|values| {
+                values
+                    .get(&name)
+                    .into_iter()
+                    .flatten()
+                    .filter(|provider| requirement.matches(&provider.version))
+                    .map(|provider| ProviderDescription {
+                        component_id: provider.component_id.clone(),
+                        version: provider.version.to_string(),
+                        priority: provider.priority,
+                        keys: provider.keys.clone(),
+                    })
+                    .collect()
+            })
+    }
 }
 
 #[derive(Clone, Default)]

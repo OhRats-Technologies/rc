@@ -1,5 +1,7 @@
 use crate::{
     bindings::ohrats::rc_plugin::{
+        artifact_cache::Host as ArtifactCacheHost,
+        catalog_store::Host as CatalogStoreHost,
         component_store::{Host as ComponentStoreHost, InstalledComponent},
         local_files::Host as LocalFilesHost,
         state_store::Host as StateStoreHost,
@@ -38,6 +40,29 @@ impl ComponentStoreHost for HostState {
 
     fn remove(&mut self, name: String) -> Result<bool, String> {
         remove(&self.environment, &name).map_err(display)
+    }
+}
+
+impl ArtifactCacheHost for HostState {
+    fn read(&mut self, digest: String) -> Result<Option<Vec<u8>>, String> {
+        let path = cache_path(&self.environment, &digest).map_err(display)?;
+        match fs::read(path) {
+            Ok(value) => {
+                verify_digest(&digest, &value).map_err(display)?;
+                Ok(Some(value))
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    fn write(&mut self, digest: String, artifact: Vec<u8>) -> Result<(), String> {
+        if artifact.len() > MAX_ARTIFACT_BYTES {
+            return Err("artifact exceeds 48 MiB".into());
+        }
+        verify_digest(&digest, &artifact).map_err(display)?;
+        let path = cache_path(&self.environment, &digest).map_err(display)?;
+        atomic_write(&path, &artifact).map_err(display)
     }
 }
 
@@ -80,6 +105,22 @@ impl LocalFilesHost for HostState {
             return Err("local artifact exceeds 48 MiB".into());
         }
         fs::read(path).map_err(|error| error.to_string())
+    }
+}
+
+impl CatalogStoreHost for HostState {
+    fn read(&mut self, namespace: String) -> Result<Option<Vec<u8>>, String> {
+        validate_token(&namespace, "catalog namespace").map_err(display)?;
+        let path = self
+            .environment
+            .catalog_dir
+            .join(format!("{namespace}.toml"));
+        match fs::read(path) {
+            Ok(value) if value.len() <= MAX_STATE_BYTES => Ok(Some(value)),
+            Ok(_) => Err("catalog exceeds 2 MiB".into()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
     }
 }
 
@@ -144,6 +185,10 @@ fn install(
     );
     atomic_write(&component_path, artifact)?;
     atomic_write(&marker_path, format!("{digest}\n").as_bytes())?;
+    let cache = cache_path(environment, &digest)?;
+    if !cache.is_file() {
+        atomic_write(&cache, artifact)?;
+    }
     Ok(InstalledComponent {
         name: name.into(),
         id,
@@ -193,6 +238,26 @@ fn private_state_path(state: &HostState, name: &str) -> anyhow::Result<PathBuf> 
 
 fn marker_path(environment: &HostEnvironment, name: &str) -> PathBuf {
     environment.component_dir.join(format!("{name}.managed"))
+}
+
+fn cache_path(environment: &HostEnvironment, digest: &str) -> anyhow::Result<PathBuf> {
+    let value = digest
+        .strip_prefix("sha256:")
+        .filter(|value| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or_else(|| anyhow::anyhow!("invalid SHA-256 digest {digest:?}"))?;
+    Ok(environment
+        .cache_dir
+        .join("sha256")
+        .join(format!("{}.wasm", value.to_ascii_lowercase())))
+}
+
+fn verify_digest(expected: &str, artifact: &[u8]) -> anyhow::Result<()> {
+    let actual = format!("sha256:{:x}", Sha256::digest(artifact));
+    anyhow::ensure!(
+        actual.eq_ignore_ascii_case(expected),
+        "artifact digest mismatch"
+    );
+    Ok(())
 }
 
 fn marker_matches(environment: &HostEnvironment, name: &str, digest: &str) -> bool {

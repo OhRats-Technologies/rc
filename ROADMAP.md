@@ -123,16 +123,16 @@ kernel integration-test inputs.
 ## 3. Package state and sources
 
 - [x] Define versioned `rc.toml` desired-state and `rc.lock` serialization.
-- [ ] Make `install` replay the exact locked digests from a content-addressed
+- [x] Make `install` replay the exact locked digests from a content-addressed
   cache rather than re-resolving mutable sources.
 - [x] Implement `add`, `remove`, `install`, `list`, `outdated`, and `update` as
   component-provided commands.
 - [x] Define the typed package-source WIT interface and keyed provider registry.
 - [x] Implement a local-path source provider as an independently built
   component.
-- [ ] Implement HTTP(S), GitHub repository/subpath, and OCI source
+- [x] Implement HTTP(S), GitHub repository/subpath, and OCI source
   providers as components.
-- [ ] Support source forms such as:
+- [x] Support source forms such as:
 
   ```text
   ohrats:webui@^1
@@ -144,12 +144,12 @@ kernel integration-test inputs.
 
 - [x] Inspect candidates before placement and use atomic same-filesystem
   placement/removal.
-- [ ] Cache artifacts by digest outside the trusted component directory.
+- [x] Cache artifacts by digest outside the trusted component directory.
 - [x] Keep manually copied components visible as unmanaged and never replace
   them during managed updates.
-- [ ] Publish official WIT packages/components to an OCI-compatible registry
+- [x] Publish independently versioned components to an OCI-compatible registry
   and attach build provenance/SBOM metadata when available.
-- [ ] Add declarative catalogs for friendly package names; catalog files never
+- [x] Add declarative catalogs for friendly package names; catalog files never
   execute code.
 
 Acceptance: a clean machine can reproduce an exact component set from
@@ -296,3 +296,7 @@ invariants at the top of this document.
   local-file source component, and component-provided package commands. The
   package smoke test proves managed updates while preserving manually copied
   components.
+- 2026-08-28: completed the package layer with exact lockfile replay from a
+  SHA-256 cache, semver catalogs, bounded HTTP, GitHub monorepo/release, and OCI
+  source components, authenticated OCI fixture coverage, and an independent
+  GHCR component release workflow with build provenance.

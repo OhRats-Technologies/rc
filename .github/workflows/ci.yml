@@ -185,7 +185,9 @@ jobs:
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'package-manager') ||
-       contains(needs.changes.outputs.components, 'local-source'))
+       contains(needs.changes.outputs.components, 'local-source') ||
+       contains(needs.changes.outputs.components, 'http-source') ||
+       contains(needs.changes.outputs.components, 'oci-source'))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -202,6 +204,8 @@ jobs:
           workspaces: |
             kernel -> target
             components/local-source -> target
+            components/http-source -> target
+            components/oci-source -> target
             components/package-manager -> target
             components/fixture-provider -> target
             components/fixture-provider-v2 -> target
