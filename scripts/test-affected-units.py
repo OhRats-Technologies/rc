@@ -39,6 +39,20 @@ class AffectedUnitsTests(unittest.TestCase):
             sorted(MODULE.component_metadata()),
         )
 
+    def test_dependency_wit_change_rebuilds_only_consumers(self) -> None:
+        value = self.resolve("wit/deps/diagnostics/diagnostics.wit")
+        self.assertFalse(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            [
+                "diagnostics-cli",
+                "diagnostics-mesh",
+                "diagnostics-reporter",
+                "diagnostics-store",
+                "diagnostics-ui",
+            ],
+        )
+
     def test_profile_change_compiles_nothing(self) -> None:
         value = self.resolve("profiles/kernel-smoke.toml")
         self.assertEqual(value["profiles"], ["kernel-smoke"])

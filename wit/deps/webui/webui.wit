@@ -1,0 +1,18 @@
+package ohrats:rc-webui@0.1.0;
+
+interface types {
+    record page {
+        id: string,
+        title: string,
+        path: string,
+        summary: string,
+        content: string,
+    }
+}
+
+interface slots {
+    use types.{page};
+    register-page: func(value: page) -> result<_, string>;
+    remove-page: func(id: string) -> result<bool, string>;
+    pages: func() -> list<page>;
+}

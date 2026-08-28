@@ -1,0 +1,12 @@
+schema = 1
+
+[profile]
+id = "ohrats:diagnostics-smoke"
+components = [
+  "diagnostics-cli",
+  "diagnostics-mesh",
+  "diagnostics-reporter",
+  "diagnostics-store",
+  "diagnostics-ui",
+  "webui-shell",
+]

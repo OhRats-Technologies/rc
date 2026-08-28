@@ -64,8 +64,8 @@ def validate(path: pathlib.Path) -> tuple[list[str], str | None]:
         for name in wit:
             if not isinstance(name, str) or not TOKEN.fullmatch(name):
                 errors.append(f"{relative}: invalid WIT package token {name!r}")
-            elif not (ROOT / "wit" / f"{name}.wit").is_file():
-                errors.append(f"{relative}: missing wit/{name}.wit")
+            elif not wit_package_exists(name):
+                errors.append(f"{relative}: missing WIT package {name!r}")
 
     if build.get("kind") != "rust":
         errors.append(f"{relative}: unsupported build kind")
@@ -84,6 +84,12 @@ def validate(path: pathlib.Path) -> tuple[list[str], str | None]:
         if cargo.get("version") != version:
             errors.append(f"{relative}: component and Cargo versions differ")
     return errors, artifact if isinstance(artifact, str) else None
+
+
+def wit_package_exists(name: str) -> bool:
+    return (ROOT / "wit" / f"{name}.wit").is_file() or any(
+        (ROOT / "wit" / "deps" / name).glob("*.wit")
+    )
 
 
 def main() -> int:

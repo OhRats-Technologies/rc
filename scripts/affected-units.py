@@ -73,8 +73,13 @@ def resolve(paths: list[str]) -> dict:
             if root == "kernel":
                 flags["kernel"] = True
             elif root == "wit":
-                flags["kernel"] = True
-                package = path.stem
+                if len(parts) == 2:
+                    flags["kernel"] = True
+                    package = path.stem
+                elif len(parts) >= 4 and parts[1] == "deps":
+                    package = parts[2]
+                else:
+                    package = path.stem
                 components.update(
                     name for name, dependencies in metadata.items() if package in dependencies
                 )

@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:diagnostics-ui"
+version = "0.1.0"
+world = "ohrats:rc-plugin/diagnostics-ui@0.1.0"
+wit = ["diagnostics", "plugin", "webui"]
+
+[build]
+kind = "rust"
+package = "rc-diagnostics-ui"
+artifact = "diagnostics-ui"

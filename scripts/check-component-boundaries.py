@@ -56,7 +56,9 @@ def main() -> int:
         if member == "kernel" or member.startswith("components/"):
             errors.append(f"Cargo.toml: {member} must not join the legacy workspace")
 
-    wit_files = sorted((ROOT / "wit").glob("*.wit"))
+    wit_files = sorted((ROOT / "wit").glob("*.wit")) + sorted(
+        (ROOT / "wit" / "deps").glob("*/*.wit")
+    )
     if not wit_files:
         errors.append("wit/: at least one WIT package is required")
     for path in wit_files:

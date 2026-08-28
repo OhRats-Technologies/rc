@@ -158,19 +158,21 @@ copy or local-path install.
 
 ## 4. Diagnostics vertical slice
 
-- [ ] Define typed diagnostics event, query, and reporting WIT packages.
-- [ ] Move structured logging/error collection into an official diagnostics
+- [x] Define typed diagnostics event, query, reporting, WebUI-slot, and
+  authorization-gated mesh WIT packages.
+- [x] Move structured logging/error collection into an official diagnostics
   component.
-- [ ] Add a diagnostics CLI component (`rc doctor`, local logs/status).
-- [ ] Prove capability isolation: diagnostics receives metadata but no command
+- [x] Add a diagnostics CLI component (`rc doctor`, local logs/status).
+- [x] Prove capability isolation: diagnostics receives metadata but no command
   plaintext, control keys, unrestricted files, or raw sockets.
-- [ ] Add a diagnostics UI component that activates only when both diagnostics
+- [x] Add a diagnostics UI component that activates only when both diagnostics
   query and WebUI slot services exist.
-- [ ] Add an optional mesh diagnostics provider for explicitly authorized
+- [x] Add an optional mesh diagnostics provider for explicitly authorized
   cross-node reports.
 
-Acceptance: diagnostics can be installed, removed, replaced, and extended
-without a kernel build or restart.
+Acceptance: [x] diagnostics can be installed, removed, replaced, and extended
+without a kernel build or restart; capability checks keep its WIT imports
+metadata-only.
 
 ## 5. Componentized web runtime and `rc.ohrats.party`
 
@@ -300,3 +302,7 @@ invariants at the top of this document.
   SHA-256 cache, semver catalogs, bounded HTTP, GitHub monorepo/release, and OCI
   source components, authenticated OCI fixture coverage, and an independent
   GHCR component release workflow with build provenance.
+- 2026-08-28: completed the diagnostics vertical slice with a bounded metadata
+  store, reporter, `doctor`/`logs` CLI, reactive WebUI page contribution, and a
+  mesh report component that cannot activate without an authorization service.
+  A live watcher test proves dependency-driven activation and withdrawal.

@@ -1,0 +1,14 @@
+package ohrats:rc-mesh-diagnostics@0.1.0;
+
+interface authorization {
+    allowed: func(peer-id: string, grant-id: string) -> bool;
+}
+
+interface reports {
+    use ohrats:rc-diagnostics/types@0.1.0.{event};
+    recent: func(
+        peer-id: string,
+        grant-id: string,
+        limit: u32,
+    ) -> result<list<event>, string>;
+}

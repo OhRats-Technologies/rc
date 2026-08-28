@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:diagnostics-cli"
+version = "0.1.0"
+world = "ohrats:rc-plugin/diagnostics-cli@0.1.0"
+wit = ["diagnostics", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-diagnostics-cli"
+artifact = "diagnostics-cli"

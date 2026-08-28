@@ -198,3 +198,37 @@ world oci-source {
     import http-client;
     export package-source;
 }
+
+world diagnostics-store {
+    include plugin;
+    export ohrats:rc-diagnostics/reporting@0.1.0;
+    export ohrats:rc-diagnostics/query@0.1.0;
+}
+
+world diagnostics-cli {
+    include plugin;
+    import ohrats:rc-diagnostics/query@0.1.0;
+}
+
+world diagnostics-reporter {
+    include plugin;
+    import ohrats:rc-diagnostics/reporting@0.1.0;
+}
+
+world webui-shell {
+    include plugin;
+    export ohrats:rc-webui/slots@0.1.0;
+}
+
+world diagnostics-ui {
+    include plugin;
+    import ohrats:rc-diagnostics/query@0.1.0;
+    import ohrats:rc-webui/slots@0.1.0;
+}
+
+world diagnostics-mesh {
+    include plugin;
+    import ohrats:rc-diagnostics/query@0.1.0;
+    import ohrats:rc-mesh-diagnostics/authorization@0.1.0;
+    export ohrats:rc-mesh-diagnostics/reports@0.1.0;
+}

@@ -1,0 +1,52 @@
+package ohrats:rc-diagnostics@0.1.0;
+
+interface types {
+    enum level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    record field {
+        name: string,
+        value: string,
+    }
+
+    record report {
+        level: level,
+        source: string,
+        code: string,
+        message: string,
+        fields: list<field>,
+    }
+
+    record event {
+        sequence: u64,
+        timestamp-ms: u64,
+        level: level,
+        source: string,
+        code: string,
+        message: string,
+        fields: list<field>,
+    }
+
+    record health {
+        retained: u32,
+        newest-sequence: u64,
+        errors: u32,
+        warnings: u32,
+    }
+}
+
+interface reporting {
+    use types.{report};
+    submit: func(value: report) -> result<u64, string>;
+}
+
+interface query {
+    use types.{event, health};
+    recent: func(limit: u32) -> result<list<event>, string>;
+    status: func() -> health;
+}
