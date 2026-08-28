@@ -239,3 +239,13 @@ world storage-fixture {
     include plugin;
     import ohrats:rc-storage/durable-store@0.1.0;
 }
+
+world webauthn-es256 {
+    include plugin;
+    export ohrats:rc-webauthn/verifier@0.1.0;
+}
+
+world webauthn-fixture {
+    include plugin;
+    import ohrats:rc-webauthn/verifier@0.1.0;
+}

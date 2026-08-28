@@ -63,6 +63,14 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["storage-fixture"])
 
+    def test_webauthn_wit_change_rebuilds_only_verifier_units(self) -> None:
+        value = self.resolve("wit/deps/webauthn/webauthn.wit")
+        self.assertFalse(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["webauthn-es256", "webauthn-fixture"],
+        )
+
     def test_profile_change_compiles_nothing(self) -> None:
         value = self.resolve("profiles/kernel-smoke.toml")
         self.assertEqual(value["profiles"], ["kernel-smoke"])
@@ -92,6 +100,14 @@ class AffectedUnitsTests(unittest.TestCase):
         value = self.resolve("scripts/smoke-storage.sh")
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["storage-fixture"])
+
+    def test_webauthn_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
+        value = self.resolve("scripts/smoke-webauthn.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["webauthn-es256", "webauthn-fixture"],
+        )
 
 
 if __name__ == "__main__":

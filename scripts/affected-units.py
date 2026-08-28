@@ -166,6 +166,7 @@ RUNTIME_TOOLING = {
         "package-manager",
     },
     "scripts/smoke-storage.sh": {"storage-fixture"},
+    "scripts/smoke-webauthn.sh": {"webauthn-es256", "webauthn-fixture"},
     "scripts/smoke-web-runtime.sh": {
         "diagnostics-store",
         "diagnostics-ui",

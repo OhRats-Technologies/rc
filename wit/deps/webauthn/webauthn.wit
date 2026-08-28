@@ -1,38 +1,81 @@
 package ohrats:rc-webauthn@0.1.0;
 
 interface types {
-    record challenge {
-        id: string,
-        challenge: list<u8>,
-        relying-party-id: string,
-        relying-party-name: string,
-        user-id: list<u8>,
-        user-name: string,
-        timeout-ms: u32,
-        algorithms: list<s32>,
+    enum user-verification {
+        required,
+        preferred,
     }
 
-    record assertion {
-        ceremony-id: string,
+    enum user-handle-mode {
+        identified,
+        discoverable,
+    }
+
+    record relying-party {
+        id: string,
+        origin: string,
+    }
+
+    record stored-credential {
+        id: list<u8>,
+        algorithm: string,
+        public-key-cose: list<u8>,
+        sign-count: u32,
+        backup-eligible: bool,
+        backup-state: bool,
+    }
+
+    record registration-request {
+        relying-party: relying-party,
+        challenge: list<u8>,
+        credential-id: list<u8>,
+        client-data-json: list<u8>,
+        attestation-object: list<u8>,
+        user-verification: user-verification,
+    }
+
+    record verified-registration {
+        credential: stored-credential,
+        aaguid: list<u8>,
+        user-verified: bool,
+    }
+
+    record authentication-request {
+        relying-party: relying-party,
+        challenge: list<u8>,
         credential-id: list<u8>,
         client-data-json: list<u8>,
         authenticator-data: list<u8>,
         signature: list<u8>,
-        user-handle: option<list<u8>>,
+        credential: stored-credential,
+        expected-user-handle: list<u8>,
+        response-user-handle: option<list<u8>>,
+        user-handle-mode: user-handle-mode,
+        user-verification: user-verification,
     }
 
-    record registration {
-        ceremony-id: string,
-        credential-id: list<u8>,
-        client-data-json: list<u8>,
-        attestation-object: list<u8>,
+    record verified-authentication {
+        credential: stored-credential,
+        user-verified: bool,
+        sign-count-advanced: bool,
     }
 }
 
-interface ceremonies {
-    use types.{assertion, challenge, registration};
-    start-registration: func(display-name: string) -> result<challenge, string>;
-    finish-registration: func(value: registration) -> result<string, string>;
-    start-authentication: func() -> result<challenge, string>;
-    finish-authentication: func(value: assertion) -> result<string, string>;
+interface verifier {
+    use types.{
+        authentication-request,
+        registration-request,
+        verified-authentication,
+        verified-registration,
+    };
+
+    verify-registration: func(
+        algorithm: string,
+        value: registration-request,
+    ) -> result<verified-registration, string>;
+
+    verify-authentication: func(
+        algorithm: string,
+        value: authentication-request,
+    ) -> result<verified-authentication, string>;
 }

@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:webauthn-es256"
+version = "0.1.0"
+world = "ohrats:rc-plugin/webauthn-es256@0.1.0"
+wit = ["plugin", "webauthn"]
+
+[build]
+kind = "rust"
+package = "rc-webauthn-es256"
+artifact = "webauthn-es256"

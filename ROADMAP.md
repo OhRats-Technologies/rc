@@ -208,6 +208,10 @@ contribution smoke tests already pass through the native kernel listener.
   locking, transactions, backup, and crash recovery under the chosen boundary;
   use a narrow native storage adapter if direct WASI SQLite is unreliable.
 - [ ] Port identity/passkeys/sessions and API/CLI credentials.
+  - [x] Add a keyed, stateless ES256 WebAuthn verifier component with typed
+    credential state and deterministic registration/authentication fixtures.
+  - [ ] Move ceremony state, users, sessions, passkey routes, and signed API/CLI
+    credential administration into identity components.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
 - [ ] Port control authorization, TURN provider, signaling, and events.
@@ -321,4 +325,10 @@ invariants at the top of this document.
   kernel's narrow SQLite adapter. Unit and runtime tests cover namespaces,
   optimistic transactions, writer locking, abrupt rollback, persistence, and
   consistent online backup. The OpenSSL-backed `webauthn-rs` implementation was
-  rejected for WASIp2; identity remains pending a portable audited verifier.
+  rejected for WASIp2.
+- 2026-08-28: added a keyed ES256 WebAuthn verifier component using a pinned
+  pure-Rust relying-party core. Typed WIT carries RP policy and portable COSE
+  credential state; unit and runtime fixtures prove registration,
+  authentication, user-handle binding, counter advancement, tamper rejection,
+  algorithm routing, and dependency withdrawal. Ceremony/session policy remains
+  in the identity migration.
