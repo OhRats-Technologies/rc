@@ -61,7 +61,7 @@ fn descriptors() -> Vec<Command> {
         (
             "update",
             "Update managed components from their sources",
-            "rc update [name...]",
+            "rc update [name...] [--latest]",
         ),
     ]
     .into_iter()

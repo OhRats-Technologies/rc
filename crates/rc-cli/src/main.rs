@@ -1,5 +1,6 @@
 mod account;
 mod commands;
+mod component_cli;
 mod control_client;
 mod service;
 
@@ -10,7 +11,8 @@ use clap::{Parser, Subcommand};
     name = "rc",
     version = rc_cli::VERSION,
     about = "Remote control and device node",
-    long_about = "Control enrolled machines, manage the local RC Node, and configure SSH compatibility."
+    long_about = "Control enrolled machines, manage the local RC Node, and configure SSH compatibility.",
+    after_help = "Installed WebAssembly components may add commands dynamically. Run `rc commands` to inspect them."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -133,8 +135,8 @@ enum Command {
         #[command(subcommand)]
         command: ServiceCommand,
     },
-    /// Install the newest trusted RC release when it is newer.
-    Update,
+    /// Upgrade the native RC platform while keeping installed components.
+    Upgrade,
     /// Unregister this Node and remove its local service, state, and binary.
     Uninstall {
         /// RC server URL.
@@ -228,6 +230,14 @@ enum ServiceCommand {
 async fn main() {
     if std::env::args().nth(1).as_deref() == Some("__process-runner") {
         std::process::exit(rc_node::run_process_runner());
+    }
+    match component_cli::dispatch_if_component_command() {
+        Ok(Some(code)) => std::process::exit(code),
+        Ok(None) => {}
+        Err(error) => {
+            eprintln!("error: {error}");
+            std::process::exit(1);
+        }
     }
     let cli = Cli::parse();
     if let Err(error) = commands::run(cli.command).await {

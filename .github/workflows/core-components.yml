@@ -1,0 +1,77 @@
+name: RC core component bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - wit/**
+      - components/package-manager/**
+      - components/local-source/**
+      - components/http-source/**
+      - components/oci-source/**
+      - components/github-source/**
+      - components/diagnostics-store/**
+      - components/diagnostics-reporter/**
+      - components/diagnostics-cli/**
+      - scripts/build-component.sh
+      - scripts/check-component.sh
+      - .github/workflows/core-components.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rc-core-components-main
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            components/package-manager -> target
+            components/local-source -> target
+            components/http-source -> target
+            components/oci-source -> target
+            components/github-source -> target
+            components/diagnostics-store -> target
+            components/diagnostics-reporter -> target
+            components/diagnostics-cli -> target
+          shared-key: rc-core-components
+          add-job-id-key: false
+      - name: Build bootstrap components
+        run: |
+          for component in \
+            package-manager local-source http-source oci-source github-source \
+            diagnostics-store diagnostics-reporter diagnostics-cli
+          do
+            scripts/check-component.sh "$component"
+          done
+      - name: Package portable core bundle
+        run: |
+          mkdir -p dist/core/components
+          for component in \
+            package-manager local-source http-source oci-source github-source \
+            diagnostics-store diagnostics-reporter diagnostics-cli
+          do
+            cp "dist/components/$component.wasm" "dist/core/components/$component.wasm"
+          done
+          tar -C dist/core -czf dist/rc-core-components.tar.gz components
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 8
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rc-core-components
+          path: dist/rc-core-components.tar.gz
+          if-no-files-found: error
+          retention-days: 90

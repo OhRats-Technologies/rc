@@ -69,6 +69,10 @@ jobs:
       actions: read
       contents: write
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
       - name: Download exact-SHA release assets
         timeout-minutes: 45
         env:
@@ -116,13 +120,48 @@ jobs:
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --pattern 'rc-*' --dir dist
           find dist -mindepth 2 -maxdepth 2 -name 'rc-*.tar.gz' -exec mv {} dist/ \;
           find dist -mindepth 1 -type d -empty -delete
+      - name: Download compatible kernel assets
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(scripts/find-compatible-workflow-run.sh \
+            kernel-release.yml "$GITHUB_SHA" \
+            kernel wit .github/workflows/kernel-release.yml)
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'rc-kernel-*' --dir dist/kernel
+          find dist/kernel -mindepth 2 -maxdepth 2 -name 'rc-kernel-*.tar.gz' \
+            -exec mv {} dist/ \;
+          rm -rf dist/kernel
+      - name: Download compatible core component bundle
+        timeout-minutes: 45
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(scripts/find-compatible-workflow-run.sh \
+            core-components.yml "$GITHUB_SHA" \
+            wit \
+            components/package-manager components/local-source components/http-source \
+            components/oci-source components/github-source components/diagnostics-store \
+            components/diagnostics-reporter components/diagnostics-cli \
+            scripts/build-component.sh scripts/check-component.sh \
+            .github/workflows/core-components.yml)
+          gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+            --name rc-core-components --dir dist/core
+          mv dist/core/rc-core-components.tar.gz dist/
+          rmdir dist/core
       - name: Validate release assets
         run: |
-          test "$(find dist -maxdepth 1 -name 'rc-*.tar.gz' | wc -l)" -eq 4
+          test "$(find dist -maxdepth 1 -name 'rc-*.tar.gz' | wc -l)" -eq 9
           for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64; do
             test -s "dist/$name.tar.gz"
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc"
           done
+          for name in rc-kernel-darwin-arm64 rc-kernel-darwin-amd64 rc-kernel-linux-arm64 rc-kernel-linux-amd64; do
+            test -s "dist/$name.tar.gz"
+            test "$(tar -tzf "dist/$name.tar.gz")" = "rc-kernel"
+          done
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 8
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

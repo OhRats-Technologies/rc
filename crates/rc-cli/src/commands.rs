@@ -56,7 +56,7 @@ pub async fn run(command: Option<Command>) -> Result<()> {
         Some(Command::SshConfig { url, token }) => ssh::config(url, token).await,
         Some(Command::SshProxy { url }) => ssh::proxy(url).await,
         Some(Command::Service { command }) => crate::service::command(command),
-        Some(Command::Update) => update::run_update().await,
+        Some(Command::Upgrade) => update::run_upgrade().await,
         Some(Command::Uninstall { url, state_dir }) => update::uninstall(url, state_dir).await,
     }
 }

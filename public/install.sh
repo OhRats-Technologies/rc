@@ -72,6 +72,9 @@ chmod 0755 "$DIR/.rc-install.$$"
 mv "$DIR/.rc-install.$$" "$DIR/rc"
 
 echo "installed $DIR/rc"
+if "$DIR/rc" upgrade --help >/dev/null 2>&1; then
+  "$DIR/rc" upgrade
+fi
 if [ -n "$TOKEN" ]; then
   if [ -n "$SERVER" ]; then
     "$DIR/rc" enroll "$TOKEN" --url "$SERVER"

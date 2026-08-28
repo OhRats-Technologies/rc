@@ -6,6 +6,9 @@ All notable RC changes are recorded here. Published tags are immutable.
 
 ### Added
 
+- Added the first dogfoodable WebAssembly component runtime: the native RC release installs `rc-kernel` plus package-manager, local/HTTP/GitHub/OCI source, and diagnostics components. The existing Node remains native while its product domains move behind WIT.
+- Added component-provided `rc add`, `remove`, `install`, `list`, `outdated`, `update`, `doctor`, `logs`, and `report` commands. Unknown top-level commands are dispatched to active Wasm components without adding them to the native CLI parser.
+- Added a portable core-component release bundle and independent native-kernel release assets so Wasm is built once rather than once per operating system.
 - Added `process_input`, completing the focused MCP process harness: discover machines, start a process, read incremental output, write exact stdin/EOF, and cancel it.
 - Added signed RC Lock device directories, realm-scoped peer identities, signed topology and service advertisements, replay-protected opaque envelopes, content-addressed state digests, and deterministic transitive route calculation to the inactive mesh substrate.
 - Added signed, versioned peer capability announcements and deterministic bilateral negotiation of the highest compatible version and shared feature set. Capability claims describe available behavior but never grant execution authority.
@@ -13,6 +16,8 @@ All notable RC changes are recorded here. Published tags are immutable.
 
 ### Changed
 
+- `rc update` now updates managed Wasm components. `rc upgrade` updates the native RC platform and refreshes its core component bundle while preserving locally managed component overrides.
+- New installs bootstrap the component runtime automatically after installing the native `rc` binary.
 - Replaced MCP's ambiguous `timeoutSeconds` and byte `offset` descriptors with `waitSeconds` and an absolute `cursor`; the old argument names remain accepted for rolling compatibility but are no longer advertised.
 - Changed MCP process output to ordered `stdout`/`stderr` chunks with `nextCursor`, `outputPending`, and `truncatedBeforeCursor`. The server keeps a rolling 256 KiB of the newest output and returns at most 64 KiB per status call instead of freezing once the first buffer fills.
 - Removed arbitrary `minLength`/`maxLength` constraints from MCP string schemas. RC now enforces the real 2 MiB JSON-RPC request limit, 1 MiB Node control-message limit, and 128 KiB decoded stdin chunk limit at their transport boundaries.

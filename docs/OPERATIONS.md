@@ -109,11 +109,12 @@ Server:
 Nodes:
 
 ```sh
-rc update
+rc update       # managed WebAssembly components
+rc upgrade      # native RC platform + core component bundle
 rc status
 ```
 
-The updater accepts only a newer semantic version, requires a GitHub SHA-256 asset digest, rejects archives containing anything except one `rc` file, validates the downloaded binary's reported version, and then restarts an installed service.
+`rc upgrade` requires GitHub SHA-256 asset digests, validates the native RC and kernel archives plus the core component graph, refuses native downgrades, and restarts an installed Node service when the platform changed. `rc update` resolves only the desired managed component set and leaves the native binaries untouched.
 
 ## Rollback
 

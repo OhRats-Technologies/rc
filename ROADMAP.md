@@ -174,6 +174,25 @@ Acceptance: [x] diagnostics can be installed, removed, replaced, and extended
 without a kernel build or restart; capability checks keep its WIT imports
 metadata-only.
 
+## 4.5. RC 0.18 dogfood release
+
+- [ ] Ship the existing native Node/controller path together with the new
+  Wasmtime kernel rather than replacing working remote control prematurely.
+- [ ] Install package-manager, local/HTTP/GitHub/OCI source providers, and
+  local diagnostics as a portable core component bundle.
+- [ ] Dispatch component-provided top-level commands through `rc` while
+  retaining native Node/controller commands until their WIT ports are ready.
+- [ ] Make `rc update` update managed components and `rc upgrade` refresh the
+  native platform/core bundle.
+- [ ] Publish four native `rc` assets, four native kernel assets, and one
+  portable core-component bundle without rebuilding Wasm per platform.
+- [ ] Install 0.18 on a real enrolled Mac, verify the component graph and
+  package commands, then execute a GUI process through production RC.
+
+Acceptance: 0.18 can be dogfooded on an enrolled machine without losing the
+existing browser/CLI WebRTC control path, while component lifecycle and package
+commands run through the installed Wasm kernel.
+
 ## 5. Componentized web runtime and `rc.ohrats.party`
 
 - [x] Define typed HTTP gateway, session, WebAuthn, UI slot, static

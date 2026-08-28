@@ -45,8 +45,8 @@ sh scripts/check-version.sh "$VERSION"
    ```
 
 8. Require the `RC release` workflow to pass and publish a non-draft latest release. Release artifacts must come from the exact tagged SHA and pass archive validation before publication.
-9. Download the release archive on each available platform, verify its digest/archive shape, and run `rc version` plus `rc --help`.
-10. Test `public/install.sh` and `rc update` against the published release from an isolated temporary home directory.
+9. Download the native RC and kernel archives on each available platform plus the portable core-component bundle; verify their digests/archive shapes and run `rc version`, `rc commands`, and `rc list`.
+10. Test `public/install.sh`, `rc update`, and `rc upgrade` against the published release from an isolated temporary home directory.
 
 `CI` verifies formatting, strict Clippy, Rust tests, dependency audits, source size, documentation links, browser checks, shell/workflow linting, and the production container. Cross-platform release artifacts are built from the same source revision. Rust warnings remain denied.
 

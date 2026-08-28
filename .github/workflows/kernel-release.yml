@@ -101,4 +101,4 @@ jobs:
           name: rc-kernel-${{ matrix.os }}-${{ matrix.arch }}
           path: dist/rc-kernel-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90

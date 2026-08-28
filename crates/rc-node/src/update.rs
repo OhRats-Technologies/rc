@@ -1,17 +1,12 @@
-use flate2::read::GzDecoder;
+mod bundle;
+
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use std::{
-    fs::{self, File},
-    io::{self, Read, Write},
-    path::Path,
-    process::Command,
-};
+use std::{io, process::Command};
 
 const DEFAULT_RELEASE_API: &str =
     "https://api.github.com/repos/OhRats-Technologies/rc/releases/latest";
 const MAX_ARCHIVE: usize = 100 << 20;
-const MAX_BINARY: u64 = 100 << 20;
 
 #[derive(Debug, Clone, Deserialize)]
 struct GithubRelease {
@@ -49,30 +44,25 @@ pub async fn replace_executable_from(
         .json()
         .await?;
     let version = release.tag_name.trim_start_matches('v');
-    match compare_versions(version, current_version)? {
+    let ordering = compare_versions(version, current_version)?;
+    match ordering {
         std::cmp::Ordering::Less => {
             anyhow::bail!("refusing downgrade from {current_version} to {version}")
         }
-        std::cmp::Ordering::Equal => return Ok(false),
+        std::cmp::Ordering::Equal if bundle::runtime_complete() => return Ok(false),
+        std::cmp::Ordering::Equal => {}
         std::cmp::Ordering::Greater => {}
     }
-    let name = format!("rc-{}-{}.tar.gz", release_os(), release_arch());
-    let asset = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == name)
-        .ok_or_else(|| anyhow::anyhow!("release does not contain {name}"))?;
-    let digest = asset
-        .digest
-        .as_deref()
-        .and_then(|value| value.strip_prefix("sha256:"))
-        .filter(|value| value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit()))
-        .ok_or_else(|| anyhow::anyhow!("release asset is missing its GitHub SHA-256 digest"))?;
-    let archive = download(&client, &asset.browser_download_url, MAX_ARCHIVE).await?;
-    if !hex_lower(&Sha256::digest(&archive)).eq_ignore_ascii_case(digest) {
-        anyhow::bail!("release hash mismatch");
-    }
-    install_archive(&archive, version)
+    let platform = format!("{}-{}", release_os(), release_arch());
+    let kernel = asset_bytes(&client, &release, &format!("rc-kernel-{platform}.tar.gz")).await?;
+    let core = asset_bytes(&client, &release, "rc-core-components.tar.gz").await?;
+    let rc = if ordering == std::cmp::Ordering::Greater {
+        Some(asset_bytes(&client, &release, &format!("rc-{platform}.tar.gz")).await?)
+    } else {
+        None
+    };
+    bundle::install(rc.as_deref(), &kernel, &core, version)?;
+    Ok(true)
 }
 
 pub fn exec_current() -> io::Result<()> {
@@ -110,58 +100,30 @@ async fn download(client: &reqwest::Client, url: &str, limit: usize) -> anyhow::
     Ok(bytes.to_vec())
 }
 
-fn install_archive(archive: &[u8], version: &str) -> anyhow::Result<bool> {
-    let executable = std::env::current_exe()?;
-    let replacement = executable
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("invalid executable path"))?
-        .join(format!(".rc-update-{}", std::process::id()));
-    extract_rc(archive, &replacement)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&replacement, fs::Permissions::from_mode(0o755))?;
-    }
-    let output = Command::new(&replacement).arg("version").output()?;
-    if !output.status.success()
-        || String::from_utf8_lossy(&output.stdout).trim() != format!("RC {version}")
-    {
-        let _ = fs::remove_file(&replacement);
-        anyhow::bail!("downloaded executable does not match release version");
-    }
-    match fs::rename(&replacement, &executable) {
-        Ok(()) => Ok(true),
-        Err(error) => {
-            let _ = fs::remove_file(&replacement);
-            Err(error.into())
-        }
-    }
-}
-
-fn extract_rc(archive: &[u8], destination: &Path) -> anyhow::Result<()> {
-    let mut tar = tar::Archive::new(GzDecoder::new(archive));
-    let mut binary = None;
-    for entry in tar.entries()? {
-        let entry = entry?;
-        if entry.path()?.as_ref() != Path::new("rc") || binary.is_some() {
-            anyhow::bail!("release archive must contain only rc");
-        }
-        if !entry.header().entry_type().is_file() || entry.size() > MAX_BINARY {
-            anyhow::bail!("invalid rc release archive");
-        }
-        let mut bytes = Vec::with_capacity(entry.size() as usize);
-        entry.take(MAX_BINARY + 1).read_to_end(&mut bytes)?;
-        if bytes.len() as u64 > MAX_BINARY {
-            anyhow::bail!("release executable is too large");
-        }
-        binary = Some(bytes);
-    }
-    let binary = binary.ok_or_else(|| anyhow::anyhow!("release archive does not contain rc"))?;
-    let mut file = File::create(destination)?;
-    file.write_all(&binary)?;
-    file.flush()?;
-    file.sync_all()?;
-    Ok(())
+async fn asset_bytes(
+    client: &reqwest::Client,
+    release: &GithubRelease,
+    name: &str,
+) -> anyhow::Result<Vec<u8>> {
+    let asset = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == name)
+        .ok_or_else(|| anyhow::anyhow!("release does not contain {name}"))?;
+    let digest = asset
+        .digest
+        .as_deref()
+        .and_then(|value| value.strip_prefix("sha256:"))
+        .filter(|value| value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit()))
+        .ok_or_else(|| {
+            anyhow::anyhow!("release asset {name} is missing its GitHub SHA-256 digest")
+        })?;
+    let bytes = download(client, &asset.browser_download_url, MAX_ARCHIVE).await?;
+    anyhow::ensure!(
+        hex_lower(&Sha256::digest(&bytes)).eq_ignore_ascii_case(digest),
+        "release hash mismatch for {name}"
+    );
+    Ok(bytes)
 }
 
 fn compare_versions(left: &str, right: &str) -> anyhow::Result<std::cmp::Ordering> {
@@ -195,10 +157,8 @@ fn hex_lower(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{compare_versions, extract_rc};
-    use flate2::{Compression, write::GzEncoder};
+    use super::compare_versions;
     use std::cmp::Ordering;
-    use tar::{Builder, Header};
 
     #[test]
     fn version_ordering_includes_prereleases() -> anyhow::Result<()> {
@@ -216,41 +176,5 @@ mod tests {
             Ordering::Less
         );
         Ok(())
-    }
-
-    #[test]
-    fn release_archive_rejects_extra_or_duplicate_entries() -> anyhow::Result<()> {
-        let destination = std::env::temp_dir().join(format!(
-            "rc-update-test-{}-{}",
-            std::process::id(),
-            rand::random::<u64>()
-        ));
-        extract_rc(&archive(&[("rc", b"binary")])?, &destination)?;
-        assert_eq!(std::fs::read(&destination)?, b"binary");
-        std::fs::remove_file(&destination)?;
-
-        assert!(
-            extract_rc(
-                &archive(&[("rc", b"binary"), ("extra", b"bad")])?,
-                &destination
-            )
-            .is_err()
-        );
-        assert!(extract_rc(&archive(&[("rc", b"one"), ("rc", b"two")])?, &destination).is_err());
-        Ok(())
-    }
-
-    fn archive(entries: &[(&str, &[u8])]) -> anyhow::Result<Vec<u8>> {
-        let encoder = GzEncoder::new(Vec::new(), Compression::default());
-        let mut builder = Builder::new(encoder);
-        for (name, contents) in entries {
-            let mut header = Header::new_gnu();
-            header.set_size(contents.len() as u64);
-            header.set_mode(0o755);
-            header.set_cksum();
-            builder.append_data(&mut header, *name, *contents)?;
-        }
-        let encoder = builder.into_inner()?;
-        Ok(encoder.finish()?)
     }
 }

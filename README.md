@@ -60,7 +60,7 @@ curl -fsSL https://rc.example/install.sh \
   | sh -s -- ENROLLMENT_TOKEN https://rc.example
 ```
 
-The installer downloads the matching GitHub release asset, verifies GitHub's SHA-256 asset digest and archive shape, installs `rc` to `~/.local/bin`, enrolls the Node, and installs a per-user launchd or systemd service.
+The installer verifies and installs the matching native `rc` release, the platform kernel, and the portable core WebAssembly component bundle. It then enrolls the Node and installs a per-user launchd or systemd service when enrollment state exists.
 
 Useful CLI commands:
 
@@ -74,9 +74,11 @@ rc ssh-key add ~/.ssh/id_ed25519.pub
 rc ssh-config >> ~/.ssh/config
 rc service status
 rc update
+rc upgrade
+rc list
 ```
 
-Run `rc --help` or `rc <command> --help` for the complete contract.
+`rc update` updates managed components. `rc upgrade` updates the native RC platform and core bundle. Run `rc commands` to inspect commands provided by active components.
 
 ## Develop
 
