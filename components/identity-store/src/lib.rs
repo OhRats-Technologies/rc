@@ -5,6 +5,7 @@ wit_bindgen::generate!({
 });
 
 mod ceremony;
+mod credential;
 mod session;
 mod storage;
 mod time;
@@ -12,13 +13,18 @@ mod user;
 mod validate;
 
 use exports::{
-    ohrats::rc_identity::{ceremonies::Guest as CeremoniesGuest, users::Guest as UsersGuest},
+    ohrats::rc_identity::{
+        ceremonies::Guest as CeremoniesGuest,
+        credentials::{Guest as CredentialsGuest, Passkey},
+        users::Guest as UsersGuest,
+    },
     ohrats::rc_session::{lookup::Guest as LookupGuest, management::Guest as ManagementGuest},
 };
 use ohrats::{
     rc_identity::types::{Ceremony, User},
     rc_plugin::types::Service,
     rc_session::types::{IssuedSession, Session},
+    rc_webauthn::types::StoredCredential,
 };
 
 struct IdentityStore;
@@ -27,9 +33,10 @@ impl Guest for IdentityStore {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:identity-store".into(),
-            version: "0.1.0".into(),
+            version: "0.2.0".into(),
             provides: vec![
                 service("ohrats:rc-identity/users"),
+                service("ohrats:rc-identity/credentials"),
                 service("ohrats:rc-identity/ceremonies"),
                 service("ohrats:rc-session/lookup"),
                 service("ohrats:rc-session/management"),
@@ -59,8 +66,47 @@ impl UsersGuest for IdentityStore {
         user::get(&id)
     }
 
+    fn all() -> Result<Vec<User>, String> {
+        user::all()
+    }
+
     fn count() -> Result<u64, String> {
         user::count()
+    }
+
+    fn rename(id: String, display_name: String) -> Result<User, String> {
+        user::rename(&id, display_name)
+    }
+}
+
+impl CredentialsGuest for IdentityStore {
+    fn create_user(
+        user_id: String,
+        display_name: String,
+        passkey_name: String,
+        value: StoredCredential,
+    ) -> Result<User, String> {
+        credential::create_user(user_id, display_name, passkey_name, value)
+    }
+
+    fn add(user_id: String, name: String, value: StoredCredential) -> Result<Passkey, String> {
+        credential::add(user_id, name, value)
+    }
+
+    fn get_by_credential_id(id: Vec<u8>) -> Result<Option<Passkey>, String> {
+        credential::get_by_credential_id(&id)
+    }
+
+    fn all(user_id: Option<String>) -> Result<Vec<Passkey>, String> {
+        credential::all(user_id.as_deref())
+    }
+
+    fn update(id: String, value: StoredCredential, used_at_ms: u64) -> Result<Passkey, String> {
+        credential::update(&id, value, used_at_ms)
+    }
+
+    fn remove(id: String, user_id: String) -> Result<bool, String> {
+        credential::remove(&id, &user_id)
     }
 }
 

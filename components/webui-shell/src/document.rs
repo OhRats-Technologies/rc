@@ -1,15 +1,48 @@
-use crate::STYLES_PATH;
+use crate::ohrats::rc_webui::types::PublicDocument;
+use crate::{PUBLIC_STYLES_PATH, STYLES_PATH};
 
 const SHARED: &str = "https://assets.ohrats.party/assets";
 
-pub fn registered(title: &str, summary: &str, content: &str) -> String {
+pub fn public(value: PublicDocument) -> String {
+    let scripts = value
+        .scripts
+        .iter()
+        .map(|path| format!("<script type=\"module\" src=\"{}\"></script>", escape(path)))
+        .collect::<String>();
+    let styles = value
+        .styles
+        .iter()
+        .map(|path| format!("<link rel=\"stylesheet\" href=\"{}\">", escape(path)))
+        .collect::<String>();
     format!(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"color-scheme\" content=\"light dark\"><meta name=\"robots\" content=\"noindex,nofollow\"><title>{} | RC</title><link rel=\"icon\" type=\"image/svg+xml\" href=\"{SHARED}/logo.092a1cece4d0.svg\"><link rel=\"stylesheet\" href=\"{SHARED}/ohrats.eb38b77e6b5e.css\"><link rel=\"stylesheet\" href=\"{SHARED}/states.8d99d4b0e704.css\"><link rel=\"stylesheet\" href=\"{STYLES_PATH}\"><script src=\"{SHARED}/theme.b6e0fe408633.js\"></script></head><body><main class=\"page-shell\"><article class=\"page\"><p class=\"eyebrow\">RC</p><h1>{}</h1><p>{}</p><pre>{}</pre></article></main></body></html>",
-        escape(title),
-        escape(title),
-        escape(summary),
-        escape(content)
+        "<!doctype html><html lang=\"en\" data-sidebar=\"open\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"{}\"><meta name=\"color-scheme\" content=\"light dark\"><title>{} | RC</title><meta name=\"description\" content=\"Persistent terminals and private device access without exposing SSH.\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"{SHARED}/logo.092a1cece4d0.svg\"><link rel=\"stylesheet\" href=\"{SHARED}/ohrats.eb38b77e6b5e.css\"><link rel=\"stylesheet\" href=\"{SHARED}/states.8d99d4b0e704.css\"><link rel=\"stylesheet\" href=\"{SHARED}/copy.e4c6bbb26b56.css\"><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap\"><link rel=\"stylesheet\" href=\"{STYLES_PATH}\"><link rel=\"stylesheet\" href=\"{PUBLIC_STYLES_PATH}\">{}{extra}<script src=\"{SHARED}/theme.b6e0fe408633.js\"></script></head><body>{body}{scripts}</body></html>",
+        if value.indexable {
+            "index,follow"
+        } else {
+            "noindex,nofollow"
+        },
+        escape(&value.title),
+        styles,
+        extra = value.extra_head,
+        body = value.body,
+        scripts = scripts,
     )
+}
+
+pub fn registered(title: &str, summary: &str, content: &str) -> String {
+    public(PublicDocument {
+        title: title.into(),
+        body: format!(
+            "<main class=\"page-shell\"><article class=\"page\"><p class=\"eyebrow\">RC</p><h1>{}</h1><p>{}</p><pre>{}</pre></article></main>",
+            escape(title),
+            escape(summary),
+            escape(content)
+        ),
+        scripts: Vec::new(),
+        styles: Vec::new(),
+        extra_head: String::new(),
+        indexable: false,
+    })
 }
 
 pub fn escape(value: &str) -> String {

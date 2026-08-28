@@ -8,6 +8,15 @@ interface types {
         summary: string,
         content: string,
     }
+
+    record public-document {
+        title: string,
+        body: string,
+        scripts: list<string>,
+        styles: list<string>,
+        extra-head: string,
+        indexable: bool,
+    }
 }
 
 interface slots {
@@ -15,4 +24,9 @@ interface slots {
     register-page: func(value: page) -> result<_, string>;
     remove-page: func(id: string) -> result<bool, string>;
     pages: func() -> list<page>;
+}
+
+interface shell {
+    use types.{public-document};
+    render-public: func(value: public-document) -> string;
 }

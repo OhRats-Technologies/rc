@@ -12,12 +12,13 @@ mod pages;
 include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 
 use exports::{
-    ohrats::rc_http::handler::Guest as HttpGuest, ohrats::rc_webui::slots::Guest as SlotsGuest,
+    ohrats::rc_http::handler::Guest as HttpGuest,
+    ohrats::rc_webui::{shell::Guest as ShellGuest, slots::Guest as SlotsGuest},
 };
 use ohrats::{
     rc_http::types::{Request, Response},
     rc_plugin::types::{Command, Service},
-    rc_webui::types::Page,
+    rc_webui::types::{Page, PublicDocument},
 };
 use std::{cell::RefCell, collections::BTreeMap};
 
@@ -31,7 +32,7 @@ impl Guest for WebUiShell {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:webui-shell".into(),
-            version: "0.1.0".into(),
+            version: "0.2.0".into(),
             provides: vec![
                 Service {
                     name: "ohrats:rc-http/handler".into(),
@@ -41,6 +42,12 @@ impl Guest for WebUiShell {
                 },
                 Service {
                     name: "ohrats:rc-webui/slots".into(),
+                    version: "0.1.0".into(),
+                    priority: 100,
+                    keys: Vec::new(),
+                },
+                Service {
+                    name: "ohrats:rc-webui/shell".into(),
                     version: "0.1.0".into(),
                     priority: 100,
                     keys: Vec::new(),
@@ -134,6 +141,12 @@ fn validate_id(value: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("invalid WebUI page id {value:?}"))
+    }
+}
+
+impl ShellGuest for WebUiShell {
+    fn render_public(value: PublicDocument) -> String {
+        document::public(value)
     }
 }
 

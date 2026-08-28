@@ -2,9 +2,9 @@ schema = 1
 
 [component]
 id = "ohrats:identity-store"
-version = "0.1.0"
+version = "0.2.0"
 world = "ohrats:rc-plugin/identity-store@0.1.0"
-wit = ["identity", "plugin", "session", "storage"]
+wit = ["identity", "plugin", "session", "storage", "webauthn"]
 
 [build]
 kind = "rust"
