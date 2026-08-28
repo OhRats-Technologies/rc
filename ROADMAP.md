@@ -210,8 +210,11 @@ contribution smoke tests already pass through the native kernel listener.
 - [ ] Port identity/passkeys/sessions and API/CLI credentials.
   - [x] Add a keyed, stateless ES256 WebAuthn verifier component with typed
     credential state and deterministic registration/authentication fixtures.
-  - [ ] Move ceremony state, users, sessions, passkey routes, and signed API/CLI
-    credential administration into identity components.
+  - [x] Add component-owned durable users, browser sessions, and single-use
+    ceremony state; prove restart recovery, expiration, revocation, provider
+    withdrawal, and that raw bearer tokens never enter durable storage.
+  - [ ] Route passkey ceremonies and signed API/CLI credential administration
+    through the identity services, then remove their native SQLite paths.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
 - [ ] Port control authorization, TURN provider, signaling, and events.

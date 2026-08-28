@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:identity-store"
+version = "0.1.0"
+world = "ohrats:rc-plugin/identity-store@0.1.0"
+wit = ["identity", "plugin", "session", "storage"]
+
+[build]
+kind = "rust"
+package = "rc-identity-store"
+artifact = "identity-store"

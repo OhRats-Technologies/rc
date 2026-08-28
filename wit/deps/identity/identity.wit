@@ -1,0 +1,33 @@
+package ohrats:rc-identity@0.1.0;
+
+interface types {
+    record user {
+        id: string,
+        display-name: string,
+        created-at-ms: u64,
+    }
+
+    record ceremony {
+        id: string,
+        kind: string,
+        user-id: option<string>,
+        metadata: list<u8>,
+        state: list<u8>,
+        expires-at-ms: u64,
+    }
+}
+
+interface users {
+    use types.{user};
+
+    create: func(id: string, display-name: string) -> result<user, string>;
+    get: func(id: string) -> result<option<user>, string>;
+    count: func() -> result<u64, string>;
+}
+
+interface ceremonies {
+    use types.{ceremony};
+
+    put: func(value: ceremony) -> result<_, string>;
+    take: func(id: string, kind: string) -> result<option<ceremony>, string>;
+}

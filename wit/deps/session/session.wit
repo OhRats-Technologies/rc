@@ -9,11 +9,24 @@ interface types {
     record session {
         id: string,
         principal: principal,
+        created-at-ms: u64,
         expires-at-ms: u64,
+    }
+
+    record issued-session {
+        token: string,
+        session: session,
     }
 }
 
 interface lookup {
     use types.{session};
     find: func(cookie-header: string) -> result<option<session>, string>;
+}
+
+interface management {
+    use types.{issued-session};
+
+    issue: func(user-id: string, expires-at-ms: u64) -> result<issued-session, string>;
+    revoke: func(cookie-header: string) -> result<bool, string>;
 }

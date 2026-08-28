@@ -249,3 +249,20 @@ world webauthn-fixture {
     include plugin;
     import ohrats:rc-webauthn/verifier@0.1.0;
 }
+
+world identity-store {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    export ohrats:rc-identity/users@0.1.0;
+    export ohrats:rc-identity/ceremonies@0.1.0;
+    export ohrats:rc-session/lookup@0.1.0;
+    export ohrats:rc-session/management@0.1.0;
+}
+
+world identity-fixture {
+    include plugin;
+    import ohrats:rc-identity/users@0.1.0;
+    import ohrats:rc-identity/ceremonies@0.1.0;
+    import ohrats:rc-session/lookup@0.1.0;
+    import ohrats:rc-session/management@0.1.0;
+}

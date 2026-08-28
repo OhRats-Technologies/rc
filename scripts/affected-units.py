@@ -159,6 +159,7 @@ RUNTIME_TOOLING = {
         "fixture-provider",
         "fixture-provider-v2",
     },
+    "scripts/smoke-identity.sh": {"identity-fixture", "identity-store"},
     "scripts/smoke-packages.sh": {
         "http-source",
         "local-source",

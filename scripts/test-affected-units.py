@@ -61,7 +61,17 @@ class AffectedUnitsTests(unittest.TestCase):
     def test_storage_wit_change_rebuilds_kernel_adapter_and_fixture(self) -> None:
         value = self.resolve("wit/deps/storage/storage.wit")
         self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["storage-fixture"])
+        self.assertEqual(value["components"], ["identity-store", "storage-fixture"])
+
+    def test_identity_wit_change_rebuilds_identity_units(self) -> None:
+        value = self.resolve("wit/deps/identity/identity.wit")
+        self.assertFalse(value["kernel"])
+        self.assertEqual(value["components"], ["identity-fixture", "identity-store"])
+
+    def test_session_wit_change_rebuilds_identity_units(self) -> None:
+        value = self.resolve("wit/deps/session/session.wit")
+        self.assertFalse(value["kernel"])
+        self.assertEqual(value["components"], ["identity-fixture", "identity-store"])
 
     def test_webauthn_wit_change_rebuilds_only_verifier_units(self) -> None:
         value = self.resolve("wit/deps/webauthn/webauthn.wit")
@@ -100,6 +110,11 @@ class AffectedUnitsTests(unittest.TestCase):
         value = self.resolve("scripts/smoke-storage.sh")
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["storage-fixture"])
+
+    def test_identity_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
+        value = self.resolve("scripts/smoke-identity.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["identity-fixture", "identity-store"])
 
     def test_webauthn_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
         value = self.resolve("scripts/smoke-webauthn.sh")

@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:identity-fixture"
+version = "0.1.0"
+world = "ohrats:rc-plugin/identity-fixture@0.1.0"
+wit = ["identity", "plugin", "session"]
+
+[build]
+kind = "rust"
+package = "rc-identity-fixture"
+artifact = "identity-fixture"
