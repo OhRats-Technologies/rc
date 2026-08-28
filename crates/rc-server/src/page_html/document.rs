@@ -41,6 +41,7 @@ fn document(
     extra_head: &str,
     indexable: bool,
 ) -> String {
+    let version = env!("CARGO_PKG_VERSION");
     let mut script_names = Vec::new();
     if context.is_some() {
         script_names.push("sidebar");
@@ -54,8 +55,9 @@ fn document(
         .into_iter()
         .map(|name| {
             format!(
-                "<script type=\"module\" src=\"/assets/{}.js\"></script>",
-                esc(name)
+                "<script type=\"module\" src=\"/assets/{}.js?v={}\"></script>",
+                esc(name),
+                version
             )
         })
         .collect::<String>();
@@ -63,8 +65,9 @@ fn document(
         .iter()
         .map(|name| {
             format!(
-                "<link rel=\"stylesheet\" href=\"/assets/{}.css\">",
-                esc(name)
+                "<link rel=\"stylesheet\" href=\"/assets/{}.css?v={}\">",
+                esc(name),
+                version
             )
         })
         .collect::<String>();
@@ -86,7 +89,7 @@ fn document(
         body
     };
     format!(
-        "<!doctype html><html lang=\"en\" data-sidebar=\"{}\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"{}\"><meta name=\"color-scheme\" content=\"light dark\"><title>{} | RC</title><meta name=\"description\" content=\"Persistent terminals and private device access without exposing SSH.\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"{}/logo.092a1cece4d0.svg\"><link rel=\"stylesheet\" href=\"{}/ohrats.eb38b77e6b5e.css\"><link rel=\"stylesheet\" href=\"{}/states.8d99d4b0e704.css\"><link rel=\"stylesheet\" href=\"{}/copy.e4c6bbb26b56.css\"><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap\"><link rel=\"stylesheet\" href=\"/assets/styles.css\">{}{}<script src=\"{}/theme.b6e0fe408633.js\"></script>{}</head><body{}>{}{}</body></html>",
+        "<!doctype html><html lang=\"en\" data-sidebar=\"{}\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta name=\"robots\" content=\"{}\"><meta name=\"color-scheme\" content=\"light dark\"><title>{} | RC</title><meta name=\"description\" content=\"Persistent terminals and private device access without exposing SSH.\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"{}/logo.092a1cece4d0.svg\"><link rel=\"stylesheet\" href=\"{}/ohrats.eb38b77e6b5e.css\"><link rel=\"stylesheet\" href=\"{}/states.8d99d4b0e704.css\"><link rel=\"stylesheet\" href=\"{}/copy.e4c6bbb26b56.css\"><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin><link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap\"><link rel=\"stylesheet\" href=\"/assets/styles.css?v={}\">{}{}<script src=\"{}/theme.b6e0fe408633.js\"></script>{}</head><body{}>{}{}</body></html>",
         esc(sidebar_state),
         if indexable {
             "index,follow"
@@ -98,6 +101,7 @@ fn document(
         SHARED_BASE,
         SHARED_BASE,
         SHARED_BASE,
+        version,
         styles,
         extra_head,
         SHARED_BASE,

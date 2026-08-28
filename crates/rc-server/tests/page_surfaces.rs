@@ -128,6 +128,15 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
             );
         }
     }
+    let process_page = get(&application, &ids.process_path, Some(&cookie)).await?;
+    for asset in ["sidebar.js", "process-terminal.js", "process-terminal.css"] {
+        assert!(
+            process_page
+                .body
+                .contains(&format!("{asset}?v={}", env!("CARGO_PKG_VERSION"))),
+            "authenticated process page is missing a versioned {asset} URL"
+        );
+    }
 
     for (path, required) in [
         ("/", "Remote control for your machines"),
@@ -159,7 +168,16 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
             .contains("<meta name=\"robots\" content=\"index,follow\">")
     );
     assert!(landing.body.contains("href=\"/login\""));
-    assert!(landing.body.contains("public.js"));
+    assert!(
+        landing
+            .body
+            .contains(&format!("public.js?v={}", env!("CARGO_PKG_VERSION")))
+    );
+    assert!(
+        landing
+            .body
+            .contains(&format!("styles.css?v={}", env!("CARGO_PKG_VERSION")))
+    );
     let signup = get(&application, "/signup", None).await?;
     assert!(signup.body.contains("data-sitekey=\"turnstile-site\""));
     assert!(

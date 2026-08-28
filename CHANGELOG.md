@@ -2,6 +2,12 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.17.2] - 2026-08-28
+
+### Fixed
+
+- Versioned every RC-owned JavaScript and stylesheet URL with the application release so an already-open browser cannot reuse a still-fresh entry bundle from the previous deployment after navigation.
+
 ## [0.17.1] - 2026-08-28
 
 ### Fixed
