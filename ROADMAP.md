@@ -241,6 +241,9 @@ contribution smoke tests already pass through the native kernel listener.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
 - [ ] Port control authorization, TURN provider, signaling, and events.
+  - [x] Add a typed lifecycle-event component with durable monotonic cursors,
+    authorization-scoped filters, idempotent appends, bounded retention, and
+    restart/gap recovery fixtures. Live HTTP event streaming remains pending.
 - [ ] Port MCP OAuth and the five-tool process harness.
 - [ ] Port the OpenSSH gateway integration.
 - [ ] Define the canonical server profile and exact lockfile.
