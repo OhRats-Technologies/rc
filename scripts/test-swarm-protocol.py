@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import pathlib
+import tempfile
 import unittest
+from unittest import mock
 
 
 PATH = pathlib.Path(__file__).with_name("swarm.py")
@@ -49,6 +52,35 @@ class SwarmProtocolTests(unittest.TestCase):
         text = SWARM.decoded_text(line)
         self.assertIn("node-runtime-8d31 ACK", text)
         self.assertIn("message: protocol=SC1", text)
+
+    def test_explicit_state_directory_wins(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(os.environ, {"RC_SWARM_DIR": directory}):
+                self.assertEqual(SWARM.swarm_root(), pathlib.Path(directory).resolve())
+
+    def test_default_state_is_outside_git_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            common = pathlib.Path(directory) / "rc" / ".git"
+            state = pathlib.Path(directory) / "state"
+            with mock.patch.object(SWARM, "common_dir", return_value=common):
+                with mock.patch.dict(
+                    os.environ,
+                    {"XDG_STATE_HOME": str(state), "RC_SWARM_DIR": ""},
+                ):
+                    root = SWARM.swarm_root()
+            self.assertEqual(root.parent, (state / "rc-swarm").resolve())
+            self.assertNotIn(".git", root.parts)
+
+    def test_initialize_creates_only_live_state_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(os.environ, {"RC_SWARM_DIR": directory}):
+                root = SWARM.initialize()
+            self.assertTrue((root / "agents").is_dir())
+            self.assertTrue((root / "threads").is_dir())
+            self.assertEqual(
+                sorted(path.name for path in root.iterdir()),
+                ["agents", "threads"],
+            )
 
 
 if __name__ == "__main__":
