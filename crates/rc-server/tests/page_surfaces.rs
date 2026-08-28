@@ -133,72 +133,10 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
         assert!(
             process_page
                 .body
-                .contains(&format!("{asset}?v={}", env!("CARGO_PKG_VERSION"))),
+                .contains(&format!("{asset}?v={}-browser2", env!("CARGO_PKG_VERSION"))),
             "authenticated process page is missing a versioned {asset} URL"
         );
     }
-
-    for (path, required) in [
-        ("/", "Remote control for your machines"),
-        ("/login", "SIGN IN WITH PASSKEY"),
-        ("/signup", "cf-turnstile"),
-        ("/docs", "RC documentation"),
-        ("/docs/quickstart", "Install rc"),
-        ("/docs/security", "Node execution remains authoritative"),
-        ("/docs/cli", "rc shell DEVICE"),
-        ("/docs/mcp", "OAuth 2.0"),
-    ] {
-        let response = get(&application, path, None).await?;
-        assert_eq!(response.status, StatusCode::OK, "GET {path}");
-        assert!(
-            response.body.contains(required),
-            "GET {path} missing {required}"
-        );
-        assert!(
-            path == "/"
-                || path.starts_with("/docs")
-                || response.body.contains("<main class=\"auth-shell\">"),
-            "GET {path} missing the auth main landmark"
-        );
-    }
-    let landing = get(&application, "/", None).await?;
-    assert!(
-        landing
-            .body
-            .contains("<meta name=\"robots\" content=\"index,follow\">")
-    );
-    assert!(landing.body.contains("href=\"/login\""));
-    assert!(
-        landing
-            .body
-            .contains(&format!("public.js?v={}", env!("CARGO_PKG_VERSION")))
-    );
-    assert!(
-        landing
-            .body
-            .contains(&format!("styles.css?v={}", env!("CARGO_PKG_VERSION")))
-    );
-    let signup = get(&application, "/signup", None).await?;
-    assert!(signup.body.contains("data-sitekey=\"turnstile-site\""));
-    assert!(
-        signup
-            .body
-            .contains("https://challenges.cloudflare.com/turnstile/v0/api.js")
-    );
-
-    let missing = get(&application, "/devices/missing-device", Some(&cookie)).await?;
-    assert_eq!(missing.status, StatusCode::NOT_FOUND);
-    assert!(missing.body.contains("<main class=\"auth-shell\""));
-    let missing_docs = get(&application, "/docs/not-a-topic", None).await?;
-    assert_eq!(missing_docs.status, StatusCode::NOT_FOUND);
-    assert!(missing_docs.body.contains("Documentation not found"));
-
-    let install = get(&application, "/install.sh", None).await?;
-    assert_eq!(install.status, StatusCode::OK);
-    assert!(install.body.starts_with("#!/bin/sh"));
-    let robots = get(&application, "/robots.txt", None).await?;
-    assert_eq!(robots.status, StatusCode::OK);
-    assert!(robots.body.contains("Disallow: /oauth/"));
 
     let created = form(
         &application,
@@ -293,6 +231,10 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
     assert_eq!(old_session.location.as_deref(), Some("/login"));
     let landing = get(&application, "/", None).await?;
     assert_eq!(landing.status, StatusCode::OK);
-    assert!(landing.body.contains("Remote control for your machines"));
+    assert!(
+        landing
+            .body
+            .contains("Remote Control<br/><span class=\"hero-muted\">for your machines.</span>")
+    );
     Ok(())
 }

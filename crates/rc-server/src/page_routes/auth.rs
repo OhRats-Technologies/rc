@@ -65,7 +65,11 @@ pub(super) async fn home(
         }))
         .into_response();
     }
-    Html(crate::page_html::landing()).into_response()
+    Html(crate::page_html::landing(
+        &state.config.public_url,
+        public_signup_configured(&state, users),
+    ))
+    .into_response()
 }
 
 pub(super) async fn login(

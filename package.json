@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "test:web": "bun test web/client/*.test.ts",
     "test": "cargo test --workspace --all-targets",
-    "smoke:webview": "bun scripts/webview-smoke.ts"
+    "smoke:webview": "bun scripts/webview-smoke.ts",
+    "smoke:browser-e2e": "bun scripts/browser-e2e.ts"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

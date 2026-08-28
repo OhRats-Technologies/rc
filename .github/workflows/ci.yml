@@ -430,6 +430,66 @@ jobs:
       - run: bun run test:web
       - run: bun run build:client
 
+  browser-e2e:
+    needs: changes
+    if: >-
+      needs.changes.outputs.legacy-rust == 'true' ||
+      needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.image == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      RC_CDP_URL: http://127.0.0.1:9223
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: browser-e2e
+          add-job-id-key: false
+          cache-bin: false
+      - run: bun install --frozen-lockfile
+      - run: bun run build:client
+      - run: cargo build --locked -p rc-server --bin rc-server -p rc-cli --bin rc
+      - name: Start persistent Chrome DevTools
+        run: |
+          chrome=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
+          "$chrome" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-background-networking \
+            --disable-features=WebRtcHideLocalIpsWithMdns \
+            --remote-allow-origins='*' \
+            --remote-debugging-address=127.0.0.1 \
+            --remote-debugging-port=9223 \
+            --user-data-dir="$RUNNER_TEMP/rc-chrome-e2e" \
+            about:blank >"$RUNNER_TEMP/rc-chrome.log" 2>&1 &
+          echo "RC_CHROME_PID=$!" >> "$GITHUB_ENV"
+          attempt=0
+          while [ "$attempt" -lt 100 ]; do
+            if curl -fsS "$RC_CDP_URL/json/version" >/dev/null; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+            sleep 0.1
+          done
+          cat "$RUNNER_TEMP/rc-chrome.log" >&2
+          exit 1
+      - run: bun run smoke:browser-e2e
+      - name: Show Chrome log after failure
+        if: failure()
+        run: cat "$RUNNER_TEMP/rc-chrome.log"
+
   dependency-security:
     needs: changes
     if: needs.changes.outputs.legacy-security == 'true' || needs.changes.outputs.kernel == 'true' || needs.changes.outputs.components != '[]'
