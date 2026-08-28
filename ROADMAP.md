@@ -243,6 +243,10 @@ contribution smoke tests already pass through the native kernel listener.
 - [ ] Port control authorization, TURN provider, signaling, and events.
 - [ ] Port MCP OAuth and the five-tool process harness.
 - [ ] Port the OpenSSH gateway integration.
+  - [x] Add component-owned durable SSH public-key credentials and typed policy
+    decisions for immutable device routing, workspace roles, forced commands,
+    forwarding prohibitions, and bounded sessions. Native sshd/bridge adapters
+    remain to be reduced to consumers of these contracts.
 - [ ] Define the canonical server profile and exact lockfile.
 - [ ] Replace the giant native `AppState` with component services and host
   resources.

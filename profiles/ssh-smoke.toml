@@ -1,0 +1,8 @@
+schema = 1
+
+[profile]
+id = "ohrats:ssh-smoke"
+components = [
+  "ssh-policy-fixture",
+  "ssh-policy-store",
+]
