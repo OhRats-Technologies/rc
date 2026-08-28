@@ -1,0 +1,10 @@
+schema = 1
+[component]
+id = "ohrats:http-stream-finite"
+version = "0.1.0"
+world = "ohrats:rc-plugin/http-stream-finite@0.1.0"
+wit = ["plugin"]
+[build]
+kind = "rust"
+package = "rc-http-stream-finite"
+artifact = "http-stream-finite"

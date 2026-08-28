@@ -363,3 +363,7 @@ invariants at the top of this document.
   authentication, user-handle binding, counter advancement, tamper rejection,
   algorithm routing, and dependency withdrawal. Ceremony/session policy remains
   in the identity migration.
+- 2026-08-28: added a generic typed streamed HTTP provider contract and kernel
+  adapter with pinned provider sessions, bounded incremental chunks, delayed
+  polling, disconnect close notification, finite-route fallthrough, and SSE
+  lifecycle/concurrency fixtures. WebSocket transport remains separate work.
