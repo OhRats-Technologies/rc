@@ -83,7 +83,7 @@ pub fn add(user_id: String, name: String, credential: StoredCredential) -> Resul
 }
 
 pub fn get_by_credential_id(id: &[u8]) -> Result<Option<Passkey>, String> {
-    validate::stored_credential(id, "es256", &[1])?;
+    validate::credential_id(id)?;
     let Some(internal) = storage::get(INDEX, &credential_key(id))? else {
         return Ok(None);
     };

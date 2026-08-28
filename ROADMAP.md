@@ -202,7 +202,7 @@ commands run through the installed Wasm kernel.
 - [x] Move the exact canonical landing page and complete public documentation
   catalog into the `ohrats:webui-shell` component without reconstructed copy or
   layout.
-- [ ] Move sign-in/setup surfaces into identity-backed component routes.
+- [x] Move sign-in/setup surfaces into identity-backed component routes.
 - [ ] Move passkey ceremony handling, authenticated shell, sidebar, account,
   workspace, device, API, MCP, CLI authorization, and error views into
   componentized routes as their domain services become available.
@@ -234,8 +234,10 @@ contribution smoke tests already pass through the native kernel listener.
   - [x] Add component-owned durable users, browser sessions, and single-use
     ceremony state; prove restart recovery, expiration, revocation, provider
     withdrawal, and that raw bearer tokens never enter durable storage.
-  - [ ] Route passkey ceremonies and signed API/CLI credential administration
-    through the identity services, then remove their native SQLite paths.
+  - [ ] Route signed API/CLI credential administration through identity services,
+    then remove the remaining native SQLite paths.
+  - [x] Route setup/login WebAuthn registration and authentication ceremonies,
+    browser sessions, logout, and restart persistence through identity components.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
 - [ ] Port control authorization, TURN provider, signaling, and events.
@@ -350,6 +352,11 @@ invariants at the top of this document.
   optimistic transactions, writer locking, abrupt rollback, persistence, and
   consistent online backup. The OpenSSL-backed `webauthn-rs` implementation was
   rejected for WASIp2.
+
+- 2026-08-28: added an identity HTTP component with exact setup/login views,
+  ES256 registration and authentication through the keyed verifier, atomic
+  user/passkey storage, HttpOnly browser sessions, setup-token configuration,
+  reliable logout, and persistent-Chrome setup/restart/login coverage.
 - 2026-08-28: added a keyed ES256 WebAuthn verifier component using a pinned
   pure-Rust relying-party core. Typed WIT carries RP policy and portable COSE
   credential state; unit and runtime fixtures prove registration,

@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:identity-fixture"
 version = "0.1.0"
 world = "ohrats:rc-plugin/identity-fixture@0.1.0"
-wit = ["identity", "plugin", "session"]
+wit = ["identity", "plugin", "session", "webauthn"]
 
 [build]
 kind = "rust"

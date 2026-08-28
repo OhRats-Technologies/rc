@@ -265,7 +265,21 @@ world identity-store {
 world identity-fixture {
     include plugin;
     import ohrats:rc-identity/users@0.1.0;
+    import ohrats:rc-identity/credentials@0.1.0;
     import ohrats:rc-identity/ceremonies@0.1.0;
     import ohrats:rc-session/lookup@0.1.0;
     import ohrats:rc-session/management@0.1.0;
+}
+
+world identity-http {
+    include plugin;
+    import state-store;
+    import ohrats:rc-identity/users@0.1.0;
+    import ohrats:rc-identity/credentials@0.1.0;
+    import ohrats:rc-identity/ceremonies@0.1.0;
+    import ohrats:rc-session/lookup@0.1.0;
+    import ohrats:rc-session/management@0.1.0;
+    import ohrats:rc-webauthn/verifier@0.1.0;
+    import ohrats:rc-webui/shell@0.1.0;
+    export ohrats:rc-http/handler@0.1.0;
 }

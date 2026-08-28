@@ -62,10 +62,16 @@ pub fn passkey_name(value: &str) -> Result<(), String> {
     }
 }
 
-pub fn stored_credential(id: &[u8], algorithm: &str, public_key_cose: &[u8]) -> Result<(), String> {
+pub fn credential_id(id: &[u8]) -> Result<(), String> {
     if id.is_empty() || id.len() > 1024 {
-        return Err("invalid WebAuthn credential id".into());
+        Err("invalid WebAuthn credential id".into())
+    } else {
+        Ok(())
     }
+}
+
+pub fn stored_credential(id: &[u8], algorithm: &str, public_key_cose: &[u8]) -> Result<(), String> {
+    credential_id(id)?;
     if algorithm.is_empty()
         || algorithm.len() > 32
         || !algorithm
