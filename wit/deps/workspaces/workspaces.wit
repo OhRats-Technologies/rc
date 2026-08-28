@@ -1,0 +1,37 @@
+package ohrats:rc-workspaces@0.1.0;
+
+interface types {
+    enum role { viewer, operator, owner }
+    record workspace { id: string, name: string, personal-for: option<string>, created-at-ms: u64 }
+    record membership { workspace-id: string, user-id: string, role: role, created-at-ms: u64 }
+    record access { workspace: workspace, role: role }
+    record invitation { id: string, workspace-id: string, role: role, created-by: string, created-at-ms: u64, expires-at-ms: u64 }
+    record issued-invitation { invitation: invitation, token: string }
+}
+
+interface directory {
+    use types.{access, workspace};
+    ensure-personal: func(user-id: string) -> result<workspace, string>;
+    create: func(actor-id: string, name: string) -> result<workspace, string>;
+    get: func(id: string) -> result<option<workspace>, string>;
+    for-user: func(user-id: string) -> result<list<access>, string>;
+    rename: func(actor-id: string, id: string, name: string) -> result<workspace, string>;
+    delete: func(actor-id: string, id: string) -> result<bool, string>;
+}
+
+interface memberships {
+    use types.{membership, role};
+    role-for: func(workspace-id: string, user-id: string) -> result<option<role>, string>;
+    list-members: func(workspace-id: string) -> result<list<membership>, string>;
+    change-role: func(actor-id: string, workspace-id: string, user-id: string, role: role) -> result<membership, string>;
+    remove: func(actor-id: string, workspace-id: string, user-id: string) -> result<bool, string>;
+    leave: func(user-id: string, workspace-id: string) -> result<bool, string>;
+}
+
+interface invitations {
+    use types.{invitation, issued-invitation, membership, role};
+    issue: func(actor-id: string, workspace-id: string, role: role, expires-at-ms: u64) -> result<issued-invitation, string>;
+    inspect: func(token: string) -> result<option<invitation>, string>;
+    consume: func(token: string, user-id: string) -> result<option<membership>, string>;
+    revoke: func(actor-id: string, workspace-id: string, invitation-id: string) -> result<bool, string>;
+}
