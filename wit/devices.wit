@@ -1,0 +1,16 @@
+package ohrats:rc-plugin@0.1.0;
+
+world device-store {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    export ohrats:rc-devices/registry@0.1.0;
+    export ohrats:rc-devices/enrollments@0.1.0;
+    export ohrats:rc-devices/presence@0.1.0;
+}
+
+world device-fixture {
+    include plugin;
+    import ohrats:rc-devices/registry@0.1.0;
+    import ohrats:rc-devices/enrollments@0.1.0;
+    import ohrats:rc-devices/presence@0.1.0;
+}
