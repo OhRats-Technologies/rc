@@ -1,6 +1,6 @@
-use crate::{config, runtime::Runtime, watch};
+use crate::{config, runtime::Runtime, server, watch};
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 
 #[derive(Parser)]
 #[command(
@@ -28,6 +28,11 @@ struct Arguments {
 
 #[derive(Subcommand)]
 enum KernelCommand {
+    /// Serve generic component-provided HTTP handlers and watch for changes.
+    Serve {
+        #[arg(long, env = "RC_LISTEN")]
+        listen: Option<SocketAddr>,
+    },
     /// Watch the trusted component directory and reconcile changes.
     Watch,
     /// Print the active component graph.
@@ -54,6 +59,7 @@ pub fn run() -> anyhow::Result<()> {
         return Ok(());
     }
     match arguments.command {
+        Some(KernelCommand::Serve { listen }) => server::run(runtime, listen),
         Some(KernelCommand::Watch) => watch::run(&mut runtime),
         Some(KernelCommand::Components) => {
             print_components(&runtime);
@@ -129,6 +135,7 @@ fn print_help(runtime: &Runtime) -> anyhow::Result<()> {
     println!("Usage: rc-kernel [--component-dir PATH] <command> [args...]");
     println!();
     println!("Kernel commands:");
+    println!("  serve              Serve HTTP handlers and reconcile components");
     println!("  watch              Watch and reconcile the component directory");
     println!("  components         Show the component graph");
     println!("  commands           Show active component commands");

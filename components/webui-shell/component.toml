@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:webui-shell"
 version = "0.1.0"
 world = "ohrats:rc-plugin/webui-shell@0.1.0"
-wit = ["plugin", "webui"]
+wit = ["http", "plugin", "webui"]
 
 [build]
 kind = "rust"

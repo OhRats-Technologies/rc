@@ -8,6 +8,7 @@ mod host;
 mod network;
 mod reconcile;
 mod runtime;
+mod server;
 mod service;
 mod status;
 mod storage;

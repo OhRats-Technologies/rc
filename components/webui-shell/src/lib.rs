@@ -4,15 +4,24 @@ wit_bindgen::generate!({
     generate_all,
 });
 
-use exports::ohrats::rc_webui::slots::Guest as SlotsGuest;
+mod document;
+mod http;
+mod pages;
+
+include!(concat!(env!("OUT_DIR"), "/assets.rs"));
+
+use exports::{
+    ohrats::rc_http::handler::Guest as HttpGuest, ohrats::rc_webui::slots::Guest as SlotsGuest,
+};
 use ohrats::{
+    rc_http::types::{Request, Response},
     rc_plugin::types::{Command, Service},
     rc_webui::types::Page,
 };
 use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
-    static PAGES: RefCell<BTreeMap<String, Page>> = const { RefCell::new(BTreeMap::new()) };
+    pub(crate) static PAGES: RefCell<BTreeMap<String, Page>> = const { RefCell::new(BTreeMap::new()) };
 }
 
 struct WebUiShell;
@@ -22,12 +31,20 @@ impl Guest for WebUiShell {
         Descriptor {
             id: "ohrats:webui-shell".into(),
             version: "0.1.0".into(),
-            provides: vec![Service {
-                name: "ohrats:rc-webui/slots".into(),
-                version: "0.1.0".into(),
-                priority: 100,
-                keys: Vec::new(),
-            }],
+            provides: vec![
+                Service {
+                    name: "ohrats:rc-http/handler".into(),
+                    version: "0.1.0".into(),
+                    priority: 100,
+                    keys: Vec::new(),
+                },
+                Service {
+                    name: "ohrats:rc-webui/slots".into(),
+                    version: "0.1.0".into(),
+                    priority: 100,
+                    keys: Vec::new(),
+                },
+            ],
             requires: Vec::new(),
             commands: vec![Command {
                 name: "ui-pages".into(),
@@ -54,6 +71,12 @@ impl Guest for WebUiShell {
             println!("  {}", page.summary);
         }
         Ok(0)
+    }
+}
+
+impl HttpGuest for WebUiShell {
+    fn handle(value: Request) -> Result<Option<Response>, String> {
+        http::handle(value)
     }
 }
 

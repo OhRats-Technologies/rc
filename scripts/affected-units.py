@@ -12,6 +12,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALL_ZERO = "0" * 40
+KERNEL_WIT = {"http", "plugin"}
 
 
 def component_metadata() -> dict[str, set[str]]:
@@ -78,6 +79,8 @@ def resolve(paths: list[str]) -> dict:
                     package = path.stem
                 elif len(parts) >= 4 and parts[1] == "deps":
                     package = parts[2]
+                    if package in KERNEL_WIT:
+                        flags["kernel"] = True
                 else:
                     package = path.stem
                 components.update(
@@ -88,6 +91,9 @@ def resolve(paths: list[str]) -> dict:
                     components.add(parts[1])
             elif raw in COMPONENT_TOOLING:
                 components.update(all_components)
+            elif raw in RUNTIME_TOOLING:
+                flags["kernel"] = True
+                components.update(RUNTIME_TOOLING[raw])
             elif root == "profiles":
                 if path.stem in profiles:
                     affected_profiles.add(path.stem)
@@ -137,6 +143,33 @@ COMPONENT_TOOLING = {
     "scripts/check-component.sh",
     "scripts/check-components.sh",
     "scripts/validate-components.py",
+}
+RUNTIME_TOOLING = {
+    "scripts/smoke-diagnostics.sh": {
+        "diagnostics-cli",
+        "diagnostics-mesh",
+        "diagnostics-reporter",
+        "diagnostics-store",
+        "diagnostics-ui",
+        "webui-shell",
+    },
+    "scripts/smoke-kernel.sh": {
+        "fixture-broken",
+        "fixture-consumer",
+        "fixture-provider",
+        "fixture-provider-v2",
+    },
+    "scripts/smoke-packages.sh": {
+        "http-source",
+        "local-source",
+        "oci-source",
+        "package-manager",
+    },
+    "scripts/smoke-web-runtime.sh": {
+        "diagnostics-store",
+        "diagnostics-ui",
+        "webui-shell",
+    },
 }
 PROFILE_TOOLING = {
     "schemas/profile.schema.json",

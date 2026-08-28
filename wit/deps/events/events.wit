@@ -1,0 +1,21 @@
+package ohrats:rc-events@0.1.0;
+
+interface types {
+    record event {
+        cursor: u64,
+        kind: string,
+        subject: option<string>,
+        payload: list<u8>,
+    }
+
+    record batch {
+        events: list<event>,
+        next-cursor: u64,
+        reset-required: bool,
+    }
+}
+
+interface feed {
+    use types.{batch};
+    poll: func(after: u64, limit: u32, wait-ms: u32) -> result<batch, string>;
+}

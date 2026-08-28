@@ -1,0 +1,42 @@
+package ohrats:rc-http@0.1.0;
+
+interface types {
+    record header {
+        name: string,
+        value: string,
+    }
+
+    record request {
+        method: string,
+        scheme: string,
+        authority: string,
+        path: string,
+        query: string,
+        headers: list<header>,
+        body: list<u8>,
+        remote-address: option<string>,
+    }
+
+    record response {
+        status: u16,
+        headers: list<header>,
+        body: list<u8>,
+    }
+
+    record asset {
+        content-type: string,
+        cache-control: string,
+        etag: string,
+        body: list<u8>,
+    }
+}
+
+interface handler {
+    use types.{request, response};
+    handle: func(value: request) -> result<option<response>, string>;
+}
+
+interface static-assets {
+    use types.{asset};
+    get: func(path: string) -> result<option<asset>, string>;
+}

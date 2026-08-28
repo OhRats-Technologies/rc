@@ -53,6 +53,11 @@ class AffectedUnitsTests(unittest.TestCase):
             ],
         )
 
+    def test_http_wit_change_rebuilds_kernel_adapter_and_web_consumer(self) -> None:
+        value = self.resolve("wit/deps/http/http.wit")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["webui-shell"])
+
     def test_profile_change_compiles_nothing(self) -> None:
         value = self.resolve("profiles/kernel-smoke.toml")
         self.assertEqual(value["profiles"], ["kernel-smoke"])
@@ -69,6 +74,14 @@ class AffectedUnitsTests(unittest.TestCase):
         value = self.resolve("scripts/build-component.sh")
         self.assertFalse(value["kernel"])
         self.assertEqual(value["components"], sorted(MODULE.component_metadata()))
+
+    def test_web_runtime_smoke_change_selects_its_units(self) -> None:
+        value = self.resolve("scripts/smoke-web-runtime.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["diagnostics-store", "diagnostics-ui", "webui-shell"],
+        )
 
 
 if __name__ == "__main__":

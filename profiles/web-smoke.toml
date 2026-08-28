@@ -1,0 +1,9 @@
+schema = 1
+
+[profile]
+id = "ohrats:web-smoke"
+components = [
+  "diagnostics-store",
+  "diagnostics-ui",
+  "webui-shell",
+]

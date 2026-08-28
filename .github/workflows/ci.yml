@@ -75,12 +75,13 @@ jobs:
           sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh \
             scripts/build-component.sh scripts/check-component.sh scripts/check-components.sh \
             scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh \
-            scripts/smoke-diagnostics.sh scripts/smoke-kernel.sh scripts/smoke-packages.sh
+            scripts/smoke-diagnostics.sh scripts/smoke-kernel.sh scripts/smoke-packages.sh \
+            scripts/smoke-web-runtime.sh
           shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
             public/install.sh scripts/build-component.sh scripts/check-component.sh \
             scripts/check-components.sh scripts/check-source-size.sh scripts/check-version.sh \
             scripts/smoke-container.sh scripts/smoke-diagnostics.sh scripts/smoke-kernel.sh \
-            scripts/smoke-packages.sh
+            scripts/smoke-packages.sh scripts/smoke-web-runtime.sh
           actionlint -shellcheck shellcheck .github/workflows/*.yml
       - run: git diff --check
 
@@ -247,6 +248,36 @@ jobs:
           add-job-id-key: false
       - run: python3 scripts/check-diagnostics-capabilities.py
       - run: scripts/smoke-diagnostics.sh
+
+  web-runtime:
+    needs: [changes, components]
+    if: >-
+      always() &&
+      (needs.changes.outputs.kernel == 'true' ||
+       contains(needs.changes.outputs.components, 'webui-shell') ||
+       contains(needs.changes.outputs.components, 'diagnostics-ui') ||
+       contains(needs.changes.outputs.components, 'diagnostics-store'))
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/diagnostics-store -> target
+            components/diagnostics-ui -> target
+            components/webui-shell -> target
+          shared-key: rc-web-runtime
+          add-job-id-key: false
+      - run: scripts/smoke-web-runtime.sh
 
   profiles:
     needs: changes

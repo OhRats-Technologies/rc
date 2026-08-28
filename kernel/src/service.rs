@@ -6,19 +6,23 @@ use crate::{
         },
     },
     component::LoadedComponent,
-    descriptor::{SelectionMode, ValidatedDescriptor, ValidatedRequirement},
+    descriptor::SelectionMode,
     host::{self, HostState},
 };
 use semver::{Version, VersionReq};
 use std::{
-    cell::RefCell,
     collections::BTreeMap,
     sync::{Arc, Mutex, RwLock},
 };
 use wasmtime::{
     Store,
-    component::{Func, Instance, Linker, Val},
+    component::{Func, Val},
 };
+
+mod call;
+mod link;
+
+pub use link::{active_instance, linker};
 
 pub type InstanceHandle = Arc<Mutex<ActiveInstance>>;
 
@@ -142,149 +146,42 @@ impl ServiceRegistry {
             }),
         };
         let provider = self
+            .matching(service, requirement)?
+            .into_iter()
+            .find(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key)))
+            .ok_or_else(|| {
+                wasmtime::format_err!("service {service} {requirement} is unavailable")
+            })?;
+        call::provider(&provider, service, function, params, results)
+    }
+
+    pub fn call_all(
+        &self,
+        service: &str,
+        requirement: &VersionReq,
+        function: &str,
+        params: &[Val],
+    ) -> wasmtime::Result<Vec<(String, wasmtime::Result<Vec<Val>>)>> {
+        Ok(self
+            .matching(service, requirement)?
+            .into_iter()
+            .map(|provider| {
+                let result = call::provider_owned(&provider, service, function, params);
+                (provider.component_id, result)
+            })
+            .collect())
+    }
+
+    fn matching(&self, service: &str, requirement: &VersionReq) -> wasmtime::Result<Vec<Provider>> {
+        Ok(self
             .providers
             .read()
             .map_err(|_| wasmtime::format_err!("service registry poisoned"))?
             .get(service)
-            .and_then(|values| {
-                values.iter().find(|provider| {
-                    requirement.matches(&provider.version)
-                        && key.is_none_or(|key| provider.keys.iter().any(|value| value == key))
-                })
-            })
+            .into_iter()
+            .flatten()
+            .filter(|provider| requirement.matches(&provider.version))
             .cloned()
-            .ok_or_else(|| {
-                wasmtime::format_err!("service {service} {requirement} is unavailable")
-            })?;
-        let key = format!("{}#{service}#{function}", provider.component_id);
-        let _guard = CallGuard::enter(key)?;
-        let mut active = provider
-            .handle
-            .lock()
-            .map_err(|_| wasmtime::format_err!("provider {} is poisoned", provider.component_id))?;
-        let func = *active
-            .exports
-            .get(&(service.to_owned(), function.to_owned()))
-            .ok_or_else(|| wasmtime::format_err!("provider is missing {service}#{function}"))?;
-        active.store.set_fuel(host::SERVICE_FUEL)?;
-        func.call(&mut active.store, params, results)
-    }
-}
-
-pub fn linker(
-    engine: &wasmtime::Engine,
-    component: &wasmtime::component::Component,
-    descriptor: &ValidatedDescriptor,
-    registry: &ServiceRegistry,
-    metadata_only: bool,
-) -> anyhow::Result<Linker<HostState>> {
-    let mut linker = Linker::new(engine);
-    host::add_base_imports(&mut linker)?;
-    if metadata_only {
-        linker.define_unknown_imports_as_traps(component)?;
-        return Ok(linker);
-    }
-    for requirement in &descriptor.requires {
-        link_requirement(&mut linker, requirement, registry)?;
-    }
-    Ok(linker)
-}
-
-fn link_requirement(
-    linker: &mut Linker<HostState>,
-    requirement: &ValidatedRequirement,
-    registry: &ServiceRegistry,
-) -> anyhow::Result<()> {
-    let mut instance = linker.instance(&requirement.interface)?;
-    for function in &requirement.functions {
-        let registry = registry.clone();
-        let service = requirement.name.clone();
-        let version = requirement.version.clone();
-        let selection = requirement.selection;
-        let function_name = function.clone();
-        instance.func_new(function, move |_store, _ty, params, results| {
-            registry.call(
-                &service,
-                &version,
-                selection,
-                &function_name,
-                params,
-                results,
-            )
-        })?;
-    }
-    Ok(())
-}
-
-pub fn active_instance(
-    component: &wasmtime::component::Component,
-    instance: &Instance,
-    mut store: Store<HostState>,
-    bindings: Plugin,
-    descriptor: &ValidatedDescriptor,
-) -> anyhow::Result<ActiveInstance> {
-    let exports = exported_functions(component, instance, &mut store, descriptor)?;
-    Ok(ActiveInstance {
-        store,
-        bindings,
-        exports,
-    })
-}
-
-fn exported_functions(
-    component: &wasmtime::component::Component,
-    instance: &Instance,
-    store: &mut Store<HostState>,
-    descriptor: &ValidatedDescriptor,
-) -> anyhow::Result<BTreeMap<(String, String), Func>> {
-    let mut exports = BTreeMap::new();
-    for service in &descriptor.provides {
-        let parent = component
-            .get_export_index(None, service.interface.as_str())
-            .ok_or_else(|| anyhow::anyhow!("missing service export {}", service.interface))?;
-        for function in &service.functions {
-            let index = component
-                .get_export_index(Some(&parent), function.as_str())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("missing service function {}#{function}", service.interface)
-                })?;
-            let func = instance.get_func(&mut *store, index).ok_or_else(|| {
-                anyhow::anyhow!(
-                    "service export {}#{function} is not a function",
-                    service.interface
-                )
-            })?;
-            exports.insert((service.name.clone(), function.clone()), func);
-        }
-    }
-    Ok(exports)
-}
-
-thread_local! {
-    static CALL_STACK: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
-}
-
-struct CallGuard;
-
-impl CallGuard {
-    fn enter(key: String) -> wasmtime::Result<Self> {
-        CALL_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            if stack.contains(&key) {
-                return Err(wasmtime::format_err!(
-                    "component service cycle detected at {key}"
-                ));
-            }
-            stack.push(key);
-            Ok(Self)
-        })
-    }
-}
-
-impl Drop for CallGuard {
-    fn drop(&mut self) {
-        CALL_STACK.with(|stack| {
-            stack.borrow_mut().pop();
-        });
+            .collect())
     }
 }

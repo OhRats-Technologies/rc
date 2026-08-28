@@ -1,0 +1,19 @@
+package ohrats:rc-session@0.1.0;
+
+interface types {
+    record principal {
+        user-id: string,
+        display-name: string,
+    }
+
+    record session {
+        id: string,
+        principal: principal,
+        expires-at-ms: u64,
+    }
+}
+
+interface lookup {
+    use types.{session};
+    find: func(cookie-header: string) -> result<option<session>, string>;
+}

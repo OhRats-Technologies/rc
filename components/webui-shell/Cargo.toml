@@ -11,4 +11,7 @@ crate-type = ["cdylib"]
 [dependencies]
 wit-bindgen = "0.61.1"
 
+[build-dependencies]
+sha2 = "0.10.9"
+
 [workspace]

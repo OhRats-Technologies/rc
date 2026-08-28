@@ -92,6 +92,10 @@ impl Runtime {
         values
     }
 
+    pub fn service_registry(&self) -> ServiceRegistry {
+        self.registry.clone()
+    }
+
     pub fn commands(&self) -> anyhow::Result<Vec<(&str, &ValidatedCommand)>> {
         let mut commands = BTreeMap::new();
         for entry in self.entries.values() {

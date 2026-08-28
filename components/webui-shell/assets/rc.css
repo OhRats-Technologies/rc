@@ -1,0 +1,132 @@
+:root {
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--or-background, #f7f7f4);
+  color: var(--or-foreground, #171714);
+}
+
+a {
+  color: inherit;
+}
+
+.public-header,
+footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.25rem 2rem;
+}
+
+.public-header nav,
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.brand {
+  font-family: "Space Mono", monospace;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+main {
+  max-width: 72rem;
+  min-height: 70vh;
+  margin: 0 auto;
+  padding: 5rem 2rem;
+}
+
+.hero {
+  max-width: 52rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.hero h1,
+.auth h1,
+.page h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 7vw, 5.75rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.hero p,
+.auth p,
+.page p {
+  max-width: 42rem;
+  font-size: 1.1rem;
+  line-height: 1.65;
+}
+
+.eyebrow {
+  font-family: "Space Mono", monospace;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.12em;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 7rem;
+}
+
+.features article {
+  border-top: 1px solid currentColor;
+  padding-top: 1rem;
+}
+
+.auth,
+.page {
+  max-width: 48rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.auth h1,
+.page h1 {
+  font-size: clamp(2.25rem, 6vw, 4.5rem);
+}
+
+.doc-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+pre {
+  overflow: auto;
+  padding: 1rem 0;
+  font-family: "Space Mono", monospace;
+  white-space: pre-wrap;
+}
+
+footer {
+  border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+@media (max-width: 48rem) {
+  .public-header,
+  footer,
+  main {
+    padding-inline: 1rem;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
+    margin-top: 4rem;
+  }
+
+  .actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

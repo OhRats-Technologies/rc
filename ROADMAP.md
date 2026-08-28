@@ -176,24 +176,31 @@ metadata-only.
 
 ## 5. Componentized web runtime and `rc.ohrats.party`
 
-- [ ] Define typed HTTP gateway, route, session, WebAuthn, UI slot, static
+- [x] Define typed HTTP gateway, session, WebAuthn, UI slot, static
   asset, and event-stream WIT packages.
-- [ ] Implement the native HTTP listener as a capability-scoped kernel adapter
+- [x] Implement the native HTTP listener as a capability-scoped kernel adapter
   and route requests to active components.
-- [ ] Move the landing page, login/setup flows, authenticated shell, sidebar,
-  account, workspace, device, API, MCP, CLI authorization, and docs views into
-  the `ohrats:webui` component.
-- [ ] Keep server-rendered HTML and progressive enhancement. Bun may build the
-  WebUI component's browser assets until replacing it has a measured benefit.
-- [ ] Embed/fingerprint WebUI-owned assets in its component artifact while
+- [x] Move the landing page, sign-in/setup surfaces, and public docs into the
+  `ohrats:webui-shell` component.
+- [ ] Move passkey ceremony handling, authenticated shell, sidebar, account,
+  workspace, device, API, MCP, CLI authorization, and error views into
+  componentized routes as their domain services become available.
+- [x] Keep server-rendered HTML for the public shell and registered page
+  contributions.
+- [ ] Move progressive browser enhancements into the WebUI component. Bun may
+  remain its private browser-asset tool until replacing it has a measured
+  benefit.
+- [x] Embed/fingerprint WebUI-owned assets in its component artifact while
   continuing to consume company-wide immutable assets from
   `assets.ohrats.party`.
-- [ ] Define and exercise WebUI slots with the diagnostics UI component.
+- [x] Define and exercise WebUI page slots with the diagnostics UI component.
+- [ ] Add sidebar, device-panel, and settings-panel contribution interfaces.
 - [ ] Delete the replaced native page renderer/routes and the global browser
   build lane.
 
-Acceptance: the public landing page, passkey login/setup, existing authenticated
-pages, and browser smoke tests run through the WebUI component in production.
+Acceptance: [ ] passkey login/setup and authenticated browser flows run through
+components in production. The public landing/docs runtime and live route
+contribution smoke tests already pass through the native kernel listener.
 
 ## 6. Canonical server domain components
 
@@ -306,3 +313,7 @@ invariants at the top of this document.
   store, reporter, `doctor`/`logs` CLI, reactive WebUI page contribution, and a
   mesh report component that cannot activate without an authorization service.
   A live watcher test proves dependency-driven activation and withdrawal.
+- 2026-08-28: added the native component HTTP adapter and moved the public RC
+  landing, sign-in/setup surfaces, docs shell, fingerprinted CSS, and
+  diagnostics page route into the WebUI component. Live HTTP tests prove route
+  providers can appear and disappear without restarting the listener.
