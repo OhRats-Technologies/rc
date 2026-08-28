@@ -74,8 +74,11 @@ rm -f "$directory/consumer.wasm" "$directory/collision.wasm"
 cp dist/components/fixture-provider.wasm "$directory/provider.wasm"
 output=$(kernel/target/debug/rc-kernel --component-dir "$directory" hello RC 2>/dev/null)
 test "$output" = "hello, RC"
+cp dist/components/fixture-consumer.wasm "$directory/consumer.wasm"
+output=$(kernel/target/debug/rc-kernel --component-dir "$directory" consume WIT 2>/dev/null)
+test "$output" = "hello, WIT"
 
-rm -f "$directory/provider.wasm"
+rm -f "$directory/provider.wasm" "$directory/consumer.wasm"
 cp dist/components/fixture-trap.wasm "$directory/trap.wasm"
 if kernel/target/debug/rc-kernel --component-dir "$directory" repair >/dev/null 2>&1; then
   echo "trapping component unexpectedly passed repair" >&2

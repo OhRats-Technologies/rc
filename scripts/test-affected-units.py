@@ -40,7 +40,7 @@ class AffectedUnitsTests(unittest.TestCase):
         )
 
     def test_profile_change_compiles_nothing(self) -> None:
-        value = self.resolve("profiles/canonical.toml")
+        value = self.resolve("profiles/kernel-smoke.toml")
         self.assertEqual(value["profiles"], ["kernel-smoke"])
         self.assertFalse(value["kernel"])
         self.assertEqual(value["components"], [])

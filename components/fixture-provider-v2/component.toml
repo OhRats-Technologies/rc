@@ -8,5 +8,5 @@ wit = ["plugin"]
 
 [build]
 kind = "rust"
-package = "rc-fixture-broken"
-artifact = "fixture-broken"
+package = "rc-fixture-provider-v2"
+artifact = "fixture-provider-v2"

@@ -3,7 +3,7 @@ schema = 1
 [component]
 id = "ohrats:fixture-consumer"
 version = "1.0.0"
-world = "ohrats:rc-plugin/plugin@0.1.0"
+world = "ohrats:rc-plugin/greeter-consumer@0.1.0"
 wit = ["plugin"]
 
 [build]

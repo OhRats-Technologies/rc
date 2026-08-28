@@ -1,6 +1,8 @@
-use crate::component::{LoadedComponent, ValidatedCommand, engine};
+use crate::component::{LoadedComponent, ValidatedCommand};
 use crate::graph;
+use crate::host::{HostEnvironment, engine};
 use crate::reconcile;
+use crate::service::ServiceRegistry;
 use crate::status::{ComponentState, ComponentStatus};
 use anyhow::Context as _;
 use std::{
@@ -8,7 +10,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use wasmtime::Engine;
 
 pub(crate) struct Entry {
     pub(crate) current: LoadedComponent,
@@ -18,21 +19,25 @@ pub(crate) struct Entry {
 }
 
 pub struct Runtime {
-    engine: Engine,
+    environment: HostEnvironment,
     directory: PathBuf,
     entries: BTreeMap<String, Entry>,
     failed_paths: BTreeMap<PathBuf, String>,
+    registry: ServiceRegistry,
 }
 
 impl Runtime {
     pub fn new(directory: PathBuf) -> anyhow::Result<Self> {
         fs::create_dir_all(&directory)
             .with_context(|| format!("failed to create {}", directory.display()))?;
+        let engine = engine()?;
+        let environment = HostEnvironment::new(engine.clone(), directory.clone())?;
         Ok(Self {
-            engine: engine()?,
+            environment,
             directory,
             entries: BTreeMap::new(),
             failed_paths: BTreeMap::new(),
+            registry: ServiceRegistry::default(),
         })
     }
 
@@ -45,10 +50,12 @@ impl Runtime {
         let desired = paths.iter().cloned().collect::<BTreeSet<_>>();
         let mut changed =
             reconcile::remove_missing(&mut self.entries, &mut self.failed_paths, &desired);
+        self.registry
+            .refresh(self.entries.values().map(|entry| &entry.current));
         for path in paths {
             changed |= self.load_path(path);
         }
-        changed |= reconcile::states(&mut self.entries);
+        changed |= reconcile::states(&mut self.entries, &self.registry);
         Ok(changed)
     }
 
@@ -135,7 +142,7 @@ impl Runtime {
     }
 
     fn load_path(&mut self, path: PathBuf) -> bool {
-        let candidate = match LoadedComponent::load(&self.engine, path.clone()) {
+        let candidate = match LoadedComponent::load(&self.environment, path.clone()) {
             Ok(value) => value,
             Err(error) => {
                 let message = format!("{error:#}");

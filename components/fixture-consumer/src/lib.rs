@@ -1,9 +1,9 @@
 wit_bindgen::generate!({
     path: "../../wit",
-    world: "plugin",
+    world: "greeter-consumer",
 });
 
-use ohrats::rc_plugin::types::{Command, Requirement};
+use ohrats::rc_plugin::types::{Command, Requirement, Selection};
 
 struct FixtureConsumer;
 
@@ -14,8 +14,9 @@ impl Guest for FixtureConsumer {
             version: "1.0.0".into(),
             provides: Vec::new(),
             requires: vec![Requirement {
-                name: "ohrats:test/greeter".into(),
-                version: "^1".into(),
+                name: "ohrats:rc-plugin/greeter".into(),
+                version: "^0.1".into(),
+                selection: Selection::Single,
             }],
             commands: vec![Command {
                 name: "consume".into(),
@@ -40,11 +41,12 @@ impl Guest for FixtureConsumer {
         );
     }
 
-    fn invoke(command: String, _args: Vec<String>) -> Result<u32, String> {
+    fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
         if command != "consume" {
             return Err(format!("unsupported command {command:?}"));
         }
-        println!("consumer dependency is active");
+        let name = args.first().map(String::as_str).unwrap_or("consumer");
+        println!("{}", ohrats::rc_plugin::greeter::greet(name));
         Ok(0)
     }
 }

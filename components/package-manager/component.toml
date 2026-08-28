@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:package-manager"
+version = "0.1.0"
+world = "ohrats:rc-plugin/package-manager@0.1.0"
+wit = ["plugin"]
+
+[build]
+kind = "rust"
+package = "rc-package-manager"
+artifact = "package-manager"

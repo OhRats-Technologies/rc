@@ -2,6 +2,7 @@ use crate::{
     component::LoadedComponent,
     graph::{self, requirements_met},
     runtime::Entry,
+    service::ServiceRegistry,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -37,17 +38,18 @@ pub fn remove_missing(
     true
 }
 
-pub fn states(entries: &mut BTreeMap<String, Entry>) -> bool {
+pub fn states(entries: &mut BTreeMap<String, Entry>, registry: &ServiceRegistry) -> bool {
     let mut changed = false;
     let mut attempted = BTreeSet::new();
     loop {
+        registry.refresh(entries.values().map(|entry| &entry.current));
         let services = services(entries, &BTreeSet::new());
         let active_commands = command_owners(entries);
         let mut progress = false;
         let ids = entries.keys().cloned().collect::<Vec<_>>();
         for id in ids {
             let entry = entries.get_mut(&id).expect("entry disappeared");
-            let pending = activate_pending(entry, &id, &services, &active_commands);
+            let pending = activate_pending(entry, &id, &services, &active_commands, registry);
             progress |= pending.progress;
             changed |= pending.changed;
             if entry.current.is_active() && !requirements_met(&entry.current, &services) {
@@ -61,7 +63,7 @@ pub fn states(entries: &mut BTreeMap<String, Entry>) -> bool {
             {
                 match command_conflict(&entry.current, &id, &active_commands) {
                     Some(error) => entry.error = Some(error),
-                    None => match entry.current.activate() {
+                    None => match entry.current.activate(registry) {
                         Ok(()) => {
                             entry.error = None;
                             progress = true;
@@ -78,6 +80,7 @@ pub fn states(entries: &mut BTreeMap<String, Entry>) -> bool {
             break;
         }
     }
+    registry.refresh(entries.values().map(|entry| &entry.current));
     changed
 }
 
@@ -92,6 +95,7 @@ fn activate_pending(
     id: &str,
     services: &graph::Services,
     commands: &BTreeMap<String, String>,
+    registry: &ServiceRegistry,
 ) -> Transition {
     let Some(mut pending) = entry.pending.take() else {
         return Transition {
@@ -114,7 +118,7 @@ fn activate_pending(
             progress: false,
         };
     }
-    match pending.activate() {
+    match pending.activate(registry) {
         Ok(()) => {
             entry.current.deactivate();
             entry.current = pending;

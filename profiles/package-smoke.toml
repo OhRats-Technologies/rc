@@ -1,0 +1,8 @@
+schema = 1
+
+[profile]
+id = "ohrats:package-smoke"
+components = [
+  "local-source",
+  "package-manager",
+]

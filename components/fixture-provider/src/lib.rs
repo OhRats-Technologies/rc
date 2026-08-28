@@ -1,6 +1,6 @@
 wit_bindgen::generate!({
     path: "../../wit",
-    world: "plugin",
+    world: "greeter-provider",
 });
 
 use ohrats::rc_plugin::types::{Command, Service};
@@ -13,9 +13,10 @@ impl Guest for FixtureProvider {
             id: "ohrats:fixture-provider".into(),
             version: "1.0.0".into(),
             provides: vec![Service {
-                name: "ohrats:test/greeter".into(),
-                version: "1.0.0".into(),
+                name: "ohrats:rc-plugin/greeter".into(),
+                version: "0.1.0".into(),
                 priority: 100,
+                keys: Vec::new(),
             }],
             requires: Vec::new(),
             commands: vec![Command {
@@ -48,6 +49,12 @@ impl Guest for FixtureProvider {
         let name = args.first().map(String::as_str).unwrap_or("world");
         println!("hello, {name}");
         Ok(0)
+    }
+}
+
+impl exports::ohrats::rc_plugin::greeter::Guest for FixtureProvider {
+    fn greet(name: String) -> String {
+        format!("hello, {name}")
     }
 }
 

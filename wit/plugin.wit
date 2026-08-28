@@ -1,6 +1,11 @@
 package ohrats:rc-plugin@0.1.0;
 
 interface types {
+    enum selection {
+        single,
+        keyed,
+    }
+
     enum log-level {
         trace,
         debug,
@@ -13,11 +18,13 @@ interface types {
         name: string,
         version: string,
         priority: s32,
+        keys: list<string>,
     }
 
     record requirement {
         name: string,
         version: string,
+        selection: selection,
     }
 
     record command {
@@ -40,6 +47,49 @@ interface host {
     log: func(level: log-level, message: string);
 }
 
+interface component-store {
+    record installed-component {
+        name: string,
+        id: string,
+        version: string,
+        digest: string,
+        managed: bool,
+    }
+
+    installed: func() -> result<list<installed-component>, string>;
+    install: func(
+        name: string,
+        artifact: list<u8>,
+        expected-digest: option<string>,
+    ) -> result<installed-component, string>;
+    remove: func(name: string) -> result<bool, string>;
+}
+
+interface state-store {
+    read: func(name: string) -> result<option<list<u8>>, string>;
+    write: func(name: string, value: list<u8>) -> result<_, string>;
+    remove: func(name: string) -> result<bool, string>;
+}
+
+interface local-files {
+    read: func(path: string) -> result<list<u8>, string>;
+}
+
+interface package-source {
+    record package-artifact {
+        name: string,
+        source: string,
+        digest: string,
+        bytes: list<u8>,
+    }
+
+    resolve: func(scheme: string, spec: string) -> result<package-artifact, string>;
+}
+
+interface greeter {
+    greet: func(name: string) -> string;
+}
+
 world plugin {
     use types.{descriptor};
     import host;
@@ -48,4 +98,34 @@ world plugin {
     export activate: func() -> result<_, string>;
     export deactivate: func();
     export invoke: func(command: string, args: list<string>) -> result<u32, string>;
+}
+
+world greeter-provider {
+    include plugin;
+    export greeter;
+}
+
+world greeter-consumer {
+    include plugin;
+    import greeter;
+}
+
+world kernel-plugin {
+    include plugin;
+    import component-store;
+    import state-store;
+    import local-files;
+}
+
+world package-manager {
+    include plugin;
+    import component-store;
+    import state-store;
+    import package-source;
+}
+
+world local-source {
+    include plugin;
+    import local-files;
+    export package-source;
 }

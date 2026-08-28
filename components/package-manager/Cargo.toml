@@ -1,0 +1,16 @@
+[package]
+name = "rc-package-manager"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "0.8.23"
+wit-bindgen = "0.61.1"
+
+[workspace]

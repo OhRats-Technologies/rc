@@ -5,9 +5,9 @@ wit_bindgen::generate!({
 
 use ohrats::rc_plugin::types::{Command, Service};
 
-struct BrokenProvider;
+struct FixtureProviderV2;
 
-impl Guest for BrokenProvider {
+impl Guest for FixtureProviderV2 {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:fixture-provider".into(),
@@ -21,27 +21,32 @@ impl Guest for BrokenProvider {
             requires: Vec::new(),
             commands: vec![Command {
                 name: "hello".into(),
-                summary: "Broken replacement fixture".into(),
-                usage: "rc hello".into(),
+                summary: "Print a v2 greeting".into(),
+                usage: "rc hello [name]".into(),
             }],
         }
     }
 
     fn activate() -> Result<(), String> {
-        Err("intentional activation failure".into())
+        Ok(())
     }
 
     fn deactivate() {}
 
-    fn invoke(_command: String, _args: Vec<String>) -> Result<u32, String> {
-        Err("broken fixture must never be invoked".into())
+    fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
+        if command != "hello" {
+            return Err(format!("unsupported command {command:?}"));
+        }
+        let name = args.first().map(String::as_str).unwrap_or("world");
+        println!("hello from v2, {name}");
+        Ok(0)
     }
 }
 
-impl exports::ohrats::rc_plugin::greeter::Guest for BrokenProvider {
-    fn greet(_name: String) -> String {
-        "broken".into()
+impl exports::ohrats::rc_plugin::greeter::Guest for FixtureProviderV2 {
+    fn greet(name: String) -> String {
+        format!("hello from v2, {name}")
     }
 }
 
-export!(BrokenProvider);
+export!(FixtureProviderV2);

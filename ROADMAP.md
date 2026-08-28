@@ -122,11 +122,15 @@ kernel integration-test inputs.
 
 ## 3. Package state and sources
 
-- [ ] Define `rc.toml` desired state and deterministic `rc.lock` resolution.
-- [ ] Implement `add`, `remove`, `install`, `list`, `outdated`, and `update` as
+- [x] Define versioned `rc.toml` desired-state and `rc.lock` serialization.
+- [ ] Make `install` replay the exact locked digests from a content-addressed
+  cache rather than re-resolving mutable sources.
+- [x] Implement `add`, `remove`, `install`, `list`, `outdated`, and `update` as
   component-provided commands.
-- [ ] Define the package-source WIT interface and source-provider registry.
-- [ ] Implement local path, HTTP(S), GitHub repository/subpath, and OCI source
+- [x] Define the typed package-source WIT interface and keyed provider registry.
+- [x] Implement a local-path source provider as an independently built
+  component.
+- [ ] Implement HTTP(S), GitHub repository/subpath, and OCI source
   providers as components.
 - [ ] Support source forms such as:
 
@@ -138,9 +142,10 @@ kernel integration-test inputs.
   ./webui.wasm
   ```
 
-- [ ] Cache artifacts by digest, stage outside the trusted directory, and use
-  atomic placement/removal.
-- [ ] Keep manually copied components visible as unmanaged and never replace
+- [x] Inspect candidates before placement and use atomic same-filesystem
+  placement/removal.
+- [ ] Cache artifacts by digest outside the trusted component directory.
+- [x] Keep manually copied components visible as unmanaged and never replace
   them during managed updates.
 - [ ] Publish official WIT packages/components to an OCI-compatible registry
   and attach build provenance/SBOM metadata when available.
@@ -286,3 +291,8 @@ invariants at the top of this document.
   caches/matrices, a weekly full integrity build, and kernel-only four-platform
   release assets. Local cross-builds produced valid Intel macOS and Linux
   kernels.
+- 2026-08-28: added dynamic typed WIT service forwarding, keyed provider
+  selection, component-private state, an atomic managed-component store, a
+  local-file source component, and component-provided package commands. The
+  package smoke test proves managed updates while preserving manually copied
+  components.
