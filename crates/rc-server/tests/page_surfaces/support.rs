@@ -127,6 +127,7 @@ pub(super) struct HttpResult {
     pub(super) status: StatusCode,
     pub(super) body: String,
     pub(super) location: Option<String>,
+    pub(super) set_cookie: Option<String>,
 }
 
 pub(super) async fn get(
@@ -158,12 +159,34 @@ pub(super) async fn form(
     .await
 }
 
+pub(super) async fn fetch_metadata_form(
+    application: &axum::Router,
+    path: &str,
+    cookie: &str,
+    body: &str,
+) -> anyhow::Result<HttpResult> {
+    send(
+        application,
+        Request::post(path)
+            .header(header::COOKIE, cookie)
+            .header("sec-fetch-site", "same-origin")
+            .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+            .body(Body::from(body.to_owned()))?,
+    )
+    .await
+}
+
 async fn send(application: &axum::Router, request: Request<Body>) -> anyhow::Result<HttpResult> {
     let response = application.clone().oneshot(request).await?;
     let status = response.status();
     let location = response
         .headers()
         .get(header::LOCATION)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let set_cookie = response
+        .headers()
+        .get(header::SET_COOKIE)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
     let body = String::from_utf8(
@@ -175,6 +198,7 @@ async fn send(application: &axum::Router, request: Request<Body>) -> anyhow::Res
         status,
         body,
         location,
+        set_cookie,
     })
 }
 

@@ -12,6 +12,16 @@ pub fn public_document(
     document(title, body, None, scripts, styles, extra_head, false)
 }
 
+pub fn indexed_public_document(
+    title: &str,
+    body: String,
+    scripts: &[&str],
+    styles: &[&str],
+    extra_head: &str,
+) -> String {
+    document(title, body, None, scripts, styles, extra_head, true)
+}
+
 pub fn authenticated_document(
     context: &PageContext,
     title: &str,

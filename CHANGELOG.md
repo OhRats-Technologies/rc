@@ -2,6 +2,18 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.17.1] - 2026-08-28
+
+### Fixed
+
+- Restored the indexed public landing page at signed-out `/` while keeping `/login` as the explicit passkey sign-in route.
+- Accepted browser same-origin fetch metadata for form submissions that intentionally omit `Origin` and `Referer`, so sign-out revokes the session and clears its cookie instead of returning `invalid request origin`.
+- Kept usable WebRTC offers when ICE gathering reaches its deadline with candidates already present, increased the gathering window, and rejected only candidate-free offers across browser, CLI, Node, and server peers.
+
+### Validation
+
+- Exercised a disposable production-equivalent topology with a real headless Chrome virtual passkey, a separately enrolled RC Node, a direct browser WebRTC DataChannel, terminal command/output round-trip, session revocation, landing-page return, and signed-out route protection.
+
 ## [0.17.0] - 2026-08-27
 
 ### Added

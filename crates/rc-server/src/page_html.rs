@@ -3,13 +3,15 @@ mod auth;
 mod devices;
 mod document;
 mod format;
+mod landing;
 mod misc;
 mod sidebar;
 
 pub use account::{account, api_keys};
 pub use auth::{AuthPage, auth};
 pub use devices::{device, devices, process};
-pub use document::{authenticated_document, public_document};
+pub use document::{authenticated_document, indexed_public_document, public_document};
+pub use landing::landing;
 pub use misc::{activity, cli_login, enroll, error, mcp_page, workspace_access};
 
 use crate::UserIdentity;

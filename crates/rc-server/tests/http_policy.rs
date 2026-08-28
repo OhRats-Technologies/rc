@@ -82,6 +82,7 @@ async fn browser_form_routes_require_the_configured_origin() -> anyhow::Result<(
     assert_eq!(rejected.status(), StatusCode::FORBIDDEN);
 
     let accepted = application
+        .clone()
         .oneshot(
             Request::post("/account/logout")
                 .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
@@ -90,6 +91,27 @@ async fn browser_form_routes_require_the_configured_origin() -> anyhow::Result<(
         )
         .await?;
     assert_eq!(accepted.status(), StatusCode::SEE_OTHER);
+
+    let fetch_metadata = application
+        .clone()
+        .oneshot(
+            Request::post("/account/logout")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header("sec-fetch-site", "same-origin")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(fetch_metadata.status(), StatusCode::SEE_OTHER);
+
+    let cross_site = application
+        .oneshot(
+            Request::post("/account/logout")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .header("sec-fetch-site", "cross-site")
+                .body(Body::empty())?,
+        )
+        .await?;
+    assert_eq!(cross_site.status(), StatusCode::FORBIDDEN);
     Ok(())
 }
 

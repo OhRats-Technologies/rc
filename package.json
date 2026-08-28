@@ -1,7 +1,7 @@
 {
   "name": "rc",
   "private": true,
-  "version": "0.17.0",
+  "version": "0.17.1",
   "scarfSettings": {
     "enabled": false
   },
@@ -12,11 +12,11 @@
     "check:source-size": "sh scripts/check-source-size.sh",
     "check:version": "sh scripts/check-version.sh",
     "dev": "bun run build:client && cargo run -p rc-server",
-    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name].[ext]' ./web/client/pages.ts ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/sidebar.ts ./web/styles.css ./web/public.css ./web/social-card.png",
+    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name].[ext]' ./web/client/pages.ts ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/sidebar.ts ./web/client/public.ts ./web/styles.css ./web/public.css ./web/social-card.png",
     "build": "rm -rf dist && bun run build:client",
     "start": "cargo run --release -p rc-server",
     "typecheck": "tsc --noEmit",
-    "test:web": "bun test web/client/control-client.test.ts",
+    "test:web": "bun test web/client/*.test.ts",
     "test": "cargo test --workspace --all-targets",
     "smoke:webview": "bun scripts/webview-smoke.ts"
   },

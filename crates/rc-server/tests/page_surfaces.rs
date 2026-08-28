@@ -3,7 +3,7 @@ mod support;
 
 use axum::http::StatusCode;
 use rc_server::{AppState, app};
-use support::{form, get, seed, temp_root, test_config};
+use support::{fetch_metadata_form, form, get, seed, temp_root, test_config};
 
 #[tokio::test]
 async fn login_redirects_to_setup_when_no_user_exists() -> anyhow::Result<()> {
@@ -130,7 +130,7 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
     }
 
     for (path, required) in [
-        ("/", "SIGN IN WITH PASSKEY"),
+        ("/", "Remote control for your machines"),
         ("/login", "SIGN IN WITH PASSKEY"),
         ("/signup", "cf-turnstile"),
         ("/docs", "RC documentation"),
@@ -146,10 +146,20 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
             "GET {path} missing {required}"
         );
         assert!(
-            path.starts_with("/docs") || response.body.contains("<main class=\"auth-shell\">"),
+            path == "/"
+                || path.starts_with("/docs")
+                || response.body.contains("<main class=\"auth-shell\">"),
             "GET {path} missing the auth main landmark"
         );
     }
+    let landing = get(&application, "/", None).await?;
+    assert!(
+        landing
+            .body
+            .contains("<meta name=\"robots\" content=\"index,follow\">")
+    );
+    assert!(landing.body.contains("href=\"/login\""));
+    assert!(landing.body.contains("public.js"));
     let signup = get(&application, "/signup", None).await?;
     assert!(signup.body.contains("data-sitekey=\"turnstile-site\""));
     assert!(
@@ -238,6 +248,24 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
         db.query_row(
             "SELECT count(*) FROM workspace_members WHERE workspace_id=? AND user_id=?",
             rusqlite::params![ids.leave_workspace, ids.user],
+            |row| row.get::<_, i64>(0),
+        )?,
+        0
+    );
+
+    let logged_out = fetch_metadata_form(&application, "/account/logout", &cookie, "").await?;
+    assert_eq!(logged_out.status, StatusCode::SEE_OTHER);
+    assert_eq!(logged_out.location.as_deref(), Some("/"));
+    assert!(
+        logged_out
+            .set_cookie
+            .as_deref()
+            .is_some_and(|value| value.contains("Max-Age=0"))
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT count(*) FROM sessions WHERE user_id=?",
+            [&ids.user],
             |row| row.get::<_, i64>(0),
         )?,
         0
