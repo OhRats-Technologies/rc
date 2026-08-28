@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import fcntl
+import hashlib
 import os
 import re
 import subprocess
@@ -44,8 +45,20 @@ def common_dir() -> Path:
     return path.resolve() if path.is_absolute() else (Path.cwd() / path).resolve()
 
 
+def repository_id() -> str:
+    common = common_dir()
+    name = re.sub(r"[^a-z0-9._-]+", "-", common.parent.name.lower()).strip("-") or "repo"
+    digest = hashlib.sha256(str(common).encode()).hexdigest()[:12]
+    return f"{name}-{digest}"
+
+
 def swarm_root() -> Path:
-    return common_dir() / "swarm"
+    override = os.environ.get("RC_SWARM_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    state_home = os.environ.get("XDG_STATE_HOME", "").strip()
+    base = Path(state_home).expanduser() if state_home else Path.home() / ".local" / "state"
+    return (base / "rc-swarm" / repository_id()).resolve()
 
 
 def validate_token(value: str, label: str) -> str:
@@ -127,17 +140,7 @@ def initialize(refresh: bool = False) -> Path:
     root = swarm_root()
     (root / "agents").mkdir(parents=True, exist_ok=True)
     (root / "threads").mkdir(parents=True, exist_ok=True)
-    readme = root / "README.md"
-    if not readme.exists():
-        readme.write_text(
-            "# RC swarm coordination v2\n\n"
-            "BOARD.md is historical/read-only. Use agents/ and threads/.\n"
-            "See PROTOCOL.md and `python3 scripts/swarm.py --help`.\n",
-            encoding="utf-8",
-        )
-    protocol = root / "PROTOCOL.md"
-    if refresh or not protocol.exists():
-        protocol.write_text(protocol_source().read_text(encoding="utf-8"), encoding="utf-8")
+    _ = refresh
     return root
 
 
@@ -175,6 +178,17 @@ def list_workspace() -> None:
         print(f"{label}: {','.join(values) if values else '-'}")
 
 
+def prune(agent: str | None, thread: str | None) -> Path:
+    root = initialize()
+    if thread:
+        path = root / "threads" / f"{validate_token(thread, 'thread')}.md"
+    else:
+        assert agent is not None
+        path = root / "agents" / f"{validate_token(agent, 'agent ID')}.md"
+    path.unlink(missing_ok=True)
+    return path
+
+
 def parser() -> argparse.ArgumentParser:
     value = argparse.ArgumentParser(description=__doc__)
     sub = value.add_subparsers(dest="command", required=True)
@@ -188,6 +202,10 @@ def parser() -> argparse.ArgumentParser:
     target.add_argument("--thread")
     target.add_argument("--protocol", action="store_true")
     read_cmd.add_argument("--tail", type=int)
+    prune_cmd = sub.add_parser("prune")
+    prune_target = prune_cmd.add_mutually_exclusive_group(required=True)
+    prune_target.add_argument("--agent")
+    prune_target.add_argument("--thread")
     for name in ("post", "encode"):
         command = sub.add_parser(name)
         command.add_argument("--agent", required=True)
@@ -217,12 +235,14 @@ def main() -> None:
     elif args.command == "read":
         root = initialize()
         if args.protocol:
-            path = root / "PROTOCOL.md"
+            path = protocol_source()
         elif args.thread:
             path = root / "threads" / f"{validate_token(args.thread, 'thread')}.md"
         else:
             path = root / "agents" / f"{validate_token(args.agent, 'agent ID')}.md"
         read(path, args.tail)
+    elif args.command == "prune":
+        print(prune(args.agent, args.thread))
     elif args.command in {"post", "encode"}:
         line = encode(args.agent, args.kind, args.scope, args.refs, message(args))
         if args.command == "encode":
