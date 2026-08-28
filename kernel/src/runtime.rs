@@ -96,6 +96,14 @@ impl Runtime {
         self.registry.clone()
     }
 
+    pub fn integrity_check(&self) -> anyhow::Result<()> {
+        self.environment.database.integrity_check()
+    }
+
+    pub fn backup(&self, destination: &Path) -> anyhow::Result<()> {
+        self.environment.database.backup_to(destination)
+    }
+
     pub fn commands(&self) -> anyhow::Result<Vec<(&str, &ValidatedCommand)>> {
         let mut commands = BTreeMap::new();
         for entry in self.entries.values() {

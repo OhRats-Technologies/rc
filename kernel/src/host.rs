@@ -1,5 +1,5 @@
 use crate::bindings::ohrats::rc_plugin::host::{Host, LogLevel};
-use crate::service::ServiceRegistry;
+use crate::{database::Database, service::ServiceRegistry};
 use reqwest::blocking::Client;
 use std::{path::PathBuf, sync::Arc};
 use wasmtime::{Cache, CacheConfig, Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
@@ -17,6 +17,7 @@ pub struct HostEnvironment {
     pub cache_dir: Arc<PathBuf>,
     pub catalog_dir: Arc<PathBuf>,
     pub http: Client,
+    pub database: Database,
 }
 
 impl HostEnvironment {
@@ -28,6 +29,9 @@ impl HostEnvironment {
         let state_dir = root.join("state");
         let cache_dir = root.join("cache");
         let catalog_dir = root.join("catalogs");
+        let database_path = std::env::var_os("RC_KERNEL_DB")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| root.join("kernel.sqlite3"));
         std::fs::create_dir_all(&component_dir)?;
         std::fs::create_dir_all(&state_dir)?;
         std::fs::create_dir_all(&cache_dir)?;
@@ -38,6 +42,7 @@ impl HostEnvironment {
             .timeout(std::time::Duration::from_secs(45))
             .redirect(reqwest::redirect::Policy::limited(8))
             .build()?;
+        let database = Database::open(&database_path)?;
         Ok(Self {
             engine,
             component_dir: Arc::new(component_dir),
@@ -45,6 +50,7 @@ impl HostEnvironment {
             cache_dir: Arc::new(cache_dir),
             catalog_dir: Arc::new(catalog_dir),
             http,
+            database,
         })
     }
 }
@@ -157,6 +163,10 @@ pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> 
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;
     crate::bindings::ohrats::rc_plugin::http_client::add_to_linker::<
+        HostState,
+        wasmtime::component::HasSelf<HostState>,
+    >(linker, |state| state)?;
+    crate::bindings::ohrats::rc_storage::durable_store::add_to_linker::<
         HostState,
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;

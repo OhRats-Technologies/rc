@@ -1,0 +1,47 @@
+package ohrats:rc-storage@0.1.0;
+
+interface types {
+    record entry {
+        bucket: string,
+        key: list<u8>,
+        value: list<u8>,
+    }
+
+    record deletion {
+        bucket: string,
+        key: list<u8>,
+    }
+
+    variant change {
+        put(entry),
+        delete(deletion),
+    }
+
+    variant commit-error {
+        conflict(u64),
+        failure(string),
+    }
+
+    record page {
+        revision: u64,
+        entries: list<entry>,
+        next-key: option<list<u8>>,
+    }
+}
+
+interface durable-store {
+    use types.{change, commit-error, page};
+
+    revision: func() -> result<u64, string>;
+    get: func(bucket: string, key: list<u8>) -> result<option<list<u8>>, string>;
+    scan: func(
+        bucket: string,
+        prefix: list<u8>,
+        after: option<list<u8>>,
+        limit: u32,
+    ) -> result<page, string>;
+    commit: func(
+        expected-revision: u64,
+        changes: list<change>,
+    ) -> result<u64, commit-error>;
+}

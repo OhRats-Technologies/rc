@@ -163,6 +163,7 @@ world kernel-plugin {
     import catalog-store;
     import service-registry;
     import http-client;
+    import ohrats:rc-storage/durable-store@0.1.0;
 }
 
 world package-manager {
@@ -232,4 +233,9 @@ world diagnostics-mesh {
     import ohrats:rc-diagnostics/query@0.1.0;
     import ohrats:rc-mesh-diagnostics/authorization@0.1.0;
     export ohrats:rc-mesh-diagnostics/reports@0.1.0;
+}
+
+world storage-fixture {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
 }

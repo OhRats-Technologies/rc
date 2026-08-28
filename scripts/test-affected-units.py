@@ -58,6 +58,11 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["webui-shell"])
 
+    def test_storage_wit_change_rebuilds_kernel_adapter_and_fixture(self) -> None:
+        value = self.resolve("wit/deps/storage/storage.wit")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["storage-fixture"])
+
     def test_profile_change_compiles_nothing(self) -> None:
         value = self.resolve("profiles/kernel-smoke.toml")
         self.assertEqual(value["profiles"], ["kernel-smoke"])
@@ -82,6 +87,11 @@ class AffectedUnitsTests(unittest.TestCase):
             value["components"],
             ["diagnostics-store", "diagnostics-ui", "webui-shell"],
         )
+
+    def test_storage_runtime_smoke_selects_only_its_fixture(self) -> None:
+        value = self.resolve("scripts/smoke-storage.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["storage-fixture"])
 
 
 if __name__ == "__main__":

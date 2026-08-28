@@ -12,7 +12,7 @@ import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALL_ZERO = "0" * 40
-KERNEL_WIT = {"http", "plugin"}
+KERNEL_WIT = {"http", "plugin", "storage"}
 
 
 def component_metadata() -> dict[str, set[str]]:
@@ -165,6 +165,7 @@ RUNTIME_TOOLING = {
         "oci-source",
         "package-manager",
     },
+    "scripts/smoke-storage.sh": {"storage-fixture"},
     "scripts/smoke-web-runtime.sh": {
         "diagnostics-store",
         "diagnostics-ui",

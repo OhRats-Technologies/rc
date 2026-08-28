@@ -32,6 +32,9 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+components="$directory/components"
+mkdir -p "$components"
+
 wait_for() {
   pattern=$1
   count=0
@@ -46,47 +49,47 @@ wait_for() {
   done
 }
 
-cp dist/components/fixture-consumer.wasm "$directory/consumer.wasm"
-kernel/target/debug/rc-kernel --component-dir "$directory" watch >"$log" 2>&1 &
+cp dist/components/fixture-consumer.wasm "$components/consumer.wasm"
+kernel/target/debug/rc-kernel --component-dir "$components" watch >"$log" 2>&1 &
 pid=$!
 wait_for "ohrats:fixture-consumer  1.0.0        Waiting"
 
-cp dist/components/fixture-provider.wasm "$directory/provider.wasm"
+cp dist/components/fixture-provider.wasm "$components/provider.wasm"
 wait_for "ohrats:fixture-provider  1.0.0        Active"
 wait_for "ohrats:fixture-consumer  1.0.0        Active"
 
-cp dist/components/fixture-collision.wasm "$directory/collision.wasm"
+cp dist/components/fixture-collision.wasm "$components/collision.wasm"
 wait_for 'command "hello" is already provided by ohrats:fixture-provider'
 
-cp dist/components/fixture-broken.wasm "$directory/provider.new"
-mv "$directory/provider.new" "$directory/provider.wasm"
+cp dist/components/fixture-broken.wasm "$components/provider.new"
+mv "$components/provider.new" "$components/provider.wasm"
 wait_for "replacement activation failed: intentional activation failure"
 wait_for "ohrats:fixture-provider  1.0.0        Active"
 
-rm "$directory/provider.wasm"
+rm "$components/provider.wasm"
 wait_for "ohrats:fixture-consumer  1.0.0        Waiting"
 
 kill "$pid"
 wait "$pid" 2>/dev/null || true
 pid=
 
-rm -f "$directory/consumer.wasm" "$directory/collision.wasm"
-cp dist/components/fixture-provider.wasm "$directory/provider.wasm"
-output=$(kernel/target/debug/rc-kernel --component-dir "$directory" hello RC 2>/dev/null)
+rm -f "$components/consumer.wasm" "$components/collision.wasm"
+cp dist/components/fixture-provider.wasm "$components/provider.wasm"
+output=$(kernel/target/debug/rc-kernel --component-dir "$components" hello RC 2>/dev/null)
 test "$output" = "hello, RC"
-cp dist/components/fixture-consumer.wasm "$directory/consumer.wasm"
-output=$(kernel/target/debug/rc-kernel --component-dir "$directory" consume WIT 2>/dev/null)
+cp dist/components/fixture-consumer.wasm "$components/consumer.wasm"
+output=$(kernel/target/debug/rc-kernel --component-dir "$components" consume WIT 2>/dev/null)
 test "$output" = "hello, WIT"
 
-rm -f "$directory/provider.wasm" "$directory/consumer.wasm"
-cp dist/components/fixture-trap.wasm "$directory/trap.wasm"
-if kernel/target/debug/rc-kernel --component-dir "$directory" repair >/dev/null 2>&1; then
+rm -f "$components/provider.wasm" "$components/consumer.wasm"
+cp dist/components/fixture-trap.wasm "$components/trap.wasm"
+if kernel/target/debug/rc-kernel --component-dir "$components" repair >/dev/null 2>&1; then
   echo "trapping component unexpectedly passed repair" >&2
   exit 1
 fi
-rm "$directory/trap.wasm"
-cp dist/components/fixture-limit.wasm "$directory/limit.wasm"
-if kernel/target/debug/rc-kernel --component-dir "$directory" repair >/dev/null 2>&1; then
+rm "$components/trap.wasm"
+cp dist/components/fixture-limit.wasm "$components/limit.wasm"
+if kernel/target/debug/rc-kernel --component-dir "$components" repair >/dev/null 2>&1; then
   echo "memory-limit component unexpectedly passed repair" >&2
   exit 1
 fi

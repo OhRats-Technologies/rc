@@ -41,6 +41,8 @@ enum KernelCommand {
     Commands,
     /// Check the trusted component directory for failed entries.
     Repair,
+    /// Write a consistent online backup of kernel-owned durable state.
+    Backup { destination: PathBuf },
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -70,6 +72,11 @@ pub fn run() -> anyhow::Result<()> {
             Ok(())
         }
         Some(KernelCommand::Repair) => repair(&runtime),
+        Some(KernelCommand::Backup { destination }) => {
+            runtime.backup(&destination)?;
+            println!("backup written to {}", destination.display());
+            Ok(())
+        }
         None => dispatch_plugin(&mut runtime, arguments.plugin_args),
     }
 }
@@ -140,6 +147,7 @@ fn print_help(runtime: &Runtime) -> anyhow::Result<()> {
     println!("  components         Show the component graph");
     println!("  commands           Show active component commands");
     println!("  repair             Diagnose failed components");
+    println!("  backup PATH        Back up kernel durable state");
     let commands = runtime.commands()?;
     if !commands.is_empty() {
         println!();
@@ -150,6 +158,7 @@ fn print_help(runtime: &Runtime) -> anyhow::Result<()> {
 }
 
 fn repair(runtime: &Runtime) -> anyhow::Result<()> {
+    runtime.integrity_check()?;
     let failed = runtime
         .statuses()
         .into_iter()

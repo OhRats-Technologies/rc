@@ -204,7 +204,7 @@ contribution smoke tests already pass through the native kernel listener.
 
 ## 6. Canonical server domain components
 
-- [ ] Move durable storage behind a typed storage interface. Prove SQLite
+- [x] Move durable storage behind a typed storage interface. Prove SQLite
   locking, transactions, backup, and crash recovery under the chosen boundary;
   use a narrow native storage adapter if direct WASI SQLite is unreliable.
 - [ ] Port identity/passkeys/sessions and API/CLI credentials.
@@ -317,3 +317,8 @@ invariants at the top of this document.
   landing, sign-in/setup surfaces, docs shell, fingerprinted CSS, and
   diagnostics page route into the WebUI component. Live HTTP tests prove route
   providers can appear and disappear without restarting the listener.
+- 2026-08-28: added a component-private typed durable store backed by the
+  kernel's narrow SQLite adapter. Unit and runtime tests cover namespaces,
+  optimistic transactions, writer locking, abrupt rollback, persistence, and
+  consistent online backup. The OpenSSL-backed `webauthn-rs` implementation was
+  rejected for WASIp2; identity remains pending a portable audited verifier.
