@@ -6,7 +6,10 @@ All notable RC changes are recorded here. Published tags are immutable.
 
 ### Fixed
 
-- Versioned every RC-owned JavaScript and stylesheet URL with the application release so an already-open browser cannot reuse a still-fresh entry bundle from the previous deployment after navigation.
+- Restored the exact pre-rewrite landing page and structured documentation render output instead of approximating their HTML, navigation, copy, footer, catalog, or article layout.
+- Made browser WebRTC retries prefer TURN relay candidates when TURN is available, retained direct/STUN fallback when it is not, and gave the DataChannel enough time to open on slower networks.
+- Versioned every RC-owned JavaScript and stylesheet URL with a new browser revision so an already-open browser cannot reuse a still-fresh entry bundle from the previous deployment after navigation.
+- Added a persistent-Chrome end-to-end test that creates a virtual passkey, enrolls a real RC Node, executes a command over the encrypted browser WebRTC DataChannel, validates output, logs out, and checks the signed-out landing and docs.
 
 ## [0.17.1] - 2026-08-28
 

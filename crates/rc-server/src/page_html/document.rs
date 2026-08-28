@@ -1,4 +1,4 @@
-use super::{PageContext, esc, sidebar};
+use super::{PageContext, esc, public_snapshots, sidebar};
 
 const SHARED_BASE: &str = "https://assets.ohrats.party/assets";
 
@@ -10,16 +10,6 @@ pub fn public_document(
     extra_head: &str,
 ) -> String {
     document(title, body, None, scripts, styles, extra_head, false)
-}
-
-pub fn indexed_public_document(
-    title: &str,
-    body: String,
-    scripts: &[&str],
-    styles: &[&str],
-    extra_head: &str,
-) -> String {
-    document(title, body, None, scripts, styles, extra_head, true)
 }
 
 pub fn authenticated_document(
@@ -41,7 +31,7 @@ fn document(
     extra_head: &str,
     indexable: bool,
 ) -> String {
-    let version = env!("CARGO_PKG_VERSION");
+    let version = public_snapshots::asset_revision();
     let mut script_names = Vec::new();
     if context.is_some() {
         script_names.push("sidebar");

@@ -1,16 +1,19 @@
 mod account;
 mod auth;
 mod devices;
+mod docs;
 mod document;
 mod format;
 mod landing;
 mod misc;
+mod public_snapshots;
 mod sidebar;
 
 pub use account::{account, api_keys};
 pub use auth::{AuthPage, auth};
 pub use devices::{device, devices, process};
-pub use document::{authenticated_document, indexed_public_document, public_document};
+pub use docs::docs;
+pub use document::{authenticated_document, public_document};
 pub use landing::landing;
 pub use misc::{activity, cli_login, enroll, error, mcp_page, workspace_access};
 
