@@ -2,6 +2,18 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.18.2] - 2026-08-28
+
+### Fixed
+
+- Made direct and relay WebRTC attempts explicit end-to-end. The browser now tells the control plane which ICE mode it is attempting; direct signaling strips TURN URLs before the offer reaches the Node, while relay fallback marks the Node ICE agent relay-only.
+- Prevented a direct browser attempt from receiving a Node answer polluted with TURN candidates. This keeps the first ICE checklist small and ensures TURN cannot participate until the direct DataChannel attempt has actually failed.
+
+### Validation
+
+- Added server coverage for TURN filtering and Node coverage for relay-only ICE policy selection.
+- Retained browser tests that require the first attempt to exclude TURN and the fallback attempt to use relay-only policy.
+
 ## [0.18.1] - 2026-08-28
 
 ### Changed

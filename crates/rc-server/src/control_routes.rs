@@ -125,6 +125,8 @@ async fn open(
 struct WebRtcRequest {
     device_id: String,
     sdp: String,
+    #[serde(default)]
+    relay: bool,
 }
 
 #[derive(Serialize)]
@@ -155,6 +157,7 @@ async fn webrtc(
             &session_id,
             &input.device_id,
             &input.sdp,
+            input.relay,
         )
         .await
         .map_err(signal_error)?;

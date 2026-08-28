@@ -69,6 +69,7 @@ pub(super) async fn connect_peer(
                 session_id: session_id.to_owned(),
                 sdp: offer_sdp,
                 ice_servers: Vec::new(),
+                relay_only: false,
             },
         )
         .await;

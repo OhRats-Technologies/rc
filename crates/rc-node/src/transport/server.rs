@@ -24,7 +24,7 @@ pub struct ServerTransport {
 impl ServerTransport {
     pub async fn connect(server: &str, state: &NodeState) -> anyhow::Result<Self> {
         let servers = fetch_ice(server, state).await?;
-        let peer = peer_connection(&servers).await?;
+        let peer = peer_connection(&servers, false).await?;
         let channel = peer.create_data_channel("rc-node", None).await?;
         let (incoming_tx, incoming) = mpsc::channel(256);
         channel.on_message(Box::new(move |message: DataChannelMessage| {

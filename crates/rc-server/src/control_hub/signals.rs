@@ -89,6 +89,7 @@ impl ControlHub {
         session_id: &str,
         device_id: &str,
         sdp: &str,
+        relay_only: bool,
     ) -> Result<String, ControlSignalError> {
         let session = self
             .inner
@@ -102,6 +103,11 @@ impl ControlHub {
         {
             return Err(ControlSignalError::Unavailable);
         }
+        let ice_servers = if relay_only {
+            session.ice_servers.clone()
+        } else {
+            direct_ice_servers(&session.ice_servers)
+        };
         let request_id = Uuid::new_v4().to_string();
         let reply = self
             .request(
@@ -117,7 +123,8 @@ impl ControlHub {
                     request_id: request_id.clone(),
                     session_id: session_id.to_owned(),
                     sdp: sdp.to_owned(),
-                    ice_servers: session.ice_servers,
+                    ice_servers,
+                    relay_only,
                 },
             )
             .await?;
@@ -151,5 +158,52 @@ impl ControlHub {
 
     pub(super) fn insert_session(&self, session_id: String, session: ControlSession) {
         self.inner.sessions.insert(session_id, session);
+    }
+}
+
+fn direct_ice_servers(servers: &[rc_protocol::IceServer]) -> Vec<rc_protocol::IceServer> {
+    servers
+        .iter()
+        .filter_map(|server| {
+            let urls = server
+                .urls
+                .iter()
+                .filter(|url| !url.to_ascii_lowercase().starts_with("turn:"))
+                .filter(|url| !url.to_ascii_lowercase().starts_with("turns:"))
+                .cloned()
+                .collect::<Vec<_>>();
+            (!urls.is_empty()).then(|| rc_protocol::IceServer {
+                urls,
+                username: server.username.clone(),
+                credential: server.credential.clone(),
+            })
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::direct_ice_servers;
+    use rc_protocol::IceServer;
+
+    #[test]
+    fn direct_signaling_removes_turn_urls_without_dropping_stun() {
+        let servers = vec![IceServer {
+            urls: vec![
+                "stun:stun.cloudflare.com:3478".into(),
+                "turn:turn.cloudflare.com:3478?transport=udp".into(),
+                "turns:turn.cloudflare.com:5349?transport=tcp".into(),
+            ],
+            username: "temporary".into(),
+            credential: "secret".into(),
+        }];
+        assert_eq!(
+            direct_ice_servers(&servers),
+            vec![IceServer {
+                urls: vec!["stun:stun.cloudflare.com:3478".into()],
+                username: "temporary".into(),
+                credential: "secret".into(),
+            }]
+        );
     }
 }

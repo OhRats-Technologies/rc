@@ -84,6 +84,7 @@ pub(super) async fn exercise(
                 "control-session",
                 &webrtc_device,
                 "client-offer",
+                false,
             )
             .await
     });
@@ -93,9 +94,11 @@ pub(super) async fn exercise(
             session_id,
             sdp,
             ice_servers,
+            relay_only,
         }) => {
             assert_eq!(session_id, "control-session");
             assert_eq!(sdp, "client-offer");
+            assert!(!relay_only);
             assert!(ice_servers.is_empty());
             request_id
         }

@@ -134,7 +134,7 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     const sdp = peer.localDescription?.sdp; if (!sdp) throw new Error("WebRTC offer unavailable");
     localCandidates = candidateSummary(sdp);
     if (candidateCount(localCandidates) === 0) throw new Error("browser ICE gathering produced no usable candidates");
-    const answer = await controlWebRTC(sessionId, deviceId, sdp);
+    const answer = await controlWebRTC(sessionId, deviceId, sdp, attempt > 0);
     remoteCandidates = candidateSummary(answer.sdp);
     await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp }); await waitForOpen(peer, channel);
     established = true;

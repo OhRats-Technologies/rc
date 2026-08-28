@@ -9,9 +9,9 @@ export function controlOpen(input: { deviceId: string; challenge: string; client
     "/api/v1/control/open", { method: "POST", body: JSON.stringify(input) });
 }
 
-export function controlWebRTC(sessionId: string, deviceId: string, sdp: string) {
+export function controlWebRTC(sessionId: string, deviceId: string, sdp: string, relay = false) {
   return api<{ sdp: string }>(`/api/v1/control/${encodeURIComponent(sessionId)}/webrtc`, {
-    method: "POST", body: JSON.stringify({ deviceId, sdp }),
+    method: "POST", body: JSON.stringify({ deviceId, sdp, relay }),
   });
 }
 

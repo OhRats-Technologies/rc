@@ -160,8 +160,9 @@ impl ControlManager {
                 session_id,
                 sdp,
                 ice_servers,
+                relay_only,
             } => {
-                self.answer_webrtc(request_id, session_id, sdp, ice_servers)
+                self.answer_webrtc(request_id, session_id, sdp, ice_servers, relay_only)
                     .await
             }
             ServerToNode::ControlClose { session_id } => self.close_session(&session_id).await,

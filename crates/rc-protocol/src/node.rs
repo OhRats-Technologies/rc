@@ -152,6 +152,8 @@ pub enum ServerToNode {
         session_id: String,
         sdp: String,
         ice_servers: Vec<IceServer>,
+        #[serde(default)]
+        relay_only: bool,
     },
     ControlClose {
         session_id: String,

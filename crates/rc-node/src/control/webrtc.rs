@@ -22,6 +22,7 @@ impl ControlManager {
         session_id: String,
         sdp: String,
         ice_servers: Vec<rc_protocol::IceServer>,
+        relay_only: bool,
     ) {
         if sdp.is_empty() || sdp.len() > 131_072 || ice_servers.len() > 8 {
             self.control_error(request_id, "invalid WebRTC offer");
@@ -31,7 +32,7 @@ impl ControlManager {
             self.control_error(request_id, "control session unavailable");
             return;
         }
-        let peer = match peer_connection(&ice_servers).await {
+        let peer = match peer_connection(&ice_servers, relay_only).await {
             Ok(value) => value,
             Err(_) => {
                 self.control_error(request_id, "WebRTC unavailable");
