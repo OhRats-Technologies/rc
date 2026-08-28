@@ -249,6 +249,9 @@ contribution smoke tests already pass through the native kernel listener.
     one-time enrollment, immutable Node keys, tombstone revocation, presence
     leases, and transport-neutral rendezvous metadata services.
 - [ ] Port control authorization, TURN provider, signaling, and events.
+  - [x] Add a typed lifecycle-event component with durable monotonic cursors,
+    authorization-scoped filters, idempotent appends, bounded retention, and
+    restart/gap recovery fixtures. Live HTTP event streaming remains pending.
 - [ ] Port MCP OAuth and the five-tool process harness.
 - [ ] Port the OpenSSH gateway integration.
   - [x] Add component-owned durable SSH public-key credentials and typed policy
