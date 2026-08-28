@@ -189,6 +189,8 @@ STATIC_ONLY = {
     "scripts/check-doc-links.py",
     "scripts/check-source-size.sh",
     "scripts/test-affected-units.py",
+    "scripts/swarm.py",
+    "scripts/test-swarm-protocol.py",
     "scripts/validate-profiles.py",
 }
 

@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""Read or append to RC's canonical cross-worktree coordination board."""
+"""Read RC's historical board; live coordination uses scripts/swarm.py."""
 
 from __future__ import annotations
 
 import argparse
-import fcntl
-import os
 import subprocess
 import sys
-from datetime import datetime
 from pathlib import Path
 
 
@@ -35,29 +32,10 @@ def read_board(path: Path, tail: int | None) -> None:
 
 
 def append_message(path: Path, agent: str, kind: str | None, message: str) -> None:
-    message = message.strip()
-    if not message:
-        raise SystemExit("board message must not be empty")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    heading = datetime.now().astimezone().strftime("%Y-%m-%d %H:%M %Z")
-    if kind:
-        heading += f" — {agent} — {kind}"
-    else:
-        heading += f" — {agent}"
-
-    with path.open("a+", encoding="utf-8") as board:
-        fcntl.flock(board.fileno(), fcntl.LOCK_EX)
-        board.seek(0, os.SEEK_END)
-        size = board.tell()
-        if size:
-            board.seek(size - 1)
-            if board.read(1) != "\n":
-                board.write("\n")
-        board.seek(0, os.SEEK_END)
-        board.write(f"\n### {heading}\n\n{message}\n")
-        board.flush()
-        os.fsync(board.fileno())
-        fcntl.flock(board.fileno(), fcntl.LOCK_UN)
+    del path, agent, kind, message
+    raise SystemExit(
+        "BOARD.md is historical/read-only; use `python3 scripts/swarm.py post`"
+    )
 
 
 def parse_args() -> argparse.Namespace:
