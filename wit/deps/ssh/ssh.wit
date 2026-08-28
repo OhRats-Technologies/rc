@@ -1,0 +1,55 @@
+package ohrats:rc-ssh@0.1.0;
+
+interface types {
+    enum workspace-role { viewer, operator, owner }
+    enum command-kind { shell, exec, sftp, scp, rsync }
+    record public-key {
+        id: string,
+        user-id: string,
+        control-client-id: string,
+        name: string,
+        algorithm: string,
+        normalized: string,
+        fingerprint: string,
+        created-at-ms: u64,
+        last-used-at-ms: option<u64>,
+    }
+    record session-request {
+        key-id: string,
+        user-id: string,
+        control-client-id: string,
+        control-client-expires-at-ms: u64,
+        device-id: string,
+        workspace-role: workspace-role,
+        original-command: string,
+        terminal: bool,
+        agent-forwarding: bool,
+        port-forwarding: bool,
+        x11-forwarding: bool,
+        tunnel: bool,
+        requested-at-ms: u64,
+    }
+    record session-policy {
+        device-id: string,
+        command-kind: command-kind,
+        command: string,
+        terminal: bool,
+        max-duration-seconds: u32,
+        max-input-bytes: u64,
+        max-output-bytes: u64,
+    }
+}
+
+interface credentials {
+    use types.{public-key};
+    register: func(user-id: string, control-client-id: string, name: string, public-key: string, created-at-ms: u64) -> result<public-key, string>;
+    list-keys: func(user-id: string) -> result<list<public-key>, string>;
+    get: func(id: string) -> result<option<public-key>, string>;
+    revoke: func(id: string, user-id: string) -> result<bool, string>;
+}
+
+interface policy {
+    use types.{session-policy, session-request};
+    authorize: func(request: session-request) -> result<session-policy, string>;
+    authorized-key-line: func(algorithm: string, key-data: string) -> result<option<string>, string>;
+}

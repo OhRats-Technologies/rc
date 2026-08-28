@@ -283,3 +283,16 @@ world identity-http {
     import ohrats:rc-webui/shell@0.1.0;
     export ohrats:rc-http/handler@0.1.0;
 }
+
+world ssh-policy-store {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    export ohrats:rc-ssh/credentials@0.1.0;
+    export ohrats:rc-ssh/policy@0.1.0;
+}
+
+world ssh-policy-fixture {
+    include plugin;
+    import ohrats:rc-ssh/credentials@0.1.0;
+    import ohrats:rc-ssh/policy@0.1.0;
+}

@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:ssh-policy-store"
+version = "0.1.0"
+world = "ohrats:rc-plugin/ssh-policy-store@0.1.0"
+wit = ["plugin", "ssh", "storage"]
+
+[build]
+kind = "rust"
+package = "rc-ssh-policy-store"
+artifact = "ssh-policy-store"
