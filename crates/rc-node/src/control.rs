@@ -4,7 +4,7 @@ mod hosted;
 mod lifecycle;
 mod webrtc;
 
-use crate::{NodeState, ProcessManager, bootstrap_lock, sync_lock};
+use crate::{MeshAuthority, NodeState, ProcessManager, bootstrap_lock, sync_lock};
 use ::webrtc::peer_connection::RTCPeerConnection;
 use parking_lot::Mutex;
 use rc_protocol::{
@@ -34,8 +34,7 @@ struct ControlInner {
     challenges: Mutex<HashMap<String, Instant>>,
     sessions: Mutex<HashMap<String, ControlSession>>,
     pending_starts: Mutex<HashMap<(String, String), PendingStart>>,
-    ssh_sessions: Mutex<HashMap<String, String>>,
-    mcp_processes: Mutex<HashMap<String, String>>,
+    mesh: Mutex<Option<Arc<MeshAuthority>>>,
 }
 
 struct ControlSession {
@@ -76,6 +75,9 @@ impl ControlManager {
         outbound: mpsc::UnboundedSender<NodeToServer>,
         version: impl Into<String>,
     ) -> Self {
+        let mesh = MeshAuthority::from_lock(&state, &state_dir)
+            .ok()
+            .map(Arc::new);
         Self(Arc::new(ControlInner {
             state,
             version: version.into(),
@@ -85,8 +87,7 @@ impl ControlManager {
             challenges: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
             pending_starts: Mutex::new(HashMap::new()),
-            ssh_sessions: Mutex::new(HashMap::new()),
-            mcp_processes: Mutex::new(HashMap::new()),
+            mesh: Mutex::new(mesh),
         }))
     }
 
@@ -94,7 +95,10 @@ impl ControlManager {
         match message {
             ServerToNode::LockBootstrap { snapshot } => {
                 match bootstrap_lock(&self.0.state_dir, &snapshot, server) {
-                    Ok(()) => self.send_lock_state(),
+                    Ok(()) => {
+                        self.refresh_mesh_authority();
+                        self.send_lock_state();
+                    }
                     Err(error) => self.control_error("", error.to_string()),
                 }
             }
@@ -121,6 +125,7 @@ impl ControlManager {
                     &signature,
                 ) {
                     Ok(()) => {
+                        self.refresh_mesh_authority();
                         self.invalidate_sessions().await;
                         self.send_lock_state();
                     }
@@ -228,20 +233,31 @@ impl ControlManager {
             ServerToNode::Update => self.handle_update().await,
         }
     }
+
+    pub fn mesh_authority(&self) -> Option<Arc<MeshAuthority>> {
+        self.0.mesh.lock().clone()
+    }
+
+    fn refresh_mesh_authority(&self) {
+        match MeshAuthority::from_lock(&self.0.state, &self.0.state_dir) {
+            Ok(mesh) => {
+                *self.0.mesh.lock() = Some(Arc::new(mesh));
+            }
+            Err(error) => {
+                eprintln!("RC mesh authority is unavailable: {error}");
+                *self.0.mesh.lock() = None;
+            }
+        }
+    }
 }
 
 fn validate_start(
     id: &str,
     command: &str,
-    cwd: &str,
+    _cwd: &str,
     terminal: Option<&TerminalSpec>,
 ) -> anyhow::Result<()> {
-    if id.is_empty()
-        || id.len() > 100
-        || command.trim().is_empty()
-        || command.len() > 8192
-        || cwd.len() > 4096
-    {
+    if id.is_empty() || command.trim().is_empty() {
         anyhow::bail!("invalid process start");
     }
     if let Some(terminal) = terminal

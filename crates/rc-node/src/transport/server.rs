@@ -2,7 +2,7 @@ use crate::{
     NodeState, sign_node_request,
     transport::webrtc::{complete_local_description, peer_connection},
 };
-use rc_protocol::{IceServer, NodeToServer, ServerToNode};
+use rc_protocol::{IceServer, NODE_CONTROL_MESSAGE_LIMIT, NodeToServer, ServerToNode};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot, watch};
@@ -30,7 +30,7 @@ impl ServerTransport {
         channel.on_message(Box::new(move |message: DataChannelMessage| {
             let tx = incoming_tx.clone();
             Box::pin(async move {
-                if !message.is_string || message.data.len() > 1_048_576 {
+                if !message.is_string || message.data.len() > NODE_CONTROL_MESSAGE_LIMIT {
                     return;
                 }
                 if let Ok(value) = serde_json::from_slice::<ServerToNode>(&message.data) {
@@ -87,9 +87,13 @@ impl ServerTransport {
     }
 
     pub async fn send(&self, message: &NodeToServer) -> anyhow::Result<()> {
-        self.channel
-            .send_text(serde_json::to_string(message)?)
-            .await?;
+        let encoded = serde_json::to_string(message)?;
+        if encoded.len() > NODE_CONTROL_MESSAGE_LIMIT {
+            anyhow::bail!(
+                "Node control message exceeds the {NODE_CONTROL_MESSAGE_LIMIT}-byte transport frame"
+            );
+        }
+        self.channel.send_text(encoded).await?;
         Ok(())
     }
 

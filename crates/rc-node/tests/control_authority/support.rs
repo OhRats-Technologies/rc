@@ -65,6 +65,7 @@ pub(super) fn fixture(role: &str) -> anyhow::Result<Fixture> {
         snapshot: AuthoritySnapshot {
             v: 1,
             workspace_id: "workspace".into(),
+            devices: Vec::new(),
             members: vec![AuthorityMember {
                 user_id: "user".into(),
                 role: role.into(),

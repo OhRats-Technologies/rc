@@ -38,6 +38,14 @@ pub struct AuthorityMcpGrant {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AuthorityDevice {
+    pub id: String,
+    pub identity_public_key: String,
+    pub transport_public_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct McpGrantPayload {
     pub v: u32,
     pub id: String,
@@ -57,6 +65,8 @@ pub struct McpGrantPayload {
 pub struct AuthoritySnapshot {
     pub v: u32,
     pub workspace_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub devices: Vec<AuthorityDevice>,
     #[serde(default)]
     pub members: Vec<AuthorityMember>,
     #[serde(default, rename = "apiKeys")]

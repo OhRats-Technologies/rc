@@ -1,4 +1,5 @@
 mod events;
+mod relay;
 mod spawn;
 
 use self::{
@@ -125,7 +126,12 @@ impl ProcessManager {
             return Ok(false);
         }
         let mut processes = self.processes.lock();
-        if processes.contains_key(&spec.id) {
+        if processes.contains_key(&spec.id)
+            || (!spec.relay_id.is_empty()
+                && processes
+                    .values()
+                    .any(|process| process.relay_id == spec.relay_id))
+        {
             return Ok(false);
         }
         let (managed, mut child, readers) = spawn(&self.runner, &spec)?;

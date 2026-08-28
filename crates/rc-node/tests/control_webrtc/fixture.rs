@@ -35,6 +35,7 @@ pub(super) fn setup() -> anyhow::Result<Harness> {
     let snapshot = serde_json::to_string(&AuthoritySnapshot {
         v: 1,
         workspace_id: "workspace".into(),
+        devices: Vec::new(),
         members: vec![AuthorityMember {
             user_id: "user".into(),
             role: "owner".into(),

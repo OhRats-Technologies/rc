@@ -4,10 +4,6 @@ RC is a Rust remote-control platform for managing machines from a browser, CLI, 
 
 The repository contains the server, browser application, Node runtime, CLI, protocol, cryptography, installer, container image, and release automation.
 
-> **v0.16 upgrade boundary**
->
-> v0.16 replaces the Bun/TypeScript server and Go agent with Rust. It writes `rc-v2.sqlite3` and does **not** import v0.15 `rc.db`, passkeys, authority records, or device state. Keep the old database as a rollback artifact, create the first v0.16 account through the setup link, and re-enroll every Node. See [Operations](docs/OPERATIONS.md#upgrading-from-v015).
-
 ## Components
 
 | Component | Purpose |
@@ -21,6 +17,8 @@ The repository contains the server, browser application, Node runtime, CLI, prot
 | `rc-context` | Typed runtime services, revertible effect scopes, and dependency reconciliation |
 | `rc-mesh` | Realm-isolated route broker and encrypted transport substrate |
 | `web/` | Browser TypeScript and CSS bundled by Bun; Bun is not present in the runtime image |
+
+The MCP Terminal surface intentionally exposes one process workflow: `machines_list` → `process_run` → `process_status`, with `process_input` for exact stdin/EOF and `process_cancel` for termination. Output is an ephemeral rolling in-memory stream addressed by cursor; RC does not persist MCP commands, input, or output.
 
 ## Run the server locally
 
@@ -106,7 +104,7 @@ The server logs a generated setup URL when `RC_SETUP_TOKEN` is unset. Never use 
 
 - [Architecture and data flows](docs/ARCHITECTURE.md)
 - [Runtime context and mesh architecture](docs/CONTEXT_AND_MESH.md)
-- [Deployment, backup, recovery, and upgrades](docs/OPERATIONS.md)
+- [Deployment, backup, and recovery](docs/OPERATIONS.md)
 - [Development and test matrix](docs/DEVELOPMENT.md)
 - [Proof-of-possession HTTP API](docs/API.md)
 - [Release process and rollback](docs/RELEASES.md)

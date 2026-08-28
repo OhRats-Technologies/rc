@@ -6,6 +6,7 @@ fn snapshot(expires_at: i64) -> String {
     serde_json::to_string(&AuthoritySnapshot {
         v: 1,
         workspace_id: "workspace".into(),
+        devices: Vec::new(),
         members: vec![AuthorityMember {
             user_id: "user".into(),
             role: "owner".into(),
@@ -39,6 +40,7 @@ fn lock_bootstrap_is_tofu_and_reports_metadata() -> anyhow::Result<()> {
     let second = serde_json::to_string(&AuthoritySnapshot {
         v: 1,
         workspace_id: "other".into(),
+        devices: Vec::new(),
         members: Vec::new(),
         api_keys: Vec::new(),
         mcp_grants: Vec::new(),

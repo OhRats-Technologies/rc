@@ -8,7 +8,7 @@ Preserve relevant logs and artifacts, but redact setup tokens, enrollment tokens
 
 ## Supported versions
 
-Only the newest published v0.16 release is supported. Security fixes move forward to a new immutable tag; published tags are not rewritten. v0.15 is a separate legacy deployment with a separate database and agent.
+Only the newest published release is supported. Security fixes move forward to a new immutable tag; published tags are not rewritten.
 
 ## Security model
 
@@ -40,12 +40,12 @@ API secrets are shown once. The `rcsk_...` value contains a private key; rotate 
 - Set `RC_TRUST_PROXY=1` only when the proxy removes untrusted forwarding headers.
 - Restrict access to the SQLite volume, TURN API token, and container environment.
 - Keep host time synchronized because signed requests have a 60-second acceptance window.
-- Back up before upgrades and test restores in isolation.
+- Keep tested backups and verify restores in isolation.
 - Monitor failed authentication, replay conflicts, rate limits, Node churn, and unexpected service restarts.
 - Revoke credentials and device records before forensic re-enrollment after compromise.
 
 ## Cryptographic changes
 
-Changes to domains, canonical request payloads, grants, key derivation, nonces, counters, or serialization require deterministic fixtures, positive/negative cross-component tests, replay tests, and compatibility documentation. Never reuse a key/nonce pair or silently downgrade to plaintext or a hosted fallback.
+Changes to domains, canonical request payloads, grants, key derivation, nonces, counters, or serialization require deterministic fixtures, positive/negative cross-component tests, and replay tests. Never reuse a key/nonce pair or silently downgrade to plaintext or a hosted fallback.
 
 CI audits the locked Rust graph against RustSec and the Bun graph against the registry advisory service. New vulnerabilities, yanked crates, or informational warnings fail validation. The sole documented exception is the unmaintained-only `bincode 1.3.3` notice inherited from `webrtc` through `dtls`; `.cargo/audit.toml` records the exact advisory and upstream path.

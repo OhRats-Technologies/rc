@@ -27,6 +27,7 @@ impl AppState {
     pub fn new(config: Config) -> anyhow::Result<Self> {
         let webauthn = build_webauthn(&config.public_url)?;
         let db = Database::open(&config.db_path)?;
+        db.configure_execution_history(config.execution_history)?;
         let execution =
             ExecutionPolicy::new(config.execution_history, config.execution_history_ttl_hours);
         execution.cleanup_startup(&db)?;

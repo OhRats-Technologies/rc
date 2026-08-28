@@ -21,11 +21,21 @@ CREATE TABLE oauth_codes(code_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFER
 CREATE TABLE oauth_tokens(token_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('access','refresh')),expires_at INTEGER NOT NULL);
 CREATE TABLE request_nonces(principal TEXT NOT NULL,nonce_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(principal,nonce_hash));
 CREATE TABLE events(id INTEGER PRIMARY KEY AUTOINCREMENT,workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,user_id TEXT REFERENCES users(id) ON DELETE SET NULL,device_id TEXT REFERENCES devices(id) ON DELETE SET NULL,kind TEXT NOT NULL,detail TEXT NOT NULL DEFAULT '{}',created_at INTEGER NOT NULL);
+CREATE TABLE runtime_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+INSERT INTO runtime_settings(key,value) VALUES('execution_history','none');
 CREATE INDEX idx_members_user ON workspace_members(user_id);
 CREATE INDEX idx_devices_workspace ON devices(workspace_id);
 CREATE INDEX idx_processes_device ON processes(device_id,created_at DESC);
 CREATE INDEX idx_events_workspace ON events(workspace_id,created_at DESC);
 CREATE INDEX idx_nonces_expiry ON request_nonces(expires_at);
-PRAGMA user_version=1;
+PRAGMA user_version=2;
+COMMIT;
+"#;
+
+pub(super) const MIGRATE_1_TO_2: &str = r#"
+BEGIN IMMEDIATE;
+CREATE TABLE runtime_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+INSERT INTO runtime_settings(key,value) VALUES('execution_history','none');
+PRAGMA user_version=2;
 COMMIT;
 "#;

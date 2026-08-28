@@ -32,9 +32,21 @@ The public HTTP service is the rendezvous and policy plane. It does not carry no
 | Browser/CLI terminal | WebRTC DataChannel | Signed authority plus Node verification | Application-layer encrypted end to end |
 | Node bootstrap/status | HTTPS | Ed25519-signed Node requests | Enrollment, presence, ICE, update metadata |
 | SSH compatibility | WebSocket + local OpenSSH | Registered SSH key bound to a control client | Hosted byte relay to a Node process |
-| MCP | OAuth 2.0 authorization code + PKCE, JSON-RPC/HTTP | Passkey-backed grant with explicit machine and tool scopes | Bounded in-memory stdout/stderr retained only for the live MCP process lifecycle |
+| MCP | OAuth 2.0 authorization code + PKCE, JSON-RPC/HTTP | Passkey-backed grant with explicit machine and tool scopes | Bounded, cursor-addressed in-memory stdin/stdout/stderr for the live MCP process lifecycle |
 
-The MCP surface is intentionally small: `machines_list` discovers explicitly granted machines, `process_run` starts one bounded shell command, `process_cancel` signals a process created by the same grant, and `process_status` reads incremental output or completion. Each tool publishes an exact output schema. MCP Terminal grants are immutable, device-specific, Owner-approved, and included in each selected Node's RC Lock; newly enrolled machines require a new or replaced grant rather than inheriting ambient execution authority.
+The MCP surface deliberately has one good path for each process operation:
+
+| Tool | Contract |
+| --- | --- |
+| `machines_list` | Discover explicitly granted machine IDs and online state |
+| `process_run` | Start one non-PTY shell process and optionally wait briefly for output or exit |
+| `process_status` | Long-poll for ordered incremental stdout/stderr or completion using an absolute cursor |
+| `process_input` | Write exact UTF-8 stdin bytes and optionally close stdin; RC never appends a newline |
+| `process_cancel` | Request `INT`, `TERM`, or `KILL`, then use `process_status` to observe the final state |
+
+`process_run.waitSeconds` and `process_status.waitSeconds` control only how long that RPC waits; they are not process runtime limits. Status responses preserve stdout/stderr labels and arrival order, return at most 64 KiB at once, and expose `nextCursor`, `outputPending`, and `truncatedBeforeCursor`. The server retains a rolling 256 KiB of the newest output in memory so a long-running process continues to make progress after old output expires. Live process control state is never silently evicted to make room; RC rejects a new MCP process when the active-process capacity is exhausted.
+
+MCP string schemas intentionally do not declare arbitrary `minLength` or `maxLength` values. Semantic checks reject empty commands and invalid identifiers, while actual capacity is enforced at the layer that owns it: the HTTP JSON-RPC request body is limited to 2 MiB, a serialized Node control message to 1 MiB, and one decoded process-input chunk to 128 KiB. Each tool publishes an exact output schema. MCP Terminal grants are immutable, device-specific, Owner-approved, and included in each selected Node's RC Lock; newly enrolled machines require a new or replaced grant rather than inheriting ambient execution authority.
 
 ## Trust boundaries
 
@@ -65,17 +77,19 @@ Reconnect reconciliation marks server-side `starting` or `running` processes as 
 
 ## Persistence
 
-Completed execution history is disabled by default. `RC_EXECUTION_HISTORY=metadata` is an explicit opt-in for bounded lifecycle metadata; command text and streams remain non-persistent in every mode. Presence and transport-connectivity events are live-only.
+Completed execution history is disabled by default. `RC_EXECUTION_HISTORY=metadata` is an explicit opt-in for bounded lifecycle metadata; command text and streams remain non-persistent in every mode. Presence and transport-connectivity events are live-only. On startup, process rows that cannot still be running are reconciled as lost before the retention policy is applied.
 
 ## Runtime context and mesh substrate
 
 `rc-context` mediates typed services, component requirements, and revertible cleanup effects. Server workspace contexts inherit global services while remaining isolated from sibling workspaces. Node connection resources are unwound through an effect scope when a transport ends.
 
-`rc-mesh` provides realm/peer/service identifiers, bounded opaque envelopes, provider leases, cost-ordered failover, and the `EncryptedFrameTransport` interface now used by CLI WebRTC control. This release establishes the safe seam for later QUIC providers; the production network remains WebRTC-only until authenticated peer routing and revocation-freshness semantics are complete. See [Runtime context and mesh architecture](CONTEXT_AND_MESH.md).
+`rc-mesh` provides realm/peer/service identifiers, RC-Lock-pinned peer keys, signed expiring topology/service advertisements, deterministic transitive routes, replay-protected opaque envelopes, signed state digests, provider leases, cost-ordered failover, and the `EncryptedFrameTransport` interface used by CLI WebRTC control. WebRTC is the control transport provider. Mesh identities, routes, capabilities, and authority checks are transport-independent. See [Runtime context and mesh architecture](CONTEXT_AND_MESH.md).
+
+Local runtime composition and remote peer negotiation use the same service-seam model without conflating code loading with authority. Built-in components are native Rust; signed capability announcements let peers select compatible providers. Optional extension code uses explicit capability boundaries rather than a Rust dynamic-library ABI. See [Plugins and capability negotiation](PLUGINS_AND_CAPABILITIES.md).
 
 The Rust server uses SQLite WAL mode with foreign keys and a busy timeout. The default development database is `./data-v2/rc-v2.sqlite3`; the container default is `/data/rc-v2.sqlite3`. The data directory is mode `0700` and the main database is mode `0600` on Unix.
 
-The schema is versioned through `PRAGMA user_version`. An unversioned non-empty database is rejected with a migration error rather than being interpreted as v0.16 data.
+The schema is versioned through `PRAGMA user_version`. An unrecognized non-empty database is rejected rather than interpreted as RC state.
 
 Node state defaults to `~/.config/rc`:
 

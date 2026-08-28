@@ -5,7 +5,9 @@ use super::{
 use crate::ProcessSpec;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_crypto::{decrypt_frame, encrypt_frame};
-use rc_protocol::{ControlMessage, ControlTransportMessage, NodeToServer, TerminalSpec};
+use rc_protocol::{
+    ControlMessage, ControlTransportMessage, NodeToServer, PROCESS_INPUT_CHUNK_LIMIT, TerminalSpec,
+};
 use std::time::{Duration, Instant};
 
 impl ControlManager {
@@ -121,7 +123,7 @@ impl ControlManager {
             ControlMessage::ProcessStdin { id, data } => {
                 self.require_process_access(&id, user_id, role, can_execute)?;
                 let bytes = URL_SAFE_NO_PAD.decode(data)?;
-                if bytes.len() > 131_072 {
+                if bytes.len() > PROCESS_INPUT_CHUNK_LIMIT {
                     anyhow::bail!("process input too large");
                 }
                 self.0.processes.input(&id, &bytes)?;

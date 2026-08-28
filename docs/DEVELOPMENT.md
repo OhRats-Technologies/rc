@@ -22,7 +22,7 @@ bun run build:client
 cargo run -p rc-server
 ```
 
-When `RC_SETUP_TOKEN` is unset, the server logs a generated setup URL. The default development database is isolated at `./data-v2/rc-v2.sqlite3` to avoid interpreting a legacy `rc.db`.
+When `RC_SETUP_TOKEN` is unset, the server logs a generated setup URL. The default development database is `./data-v2/rc-v2.sqlite3`.
 
 The normal development and test profiles keep line-table debug information for useful panic locations while omitting full dependency debug data to reduce compile/link time and `target/` size. When a debugger needs full symbols, opt in explicitly:
 
@@ -72,9 +72,9 @@ sh scripts/smoke-container.sh rc-ci
 | Direct encrypted control | `rc-node/tests/control_webrtc.rs`, cross-language fixtures |
 | RC Lock authority | `control_authority`, `lock_authority` |
 | Process isolation and parity | `process_parity`, process-manager unit tests |
-| Runtime context, effect cleanup, and mesh routing substrate | `rc-context/tests/runtime.rs`, `rc-mesh/tests/broker.rs` |
+| Runtime context, effect cleanup, and mesh routing substrate | `rc-context/tests/runtime.rs`, `rc-mesh/tests/broker.rs`, `rc-mesh/tests/mesh.rs`, `mesh_authority` |
 | Private-by-default process lifecycle | `execution_history`, `events_sse`, `node_webrtc` |
-| MCP OAuth and tool restrictions | `mcp_oauth`, MCP route/tool tests |
+| MCP OAuth, five-tool descriptors, cursor output, stdin, cancellation, and isolation | `mcp_oauth`, `mcp_process_http`, `relay_hubs`, MCP descriptor/input unit tests |
 | HTTP policy, CSP, cache, rate limits | `http_policy` |
 | CLI parsing and command safety | `rc-cli` unit tests and release smoke tests |
 | Browser assets and layout | TypeScript typecheck, Bun build, `scripts/webview-smoke.ts` |
@@ -121,4 +121,4 @@ Passkey ceremonies are tested with `webauthn-authenticator-rs` soft passkeys in 
 
 ## Commit hygiene
 
-Do not commit `target/`, `dist/`, `node_modules/`, databases, `.env`, Node state, account state, logs, or release archives. A completed change leaves `git diff --check` clean and documents operational or compatibility consequences.
+Do not commit `target/`, `dist/`, `node_modules/`, databases, `.env`, Node state, account state, logs, or release archives. A completed change leaves `git diff --check` clean and updates documentation when behavior changes.

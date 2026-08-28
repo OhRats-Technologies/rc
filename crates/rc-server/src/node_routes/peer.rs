@@ -1,5 +1,5 @@
 use crate::{AppState, NodeInbound};
-use rc_protocol::NodeToServer;
+use rc_protocol::{NODE_CONTROL_MESSAGE_LIMIT, NodeToServer};
 use std::sync::Arc;
 use webrtc::{
     data_channel::{
@@ -80,7 +80,7 @@ pub(super) fn configure(
                 let db = db.clone();
                 let device = message_device.clone();
                 Box::pin(async move {
-                    if !message.is_string || message.data.len() > 1_048_576 {
+                    if !message.is_string || message.data.len() > NODE_CONTROL_MESSAGE_LIMIT {
                         return;
                     }
                     let Ok(value) = serde_json::from_slice::<NodeToServer>(&message.data) else {

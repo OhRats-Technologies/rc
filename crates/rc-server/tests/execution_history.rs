@@ -1,4 +1,5 @@
 use rc_server::{Database, EventHub, ExecutionHistory, ExecutionPolicy, now_ms};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn default_policy_removes_completed_metadata_and_process_events() -> anyhow::Result<()> {
@@ -91,6 +92,33 @@ fn metadata_policy_retains_completed_rows_while_none_finalizes_them() -> anyhow:
     assert_eq!(recent["status"], "exited");
     assert_eq!(recent["exit_code"], 0);
     assert_eq!(recent["ephemeral"], true);
+    Ok(())
+}
+
+#[test]
+fn schema_one_migrates_and_reconciles_interrupted_processes() -> anyhow::Result<()> {
+    let root = temp_dir("migration");
+    std::fs::create_dir_all(&root)?;
+    let path = root.join("migration.sqlite3");
+    let database = Database::open(&path)?;
+    seed_identity(&path)?;
+    seed_active_process(&path, "interrupted")?;
+    with_connection(&path, |connection| {
+        connection.execute("DROP TABLE runtime_settings", [])?;
+        connection.execute("PRAGMA user_version=1", [])?;
+        Ok(())
+    })?;
+    drop(database);
+
+    let migrated = Database::open(&path)?;
+    migrated.configure_execution_history(ExecutionHistory::None)?;
+    assert_eq!(count(&path, "processes", "id='interrupted'")?, 0);
+    let version = with_connection(&path, |connection| {
+        connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+    })?;
+    assert_eq!(version, 2);
+    drop(migrated);
+    std::fs::remove_dir_all(root)?;
     Ok(())
 }
 
@@ -189,4 +217,15 @@ fn with_connection<T>(
     let connection = rusqlite::Connection::open(path)?;
     connection.execute("PRAGMA foreign_keys=ON", [])?;
     f(&connection)
+}
+
+fn temp_dir(label: &str) -> std::path::PathBuf {
+    std::env::temp_dir().join(format!(
+        "rc-execution-{label}-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos()
+    ))
 }

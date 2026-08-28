@@ -1,4 +1,4 @@
-use super::{McpContext, complete};
+use super::{McpContext, complete, running_owned_device};
 use crate::AppState;
 use rc_protocol::ServerToNode;
 
@@ -11,9 +11,6 @@ pub(super) async fn cancel(
         .get("processId")
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default();
-    if process_id.is_empty() || process_id.len() > 100 {
-        anyhow::bail!("invalid process ID");
-    }
     let signal = args
         .get("signal")
         .and_then(serde_json::Value::as_str)
@@ -22,17 +19,7 @@ pub(super) async fn cancel(
     if !matches!(signal.as_str(), "INT" | "TERM" | "KILL") {
         anyhow::bail!("signal must be INT, TERM, or KILL");
     }
-    let device =
-        state
-            .mcp
-            .running_device(process_id, &context.payload.id, &context.payload.user_id)?;
-    let role = state
-        .db
-        .device_role(&context.payload.user_id, &device)?
-        .ok_or_else(|| anyhow::anyhow!("Owner access is no longer available for this device"))?;
-    if role != "owner" {
-        anyhow::bail!("Owner access is no longer available for this device");
-    }
+    let device = running_owned_device(state, context, process_id)?;
     state
         .nodes
         .send(

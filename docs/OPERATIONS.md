@@ -5,7 +5,7 @@ This runbook covers a single RC server instance backed by a persistent SQLite vo
 ## Production container
 
 ```sh
-docker build -t rc:0.16.0 .
+docker build -t rc:0.18.0 .
 docker volume create rc-data
 
 export RC_SETUP_TOKEN="$(openssl rand -hex 32)"
@@ -15,7 +15,7 @@ docker run -d --name rc --restart unless-stopped \
   -e PUBLIC_URL=https://rc.example \
   -e RC_SETUP_TOKEN="$RC_SETUP_TOKEN" \
   -e RC_TRUST_PROXY=1 \
-  rc:0.16.0
+  rc:0.18.0
 ```
 
 Terminate TLS at a controlled reverse proxy and forward to port 3000. Preserve WebSocket upgrades for `/api/v1/ssh/tunnel`, disable response buffering for SSE, and use long idle timeouts for SSE and SSH connections. Normal WebRTC media/data does not traverse the reverse proxy.
@@ -91,25 +91,12 @@ Test restoration into an isolated origin before relying on a backup.
 3. Restore the database files with ownership for UID/GID `10001` in the container.
 4. Start the same RC version that created the backup.
 5. Verify `/api/v1/status`, passkey login, device presence, and a harmless command on a test Node.
-6. Upgrade only after the restored state is known-good.
+6. Put the restored instance into service only after the state is known-good.
 
 The entrypoint enforces mode `0700` on `/data` and mode `0600` on recognized RC database files.
 The container runtime user is pinned to UID/GID `10001` so restored volume ownership is deterministic.
 
-## Upgrading from v0.15
-
-v0.16 is a clean Rust control plane, not an in-place schema migration.
-
-- v0.15 uses `<DATA_DIR>/rc.db`; preserve it unchanged for rollback.
-- v0.16 uses `<DATA_DIR>/rc-v2.sqlite3` by default.
-- Create a new v0.16 owner account and passkey.
-- Recreate workspace membership, API keys, SSH keys, and MCP grants.
-- Remove the old Go agent service and re-enroll each machine with the v0.16 installer.
-- Validate command, shell, SSH, and MCP access before retiring v0.15.
-
-Pointing `RC_DB_PATH` at a v0.15 database fails deliberately with an incompatibility message. Do not rename `rc.db` to `rc-v2.sqlite3`.
-
-## Routine upgrade
+## Updating a deployment
 
 Server:
 
@@ -130,9 +117,7 @@ The updater accepts only a newer semantic version, requires a GitHub SHA-256 ass
 
 ## Rollback
 
-For a v0.16-to-v0.16 rollback, stop the server, restore the pre-upgrade database backup, and run the matching prior image. The CLI updater refuses downgrades; install a prior binary manually only as an explicit incident action.
-
-For a v0.16-to-v0.15 rollback, stop v0.16 and restore the untouched v0.15 deployment and `rc.db`. v0.15 cannot consume the v0.16 database or Rust Node state.
+Server rollback requires a database backup created by the same server build and the matching image. The CLI updater does not perform downgrades; replacing a Node binary with an older artifact is an explicit incident-recovery action.
 
 ## Incident recovery
 

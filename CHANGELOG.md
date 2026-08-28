@@ -2,6 +2,33 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.18.0] - 2026-08-28
+
+### Added
+
+- Added `process_input`, completing the focused MCP process harness: discover machines, start a process, read incremental output, write exact stdin/EOF, and cancel it.
+- Added signed RC Lock device directories, realm-scoped peer identities, signed topology and service advertisements, replay-protected opaque envelopes, content-addressed state digests, and deterministic transitive route calculation to the inactive mesh substrate.
+- Added signed, versioned peer capability announcements and deterministic bilateral negotiation of the highest compatible version and shared feature set. Capability claims describe available behavior but never grant execution authority.
+- Added a SQLite schema v1-to-v2 migration that records the execution-retention policy and reconciles process rows that could not survive a server restart.
+
+### Changed
+
+- Replaced MCP's ambiguous `timeoutSeconds` and byte `offset` descriptors with `waitSeconds` and an absolute `cursor`; the old argument names remain accepted for rolling compatibility but are no longer advertised.
+- Changed MCP process output to ordered `stdout`/`stderr` chunks with `nextCursor`, `outputPending`, and `truncatedBeforeCursor`. The server keeps a rolling 256 KiB of the newest output and returns at most 64 KiB per status call instead of freezing once the first buffer fills.
+- Removed arbitrary `minLength`/`maxLength` constraints from MCP string schemas. RC now enforces the real 2 MiB JSON-RPC request limit, 1 MiB Node control-message limit, and 128 KiB decoded stdin chunk limit at their transport boundaries.
+- Kept live MCP process state until exit, loss, or explicit cancellation. Capacity exhaustion rejects a new process instead of silently evicting an active one.
+- Made hosted SSH/MCP process ownership derive from the process manager's relay identity and terminate hosted processes when their Node transport disappears.
+- Distributed pinned Node Ed25519 and X25519 public keys through Owner-authorized RC Lock snapshots. Existing pre-mesh locks bootstrap only the local identity until a current signed device directory is accepted.
+
+### Security
+
+- Kept all MCP command, stdin, stdout, and stderr plaintext memory-only and grant-bound; `process_input` and `process_cancel` re-check the originating grant, current process state, and current Owner role before reaching a Node.
+- Bound mesh replay identifiers to their source peer, filtered topology edges to trusted realm peers, and rejected duplicate/self neighbor advertisements.
+
+### Compatibility
+
+- The production browser/CLI control path remains direct/TURN WebRTC. RC 0.18 ships the reviewed authority, topology, and lifecycle substrate but does not yet enable peer listeners, automatic discovery, root tunnelling, offline enrollment forwarding, or artifact caching.
+
 ## [0.17.0] - 2026-08-27
 
 ### Added

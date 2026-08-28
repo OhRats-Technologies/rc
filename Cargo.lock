@@ -2062,7 +2062,7 @@ dependencies = [
 
 [[package]]
 name = "rc-cli"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2125,10 +2125,15 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "bytes",
+ "ed25519-dalek",
  "parking_lot",
  "rc-context",
+ "rc-crypto",
  "serde",
+ "serde_json",
+ "sha2",
  "thiserror 2.0.20",
  "tokio",
 ]
@@ -2176,7 +2181,7 @@ dependencies = [
 
 [[package]]
 name = "rc-server"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "axum",

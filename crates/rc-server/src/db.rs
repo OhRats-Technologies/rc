@@ -1,6 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, params};
 mod device;
 mod process;
+mod runtime;
 mod schema;
 pub use device::*;
 pub use process::*;
@@ -51,7 +52,9 @@ impl Database {
                 );
             }
             connection.execute_batch(schema::SCHEMA)?;
-        } else if current != 1 {
+        } else if current == 1 {
+            connection.execute_batch(schema::MIGRATE_1_TO_2)?;
+        } else if current != 2 {
             anyhow::bail!("unsupported RC database schema {current}");
         }
         secure_database(path)?;

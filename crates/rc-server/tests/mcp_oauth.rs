@@ -72,11 +72,26 @@ async fn oauth_codes_and_refresh_tokens_are_single_use_and_resource_bound() -> a
         .await?;
     assert_eq!(tools.status(), StatusCode::OK);
     let tools = response_json(tools).await?;
-    assert!(
-        tools["result"]["tools"]
-            .as_array()
-            .is_some_and(|value| !value.is_empty())
+    let listed = tools["result"]["tools"]
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("missing MCP tools"))?;
+    let names: Vec<_> = listed
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect();
+    assert_eq!(
+        names,
+        [
+            "machines_list",
+            "process_run",
+            "process_status",
+            "process_input",
+            "process_cancel",
+        ]
     );
+    assert!(listed.iter().all(|tool| tool.get("outputSchema").is_some()));
+    assert!(listed.iter().all(|tool| !contains_key(tool, "minLength")));
+    assert!(listed.iter().all(|tool| !contains_key(tool, "maxLength")));
 
     let rotated = token(
         &application,
@@ -179,7 +194,7 @@ fn seed(
         client_id: client.into(),
         client_name: "MCP Test".into(),
         device_ids: Vec::new(),
-        scopes: vec!["mcp:observe".into()],
+        scopes: vec!["mcp:observe".into(), "mcp:terminal".into()],
         issued_at: now_ms(),
         expires_at: now_ms() + 60 * 60_000,
     })?;
@@ -221,4 +236,14 @@ fn temp_root() -> anyhow::Result<PathBuf> {
     let root = std::env::temp_dir().join(format!("rc-mcp-oauth-{}", Uuid::new_v4()));
     std::fs::create_dir_all(&root)?;
     Ok(root)
+}
+
+fn contains_key(value: &serde_json::Value, key: &str) -> bool {
+    match value {
+        serde_json::Value::Object(object) => {
+            object.contains_key(key) || object.values().any(|value| contains_key(value, key))
+        }
+        serde_json::Value::Array(values) => values.iter().any(|value| contains_key(value, key)),
+        _ => false,
+    }
 }

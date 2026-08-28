@@ -37,7 +37,9 @@
 - [x] Stateless `/mcp` endpoint with OAuth discovery, PKCE, short-lived access tokens, and rotating refresh tokens
 - [x] Explicit device-scoped MCP Observe / Terminal grants with fresh passkey approval, current Owner checks, and Node-side RC Lock enforcement
 - [x] MCP non-persistent terminal output relay
-- [x] MCP process cancellation with grant-bound active-process checks
+- [x] Focused MCP process harness with grant-bound run/status/input/cancel operations
+- [x] Ordered cursor-based MCP stdout/stderr with a rolling bounded buffer and no live-process eviction
+- [x] MCP schema strings use actual HTTP/Node/input transport limits rather than arbitrary min/max lengths
 - [x] Typed runtime context with reverse effect cleanup, dependency activation, realm isolation, and rollback-safe replacement
-- [x] Realm-isolated mesh route broker and transport-independent encrypted-frame interface
+- [x] Realm-isolated mesh route broker, RC Lock peer-key directory, signed topology/state substrate, and transport-independent encrypted-frame interface
 - [x] Keep maintained source files under 300 LOC

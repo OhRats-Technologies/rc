@@ -30,7 +30,7 @@ sh scripts/check-version.sh "$VERSION"
 
 ## Release checklist
 
-1. Finish code, documentation, compatibility notes, and `CHANGELOG.md`.
+1. Finish code, documentation, and `CHANGELOG.md`.
 2. Run every command in [Development](DEVELOPMENT.md#required-validation), including RustSec and Bun dependency audits.
 3. Build and inspect the production Docker image.
 4. Exercise public pages, setup authorization, authenticated page integration tests, Node enrollment, direct control, CLI help/status, and service definitions on macOS.
@@ -44,17 +44,13 @@ sh scripts/check-version.sh "$VERSION"
    git push origin "v$VERSION"
    ```
 
-8. Require the `RC release` workflow to pass and publish a non-draft latest release. Every `main` push starts a non-blocking `RC release assets` workflow in parallel with CI and retains its four exact-SHA archives for seven days. The tag workflow intentionally does not rerun validation or rebuild the binaries: it verifies tag/version and `main` ancestry, waits for successful `CI` and successful prebuilt assets for the exact tagged SHA, downloads those artifacts, validates them, then publishes.
+8. Require the `RC release` workflow to pass and publish a non-draft latest release. Release artifacts must come from the exact tagged SHA and pass archive validation before publication.
 9. Download the release archive on each available platform, verify its digest/archive shape, and run `rc version` plus `rc --help`.
 10. Test `public/install.sh` and `rc update` against the published release from an isolated temporary home directory.
 
-The `CI` workflow on `main` verifies formatting, strict Clippy, all Rust targets, dependency audits, source size, documentation links, browser type/build checks, shell/workflow linting, and the production container smoke test. `RC release assets` performs warning-free cross-platform builds concurrently with that validation. `RC release` avoids duplicating either expensive phase: it verifies tag/version equality and `main` ancestry, requires successful `CI` plus successful exact-SHA prebuilt artifacts, validates archive names/count/contents, and publishes. Zig's own deprecated-linker-setting diagnostic is the sole target-toolchain lint suppressed during Linux linking; Rust warnings remain denied.
+`CI` verifies formatting, strict Clippy, Rust tests, dependency audits, source size, documentation links, browser checks, shell/workflow linting, and the production container. Cross-platform release artifacts are built from the same source revision. Rust warnings remain denied.
 
-CI treats Rust linting, Rust tests, browser checks, security checks, static checks, and the production image as independent lanes so the image build does not serialize behind source validation. Rust validation uses a cleaned dependency cache rather than archiving the full workspace `target/` tree, disables incremental artifacts and CI debug information, and runs linting and tests in parallel. The production Dockerfile uses a digest-pinned `cargo-chef` builder so dependency compilation remains a reusable BuildKit layer across ordinary source-only deployments. The CI image job also uses the GitHub Actions BuildKit cache, and Linux release jobs cache the `cargo-zigbuild` binary.
-
-Both Darwin archives build on the standard `macos-15` Apple Silicon runner; Rust cross-compiles the amd64 archive to `x86_64-apple-darwin`, avoiding the substantially slower dedicated Intel runner. The unified CLI/Node verifies RC Lock passkey assertions with ring-backed ES256 and RS256 verification, matching the algorithms advertised by the server's WebAuthn registration flow without pulling OpenSSL into release archives. These caches, build layers, and cross-builds are performance optimizations only; cache misses must still produce the same validated artifacts.
-
-The hosted `rc-server` package uses 64 release codegen units. This keeps its source-only production rebuild parallel without changing the CLI/Node release profile; local throughput checks must remain within measurement noise of Cargo's default 16-CGU server build before changing that value.
+Darwin arm64 and amd64 archives are built on Apple Silicon runners. Linux archives use `cargo-zigbuild`. The production Dockerfile uses a pinned `cargo-chef` builder so dependency compilation is reusable across source-only builds.
 
 ## Post-release fixes
 
@@ -67,6 +63,4 @@ Never move or overwrite a published tag. Fix forward:
 
 ## Rollback
 
-Server rollback requires the matching pre-upgrade database backup and image. Node self-update intentionally refuses semantic-version downgrades. A manual Node rollback is an incident procedure: stop its service, replace the executable with a verified prior artifact, restart, and confirm protocol compatibility.
-
-v0.15 and v0.16 use separate databases and Node state formats. Keep the v0.15 deployment intact until the v0.16 migration is accepted; do not attempt a cross-version database restore.
+Server rollback requires a database backup created by the matching server build and the corresponding image. Node self-update refuses semantic-version downgrades. A manual Node rollback is an incident procedure: stop its service, replace the executable with a verified prior artifact, restart, and verify connectivity.

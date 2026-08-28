@@ -2,7 +2,7 @@ use super::ControlManager;
 use super::validate_start;
 use crate::{ProcessSpec, hosted_control_authority, verify_mcp_grant};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use rc_protocol::{ControlProof, NodeToServer, TerminalSpec};
+use rc_protocol::{ControlProof, NodeToServer, PROCESS_INPUT_CHUNK_LIMIT, TerminalSpec};
 
 impl ControlManager {
     #[allow(clippy::too_many_arguments)]
@@ -52,12 +52,7 @@ impl ControlManager {
             secure: false,
             relay_id: format!("ssh:{session_id}"),
         };
-        self.0
-            .ssh_sessions
-            .lock()
-            .insert(session_id.clone(), process_id);
         if !matches!(self.0.processes.start(spec), Ok(true)) {
-            self.0.ssh_sessions.lock().remove(&session_id);
             self.emit(NodeToServer::SshExit {
                 session_id,
                 exit_code: 127,
@@ -127,12 +122,7 @@ impl ControlManager {
             secure: false,
             relay_id: format!("mcp:{process_id}"),
         };
-        self.0
-            .mcp_processes
-            .lock()
-            .insert(process_id.clone(), process_id.clone());
         if !matches!(self.0.processes.start(spec), Ok(true)) {
-            self.0.mcp_processes.lock().remove(&process_id);
             self.emit(NodeToServer::McpExit {
                 process_id,
                 exit_code: 127,
@@ -145,7 +135,7 @@ impl ControlManager {
         let Ok(bytes) = URL_SAFE_NO_PAD.decode(data) else {
             return;
         };
-        if bytes.len() > 131_072 {
+        if bytes.len() > PROCESS_INPUT_CHUNK_LIMIT {
             return;
         }
         if let Some(process_id) = self.hosted_process(relay_id, ssh) {
@@ -171,10 +161,8 @@ impl ControlManager {
         }
     }
     fn hosted_process(&self, relay_id: &str, ssh: bool) -> Option<String> {
-        if ssh {
-            self.0.ssh_sessions.lock().get(relay_id).cloned()
-        } else {
-            self.0.mcp_processes.lock().get(relay_id).cloned()
-        }
+        self.0
+            .processes
+            .relay_process(&format!("{}:{relay_id}", if ssh { "ssh" } else { "mcp" }))
     }
 }

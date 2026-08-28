@@ -1,6 +1,7 @@
 mod control;
 mod enrollment;
 mod lock;
+mod mesh_authority;
 mod node_auth;
 mod process;
 mod run_lock;
@@ -12,6 +13,7 @@ mod update;
 pub use control::*;
 pub use enrollment::*;
 pub use lock::*;
+pub use mesh_authority::*;
 pub use node_auth::*;
 pub use process::*;
 pub use run_lock::*;

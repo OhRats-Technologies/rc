@@ -1,5 +1,5 @@
 use dashmap::DashMap;
-use rc_protocol::{NodeToServer, ServerToNode};
+use rc_protocol::{NODE_CONTROL_MESSAGE_LIMIT, NodeToServer, ServerToNode};
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use webrtc::{data_channel::RTCDataChannel, peer_connection::RTCPeerConnection};
@@ -87,7 +87,13 @@ impl NodeHub {
             .await
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Node is connecting"))?;
-        channel.send_text(serde_json::to_string(message)?).await?;
+        let encoded = serde_json::to_string(message)?;
+        if encoded.len() > NODE_CONTROL_MESSAGE_LIMIT {
+            anyhow::bail!(
+                "Node control message exceeds the {NODE_CONTROL_MESSAGE_LIMIT}-byte transport frame"
+            );
+        }
+        channel.send_text(encoded).await?;
         Ok(())
     }
 

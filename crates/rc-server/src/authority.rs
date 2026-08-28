@@ -1,22 +1,42 @@
 use crate::{Database, now_ms, passkey_authority_material};
 use rc_protocol::{
-    AuthorityApiKey, AuthorityCredential, AuthorityMcpGrant, AuthorityMember, AuthoritySnapshot,
+    AuthorityApiKey, AuthorityCredential, AuthorityDevice, AuthorityMcpGrant, AuthorityMember,
+    AuthoritySnapshot,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use webauthn_rs::prelude::Passkey;
 
 pub fn authority_snapshot(db: &Database, workspace_id: &str) -> anyhow::Result<AuthoritySnapshot> {
+    let devices = authority_devices(db, workspace_id)?;
     let members = authority_members(db, workspace_id)?;
     let api_keys = authority_api_keys(db, workspace_id)?;
     let mcp_grants = authority_mcp_grants(db, workspace_id)?;
     Ok(AuthoritySnapshot {
         v: 1,
         workspace_id: workspace_id.to_owned(),
+        devices,
         members,
         api_keys,
         mcp_grants,
     })
+}
+
+fn authority_devices(db: &Database, workspace_id: &str) -> anyhow::Result<Vec<AuthorityDevice>> {
+    Ok(db.with_connection(|connection| {
+        let mut statement = connection.prepare(
+            "SELECT id,identity_public_key,transport_public_key FROM devices WHERE workspace_id=? ORDER BY id",
+        )?;
+        statement
+            .query_map([workspace_id], |row| {
+                Ok(AuthorityDevice {
+                    id: row.get(0)?,
+                    identity_public_key: row.get(1)?,
+                    transport_public_key: row.get(2)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()
+    })?)
 }
 
 pub fn canonical_authority(db: &Database, workspace_id: &str) -> anyhow::Result<String> {

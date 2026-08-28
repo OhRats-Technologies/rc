@@ -53,8 +53,9 @@ impl ControlManager {
             }
         }
         self.0.pending_starts.lock().clear();
-        self.0.ssh_sessions.lock().clear();
-        self.0.mcp_processes.lock().clear();
+        for process_id in self.0.processes.relay_process_ids() {
+            let _ = self.0.processes.signal(&process_id, "KILL");
+        }
     }
 
     pub fn has_session(&self, session_id: &str) -> bool {

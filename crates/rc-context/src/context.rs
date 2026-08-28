@@ -36,6 +36,10 @@ pub struct ServiceLease {
 }
 
 impl Context {
+    pub fn new(realm: impl Into<Arc<str>>) -> Self {
+        Self::root(realm)
+    }
+
     pub fn root(realm: impl Into<Arc<str>>) -> Self {
         Self {
             inner: Arc::new(ContextInner {
@@ -58,6 +62,10 @@ impl Context {
 
     pub fn realm(&self) -> &str {
         &self.inner.realm
+    }
+
+    pub fn name(&self) -> &str {
+        self.realm()
     }
 
     pub fn provide<T: Send + Sync + 'static>(&self, value: Arc<T>) -> anyhow::Result<ServiceLease> {

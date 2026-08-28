@@ -1,10 +1,13 @@
 mod cancel;
 mod descriptors;
+mod input;
+mod process;
 
-use crate::{AppState, McpGrantRecord, McpProcessResult, now_ms};
-use descriptors::{cancel_descriptor, machines_descriptor, run_descriptor, status_descriptor};
-use rc_protocol::{McpGrantPayload, ServerToNode};
-use uuid::Uuid;
+use crate::{AppState, McpGrantRecord};
+use descriptors::{
+    cancel_descriptor, input_descriptor, machines_descriptor, run_descriptor, status_descriptor,
+};
+use rc_protocol::McpGrantPayload;
 
 #[derive(Clone)]
 pub struct McpContext {
@@ -15,8 +18,13 @@ pub struct McpContext {
 pub fn tools_for(context: &McpContext) -> Vec<serde_json::Value> {
     let mut tools = vec![machines_descriptor(), status_descriptor()];
     if has_scope(&context.payload.scopes, "mcp:terminal") {
-        tools.insert(1, run_descriptor());
-        tools.insert(2, cancel_descriptor());
+        tools = vec![
+            machines_descriptor(),
+            run_descriptor(),
+            status_descriptor(),
+            input_descriptor(),
+            cancel_descriptor(),
+        ];
     }
     tools
 }
@@ -24,7 +32,7 @@ pub fn tools_for(context: &McpContext) -> Vec<serde_json::Value> {
 pub fn registered_scope(name: &str) -> Option<&'static str> {
     match name {
         "machines_list" | "process_status" => Some("mcp:observe"),
-        "process_run" | "process_cancel" => Some("mcp:terminal"),
+        "process_run" | "process_input" | "process_cancel" => Some("mcp:terminal"),
         _ => None,
     }
 }
@@ -37,9 +45,10 @@ pub async fn call_tool(
 ) -> anyhow::Result<serde_json::Value> {
     match name {
         "machines_list" => machines(state, context).await,
-        "process_run" => process_run(state, context, args).await,
+        "process_run" => process::run(state, context, args).await,
+        "process_status" => process::status(state, context, args).await,
+        "process_input" => input::input(state, context, args).await,
         "process_cancel" => cancel::cancel(state, context, args).await,
-        "process_status" => process_status(state, context, args).await,
         _ => anyhow::bail!("Tool is not available: {name}"),
     }
 }
@@ -70,22 +79,7 @@ async fn machines(state: &AppState, context: &McpContext) -> anyhow::Result<serd
     } else {
         machines
             .iter()
-            .map(|m| {
-                format!(
-                    "{} — {} — {}/{} — workspace {} — node {} — id {}",
-                    m["name"].as_str().unwrap_or("machine"),
-                    if m["online"].as_bool().unwrap_or(false) {
-                        "online"
-                    } else {
-                        "offline"
-                    },
-                    m["platform"].as_str().unwrap_or("unknown"),
-                    m["arch"].as_str().unwrap_or("unknown"),
-                    m["workspace"].as_str().unwrap_or("unknown"),
-                    m["nodeVersion"].as_str().unwrap_or("unknown"),
-                    m["id"].as_str().unwrap_or("unknown")
-                )
-            })
+            .map(machine_text)
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -111,155 +105,57 @@ fn machine_view(device: serde_json::Value) -> serde_json::Value {
     })
 }
 
-async fn process_run(
+fn machine_text(machine: &serde_json::Value) -> String {
+    format!(
+        "{} — {} — {}/{} — workspace {} — node {} — id {}",
+        machine["name"].as_str().unwrap_or("machine"),
+        if machine["online"].as_bool().unwrap_or(false) {
+            "online"
+        } else {
+            "offline"
+        },
+        machine["platform"].as_str().unwrap_or("unknown"),
+        machine["arch"].as_str().unwrap_or("unknown"),
+        machine["workspace"].as_str().unwrap_or("unknown"),
+        machine["nodeVersion"].as_str().unwrap_or("unknown"),
+        machine["id"].as_str().unwrap_or("unknown")
+    )
+}
+
+pub(super) fn require_owned_device(
     state: &AppState,
     context: &McpContext,
-    args: &serde_json::Map<String, serde_json::Value>,
-) -> anyhow::Result<serde_json::Value> {
-    let device = args
-        .get("deviceId")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-    if !context.payload.device_ids.iter().any(|id| id == device) {
+    device_id: &str,
+) -> anyhow::Result<()> {
+    if device_id.is_empty() || !context.payload.device_ids.iter().any(|id| id == device_id) {
         anyhow::bail!("device is outside this MCP grant");
     }
     let role = state
         .db
-        .device_role(&context.payload.user_id, device)?
-        .ok_or_else(|| anyhow::anyhow!("operator access is no longer available for this device"))?;
+        .device_role(&context.payload.user_id, device_id)?
+        .ok_or_else(|| anyhow::anyhow!("Owner access is no longer available for this device"))?;
     if role != "owner" {
         anyhow::bail!("Owner access is no longer available for this device");
     }
-    let command = args
-        .get("command")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .trim()
-        .to_owned();
-    if command.is_empty() || command.len() > 8192 {
-        anyhow::bail!("invalid command");
-    }
-    let cwd = args
-        .get("cwd")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .trim()
-        .chars()
-        .take(4096)
-        .collect::<String>();
-    let timeout = args
-        .get("timeoutSeconds")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(20)
-        .clamp(1, 60);
-    let process_id = Uuid::new_v4().to_string();
-    state.db.with_connection(|db| {
-        db.execute(
-            "INSERT INTO processes(id,device_id,origin,status,terminal,created_by,created_at) \
-             VALUES(?,?,'mcp','starting',0,?,?)",
-            rusqlite::params![process_id, device, context.payload.user_id, now_ms()],
-        )?;
-        Ok(())
-    })?;
-    state.mcp.register(
-        &process_id,
-        &context.payload.id,
-        &context.payload.user_id,
-        device,
-    );
-    let sent = state
-        .nodes
-        .send(
-            device,
-            &ServerToNode::McpStart {
-                process_id: process_id.clone(),
-                user_id: context.payload.user_id.clone(),
-                command,
-                cwd,
-                mcp_grant: context.record.grant.clone(),
-                mcp_signature: context.record.grant_signature.clone(),
-                control_grant: context.record.control_grant.clone(),
-                credential_id: context.record.credential_id.clone(),
-                control_assertion: context.record.control_assertion.clone(),
-            },
-        )
-        .await;
-    if sent.is_err() {
-        state.mcp.mark_lost(&process_id, "RC Node is offline");
-        state.lose_hosted_process(device, &process_id, "RC Node is offline");
-    }
-    let result = state
-        .mcp
-        .result(
-            &process_id,
-            &context.payload.id,
-            &context.payload.user_id,
-            0,
-            timeout,
-        )
-        .await?;
-    complete_result(result)
+    Ok(())
 }
 
-async fn process_status(
+pub(super) fn running_owned_device(
     state: &AppState,
     context: &McpContext,
-    args: &serde_json::Map<String, serde_json::Value>,
-) -> anyhow::Result<serde_json::Value> {
-    let process = args
-        .get("processId")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
-    let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
-    let wait = args
-        .get("waitSeconds")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0)
-        .min(60);
-    let result = state
-        .mcp
-        .result(
-            process,
-            &context.payload.id,
-            &context.payload.user_id,
-            offset,
-            wait,
-        )
-        .await?;
-    complete_result(result)
+    process_id: &str,
+) -> anyhow::Result<String> {
+    if process_id.is_empty() {
+        anyhow::bail!("invalid process ID");
+    }
+    let device =
+        state
+            .mcp
+            .running_device(process_id, &context.payload.id, &context.payload.user_id)?;
+    require_owned_device(state, context, &device)?;
+    Ok(device)
 }
 
-fn complete_result(result: McpProcessResult) -> anyhow::Result<serde_json::Value> {
-    let status = match result.status.as_str() {
-        "exited" => format!(
-            "Exit {}.",
-            result
-                .exit_code
-                .map(|v| v.to_string())
-                .unwrap_or_else(|| "unknown".into())
-        ),
-        "running" => format!("Process {} is still running.", result.process_id),
-        _ => format!(
-            "Process was lost{}",
-            result
-                .error
-                .as_ref()
-                .map(|e| format!(": {e}"))
-                .unwrap_or_else(|| ".".into())
-        ),
-    };
-    let suffix = if result.output_truncated {
-        format!("{status} Output buffer is truncated.")
-    } else {
-        status
-    };
-    let text = if result.output.trim().is_empty() {
-        suffix
-    } else {
-        format!("{}\n{suffix}", result.output.trim_end())
-    };
-    Ok(complete(serde_json::to_value(&result)?, text, false))
-}
 pub(super) fn complete(
     value: serde_json::Value,
     text: String,
