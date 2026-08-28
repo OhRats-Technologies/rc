@@ -3,8 +3,9 @@ set -eu
 
 limit="${RC_SOURCE_LINE_LIMIT:-300}"
 violations="$({
-  find crates web scripts -type f \
-    \( -name '*.rs' -o -name '*.ts' -o -name '*.tsx' \) \
+  find crates web scripts kernel components wit \
+    -type d -name target -prune -o -type f \
+    \( -name '*.rs' -o -name '*.ts' -o -name '*.tsx' -o -name '*.wit' \) \
     -exec wc -l {} +
 } | awk -v limit="$limit" '$2 != "total" && $1 > limit { print $1 " " $2 }')"
 

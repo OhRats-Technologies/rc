@@ -1,0 +1,83 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$root"
+
+scripts/build-component.sh components/fixture-provider >/dev/null
+scripts/build-component.sh components/fixture-consumer >/dev/null
+scripts/build-component.sh components/fixture-broken >/dev/null
+scripts/build-component.sh components/fixture-collision >/dev/null
+scripts/build-component.sh components/fixture-trap >/dev/null
+scripts/build-component.sh components/fixture-limit >/dev/null
+cargo build --manifest-path kernel/Cargo.toml --locked >/dev/null
+
+directory=$(mktemp -d)
+log=$(mktemp)
+pid=
+cleanup() {
+  if [ -n "$pid" ]; then
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+  fi
+  rm -rf "$directory" "$log"
+}
+trap cleanup EXIT INT TERM
+
+wait_for() {
+  pattern=$1
+  count=0
+  while ! grep -F "$pattern" "$log" >/dev/null 2>&1; do
+    count=$((count + 1))
+    if [ "$count" -ge 100 ]; then
+      echo "timed out waiting for: $pattern" >&2
+      cat "$log" >&2
+      exit 1
+    fi
+    sleep 0.05
+  done
+}
+
+cp dist/components/fixture-consumer.wasm "$directory/consumer.wasm"
+kernel/target/debug/rc-kernel --component-dir "$directory" watch >"$log" 2>&1 &
+pid=$!
+wait_for "ohrats:fixture-consumer  1.0.0        Waiting"
+
+cp dist/components/fixture-provider.wasm "$directory/provider.wasm"
+wait_for "ohrats:fixture-provider  1.0.0        Active"
+wait_for "ohrats:fixture-consumer  1.0.0        Active"
+
+cp dist/components/fixture-collision.wasm "$directory/collision.wasm"
+wait_for 'command "hello" is already provided by ohrats:fixture-provider'
+
+cp dist/components/fixture-broken.wasm "$directory/provider.new"
+mv "$directory/provider.new" "$directory/provider.wasm"
+wait_for "replacement activation failed: intentional activation failure"
+wait_for "ohrats:fixture-provider  1.0.0        Active"
+
+rm "$directory/provider.wasm"
+wait_for "ohrats:fixture-consumer  1.0.0        Waiting"
+
+kill "$pid"
+wait "$pid" 2>/dev/null || true
+pid=
+
+rm -f "$directory/consumer.wasm" "$directory/collision.wasm"
+cp dist/components/fixture-provider.wasm "$directory/provider.wasm"
+output=$(kernel/target/debug/rc-kernel --component-dir "$directory" hello RC 2>/dev/null)
+test "$output" = "hello, RC"
+
+rm -f "$directory/provider.wasm"
+cp dist/components/fixture-trap.wasm "$directory/trap.wasm"
+if kernel/target/debug/rc-kernel --component-dir "$directory" repair >/dev/null 2>&1; then
+  echo "trapping component unexpectedly passed repair" >&2
+  exit 1
+fi
+rm "$directory/trap.wasm"
+cp dist/components/fixture-limit.wasm "$directory/limit.wasm"
+if kernel/target/debug/rc-kernel --component-dir "$directory" repair >/dev/null 2>&1; then
+  echo "memory-limit component unexpectedly passed repair" >&2
+  exit 1
+fi
+
+echo "kernel component smoke: ok"

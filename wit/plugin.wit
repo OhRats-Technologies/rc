@@ -1,0 +1,51 @@
+package ohrats:rc-plugin@0.1.0;
+
+interface types {
+    enum log-level {
+        trace,
+        debug,
+        info,
+        warn,
+        error,
+    }
+
+    record service {
+        name: string,
+        version: string,
+        priority: s32,
+    }
+
+    record requirement {
+        name: string,
+        version: string,
+    }
+
+    record command {
+        name: string,
+        summary: string,
+        usage: string,
+    }
+
+    record descriptor {
+        id: string,
+        version: string,
+        provides: list<service>,
+        requires: list<requirement>,
+        commands: list<command>,
+    }
+}
+
+interface host {
+    use types.{log-level};
+    log: func(level: log-level, message: string);
+}
+
+world plugin {
+    use types.{descriptor};
+    import host;
+
+    export descriptor: func() -> descriptor;
+    export activate: func() -> result<_, string>;
+    export deactivate: func();
+    export invoke: func(command: string, args: list<string>) -> result<u32, string>;
+}

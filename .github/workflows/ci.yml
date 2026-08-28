@@ -133,11 +133,12 @@ jobs:
           echo "$directory" >> "$GITHUB_PATH"
       - run: sh scripts/check-version.sh
       - run: sh scripts/check-source-size.sh
+      - run: python3 scripts/check-component-boundaries.py
       - run: python3 scripts/check-doc-links.py
       - name: Validate shell entry points
         run: |
-          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
-          shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh
+          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/build-component.sh scripts/check-components.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh scripts/smoke-kernel.sh
+          shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh scripts/build-component.sh scripts/check-components.sh scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh scripts/smoke-kernel.sh
           actionlint -shellcheck shellcheck .github/workflows/*.yml
       - run: git diff --check
 

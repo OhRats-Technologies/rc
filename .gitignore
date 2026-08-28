@@ -12,3 +12,5 @@ node_modules/
 *.db-wal
 
 /target/
+/kernel/target/
+/components/*/target/

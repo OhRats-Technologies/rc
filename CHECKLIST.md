@@ -1,4 +1,10 @@
-# RC v1
+# Current product acceptance baseline
+
+This checklist records behavior that must remain true while it moves into the
+component graph. The implementation migration is tracked in
+[`ROADMAP.md`](ROADMAP.md). Once a domain is componentized, delete its previous
+implementation and keep the acceptance behavior here covered by the new
+component tests.
 
 - [x] Fresh product repository
 - [x] Keep the domain model to users, workspaces, devices, and processes
