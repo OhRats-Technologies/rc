@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for the compact SC1 coordination protocol."""
+"""Focused tests for SC2 coordination storage and direct authoring."""
 
 from __future__ import annotations
 
@@ -19,39 +19,41 @@ SPEC.loader.exec_module(SWARM)
 
 
 class SwarmProtocolTests(unittest.TestCase):
-    def test_round_trip_preserves_delimiters_and_lines(self) -> None:
-        line = SWARM.encode(
-            "node-runtime-8d31",
-            "claim",
-            "kernel/src/node|wit",
+    def test_direct_append_is_not_rewritten(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with mock.patch.dict(os.environ, {"RC_SWARM_DIR": directory}):
+                path = SWARM.target_path(None, "upd")
+                line = "u s hard+; tst:rust/foc run; >smoke,push"
+                SWARM.append_line(path, line)
+                self.assertEqual(path.read_text(), line + "\n")
+
+    def test_transition_post_emits_sc2_without_timestamp_or_thread(self) -> None:
+        line = SWARM.compact_post(
+            "sol-updater-4c91",
+            "STA",
+            "K/platform",
             "@web-migrate-a73f",
-            "own=transport%policy\nnext=tests",
-            "20260828T230000Z",
+            "hard+; >smoke",
+            "updater-platform",
         )
-        fields = SWARM.parse(line)
-        self.assertEqual(fields[1], "20260828T230000Z")
-        self.assertEqual(fields[2], "node-runtime-8d31")
-        self.assertEqual(fields[3], "CLM")
-        self.assertEqual(fields[4], "kernel/src/node|wit")
-        self.assertEqual(fields[6], "own=transport%policy\nnext=tests")
-
-    def test_kind_aliases_are_canonical(self) -> None:
-        self.assertEqual(SWARM.kind_code("task"), "CLM")
-        self.assertEqual(SWARM.kind_code("handoff"), "HOF")
-        self.assertEqual(SWARM.kind_code("CFT"), "CFT")
-
-    def test_decode_is_human_readable(self) -> None:
-        line = SWARM.encode(
-            "node-runtime-8d31",
-            "ACK",
-            "-",
-            "#coord-v2",
-            "protocol=SC1",
-            "20260828T230000Z",
+        self.assertEqual(
+            line,
+            "sol-updater-4c91 s sc:K/platform;rf:@web-migrate-a73f;hard+; >smoke",
         )
-        text = SWARM.decoded_text(line)
-        self.assertIn("node-runtime-8d31 ACK", text)
-        self.assertIn("message: protocol=SC1", text)
+
+    def test_agent_record_omits_agent_identity(self) -> None:
+        self.assertEqual(
+            SWARM.compact_post("sol-updater-4c91", "TST", "-", "-", "ok:kern", None),
+            "t ok:kern",
+        )
+
+    def test_optional_decoder_understands_contextual_lines(self) -> None:
+        self.assertIn("u STATUS", SWARM.decoded_text("u s hard+; >smoke"))
+        self.assertIn(
+            "sol-updater-4c91 STATUS",
+            SWARM.decoded_text("s hard+; >smoke", "sol-updater-4c91"),
+        )
+        self.assertEqual(SWARM.decoded_text("@ u=sol-updater-4c91"), "ALIASES u=sol-updater-4c91")
 
     def test_explicit_state_directory_wins(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -71,16 +73,15 @@ class SwarmProtocolTests(unittest.TestCase):
             self.assertEqual(root.parent, (state / "rc-swarm").resolve())
             self.assertNotIn(".git", root.parts)
 
-    def test_initialize_creates_only_live_state_directories(self) -> None:
+    def test_list_and_prune_use_sc2_files_only(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             with mock.patch.dict(os.environ, {"RC_SWARM_DIR": directory}):
                 root = SWARM.initialize()
-            self.assertTrue((root / "agents").is_dir())
-            self.assertTrue((root / "threads").is_dir())
-            self.assertEqual(
-                sorted(path.name for path in root.iterdir()),
-                ["agents", "threads"],
-            )
+                SWARM.append_line(root / "threads" / "live.s2", "u s run")
+                (root / "threads" / "legacy.md").write_text("old\n")
+                path = SWARM.prune(None, "live")
+            self.assertFalse(path.exists())
+            self.assertTrue((root / "threads" / "legacy.md").exists())
 
 
 if __name__ == "__main__":
