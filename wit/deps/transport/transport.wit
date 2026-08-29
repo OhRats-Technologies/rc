@@ -1,4 +1,4 @@
-package ohrats:rc-transport@0.1.0;
+package ohrats:rc-transport@0.2.0;
 
 interface types {
     enum ice-mode {
@@ -23,13 +23,45 @@ interface types {
         gather-timeout-ms: u32,
         connect-timeout-ms: u32,
     }
+
+    record attempt {
+        mode: ice-mode,
+        gather-timeout-ms: u32,
+        connect-timeout-ms: u32,
+        retry-delay-ms: u32,
+    }
+
+    enum candidate-kind {
+        host,
+        server-reflexive,
+        relay,
+        unknown,
+    }
+
+    enum route-class {
+        direct-host,
+        direct-stun,
+        turn-relay,
+        unknown,
+    }
+
+    record selected-route {
+        local: candidate-kind,
+        remote: candidate-kind,
+    }
 }
 
 interface provider {
-    use types.{answer-plan, answer-request};
+    use types.{answer-plan, answer-request, attempt, ice-server, route-class, selected-route};
+
+    plan-attempts: func(
+        transport: string,
+        ice-servers: list<ice-server>,
+    ) -> result<list<attempt>, string>;
 
     plan-answer: func(
         transport: string,
         request: answer-request,
     ) -> result<answer-plan, string>;
+    classify-route: func(route: selected-route) -> route-class;
 }

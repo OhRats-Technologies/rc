@@ -6,8 +6,8 @@ mod process;
 mod webrtc;
 
 use crate::{
-    MeshAuthority, NativeProcessPolicy, NativeTransportPolicy, NodeState, ProcessManager,
-    ProcessPolicy, TransportPolicy, bootstrap_lock, sync_lock,
+    MeshAuthority, NodeState, ProcessManager, ProcessPolicy, TransportPolicy, bootstrap_lock,
+    sync_lock,
 };
 use ::webrtc::peer_connection::RTCPeerConnection;
 use parking_lot::Mutex;
@@ -62,6 +62,8 @@ struct PendingStart {
     command: String,
     cwd: String,
     terminal: Option<TerminalSpec>,
+    scrollback_bytes: u32,
+    stdin_chunk_bytes: u32,
     expires: Instant,
 }
 
@@ -74,26 +76,8 @@ struct SessionAuthority {
 }
 
 impl ControlManager {
-    pub fn new(
-        state: NodeState,
-        state_dir: PathBuf,
-        processes: Arc<ProcessManager>,
-        outbound: mpsc::UnboundedSender<NodeToServer>,
-        version: impl Into<String>,
-    ) -> Self {
-        Self::new_with_policies(
-            state,
-            state_dir,
-            processes,
-            outbound,
-            version,
-            Arc::new(NativeProcessPolicy),
-            Arc::new(NativeTransportPolicy),
-        )
-    }
-
     #[allow(clippy::too_many_arguments)]
-    pub fn new_with_policies(
+    pub fn new(
         state: NodeState,
         state_dir: PathBuf,
         processes: Arc<ProcessManager>,
@@ -173,6 +157,7 @@ impl ControlManager {
                 assertion,
                 public_key,
                 signature,
+                ice_servers,
             } => self.open(
                 request_id,
                 challenge,
@@ -183,6 +168,7 @@ impl ControlManager {
                 assertion,
                 public_key,
                 signature,
+                ice_servers,
             ),
             ServerToNode::ControlWebrtcOffer {
                 request_id,

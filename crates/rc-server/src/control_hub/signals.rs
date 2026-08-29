@@ -74,6 +74,7 @@ impl ControlHub {
                     assertion,
                     public_key: public_key.to_owned(),
                     signature: signature.to_owned(),
+                    ice_servers,
                 },
             )
             .await?;

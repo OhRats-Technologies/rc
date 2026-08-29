@@ -269,15 +269,15 @@ world identity-fixture {
 
 world process-policy {
     include plugin;
-    export ohrats:rc-process/policy@0.1.0;
+    export ohrats:rc-process/policy@0.2.0;
 }
 
 world transport-webrtc {
     include plugin;
-    export ohrats:rc-transport/provider@0.1.0;
+    export ohrats:rc-transport/provider@0.2.0;
 }
 
 world transport-test {
     include plugin;
-    export ohrats:rc-transport/provider@0.1.0;
+    export ohrats:rc-transport/provider@0.2.0;
 }

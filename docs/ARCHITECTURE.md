@@ -20,6 +20,13 @@ OpenSSH ── rc ssh-proxy ── public WebSocket ── SSH gateway ── RC
 MCP client ── OAuth 2.0 + JSON-RPC/HTTP ── rc-server ── bounded Node command relay
 ```
 
+The Node profile requires `ohrats:process-policy` and
+`ohrats:transport-webrtc`. The native host has no product-policy fallback. A
+control-open response carries the Node component's signed ICE attempt plan.
+Browsers and the CLI execute that plan while native adapters own WebRTC socket
+and process mechanics. New sessions use a replacement generation immediately;
+established DataChannels continue until they close.
+
 The public HTTP service is the rendezvous and policy plane. It does not carry normal browser or CLI terminal bytes after WebRTC is established. SSH and MCP are explicit exceptions because their protocols require a hosted bridge.
 
 ## Transport matrix

@@ -22,6 +22,35 @@ pub enum ControlIceMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ControlIceAttempt {
+    pub mode: ControlIceMode,
+    pub gather_timeout_ms: u32,
+    pub connect_timeout_ms: u32,
+    pub retry_delay_ms: u32,
+}
+
+pub fn control_attempts_payload(attempts: &[ControlIceAttempt]) -> String {
+    attempts
+        .iter()
+        .map(|attempt| {
+            format!(
+                "{}:{}:{}:{}",
+                match attempt.mode {
+                    ControlIceMode::Host => "host",
+                    ControlIceMode::Stun => "stun",
+                    ControlIceMode::Relay => "relay",
+                },
+                attempt.gather_timeout_ms,
+                attempt.connect_timeout_ms,
+                attempt.retry_delay_ms
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NodeHello {
     pub version: String,
     pub hostname: String,
@@ -68,6 +97,7 @@ pub enum NodeToServer {
         transport_public_key: String,
         ephemeral_public_key: String,
         signature: String,
+        attempts: Vec<ControlIceAttempt>,
     },
     ControlWebrtcAnswer {
         request_id: String,
@@ -155,6 +185,7 @@ pub enum ServerToNode {
         assertion: String,
         public_key: String,
         signature: String,
+        ice_servers: Vec<IceServer>,
     },
     ControlWebrtcOffer {
         request_id: String,

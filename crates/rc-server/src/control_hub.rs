@@ -61,6 +61,7 @@ pub struct ControlReady {
     pub ephemeral_public_key: String,
     pub signature: String,
     pub ice_servers: Vec<IceServer>,
+    pub attempts: Vec<rc_protocol::ControlIceAttempt>,
 }
 
 #[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]

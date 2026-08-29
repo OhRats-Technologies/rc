@@ -1,4 +1,4 @@
-package ohrats:rc-process@0.1.0;
+package ohrats:rc-process@0.2.0;
 
 interface types {
     enum channel {
@@ -41,6 +41,8 @@ interface types {
         command: string,
         cwd: string,
         terminal: option<terminal>,
+        scrollback-bytes: u32,
+        stdin-chunk-bytes: u32,
     }
 
     record access-request {

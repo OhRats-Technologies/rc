@@ -24,7 +24,7 @@ test("the first WebRTC attempt is host-only for a small LAN checklist", () => {
     username: "temporary-user",
     credential: "temporary-secret",
   }];
-  expect(peerConfiguration(servers, 0)).toEqual({
+  expect(peerConfiguration(servers, "host")).toEqual({
     iceServers: [],
     iceCandidatePoolSize: 1,
     iceTransportPolicy: "all",
@@ -43,7 +43,7 @@ test("the second WebRTC attempt uses STUN but still excludes TURN", () => {
     credential: "temporary-secret",
   }];
   expect(directIceServers(servers)).toEqual(direct);
-  expect(peerConfiguration(servers, 1)).toEqual({
+  expect(peerConfiguration(servers, "stun")).toEqual({
     iceServers: direct,
     iceCandidatePoolSize: 1,
     iceTransportPolicy: "all",
@@ -57,11 +57,11 @@ test("the final WebRTC attempt becomes browser-relay-only when TURN is available
     credential: "temporary-secret",
   }];
   expect(hasTurnServer(servers)).toBe(true);
-  expect(peerConfiguration(servers, 2).iceTransportPolicy).toBe("relay");
+  expect(peerConfiguration(servers, "relay").iceTransportPolicy).toBe("relay");
 });
 
 test("the STUN attempt still permits host candidates when no TURN server exists", () => {
   const servers: RTCIceServer[] = [{ urls: ["stun:stun.cloudflare.com:3478"] }];
   expect(hasTurnServer(servers)).toBe(false);
-  expect(peerConfiguration(servers, 1).iceTransportPolicy).toBe("all");
+  expect(peerConfiguration(servers, "stun").iceTransportPolicy).toBe("all");
 });

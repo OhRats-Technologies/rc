@@ -39,9 +39,15 @@ pub fn ready_payload(
     transport_key: &str,
     ephemeral_key: &str,
     session_id: &str,
+    attempt_plan: &str,
 ) -> String {
+    if attempt_plan.is_empty() {
+        return format!(
+            "rc-ready-v2\n{challenge}\n{device_id}\n{client_id}\n{public_key}\n{transport_key}\n{ephemeral_key}\n{session_id}"
+        );
+    }
     format!(
-        "rc-ready-v2\n{challenge}\n{device_id}\n{client_id}\n{public_key}\n{transport_key}\n{ephemeral_key}\n{session_id}"
+        "rc-ready-v3\n{challenge}\n{device_id}\n{client_id}\n{public_key}\n{transport_key}\n{ephemeral_key}\n{session_id}\n{attempt_plan}"
     )
 }
 

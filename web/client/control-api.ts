@@ -5,9 +5,13 @@ export function controlChallenge(deviceId: string) {
 }
 
 export function controlOpen(input: { deviceId: string; challenge: string; clientId: string; publicKey: string; signature: string }) {
-  return api<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string; iceServers?: RTCIceServer[] }>(
+  return api<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string;
+    iceServers: RTCIceServer[]; attempts: ControlIceAttempt[] }>(
     "/api/v1/control/open", { method: "POST", body: JSON.stringify(input) });
 }
+
+export type ControlIceAttempt = { mode: "host" | "stun" | "relay"; gatherTimeoutMs: number;
+  connectTimeoutMs: number; retryDelayMs: number };
 
 export function controlWebRTC(
   sessionId: string,

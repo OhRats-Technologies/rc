@@ -249,16 +249,22 @@ component graph, using the existing Coolify volume, ingress, and public routes.
 
 ## 7. Node, controller, and transport components
 
-- [ ] Define typed key, crypto, authority, process, transport, and mesh WIT
+- [x] Define typed process and transport WIT for process approval, access,
+  terminal sizing, signals, buffer/input limits, ICE attempts, answer planning,
+  timeouts, and route classification.
+- [x] Require component process/transport services for the Node runtime with no
+  native product-policy fallback.
+- [x] Carry the host-only, STUN-direct, then TURN-relay plan in the Node-signed
+  control handshake for browser and CLI adapters.
+- [ ] Define the remaining typed key, crypto, authority, and mesh WIT
   packages using resource handles for secrets, processes, streams, and
   connections.
 - [ ] Port crypto suites and key-custody adapters into independently selectable
   components.
 - [ ] Port RC Lock and execution authorization.
-- [ ] Port process lifecycle and PTY/stream handling; the kernel exposes only
-  bounded OS process primitives.
-- [ ] Port WebRTC as the first transport provider.
-- [ ] Add a second test transport to prove provider selection and replacement
+- [ ] Move remaining lifecycle policy out of the bounded OS process adapter.
+- [x] Port WebRTC attempt and answer policy as the first transport provider.
+- [x] Add a second test transport to prove provider selection and replacement
   before implementing QUIC.
 - [ ] Port mesh routing, capability advertisement, and artifact cache services.
 - [ ] Port account/controller and Node service commands into CLI components.
@@ -354,3 +360,7 @@ invariants at the top of this document.
   authentication, user-handle binding, counter advancement, tamper rejection,
   algorithm routing, and dependency withdrawal. Ceremony/session policy remains
   in the identity migration.
+- 2026-08-28: moved Node process authorization/validation and WebRTC ICE
+  planning into independently built typed components. Browser and CLI control
+  use the Node-signed host/STUN/TURN plan; the native host fails closed when a
+  required policy service is absent.

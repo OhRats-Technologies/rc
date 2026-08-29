@@ -66,6 +66,7 @@ pub(super) async fn exercise(
             transport_public_key: "node-transport".into(),
             ephemeral_public_key: "node-ephemeral".into(),
             signature: "node-signature".into(),
+            attempts: Vec::new(),
         })
         .await?;
     let ready = open_task.await??;

@@ -7,7 +7,10 @@ wit_bindgen::generate!({
 use exports::ohrats::rc_transport::provider::Guest as ProviderGuest;
 use ohrats::{
     rc_plugin::types::Service,
-    rc_transport::types::{AnswerPlan, AnswerRequest, IceMode, IceServer},
+    rc_transport::types::{
+        AnswerPlan, AnswerRequest, Attempt, CandidateKind, IceMode, IceServer, RouteClass,
+        SelectedRoute,
+    },
 };
 
 const MAX_SERVERS: usize = 8;
@@ -19,10 +22,10 @@ impl Guest for WebrtcTransport {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:transport-webrtc".into(),
-            version: "0.1.0".into(),
+            version: "0.2.0".into(),
             provides: vec![Service {
                 name: "ohrats:rc-transport/provider".into(),
-                version: "0.1.0".into(),
+                version: "0.2.0".into(),
                 priority: 100,
                 keys: vec!["webrtc".into()],
             }],
@@ -43,6 +46,22 @@ impl Guest for WebrtcTransport {
 }
 
 impl ProviderGuest for WebrtcTransport {
+    fn plan_attempts(transport: String, ice_servers: Vec<IceServer>) -> Result<Vec<Attempt>, String> {
+        if transport != "webrtc" {
+            return Err("unsupported transport".into());
+        }
+        let has_stun = has_scheme(&ice_servers, &["stun:", "stuns:"])?;
+        let has_turn = has_scheme(&ice_servers, &["turn:", "turns:"])?;
+        let mut attempts = vec![attempt(IceMode::Host, 2_000, 6_000, 0)];
+        if has_stun {
+            attempts.push(attempt(IceMode::Stun, 8_000, 12_000, 1_200));
+        }
+        if has_turn {
+            attempts.push(attempt(IceMode::Relay, 15_000, 18_000, 1_200));
+        }
+        Ok(attempts)
+    }
+
     fn plan_answer(transport: String, request: AnswerRequest) -> Result<AnswerPlan, String> {
         if transport != "webrtc" {
             return Err("unsupported transport".into());
@@ -77,6 +96,49 @@ impl ProviderGuest for WebrtcTransport {
             connect_timeout_ms,
         })
     }
+
+    fn classify_route(route: SelectedRoute) -> RouteClass {
+        if route.local == CandidateKind::Relay || route.remote == CandidateKind::Relay {
+            RouteClass::TurnRelay
+        } else if route.local == CandidateKind::ServerReflexive
+            || route.remote == CandidateKind::ServerReflexive
+        {
+            RouteClass::DirectStun
+        } else if route.local == CandidateKind::Host && route.remote == CandidateKind::Host {
+            RouteClass::DirectHost
+        } else {
+            RouteClass::Unknown
+        }
+    }
+}
+
+fn attempt(
+    mode: IceMode,
+    gather_timeout_ms: u32,
+    connect_timeout_ms: u32,
+    retry_delay_ms: u32,
+) -> Attempt {
+    Attempt {
+        mode,
+        gather_timeout_ms,
+        connect_timeout_ms,
+        retry_delay_ms,
+    }
+}
+
+fn has_scheme(servers: &[IceServer], schemes: &[&str]) -> Result<bool, String> {
+    let mut count = 0;
+    for url in servers.iter().flat_map(|server| &server.urls) {
+        count += 1;
+        if count > MAX_URLS || url.len() > 2_048 || url.contains(['\0', '\r', '\n']) {
+            return Err("invalid ICE server list".into());
+        }
+        let lower = url.trim().to_ascii_lowercase();
+        if schemes.iter().any(|scheme| lower.starts_with(scheme)) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn filter_urls(mode: &IceMode, urls: Vec<String>) -> Result<Vec<String>, String> {
@@ -122,6 +184,22 @@ mod tests {
         )
         .unwrap();
         assert!(plan.ice_servers.is_empty());
+    }
+
+    #[test]
+    fn attempts_are_host_then_stun_then_turn() {
+        let attempts = WebrtcTransport::plan_attempts(
+            "webrtc".into(),
+            vec![server(&[
+                "turn:relay.example.test",
+                "stun:stun.example.test",
+            ])],
+        )
+        .unwrap();
+        assert_eq!(
+            attempts.iter().map(|attempt| attempt.mode).collect::<Vec<_>>(),
+            [IceMode::Host, IceMode::Stun, IceMode::Relay]
+        );
     }
 
     #[test]

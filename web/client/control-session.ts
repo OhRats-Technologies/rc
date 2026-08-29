@@ -19,8 +19,10 @@ function aad(sessionId: string, sequence: number, direction: string) {
 function sessionPayload(challenge: string, deviceId: string, clientId: string, publicKey: string) {
   return `rc-session-v1\n${challenge}\n${deviceId}\n${clientId}\n${publicKey}`;
 }
-function readyPayload(challenge: string, deviceId: string, clientId: string, publicKey: string, transportKey: string, ephemeralKey: string, sessionId: string) {
-  return `rc-ready-v2\n${challenge}\n${deviceId}\n${clientId}\n${publicKey}\n${transportKey}\n${ephemeralKey}\n${sessionId}`;
+function readyPayload(challenge: string, deviceId: string, clientId: string, publicKey: string,
+  transportKey: string, ephemeralKey: string, sessionId: string, attempts: import("./control-api").ControlIceAttempt[]) {
+  const plan = attempts.map(attempt => `${attempt.mode}:${attempt.gatherTimeoutMs}:${attempt.connectTimeoutMs}:${attempt.retryDelayMs}`).join(",");
+  return `rc-ready-v3\n${challenge}\n${deviceId}\n${clientId}\n${publicKey}\n${transportKey}\n${ephemeralKey}\n${sessionId}\n${plan}`;
 }
 
 async function sharedSecret(privateKey: CryptoKey, publicKey: string) {
@@ -122,11 +124,13 @@ export async function openControlSession(deviceId: string, onTransportStatus: (s
   if (ready.transportPublicKey !== expectedTransport || !ready.ephemeralPublicKey) throw new Error("RC Node transport identity changed.");
   const deviceKey = await importEd25519VerifyKey(identityKey);
   const verified = await crypto.subtle.verify("Ed25519", deviceKey, b64urlToBytes(ready.signature),
-    new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey, ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId)));
+    new TextEncoder().encode(readyPayload(challenge, deviceId, identity.id, publicKey,
+      ready.transportPublicKey, ready.ephemeralPublicKey, ready.sessionId, ready.attempts)));
   if (!verified) throw new Error("RC Node handshake signature failed.");
   const key = await deriveKey(pair.privateKey, ready.transportPublicKey, ready.ephemeralPublicKey, challenge, deviceId, identity.id);
   if (!device.capabilities?.includes("webrtc")) throw new Error("RC Node does not support WebRTC control");
-  const webRTC = await openWebRTCControlTransport(deviceId, ready.sessionId, ready.iceServers || [], onTransportStatus);
+  const webRTC = await openWebRTCControlTransport(
+    deviceId, ready.sessionId, ready.iceServers, ready.attempts, onTransportStatus,
+  );
   return new ControlSession(deviceId, ready.sessionId, key, webRTC);
 }
-

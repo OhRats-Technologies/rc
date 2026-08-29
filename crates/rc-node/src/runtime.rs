@@ -1,6 +1,6 @@
 use crate::{
-    ControlManager, NODE_CAPABILITIES, NativeProcessPolicy, NativeTransportPolicy, NodeState,
-    ProcessEvent, ProcessManager, ProcessPolicy, ServerTransport, TransportPolicy, lock_metadata,
+    ControlManager, NODE_CAPABILITIES, NodeState, ProcessEvent, ProcessManager, ProcessPolicy,
+    ServerTransport, TransportPolicy, lock_metadata,
 };
 use rc_protocol::{NodeHello, NodeToServer};
 use std::{collections::VecDeque, io, path::PathBuf, sync::Arc};
@@ -22,16 +22,7 @@ pub struct NodeRuntime {
 }
 
 impl NodeRuntime {
-    pub fn new(runner: PathBuf, state_dir: PathBuf) -> Self {
-        Self::new_with_policies(
-            runner,
-            state_dir,
-            Arc::new(NativeProcessPolicy),
-            Arc::new(NativeTransportPolicy),
-        )
-    }
-
-    pub fn new_with_policies(
+    pub fn new(
         runner: PathBuf,
         state_dir: PathBuf,
         process_policy: Arc<dyn ProcessPolicy>,
@@ -152,7 +143,7 @@ impl NodeRuntime {
         version: &str,
     ) -> anyhow::Result<()> {
         let transport = ServerTransport::connect(server, state).await?;
-        let control = ControlManager::new_with_policies(
+        let control = ControlManager::new(
             state.clone(),
             self.state_dir.clone(),
             self.manager.clone(),

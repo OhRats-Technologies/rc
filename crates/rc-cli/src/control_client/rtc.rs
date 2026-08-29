@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use rc_api_client::{ApiClient, WebRtcAnswer};
 use rc_mesh::{EncryptedFrameTransport, FrameTransportError};
-use rc_protocol::{ControlTransportMessage, IceServer};
+use rc_protocol::{ControlIceAttempt, ControlIceMode, ControlTransportMessage, IceServer};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
@@ -14,6 +14,7 @@ use webrtc::{
     ice_transport::ice_server::RTCIceServer,
     peer_connection::{
         RTCPeerConnection, configuration::RTCConfiguration,
+        policy::ice_transport_policy::RTCIceTransportPolicy,
         sdp::session_description::RTCSessionDescription,
     },
 };
@@ -23,13 +24,44 @@ pub(super) async fn open_webrtc(
     device_id: &str,
     session_id: &str,
     servers: &[IceServer],
+    attempts: &[ControlIceAttempt],
+) -> Result<(
+    Arc<RTCPeerConnection>,
+    Arc<dyn EncryptedFrameTransport>,
+    mpsc::Receiver<ControlTransportMessage>,
+)> {
+    if attempts.first().map(|attempt| attempt.mode) != Some(ControlIceMode::Host) {
+        bail!("invalid WebRTC attempt plan");
+    }
+    let mut last = None;
+    for attempt in attempts {
+        match open_attempt(api, device_id, session_id, servers, attempt).await {
+            Ok(value) => return Ok(value),
+            Err(error) => {
+                last = Some(error);
+                tokio::time::sleep(std::time::Duration::from_millis(u64::from(
+                    attempt.retry_delay_ms,
+                )))
+                .await;
+            }
+        }
+    }
+    Err(last.unwrap_or_else(|| anyhow::anyhow!("WebRTC attempt plan is empty")))
+}
+
+async fn open_attempt(
+    api: &ApiClient,
+    device_id: &str,
+    session_id: &str,
+    servers: &[IceServer],
+    attempt: &ControlIceAttempt,
 ) -> Result<(
     Arc<RTCPeerConnection>,
     Arc<dyn EncryptedFrameTransport>,
     mpsc::Receiver<ControlTransportMessage>,
 )> {
     let config = RTCConfiguration {
-        ice_servers: servers
+        ice_servers: filtered_servers(servers, attempt.mode)
             .iter()
             .map(|server| RTCIceServer {
                 urls: server.urls.clone(),
@@ -37,6 +69,11 @@ pub(super) async fn open_webrtc(
                 credential: server.credential.clone(),
             })
             .collect(),
+        ice_transport_policy: if attempt.mode == ControlIceMode::Relay {
+            RTCIceTransportPolicy::Relay
+        } else {
+            RTCIceTransportPolicy::All
+        },
         ..Default::default()
     };
     let peer = Arc::new(
@@ -80,7 +117,11 @@ pub(super) async fn open_webrtc(
     let offer = peer.create_offer(None).await?;
     let mut gather = peer.gathering_complete_promise().await;
     peer.set_local_description(offer).await?;
-    let _ = tokio::time::timeout(std::time::Duration::from_secs(15), gather.recv()).await;
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_millis(u64::from(attempt.gather_timeout_ms)),
+        gather.recv(),
+    )
+    .await;
     let sdp = peer
         .local_description()
         .await
@@ -94,6 +135,7 @@ pub(super) async fn open_webrtc(
     struct Offer<'a> {
         device_id: &'a str,
         sdp: &'a str,
+        mode: ControlIceMode,
     }
     let answer: WebRtcAnswer = api
         .post(
@@ -101,6 +143,7 @@ pub(super) async fn open_webrtc(
             &Offer {
                 device_id,
                 sdp: &sdp,
+                mode: attempt.mode,
             },
         )
         .await?;
@@ -109,10 +152,36 @@ pub(super) async fn open_webrtc(
     }
     peer.set_remote_description(RTCSessionDescription::answer(answer.sdp)?)
         .await?;
-    tokio::time::timeout(std::time::Duration::from_secs(8), open_rx)
-        .await
-        .context("WebRTC connection timed out")??;
+    tokio::time::timeout(
+        std::time::Duration::from_millis(u64::from(attempt.connect_timeout_ms)),
+        open_rx,
+    )
+    .await
+    .context("WebRTC connection timed out")??;
     Ok((peer, Arc::new(WebRtcFrameTransport { channel }), rx))
+}
+
+fn filtered_servers(servers: &[IceServer], mode: ControlIceMode) -> Vec<IceServer> {
+    servers
+        .iter()
+        .filter_map(|server| {
+            let urls = server
+                .urls
+                .iter()
+                .filter(|url| match mode {
+                    ControlIceMode::Host => false,
+                    ControlIceMode::Stun => url.to_ascii_lowercase().starts_with("stun"),
+                    ControlIceMode::Relay => url.to_ascii_lowercase().starts_with("turn"),
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            (!urls.is_empty()).then(|| IceServer {
+                urls,
+                username: server.username.clone(),
+                credential: server.credential.clone(),
+            })
+        })
+        .collect()
 }
 
 struct WebRtcFrameTransport {

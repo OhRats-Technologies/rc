@@ -1,7 +1,7 @@
 use super::values;
 use crate::{descriptor::SelectionMode, service::ServiceRegistry};
 use rc_node::{TransportAnswerPlan, TransportAnswerRequest, TransportPolicy};
-use rc_protocol::{ControlIceMode, IceServer};
+use rc_protocol::{ControlIceAttempt, ControlIceMode, IceServer};
 use semver::VersionReq;
 use std::time::Duration;
 use wasmtime::component::Val;
@@ -18,7 +18,7 @@ impl ComponentTransportPolicy {
     pub fn new(registry: ServiceRegistry) -> anyhow::Result<Self> {
         Ok(Self {
             registry,
-            requirement: VersionReq::parse("^0.1")?,
+            requirement: VersionReq::parse("^0.2")?,
         })
     }
 
@@ -30,6 +30,30 @@ impl ComponentTransportPolicy {
 }
 
 impl TransportPolicy for ComponentTransportPolicy {
+    fn attempts(&self, ice_servers: Vec<IceServer>) -> Result<Vec<ControlIceAttempt>, String> {
+        let params = [
+            Val::String("webrtc".into()),
+            Val::List(ice_servers.into_iter().map(server_value).collect()),
+        ];
+        let values = self
+            .registry
+            .call_one(
+                SERVICE,
+                &self.requirement,
+                SelectionMode::Keyed,
+                "plan-attempts",
+                &params,
+            )
+            .map_err(|error| error.to_string())?;
+        values::list(
+            values::result_value(values, "transport policy")?,
+            "ICE attempt plan",
+        )?
+            .into_iter()
+            .map(attempt_from_value)
+            .collect()
+    }
+
     fn answer_plan(
         &self,
         transport: &str,
@@ -74,6 +98,21 @@ impl TransportPolicy for ComponentTransportPolicy {
             )?)),
         })
     }
+}
+
+fn attempt_from_value(value: Val) -> Result<ControlIceAttempt, String> {
+    let fields = values::record(value, "ICE attempt")?;
+    Ok(ControlIceAttempt {
+        mode: match values::enum_field(&fields, "mode")?.as_str() {
+            "host" => ControlIceMode::Host,
+            "stun" => ControlIceMode::Stun,
+            "relay" => ControlIceMode::Relay,
+            _ => return Err("transport policy returned an invalid ICE mode".into()),
+        },
+        gather_timeout_ms: values::u32_field(&fields, "gather-timeout-ms")?,
+        connect_timeout_ms: values::u32_field(&fields, "connect-timeout-ms")?,
+        retry_delay_ms: values::u32_field(&fields, "retry-delay-ms")?,
+    })
 }
 
 fn server_value(server: IceServer) -> Val {

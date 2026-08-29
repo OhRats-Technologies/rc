@@ -131,6 +131,7 @@ impl RemoteControl {
             &ready.transport_public_key,
             &ready.ephemeral_public_key,
             &ready.session_id,
+            &rc_protocol::control_attempts_payload(&ready.attempts),
         );
         verify_ed25519(
             &device.identity_public_key,
@@ -146,8 +147,14 @@ impl RemoteControl {
             &device.id,
             &client_id,
         )?;
-        let (peer, transport, incoming) =
-            rtc::open_webrtc(&api, &device.id, &ready.session_id, &ready.ice_servers).await?;
+        let (peer, transport, incoming) = rtc::open_webrtc(
+            &api,
+            &device.id,
+            &ready.session_id,
+            &ready.ice_servers,
+            &ready.attempts,
+        )
+        .await?;
         Ok(Self {
             sender: ControlSender {
                 session_id: ready.session_id.clone(),

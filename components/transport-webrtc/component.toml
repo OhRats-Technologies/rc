@@ -2,7 +2,7 @@ schema = 1
 
 [component]
 id = "ohrats:transport-webrtc"
-version = "0.1.0"
+version = "0.2.0"
 world = "ohrats:rc-plugin/transport-webrtc@0.1.0"
 wit = ["plugin", "transport"]
 

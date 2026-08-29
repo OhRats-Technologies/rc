@@ -6,13 +6,12 @@ use self::{
     events::emit_to,
     spawn::{capture_reader, exit_result, set_terminal_size, spawn},
 };
-use crate::process::{ProcessEvent, session::signal_session};
+use crate::process::{ProcessEvent, ProcessSpec, session::signal_session};
 use nix::{
     sys::signal::{Signal, kill},
     unistd::Pid,
 };
 use parking_lot::Mutex;
-use rc_protocol::TerminalSpec;
 use std::{
     collections::{HashMap, VecDeque},
     fs::File,
@@ -26,33 +25,6 @@ use std::{
 type EventSink = Arc<dyn Fn(ProcessEvent) + Send + Sync>;
 type SecureSink = Arc<dyn Fn(&str, ProcessEvent) -> bool + Send + Sync>;
 type RelaySink = Arc<dyn Fn(&str, ProcessEvent) -> bool + Send + Sync>;
-
-#[derive(Debug, Clone)]
-pub struct ProcessSpec {
-    pub id: String,
-    pub command: String,
-    pub cwd: String,
-    pub terminal: Option<TerminalSpec>,
-    pub session_id: String,
-    pub user_id: String,
-    pub secure: bool,
-    pub relay_id: String,
-}
-
-impl ProcessSpec {
-    pub fn command(id: &str, command: &str) -> Self {
-        Self {
-            id: id.into(),
-            command: command.into(),
-            cwd: String::new(),
-            terminal: None,
-            session_id: String::new(),
-            user_id: String::new(),
-            secure: false,
-            relay_id: String::new(),
-        }
-    }
-}
 
 pub struct ProcessManager {
     runner: PathBuf,
@@ -70,6 +42,8 @@ struct ManagedProcess {
     user_id: String,
     relay_id: String,
     secure_state: Mutex<SecureState>,
+    scrollback_limit: usize,
+    stdin_chunk_limit: usize,
 }
 
 enum ProcessInput {
@@ -196,6 +170,12 @@ impl ProcessManager {
         let Some(process) = self.processes.lock().get(id).cloned() else {
             return Ok(());
         };
+        if data.len() > process.stdin_chunk_limit {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "process input exceeds policy limit",
+            ));
+        }
         match &mut *process.input.lock() {
             ProcessInput::Pipe(Some(stdin)) => stdin.write_all(data),
             ProcessInput::Pty(master) => master.write_all(data),

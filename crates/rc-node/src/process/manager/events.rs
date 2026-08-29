@@ -3,8 +3,6 @@ use crate::process::ProcessEvent;
 use parking_lot::Mutex;
 use std::sync::Arc;
 
-const SCROLLBACK_LIMIT: usize = 4 << 20;
-
 pub(super) fn emit_to(
     event_sink: &EventSink,
     secure_sink: &Arc<Mutex<Option<SecureSink>>>,
@@ -30,13 +28,15 @@ pub(super) fn emit_to(
     let mut state = process.secure_state.lock();
     if event.is_output() {
         let size = event.estimated_size();
-        while state.scrollback_bytes + size > SCROLLBACK_LIMIT && !state.scrollback.is_empty() {
+        while state.scrollback_bytes + size > process.scrollback_limit
+            && !state.scrollback.is_empty()
+        {
             if let Some(old) = state.scrollback.pop_front() {
                 state.scrollback_bytes =
                     state.scrollback_bytes.saturating_sub(old.estimated_size());
             }
         }
-        if size <= SCROLLBACK_LIMIT {
+        if size <= process.scrollback_limit {
             state.scrollback.push_back(event.clone());
             state.scrollback_bytes += size;
         }

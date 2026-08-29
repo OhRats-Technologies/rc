@@ -6,6 +6,8 @@ mod control;
 mod fixture;
 #[path = "node_webrtc/lifecycle.rs"]
 mod lifecycle;
+#[path = "node_webrtc/policies.rs"]
+mod policies;
 #[path = "node_webrtc/reconnect.rs"]
 mod reconnect;
 #[path = "node_webrtc/support.rs"]

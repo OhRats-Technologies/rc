@@ -1,8 +1,6 @@
 use super::events::emit_to;
-use super::{
-    EventSink, ManagedProcess, ProcessInput, ProcessSpec, RelaySink, SecureSink, SecureState,
-};
-use crate::process::{ProcessEvent, StreamKind};
+use super::{EventSink, ManagedProcess, ProcessInput, RelaySink, SecureSink, SecureState};
+use crate::process::{ProcessEvent, ProcessSpec, StreamKind};
 use nix::{
     fcntl::{FcntlArg, FdFlag, fcntl},
     pty::{Winsize, openpty},
@@ -112,6 +110,8 @@ pub(super) fn spawn(runner: &PathBuf, spec: &ProcessSpec) -> io::Result<Spawned>
             secure: spec.secure,
             user_id: spec.user_id.clone(),
             relay_id: spec.relay_id.clone(),
+            scrollback_limit: spec.scrollback_bytes as usize,
+            stdin_chunk_limit: spec.stdin_chunk_bytes as usize,
             secure_state: Mutex::new(SecureState {
                 session_id: spec.session_id.clone(),
                 ..Default::default()

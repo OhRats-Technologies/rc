@@ -66,9 +66,12 @@ pub(super) async fn exercise(
     let runtime_base = harness.base.clone();
     let runtime_node = harness.node.clone();
     let runtime_task = tokio::spawn(async move {
+        let (process_policy, transport_policy) = crate::policies::pair();
         let mut runtime = NodeRuntime::new(
             PathBuf::from("/unused-process-runner"),
             std::env::temp_dir().join(format!("rc-runtime-state-{}", Uuid::new_v4())),
+            process_policy,
+            transport_policy,
         );
         runtime
             .connect_once(&runtime_base, &runtime_node, "runtime-test")

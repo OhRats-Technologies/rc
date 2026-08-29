@@ -7,7 +7,9 @@ use rc_crypto::{
     decode_x25519, derive_node_key, ready_payload, session_payload, sign_ed25519_seed,
     verify_ed25519,
 };
-use rc_protocol::{AuthoritySnapshot, ControlProof, NodeToServer};
+use rc_protocol::{
+    AuthoritySnapshot, ControlProof, IceServer, NodeToServer, control_attempts_payload,
+};
 use std::time::{Duration, Instant};
 
 impl ControlManager {
@@ -36,6 +38,7 @@ impl ControlManager {
         assertion: String,
         client_public_key: String,
         signature: String,
+        ice_servers: Vec<IceServer>,
     ) {
         if !self.consume_challenge(&challenge) {
             self.control_error(request_id, "control challenge expired");
@@ -99,6 +102,17 @@ impl ControlManager {
                 return;
             }
         };
+        let attempts = match self.0.transport_policy.attempts(ice_servers) {
+            Ok(attempts) if !attempts.is_empty() => attempts,
+            Ok(_) => {
+                self.control_error(request_id, "transport policy returned no attempts");
+                return;
+            }
+            Err(error) => {
+                self.control_error(request_id, error);
+                return;
+            }
+        };
         let ready = ready_payload(
             &challenge,
             &self.0.state.device_id,
@@ -107,6 +121,7 @@ impl ControlManager {
             &transport_public_key,
             &ephemeral_public,
             &session_id,
+            &control_attempts_payload(&attempts),
         );
         let node_signature = match sign_ed25519_seed(&self.0.state.identity_seed, ready.as_bytes())
         {
@@ -126,6 +141,7 @@ impl ControlManager {
             transport_public_key,
             ephemeral_public_key: ephemeral_public,
             signature: node_signature,
+            attempts,
         });
     }
 

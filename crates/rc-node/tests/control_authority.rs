@@ -1,3 +1,4 @@
+mod policies;
 #[path = "control_authority/support.rs"]
 mod support;
 
@@ -127,12 +128,15 @@ async fn live_passkey_session_is_revoked_by_owner_lock_transition() -> anyhow::R
         |_| {},
     ));
     let (outbound, mut hosted) = mpsc::unbounded_channel();
+    let (process_policy, transport_policy) = policies::pair();
     let control = ControlManager::new(
         node.clone(),
         dir.clone(),
         processes.clone(),
         outbound,
         "test",
+        process_policy,
+        transport_policy,
     );
 
     control
@@ -169,6 +173,7 @@ async fn live_passkey_session_is_revoked_by_owner_lock_transition() -> anyhow::R
                 assertion: fixture.proof.assertion.clone(),
                 public_key: transport_public,
                 signature: session_signature,
+                ice_servers: Vec::new(),
             },
         )
         .await;

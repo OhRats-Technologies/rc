@@ -56,6 +56,8 @@ enum KernelCommand {
     },
     #[command(hide = true)]
     PolicyCheck,
+    #[command(hide = true)]
+    PolicyProbe,
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -105,6 +107,7 @@ pub fn run() -> anyhow::Result<()> {
             },
         ),
         Some(KernelCommand::PolicyCheck) => node::check(&runtime),
+        Some(KernelCommand::PolicyProbe) => node::probe(runtime),
         None => dispatch_plugin(&mut runtime, arguments.plugin_args),
     }
 }

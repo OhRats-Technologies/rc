@@ -61,26 +61,27 @@ The registry is local. Peer advertisements determine compatibility with a destin
 
 ## Extension boundaries
 
-### Native Rust
+### Native host adapters
 
-Security-sensitive and data-plane components are statically linked Rust:
-
-- RC Lock and passkey verification;
-- process execution and lifecycle reconciliation;
-- encryption and transport framing;
-- persistence;
-- release verification and update;
-- the HTTP authority server.
-
-Static linking keeps these boundaries reviewable and avoids a runtime Rust ABI.
+The native host owns Wasmtime lifecycle and narrow operating-system mechanisms:
+process and PTY handles, sockets, protected key handles, storage handles,
+resource meters, and atomic kernel replacement. Product policy is not an
+adapter concern.
 
 ### WebAssembly
 
-Portable automation and policy extensions use explicit WebAssembly Component Model interfaces. Suitable extension points include event-driven automation, policy scoring, route preference, inventory enrichment, notifications, and bounded metadata transforms.
+Official components own product behavior including process policy and WebRTC
+attempt planning. Other extension points include event-driven automation,
+inventory enrichment, notifications, and bounded metadata transforms.
 
 The host exposes narrow interfaces, denies ambient filesystem/network/process access, meters resources, binds host calls to RC capabilities, and verifies signed manifests and content digests.
 
-Passkeys, RC Lock, raw process control, cryptography, and transport sockets stay outside this extension boundary.
+Components receive typed records and opaque resource handles. They do not
+receive ambient filesystem, network, process, key, or environment access. The
+process policy validates specifications, access, PTY choices, signals, and
+buffer/input limits; the host performs the approved OS calls. The WebRTC policy
+filters ICE servers, returns the ordered attempt plan and timeouts, and
+classifies selected routes; browser and native adapters perform WebRTC mechanics.
 
 ### Supervised processes
 

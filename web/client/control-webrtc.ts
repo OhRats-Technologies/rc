@@ -1,4 +1,5 @@
 import { closeControlSession, controlWebRTC } from "./control-api";
+import type { ControlIceAttempt } from "./control-api";
 import type { ControlTransport } from "./control-transport";
 
 type Frame = { type: "control.frame"; sessionId: string; sequence: number; ciphertext: string };
@@ -27,11 +28,11 @@ export function directIceServers(iceServers: RTCIceServer[]) {
   });
 }
 
-export function peerConfiguration(iceServers: RTCIceServer[], attempt = 0): RTCConfiguration {
+export function peerConfiguration(iceServers: RTCIceServer[], mode: ControlIceAttempt["mode"] = "host"): RTCConfiguration {
   return {
-    iceServers: attempt === 0 ? [] : attempt === 1 ? directIceServers(iceServers) : iceServers,
+    iceServers: mode === "host" ? [] : mode === "stun" ? directIceServers(iceServers) : iceServers,
     iceCandidatePoolSize: 1,
-    iceTransportPolicy: attempt > 1 && hasTurnServer(iceServers) ? "relay" : "all",
+    iceTransportPolicy: mode === "relay" ? "relay" : "all",
   };
 }
 
@@ -64,7 +65,7 @@ function candidateCount(value: CandidateSummary) {
   return value.host + value.srflx + value.relay;
 }
 
-function waitForOpen(peer: RTCPeerConnection, channel: RTCDataChannel, maxWaitMs = 15_000) {
+function waitForOpen(peer: RTCPeerConnection, channel: RTCDataChannel, maxWaitMs: number) {
   if (channel.readyState === "open") return Promise.resolve();
   return new Promise<void>((resolve, reject) => {
     const timer = window.setTimeout(() => {
@@ -97,9 +98,12 @@ async function selectedPair(peer: RTCPeerConnection) {
 }
 
 export async function openWebRTCControlTransport(deviceId: string, sessionId: string, iceServers: RTCIceServer[],
-  onStatus: StatusReporter = () => {}, attempt = 0, fallbackReason?: string): Promise<ControlTransport> {
+  attempts: ControlIceAttempt[], onStatus: StatusReporter = () => {}, attemptIndex = 0,
+  fallbackReason?: string): Promise<ControlTransport> {
   if (typeof RTCPeerConnection === "undefined") throw new Error("WebRTC unavailable in this browser");
-  const configuration = peerConfiguration(iceServers, attempt);
+  const attempt = attempts[attemptIndex];
+  if (!attempt || attemptIndex === 0 && attempt.mode !== "host") throw new Error("Invalid WebRTC attempt plan");
+  const configuration = peerConfiguration(iceServers, attempt.mode);
   const peer = new RTCPeerConnection(configuration), channel = peer.createDataChannel("rc-control", { ordered: true });
   const frameListeners = new Set<(sequence: number, ciphertext: string) => void>();
   let closing = false, established = false, localCandidates: CandidateSummary | undefined, remoteCandidates: CandidateSummary | undefined;
@@ -130,14 +134,14 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     }
   });
   try {
-    await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer, attempt === 0 ? 2_000 : 8_000);
+    await peer.setLocalDescription(await peer.createOffer()); await waitForGathering(peer, attempt.gatherTimeoutMs);
     const sdp = peer.localDescription?.sdp; if (!sdp) throw new Error("WebRTC offer unavailable");
     localCandidates = candidateSummary(sdp);
     if (candidateCount(localCandidates) === 0) throw new Error("browser ICE gathering produced no usable candidates");
-    const mode = attempt === 0 ? "host" : attempt === 1 ? "stun" : "relay";
-    const answer = await controlWebRTC(sessionId, deviceId, sdp, mode);
+    const answer = await controlWebRTC(sessionId, deviceId, sdp, attempt.mode);
     remoteCandidates = candidateSummary(answer.sdp);
-    await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp }); await waitForOpen(peer, channel);
+    await peer.setRemoteDescription({ type: "answer", sdp: answer.sdp });
+    await waitForOpen(peer, channel, attempt.connectTimeoutMs);
     established = true;
     const selected = await selectedPair(peer);
     publish({ transport: "webrtc", phase: "connected", iceState: peer.iceConnectionState,
@@ -147,16 +151,17 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     closing = true;
     const reason = error instanceof Error ? error.message : "WebRTC negotiation failed";
     peer.close();
-    if (attempt < 2 && /webrtc|ice|datachannel|timed out|failed/i.test(reason)) {
-      const hasStun = directIceServers(iceServers).length > 0;
-      const next = attempt === 0 && hasStun ? 1 : hasTurnServer(iceServers) ? 2 : -1;
-      if (next < 0) {
+    if (/webrtc|ice|datachannel|timed out|failed/i.test(reason)) {
+      const next = attempts[attemptIndex + 1];
+      if (!next) {
         fail(reason); closeControlSession(sessionId); throw new Error(`WebRTC control unavailable: ${reason}`);
       }
-      const mode = next === 1 ? " with STUN" : " with TURN relay";
+      const mode = next.mode === "stun" ? " with STUN" : " with TURN relay";
       onStatus({ transport: "webrtc", phase: "connecting", reason: `Retrying${mode} after: ${reason}` });
-      await new Promise(resolve => window.setTimeout(resolve, 1200));
-      return openWebRTCControlTransport(deviceId, sessionId, iceServers, onStatus, next, reason);
+      await new Promise(resolve => window.setTimeout(resolve, next.retryDelayMs));
+      return openWebRTCControlTransport(
+        deviceId, sessionId, iceServers, attempts, onStatus, attemptIndex + 1, reason,
+      );
     }
     fail(reason); closeControlSession(sessionId); throw new Error(`WebRTC control unavailable: ${reason}`);
   }

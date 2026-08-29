@@ -21,6 +21,7 @@ impl ControlHub {
                 transport_public_key,
                 ephemeral_public_key,
                 signature,
+                attempts,
             } => {
                 let Some(pending) = self.pending(request_id, device_id, PendingKind::Open) else {
                     return true;
@@ -35,6 +36,7 @@ impl ControlHub {
                     ephemeral_public_key: ephemeral_public_key.clone(),
                     signature: signature.clone(),
                     ice_servers: pending.ice_servers.clone(),
+                    attempts: attempts.clone(),
                 };
                 self.insert_session(
                     session_id.clone(),

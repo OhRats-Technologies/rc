@@ -2,6 +2,24 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.0] - 2026-08-28
+
+### Changed
+
+- Moved Node command/access/PTY/signal/resource policy into the independently
+  versioned `process-policy` WebAssembly component.
+- Moved WebRTC ICE filtering, direct/STUN/TURN attempt sequencing, timeouts, and
+  route classification into the independently versioned `transport-webrtc`
+  component. Browser and CLI control execute the Node-signed attempt plan.
+- Made the component kernel the only Node startup path and fail closed when a
+  required policy component is missing or unhealthy.
+
+### Validation
+
+- Added component contract coverage, live transport-policy replacement, failed
+  replacement rollback, and affected-build tests alongside the existing
+  process, direct WebRTC, browser, CLI, MCP, service, and container suites.
+
 ## [0.18.3] - 2026-08-28
 
 ### Fixed

@@ -1,4 +1,4 @@
-use rc_protocol::IceServer;
+use rc_protocol::{ControlIceAttempt, IceServer};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -34,6 +34,7 @@ pub struct ControlReady {
     pub signature: String,
     #[serde(default)]
     pub ice_servers: Vec<IceServer>,
+    pub attempts: Vec<ControlIceAttempt>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

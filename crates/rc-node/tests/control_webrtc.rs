@@ -2,6 +2,7 @@
 mod fixture;
 #[path = "control_webrtc/peer.rs"]
 mod peer;
+mod policies;
 
 use fixture::{open_control, recv_hosted, setup};
 use peer::{

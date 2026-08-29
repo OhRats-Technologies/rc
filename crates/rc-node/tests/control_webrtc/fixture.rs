@@ -71,12 +71,15 @@ pub(super) fn setup() -> anyhow::Result<Harness> {
         };
         let _ = event_outbound.send(message);
     }));
+    let (process_policy, transport_policy) = crate::policies::pair();
     let control = ControlManager::new(
         node.clone(),
         state_dir.clone(),
         processes.clone(),
         outbound,
         "test",
+        process_policy,
+        transport_policy,
     );
     let secure_control = control.clone();
     processes.set_secure_sink(move |session_id, event| {
@@ -132,6 +135,7 @@ pub(super) async fn open_control(harness: &mut Harness) -> anyhow::Result<Sessio
         assertion: String::new(),
         public_key: client_public.clone(),
         signature,
+        ice_servers: Vec::new(),
     };
     harness
         .control
@@ -145,6 +149,7 @@ pub(super) async fn open_control(harness: &mut Harness) -> anyhow::Result<Sessio
                 transport_public_key,
                 ephemeral_public_key,
                 signature,
+                ..
             } => {
                 assert_eq!(request_id, "open");
                 (
@@ -164,6 +169,7 @@ pub(super) async fn open_control(harness: &mut Harness) -> anyhow::Result<Sessio
         &transport_public,
         &ephemeral_public,
         &session_id,
+        "host:2000:6000:0",
     );
     verify_ed25519(
         &harness.node.identity_public_key()?,

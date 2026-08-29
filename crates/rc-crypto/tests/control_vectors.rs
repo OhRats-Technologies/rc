@@ -111,7 +111,8 @@ fn matches_control_crypto_fixture() {
             &vector.client_public,
             &vector.node_static_public,
             &vector.node_ephemeral_public,
-            &vector.session_id
+            &vector.session_id,
+            ""
         ),
         vector.ready_payload
     );

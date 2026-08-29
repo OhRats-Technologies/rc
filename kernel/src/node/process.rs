@@ -20,7 +20,7 @@ impl ComponentProcessPolicy {
     pub fn new(registry: ServiceRegistry) -> anyhow::Result<Self> {
         Ok(Self {
             registry,
-            requirement: VersionReq::parse("^0.1")?,
+            requirement: VersionReq::parse("^0.2")?,
         })
     }
 
@@ -54,6 +54,8 @@ impl ProcessPolicy for ComponentProcessPolicy {
             command: values::string_field(&fields, "command")?,
             cwd: values::string_field(&fields, "cwd")?,
             terminal: terminal_option(&fields)?,
+            scrollback_bytes: values::u32_field(&fields, "scrollback-bytes")?,
+            stdin_chunk_bytes: values::u32_field(&fields, "stdin-chunk-bytes")?,
         })
     }
 

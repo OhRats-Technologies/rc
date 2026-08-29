@@ -12,6 +12,8 @@ impl ControlManager {
         command: String,
         cwd: String,
         terminal: Option<TerminalSpec>,
+        scrollback_bytes: u32,
+        stdin_chunk_bytes: u32,
     ) {
         let now = Instant::now();
         let mut pending = self.0.pending_starts.lock();
@@ -24,6 +26,8 @@ impl ControlManager {
                 command,
                 cwd,
                 terminal,
+                scrollback_bytes,
+                stdin_chunk_bytes,
                 expires: now + PENDING_START_TTL,
             },
         );
@@ -53,6 +57,8 @@ impl ControlManager {
             user_id: pending.user_id,
             secure: true,
             relay_id: String::new(),
+            scrollback_bytes: pending.scrollback_bytes,
+            stdin_chunk_bytes: pending.stdin_chunk_bytes,
         };
         if self.0.processes.start(spec).is_err() {
             self.emit(NodeToServer::ProcessExit {

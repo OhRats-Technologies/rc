@@ -128,6 +128,8 @@ impl ControlManager {
                     plan.command,
                     plan.cwd,
                     plan.terminal,
+                    plan.scrollback_bytes,
+                    plan.stdin_chunk_bytes,
                 );
             }
             ControlMessage::ProcessAttach { id } => {

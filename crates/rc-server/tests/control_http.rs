@@ -162,6 +162,7 @@ async fn signed_control_http_routes_drive_live_node_signaling() -> anyhow::Resul
             transport_public_key: "node-transport".into(),
             ephemeral_public_key: "node-ephemeral".into(),
             signature: "node-signature".into(),
+            attempts: Vec::new(),
         })
         .await?;
     let open_response = open_task.await??;

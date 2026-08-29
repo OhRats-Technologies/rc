@@ -7,7 +7,9 @@ wit_bindgen::generate!({
 use exports::ohrats::rc_transport::provider::Guest as ProviderGuest;
 use ohrats::{
     rc_plugin::types::Service,
-    rc_transport::types::{AnswerPlan, AnswerRequest},
+    rc_transport::types::{
+        AnswerPlan, AnswerRequest, Attempt, IceMode, IceServer, RouteClass, SelectedRoute,
+    },
 };
 
 struct TestTransport;
@@ -15,13 +17,13 @@ struct TestTransport;
 impl Guest for TestTransport {
     fn descriptor() -> Descriptor {
         Descriptor {
-            id: "ohrats:transport-test".into(),
-            version: "0.1.0".into(),
+            id: "ohrats:transport-webrtc".into(),
+            version: "0.2.1".into(),
             provides: vec![Service {
                 name: "ohrats:rc-transport/provider".into(),
-                version: "0.1.0".into(),
+                version: "0.2.0".into(),
                 priority: 100,
-                keys: vec!["test".into()],
+                keys: vec!["webrtc".into()],
             }],
             requires: Vec::new(),
             commands: Vec::new(),
@@ -40,8 +42,17 @@ impl Guest for TestTransport {
 }
 
 impl ProviderGuest for TestTransport {
+    fn plan_attempts(_transport: String, _ice_servers: Vec<IceServer>) -> Result<Vec<Attempt>, String> {
+        Ok(vec![Attempt {
+            mode: IceMode::Relay,
+            gather_timeout_ms: 25,
+            connect_timeout_ms: 50,
+            retry_delay_ms: 0,
+        }])
+    }
+
     fn plan_answer(transport: String, request: AnswerRequest) -> Result<AnswerPlan, String> {
-        if transport != "test" {
+        if transport != "webrtc" {
             return Err("unsupported transport".into());
         }
         Ok(AnswerPlan {
@@ -49,6 +60,10 @@ impl ProviderGuest for TestTransport {
             gather_timeout_ms: 100,
             connect_timeout_ms: 100,
         })
+    }
+
+    fn classify_route(_route: SelectedRoute) -> RouteClass {
+        RouteClass::Unknown
     }
 }
 

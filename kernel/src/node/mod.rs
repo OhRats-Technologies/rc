@@ -116,6 +116,37 @@ pub fn check(runtime: &Runtime) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn probe(mut runtime: Runtime) -> anyhow::Result<()> {
+    use std::io::BufRead as _;
+    use std::io::Write as _;
+
+    let transport = ComponentTransportPolicy::new(runtime.service_registry())?;
+    thread::spawn(move || {
+        loop {
+            if let Err(error) = runtime.reconcile() {
+                eprintln!("component probe reconcile failed: {error:#}");
+            }
+            thread::sleep(Duration::from_millis(50));
+        }
+    });
+    for line in std::io::stdin().lock().lines() {
+        line?;
+        let attempts = transport
+            .attempts(vec![IceServer {
+                urls: vec!["stun:example.test".into(), "turn:example.test".into()],
+                username: String::new(),
+                credential: String::new(),
+            }])
+            .map_err(anyhow::Error::msg)?;
+        let first = attempts
+            .first()
+            .ok_or_else(|| anyhow::anyhow!("empty transport attempt plan"))?;
+        println!("{:?} {}", first.mode, first.connect_timeout_ms);
+        std::io::stdout().flush()?;
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn run_node(
     runner: PathBuf,
@@ -127,7 +158,7 @@ async fn run_node(
     transport_policy: Arc<dyn rc_node::TransportPolicy>,
 ) -> anyhow::Result<()> {
     let mut runtime =
-        NodeRuntime::new_with_policies(runner, state_dir, process_policy, transport_policy);
+        NodeRuntime::new(runner, state_dir, process_policy, transport_policy);
     println!("Connecting to {server} as {}", state.device_id);
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);

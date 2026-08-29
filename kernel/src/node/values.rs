@@ -43,6 +43,13 @@ pub fn record(value: Val, label: &str) -> Result<Vec<(String, Val)>, String> {
     }
 }
 
+pub fn list(value: Val, label: &str) -> Result<Vec<Val>, String> {
+    match value {
+        Val::List(values) => Ok(values),
+        _ => Err(format!("{label} is not a list")),
+    }
+}
+
 pub fn field<'a>(fields: &'a [(String, Val)], name: &str) -> Result<&'a Val, String> {
     fields
         .iter()
@@ -55,6 +62,13 @@ pub fn string_field(fields: &[(String, Val)], name: &str) -> Result<String, Stri
     match field(fields, name)? {
         Val::String(value) => Ok(value.clone()),
         _ => Err(format!("field {name:?} is not a string")),
+    }
+}
+
+pub fn enum_field(fields: &[(String, Val)], name: &str) -> Result<String, String> {
+    match field(fields, name)? {
+        Val::Enum(value) => Ok(value.clone()),
+        _ => Err(format!("field {name:?} is not an enum")),
     }
 }
 
