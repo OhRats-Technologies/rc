@@ -6,7 +6,7 @@ define, implement, or version the coordination language inside this repository.
 The stable bootstrap is:
 
 ```text
-${XDG_STATE_HOME:-~/.local/state}/loom/bootstrap
+~/.local/share/loom/bootstrap
 ```
 
 A new RC worker follows the bootstrap's `io` entry point, joins project `rc`,
