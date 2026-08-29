@@ -394,3 +394,8 @@ invariants at the top of this document.
   adapter with pinned provider sessions, bounded incremental chunks, delayed
   polling, disconnect close notification, finite-route fallthrough, and SSE
   lifecycle/concurrency fixtures. WebSocket transport remains separate work.
+- 2026-08-28: audited the Node policy migration from the public release through
+  the production control plane and enrolled Mac. Typed component calls,
+  independent hot replacement, direct/STUN/TURN coverage, process and MCP
+  harnesses, launchd reconnect, public installation, and browser direct WebRTC
+  passed; RC 0.19.2 pins production to the audited release commit.

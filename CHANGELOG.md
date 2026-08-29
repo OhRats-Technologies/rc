@@ -2,6 +2,13 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.2] - 2026-08-28
+
+### Changed
+
+- Updated the external Loom coordination state-root documentation and released
+  the exact commit deployed by the production control plane.
+
 ## [0.19.1] - 2026-08-28
 
 ### Changed
