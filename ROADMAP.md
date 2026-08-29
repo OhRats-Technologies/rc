@@ -301,7 +301,7 @@ replaceable components.
 
 - [ ] Implement component update policy as a package-manager/updater component.
 - [ ] Resolve/download/compile candidates before changing the active graph.
-- [ ] Route new calls/sessions to a healthy new generation while old sessions
+- [x] Route new calls/sessions to a healthy new generation while old sessions
   drain on the previous generation.
 - [ ] Define explicit state snapshot/restore only for components that need it;
   prefer durable external state and generation draining.
@@ -340,6 +340,10 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: added generation leases to the kernel service registry. Healthy
+  replacements receive new calls immediately, withdrawn generations reject new
+  pins, and existing streamed HTTP sessions retain the old generation until
+  their final chunk or disconnect before dependent-first deactivation.
 - 2026-08-29: aligned the linked architecture, capability, context, and mesh
   specifications with the WIT/Wasmtime end state. Transitional `rc-context`,
   `rc-mesh`, native product crates, and the global browser tree are now

@@ -118,6 +118,8 @@ impl Opened {
         };
         let session_id = self.session_id;
         let limits = Limits::configured();
+        // Move the provider lease into the producer so replacement cannot tear
+        // down this session while its generation is still serving it.
         tokio::task::spawn_blocking(move || {
             produce(provider, session_id, sender, limits);
             drop(permit);

@@ -5,9 +5,14 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
+  RUSTFLAGS="${RUSTFLAGS:-} --cfg rc_stream_replacement" \
+    scripts/build-component.sh components/http-stream-fixture >/dev/null
+  mv dist/components/http-stream-fixture.wasm dist/components/http-stream-replacement.wasm
   scripts/build-component.sh components/http-stream-fixture >/dev/null
   scripts/build-component.sh components/http-stream-finite >/dev/null
 fi
+test -f dist/components/http-stream-fixture.wasm
+test -f dist/components/http-stream-replacement.wasm
 kernel_target=${RC_KERNEL_TARGET_DIR:-kernel/target}
 cargo build --manifest-path kernel/Cargo.toml --locked --offline \
   --target-dir "$kernel_target" >/dev/null
@@ -19,13 +24,17 @@ slow_pid=
 event_pid=
 limit_pid_a=
 limit_pid_b=
+old_stream=
+old_pid=
 cleanup() {
   test -z "$limit_pid_b" || kill "$limit_pid_b" 2>/dev/null || true
+  test -z "$old_pid" || kill "$old_pid" 2>/dev/null || true
   test -z "$limit_pid_a" || kill "$limit_pid_a" 2>/dev/null || true
   test -z "$event_pid" || kill "$event_pid" 2>/dev/null || true
   test -z "$slow_pid" || kill "$slow_pid" 2>/dev/null || true
   test -z "$pid" || kill "$pid" 2>/dev/null || true
   test -z "$pid" || wait "$pid" 2>/dev/null || true
+  test -z "$old_stream" || rm -f "$old_stream"
   rm -rf "$directory" "$log"
 }
 trap cleanup EXIT INT TERM
@@ -57,6 +66,33 @@ id: 2
 data: second'
 test "$events" = "$expected"
 test "$(curl -fsS http://127.0.0.1:32179/finite)" = finite
+
+old_stream=$(mktemp)
+curl -fsS --no-buffer http://127.0.0.1:32179/drain >"$old_stream" &
+old_pid=$!
+sleep 0.03
+cp dist/components/http-stream-replacement.wasm "$directory/components/stream.next"
+mv "$directory/components/stream.next" "$directory/components/stream.wasm"
+generation=
+count=0
+while test "$count" -lt 100; do
+  generation=$(curl -fsS --max-time 0.2 http://127.0.0.1:32179/generation 2>/dev/null || true)
+  test "$generation" = 'data: replacement' && break
+  count=$((count + 1))
+  sleep 0.02
+done
+test "$generation" = 'data: replacement'
+wait "$old_pid"
+old_pid=
+test "$(cat "$old_stream")" = 'data: drained'
+rm -f "$old_stream"
+old_stream=
+count=0
+while ! grep -Fq 'http stream generation old deactivated' "$log"; do
+  count=$((count + 1))
+  test "$count" -lt 100 || { cat "$log" >&2; exit 1; }
+  sleep 0.02
+done
 
 curl -fsS --no-buffer http://127.0.0.1:32179/endless >/dev/null &
 limit_pid_a=$!

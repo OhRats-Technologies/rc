@@ -12,3 +12,6 @@ crate-type = ["cdylib"]
 wit-bindgen = "0.61.1"
 
 [workspace]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(rc_stream_replacement)'] }

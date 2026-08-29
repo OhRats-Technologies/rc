@@ -12,7 +12,7 @@ use crate::{
 use semver::{Version, VersionReq};
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 use wasmtime::{
     Store,
@@ -20,11 +20,11 @@ use wasmtime::{
 };
 
 mod call;
+mod generation;
 mod link;
 
+pub(crate) use generation::{Generation, InstanceHandle};
 pub use link::{active_instance, linker};
-
-pub type InstanceHandle = Arc<Mutex<ActiveInstance>>;
 
 pub struct ActiveInstance {
     pub store: Store<HostState>,
@@ -60,12 +60,19 @@ struct Provider {
     handle: InstanceHandle,
 }
 
-#[derive(Clone)]
-pub(crate) struct PinnedProvider(Provider);
+pub(crate) struct PinnedProvider {
+    provider: Provider,
+    _pin: generation::GenerationPin,
+}
 
 impl PinnedProvider {
     pub(crate) fn component_id(&self) -> &str {
-        &self.0.component_id
+        &self.provider.component_id
+    }
+
+    fn pin(provider: Provider) -> Option<Self> {
+        let _pin = provider.handle.pin()?;
+        Some(Self { provider, _pin })
     }
 
     pub(crate) fn call(
@@ -74,7 +81,7 @@ impl PinnedProvider {
         function: &str,
         params: &[Val],
     ) -> wasmtime::Result<Vec<Val>> {
-        call::provider_owned(&self.0, service, function, params)
+        call::provider_owned(self, service, function, params)
     }
 }
 
@@ -94,7 +101,9 @@ impl ServiceRegistryHost for HostState {
                     .get(&name)
                     .into_iter()
                     .flatten()
-                    .filter(|provider| requirement.matches(&provider.version))
+                    .filter(|provider| {
+                        requirement.matches(&provider.version) && provider.handle.is_available()
+                    })
                     .map(|provider| ProviderDescription {
                         component_id: provider.component_id.clone(),
                         version: provider.version.to_string(),
@@ -115,6 +124,9 @@ impl ServiceRegistry {
     pub fn refresh<'a>(&self, components: impl IntoIterator<Item = &'a LoadedComponent>) {
         let mut providers = BTreeMap::<String, Vec<Provider>>::new();
         for component in components {
+            if !component.is_active() {
+                continue;
+            }
             let Some(handle) = component.active_handle() else {
                 continue;
             };
@@ -168,7 +180,8 @@ impl ServiceRegistry {
         let provider = self
             .matching(service, requirement)?
             .into_iter()
-            .find(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key)))
+            .filter(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key)))
+            .find_map(PinnedProvider::pin)
             .ok_or_else(|| {
                 wasmtime::format_err!("service {service} {requirement} is unavailable")
             })?;
@@ -185,9 +198,10 @@ impl ServiceRegistry {
         Ok(self
             .matching(service, requirement)?
             .into_iter()
+            .filter_map(PinnedProvider::pin)
             .map(|provider| {
                 let result = call::provider_owned(&provider, service, function, params);
-                (provider.component_id, result)
+                (provider.component_id().to_owned(), result)
             })
             .collect())
     }
@@ -214,7 +228,8 @@ impl ServiceRegistry {
         let provider = self
             .matching(service, requirement)?
             .into_iter()
-            .find(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key)))
+            .filter(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key)))
+            .find_map(PinnedProvider::pin)
             .ok_or_else(|| {
                 wasmtime::format_err!("service {service} {requirement} is unavailable")
             })?;
@@ -230,7 +245,10 @@ impl ServiceRegistry {
         Ok(self
             .matching(service, requirement)?
             .into_iter()
-            .any(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key))))
+            .any(|provider| {
+                provider.handle.is_available()
+                    && key.is_none_or(|key| provider.keys.iter().any(|value| value == key))
+            }))
     }
 
     pub(crate) fn pinned(
@@ -241,7 +259,7 @@ impl ServiceRegistry {
         Ok(self
             .matching(service, requirement)?
             .into_iter()
-            .map(PinnedProvider)
+            .filter_map(PinnedProvider::pin)
             .collect())
     }
 

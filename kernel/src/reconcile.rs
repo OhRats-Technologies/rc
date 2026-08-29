@@ -30,7 +30,15 @@ pub fn remove_missing(
         return false;
     }
     let removed = removed_ids.iter().cloned().collect::<BTreeSet<_>>();
+    for id in &removed_ids {
+        entries
+            .get(id)
+            .expect("removed component disappeared")
+            .current
+            .withdraw();
+    }
     deactivate_unsatisfied(entries, &removed);
+    deactivate_withdrawn(entries);
     for id in &removed_ids {
         entries.remove(id);
     }
@@ -41,6 +49,7 @@ pub fn remove_missing(
 pub fn states(entries: &mut BTreeMap<String, Entry>, registry: &ServiceRegistry) -> bool {
     let mut changed = false;
     let mut attempted = BTreeSet::new();
+    let mut retired = Vec::new();
     loop {
         registry.refresh(entries.values().map(|entry| &entry.current));
         let services = services(entries, &BTreeSet::new());
@@ -52,8 +61,11 @@ pub fn states(entries: &mut BTreeMap<String, Entry>, registry: &ServiceRegistry)
             let pending = activate_pending(entry, &id, &services, &active_commands, registry);
             progress |= pending.progress;
             changed |= pending.changed;
+            if let Some(old) = pending.retired {
+                retired.push(old);
+            }
             if entry.current.is_active() && !requirements_met(&entry.current, &services) {
-                entry.current.deactivate();
+                entry.current.withdraw();
                 entry.error = None;
                 progress = true;
                 changed = true;
@@ -80,14 +92,16 @@ pub fn states(entries: &mut BTreeMap<String, Entry>, registry: &ServiceRegistry)
             break;
         }
     }
+    deactivate_withdrawn(entries);
     registry.refresh(entries.values().map(|entry| &entry.current));
+    drop(retired);
     changed
 }
 
-#[derive(Clone, Copy)]
 struct Transition {
     changed: bool,
     progress: bool,
+    retired: Option<LoadedComponent>,
 }
 
 fn activate_pending(
@@ -101,6 +115,7 @@ fn activate_pending(
         return Transition {
             changed: false,
             progress: false,
+            retired: None,
         };
     };
     if !requirements_met(&pending, services) {
@@ -108,6 +123,7 @@ fn activate_pending(
         return Transition {
             changed: false,
             progress: false,
+            retired: None,
         };
     }
     if let Some(error) = command_conflict(&pending, id, commands) {
@@ -116,17 +132,19 @@ fn activate_pending(
         return Transition {
             changed: true,
             progress: false,
+            retired: None,
         };
     }
     match pending.activate(registry) {
         Ok(()) => {
-            entry.current.deactivate();
-            entry.current = pending;
+            let old = std::mem::replace(&mut entry.current, pending);
+            old.withdraw();
             entry.error = None;
             entry.rejected_digest = None;
             Transition {
                 changed: true,
                 progress: true,
+                retired: Some(old),
             }
         }
         Err(error) => {
@@ -135,6 +153,7 @@ fn activate_pending(
             Transition {
                 changed: true,
                 progress: false,
+                retired: None,
             }
         }
     }
@@ -160,9 +179,57 @@ fn deactivate_unsatisfied(entries: &mut BTreeMap<String, Entry>, excluded: &BTre
                 .get_mut(&id)
                 .expect("dependent disappeared")
                 .current
-                .deactivate();
+                .withdraw();
         }
     }
+}
+
+fn deactivate_withdrawn(entries: &mut BTreeMap<String, Entry>) {
+    let mut pending = entries
+        .iter()
+        .filter(|(_, entry)| !entry.current.is_active() && entry.current.active_handle().is_some())
+        .map(|(id, _)| id.clone())
+        .collect::<BTreeSet<_>>();
+    while !pending.is_empty() {
+        let id = pending
+            .iter()
+            .find(|id| !has_pending_dependent(entries, id, &pending))
+            .cloned()
+            .unwrap_or_else(|| pending.first().expect("pending is not empty").clone());
+        entries
+            .get_mut(&id)
+            .expect("withdrawn component disappeared")
+            .current
+            .deactivate();
+        pending.remove(&id);
+    }
+}
+
+fn has_pending_dependent(
+    entries: &BTreeMap<String, Entry>,
+    provider_id: &str,
+    pending: &BTreeSet<String>,
+) -> bool {
+    let provider = &entries
+        .get(provider_id)
+        .expect("provider disappeared")
+        .current;
+    pending.iter().any(|dependent_id| {
+        dependent_id != provider_id
+            && entries
+                .get(dependent_id)
+                .expect("dependent disappeared")
+                .current
+                .descriptor
+                .requires
+                .iter()
+                .any(|requirement| {
+                    provider.descriptor.provides.iter().any(|service| {
+                        requirement.name == service.name
+                            && requirement.version.matches(&service.version)
+                    })
+                })
+    })
 }
 
 fn services(entries: &BTreeMap<String, Entry>, excluded: &BTreeSet<String>) -> graph::Services {

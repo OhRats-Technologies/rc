@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::Context as _;
 use sha2::{Digest, Sha256};
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf};
 use wasmtime::component::Component;
 
 pub use crate::descriptor::ValidatedCommand;
@@ -97,7 +97,7 @@ impl LoadedComponent {
                     bindings,
                     &self.descriptor,
                 )?;
-                self.active = Some(Arc::new(std::sync::Mutex::new(active)));
+                self.active = Some(service::Generation::new(active));
                 Ok(())
             }
             Err(error) => anyhow::bail!(error),
@@ -108,9 +108,7 @@ impl LoadedComponent {
         let Some(active) = self.active.take() else {
             return;
         };
-        if let Ok(mut active) = active.lock() {
-            active.deactivate();
-        }
+        active.deactivate();
     }
 
     pub fn invoke(&mut self, command: &str, args: &[String]) -> anyhow::Result<u32> {
@@ -119,14 +117,19 @@ impl LoadedComponent {
             .as_ref()
             .context("component is not active")?
             .clone();
-        let mut active = active
-            .lock()
-            .map_err(|_| anyhow::anyhow!("component instance is poisoned"))?;
         active.invoke(command, args)
     }
 
     pub fn is_active(&self) -> bool {
-        self.active.is_some()
+        self.active
+            .as_ref()
+            .is_some_and(|active| active.is_available())
+    }
+
+    pub(crate) fn withdraw(&self) {
+        if let Some(active) = &self.active {
+            active.withdraw();
+        }
     }
 
     pub fn active_handle(&self) -> Option<InstanceHandle> {

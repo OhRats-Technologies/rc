@@ -15,6 +15,11 @@ use std::sync::{LazyLock, Mutex};
 
 static STATE: LazyLock<Mutex<State>> = LazyLock::new(|| Mutex::new(State::default()));
 
+#[cfg(rc_stream_replacement)]
+const GENERATION: &str = "replacement";
+#[cfg(not(rc_stream_replacement))]
+const GENERATION: &str = "old";
+
 #[derive(Default)]
 struct State {
     next: u64,
@@ -43,7 +48,12 @@ impl Guest for Fixture {
     fn activate() -> Result<(), String> {
         Ok(())
     }
-    fn deactivate() {}
+    fn deactivate() {
+        ohrats::rc_plugin::host::log(
+            ohrats::rc_plugin::host::LogLevel::Info,
+            &format!("http stream generation {GENERATION} deactivated"),
+        );
+    }
     fn invoke(_: String, _: Vec<String>) -> Result<u32, String> {
         Err("no commands".into())
     }
@@ -52,9 +62,8 @@ impl Guest for Fixture {
 impl StreamGuest for Fixture {
     fn open(request: Request) -> Result<Option<OpenedResponse>, String> {
         let kind = match request.path.as_str() {
-            "/events" | "/slow" | "/endless" | "/total" | "/oversized" | "/failure" | "/closed" => {
-                request.path
-            }
+            "/events" | "/generation" | "/drain" | "/slow" | "/endless" | "/total"
+            | "/oversized" | "/failure" | "/closed" => request.path,
             _ => return Ok(None),
         };
         let mut state = STATE.lock().map_err(|_| "state poisoned")?;
@@ -82,6 +91,11 @@ impl StreamGuest for Fixture {
         let current = *step;
         *step += 1;
         match (kind.as_str(), current) {
+            ("/generation", 0) => chunk(&format!("data: {GENERATION}\n\n")),
+            ("/generation", _) => Ok(PollResult::Done),
+            ("/drain", 0) => Ok(PollResult::Pending(1_000)),
+            ("/drain", 1) => chunk("data: drained\n\n"),
+            ("/drain", _) => Ok(PollResult::Done),
             ("/events", 0) => chunk("id: 1\ndata: first\n\n"),
             ("/events", 1) => Ok(PollResult::Pending(40)),
             ("/events", 2) => chunk(": heartbeat\n\n"),
