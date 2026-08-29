@@ -56,7 +56,7 @@ class AffectedUnitsTests(unittest.TestCase):
     def test_http_wit_change_rebuilds_kernel_adapter_and_web_consumer(self) -> None:
         value = self.resolve("wit/deps/http/http.wit")
         self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["identity-http", "webui-shell"])
+        self.assertEqual(value["components"], ["identity-http", "webui-app", "webui-shell"])
 
     def test_storage_wit_change_rebuilds_kernel_adapter_and_fixture(self) -> None:
         value = self.resolve("wit/deps/storage/storage.wit")
@@ -99,7 +99,7 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertFalse(value["kernel"])
         self.assertEqual(
             value["components"],
-            ["identity-fixture", "identity-http", "identity-store"],
+            ["identity-fixture", "identity-http", "identity-store", "webui-app"],
         )
 
     def test_webauthn_wit_change_rebuilds_only_verifier_units(self) -> None:
