@@ -83,6 +83,7 @@ async fn oauth_codes_and_refresh_tokens_are_single_use_and_resource_bound() -> a
         names,
         [
             "machines_list",
+            "image_view",
             "process_run",
             "process_status",
             "process_input",
