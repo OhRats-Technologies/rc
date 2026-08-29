@@ -314,7 +314,7 @@ replaceable components.
   prefer durable external state and generation draining.
 - [ ] Implement `rc upgrade` through an updater component plus one kernel-owned
   atomic replace/re-exec primitive.
-- [ ] Install the kernel and a recoverable core component bundle from
+- [x] Install the kernel and a recoverable core component bundle from
   `install.sh`.
 - [ ] Allow local and mesh caches to satisfy digest-addressed artifact fetches
   before an OCI registry is contacted.
@@ -347,6 +347,11 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: replaced the installer’s second native-upgrade step with one
+  digest-locked bootstrap of `rc`, the kernel, and an exact core profile. It
+  validates archive shape and every component digest before activation,
+  preserves local overrides, and retains the previous native/core generation
+  for rollback with installer-specific ownership markers.
 - 2026-08-29: reconciled the WebUI slot checklist with the implemented typed
   shell contract. Caller-owned sidebar, device-panel, and settings-panel
   contributions are bounded, deterministically ordered, withdrawn on provider
