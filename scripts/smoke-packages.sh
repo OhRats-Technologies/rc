@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-build="local-source http-source oci-source package-manager fixture-provider fixture-provider-v2"
+build="local-source http-source oci-source package-manager fixture-provider fixture-provider-v2 fixture-consumer"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   for component in $build; do
     scripts/build-component.sh "components/$component" >/dev/null
@@ -37,6 +37,7 @@ done
 cp dist/components/fixture-provider.wasm "$directory/demo.wasm"
 cp dist/components/fixture-provider.wasm "$directory/v1.wasm"
 cp dist/components/fixture-provider-v2.wasm "$directory/v2.wasm"
+cp dist/components/fixture-consumer.wasm "$directory/consumer.wasm"
 
 kernel=kernel/target/debug/rc-kernel
 run() {
@@ -90,7 +91,34 @@ grep -F "fixture-provider	1.0.0	1.0.0	2.0.0" "$directory/catalog-outdated.out" >
 run update fixture-provider --latest >"$directory/catalog-update.out" 2>/dev/null
 grep -F "updated ohrats:fixture-provider 2.0.0" "$directory/catalog-update.out" >/dev/null
 grep -F 'spec = "ohrats:fixture-provider@^2"' "$state/rc.toml" >/dev/null
+run update fixture-provider --latest >"$directory/catalog-noop.out" 2>/dev/null
+test ! -s "$directory/catalog-noop.out"
 run remove fixture-provider >/dev/null 2>&1
+
+# A prepared multi-component update aborts before publication when one selected
+# target is unmanaged, leaving the other target at its original digest.
+transaction_components="$directory/transaction-components"
+mkdir -p "$transaction_components"
+for component in local-source package-manager; do
+  cp "dist/components/$component.wasm" "$transaction_components/$component.wasm"
+done
+cp dist/components/fixture-provider.wasm "$directory/tx-provider.wasm"
+cp dist/components/fixture-consumer.wasm "$directory/tx-consumer.wasm"
+run_tx() {
+  "$kernel" --component-dir "$transaction_components" "$@"
+}
+run_tx add "$directory/tx-provider.wasm" >/dev/null 2>&1
+run_tx add "$directory/tx-consumer.wasm" >/dev/null 2>&1
+cp dist/components/fixture-provider-v2.wasm "$directory/tx-provider.wasm"
+rm "$transaction_components/tx-consumer.managed"
+if run_tx update tx-provider tx-consumer >"$directory/transaction-failure.out" 2>/dev/null; then
+  echo "unmanaged selected target unexpectedly updated" >&2
+  exit 1
+fi
+run_tx list >"$directory/transaction-list.out" 2>/dev/null
+grep -F "tx-provider	ohrats:fixture-provider	1.0.0	true" "$directory/transaction-list.out" >/dev/null
+grep -F "tx-consumer	ohrats:fixture-consumer	1.0.0	false" "$directory/transaction-list.out" >/dev/null
+test "$(find "$directory/cache/component-transactions" -mindepth 1 -maxdepth 1 -print 2>/dev/null | wc -l | tr -d ' ')" -eq 0
 
 # Network adapters are kernel capabilities; HTTP and OCI resolution remain components.
 port_file="$directory/port"

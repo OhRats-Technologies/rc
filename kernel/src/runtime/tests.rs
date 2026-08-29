@@ -51,3 +51,15 @@ fn starts_with_a_writable_temporary_root() {
         assert_eq!(mode & 0o777, 0o700);
     }
 }
+
+#[test]
+fn publication_fence_defers_reconciliation() -> anyhow::Result<()> {
+    let directory = tempfile::tempdir()?;
+    let mut runtime = Runtime::new(directory.path().to_path_buf())?;
+    fs::write(directory.path().join(UPDATE_FENCE), b"transaction\n")?;
+    fs::write(directory.path().join("partial.wasm"), b"not complete")?;
+
+    assert!(!runtime.reconcile()?);
+    assert!(runtime.statuses().is_empty());
+    Ok(())
+}

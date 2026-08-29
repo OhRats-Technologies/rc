@@ -16,6 +16,7 @@ use std::{
 
 const RECONCILE_ATTEMPTS: usize = 4;
 const RECONCILE_BACKOFF: Duration = Duration::from_millis(10);
+const UPDATE_FENCE: &str = ".rc-component-update";
 
 struct LoadOutcome {
     changed: bool,
@@ -63,6 +64,9 @@ impl Runtime {
     }
 
     pub fn reconcile(&mut self) -> anyhow::Result<bool> {
+        if self.update_in_progress() {
+            return Ok(false);
+        }
         let mut changed = false;
         for attempt in 0..RECONCILE_ATTEMPTS {
             let paths = graph::component_paths(&self.directory)?;
@@ -82,7 +86,7 @@ impl Runtime {
             let confirmed = graph::component_paths(&self.directory)?
                 .into_iter()
                 .collect::<BTreeSet<_>>();
-            if !vanished && desired == confirmed {
+            if !vanished && desired == confirmed && !self.update_in_progress() {
                 changed |= reconcile::remove_missing(
                     &mut self.entries,
                     &mut self.failed_paths,
@@ -99,6 +103,10 @@ impl Runtime {
         // healthy generations; a later notification can start a fresh pass.
         changed |= reconcile::states(&mut self.entries, &self.registry);
         Ok(changed)
+    }
+
+    fn update_in_progress(&self) -> bool {
+        self.directory.join(UPDATE_FENCE).is_file()
     }
 
     pub fn statuses(&self) -> Vec<ComponentStatus<'_>> {

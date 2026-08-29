@@ -4,6 +4,8 @@ use crate::{
     source::{self, ResolvedPackage},
     state::{DesiredComponent, DesiredState, LockState, LockedComponent},
 };
+#[path = "update_flow.rs"]
+mod update_flow;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn invoke(command: &str, args: &[String]) -> Result<u32, String> {
@@ -127,43 +129,7 @@ fn outdated(args: &[String]) -> Result<u32, String> {
 }
 
 fn update(args: &[String]) -> Result<u32, String> {
-    let (names, use_latest) = update_args(args)?;
-    let mut desired = DesiredState::load()?;
-    let mut lock = LockState::load()?;
-    for name in selected_names(&desired, &names)? {
-        let spec = desired
-            .components
-            .get(&name)
-            .expect("selected component")
-            .spec
-            .clone();
-        let resolved = source::resolve(&spec, use_latest)?;
-        if use_latest && let Some(choice) = &resolved.catalog {
-            desired
-                .components
-                .get_mut(&name)
-                .expect("selected component")
-                .spec = choice.updated_spec();
-        }
-        if lock
-            .find(&name)
-            .is_some_and(|item| item.digest == resolved.artifact.digest)
-        {
-            continue;
-        }
-        cache::remember(&resolved.artifact)?;
-        let installed = component_store::install(
-            &name,
-            &resolved.artifact.bytes,
-            Some(&resolved.artifact.digest),
-        )?;
-        validate_catalog(&resolved, &installed)?;
-        lock.replace(locked(&installed, &spec, &resolved.artifact.source));
-        println!("updated {} {}", installed.id, installed.version);
-    }
-    desired.save()?;
-    lock.save()?;
-    Ok(0)
+    update_flow::run(args)
 }
 
 fn installed_by_name() -> Result<BTreeMap<String, InstalledComponent>, String> {

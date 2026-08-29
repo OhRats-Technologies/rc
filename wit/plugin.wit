@@ -5,7 +5,6 @@ interface types {
         single,
         keyed,
     }
-
     enum log-level {
         trace,
         debug,
@@ -13,26 +12,22 @@ interface types {
         warn,
         error,
     }
-
     record service {
         name: string,
         version: string,
         priority: s32,
         keys: list<string>,
     }
-
     record requirement {
         name: string,
         version: string,
         selection: selection,
     }
-
     record command {
         name: string,
         summary: string,
         usage: string,
     }
-
     record descriptor {
         id: string,
         version: string,
@@ -41,7 +36,6 @@ interface types {
         commands: list<command>,
     }
 }
-
 interface host {
     use types.{log-level};
     log: func(level: log-level, message: string);
@@ -57,6 +51,21 @@ interface component-store {
         digest: string,
         managed: bool,
     }
+    record update-candidate {
+        name: string,
+        artifact: list<u8>,
+        expected-digest: option<string>,
+    }
+    record prepared-component {
+        name: string,
+        id: string,
+        version: string,
+        digest: string,
+    }
+    record prepared-set {
+        id: string,
+        components: list<prepared-component>,
+    }
 
     installed: func() -> result<list<installed-component>, string>;
     install: func(
@@ -64,28 +73,26 @@ interface component-store {
         artifact: list<u8>,
         expected-digest: option<string>,
     ) -> result<installed-component, string>;
+    prepare: func(candidates: list<update-candidate>) -> result<prepared-set, string>;
+    commit: func(prepared: prepared-set) -> result<list<installed-component>, string>;
+    abort: func(prepared: prepared-set);
     remove: func(name: string) -> result<bool, string>;
 }
-
 interface artifact-cache {
     read: func(digest: string) -> result<option<list<u8>>, string>;
     write: func(digest: string, artifact: list<u8>) -> result<_, string>;
 }
-
 interface state-store {
     read: func(name: string) -> result<option<list<u8>>, string>;
     write: func(name: string, value: list<u8>) -> result<_, string>;
     remove: func(name: string) -> result<bool, string>;
 }
-
 interface local-files {
     read: func(path: string) -> result<list<u8>, string>;
 }
-
 interface catalog-store {
     read: func(namespace: string) -> result<option<list<u8>>, string>;
 }
-
 interface service-registry {
     record provider {
         component-id: string,
