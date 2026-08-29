@@ -7,9 +7,7 @@ wit_bindgen::generate!({
 use exports::ohrats::rc_transport::provider::Guest as ProviderGuest;
 use ohrats::{
     rc_plugin::types::Service,
-    rc_transport::types::{
-        AnswerPlan, AnswerRequest, Attempt, IceMode, IceServer, RouteClass, SelectedRoute,
-    },
+    rc_transport::types::{AnswerPlan, AnswerRequest, Attempt, IceMode, IceServer, RouteClass},
 };
 
 struct TestTransport;
@@ -42,9 +40,13 @@ impl Guest for TestTransport {
 }
 
 impl ProviderGuest for TestTransport {
-    fn plan_attempts(_transport: String, _ice_servers: Vec<IceServer>) -> Result<Vec<Attempt>, String> {
+    fn plan_attempts(
+        _transport: String,
+        _ice_servers: Vec<IceServer>,
+    ) -> Result<Vec<Attempt>, String> {
         Ok(vec![Attempt {
             mode: IceMode::Relay,
+            route: RouteClass::TurnRelay,
             gather_timeout_ms: 25,
             connect_timeout_ms: 50,
             retry_delay_ms: 0,
@@ -60,10 +62,6 @@ impl ProviderGuest for TestTransport {
             gather_timeout_ms: 100,
             connect_timeout_ms: 100,
         })
-    }
-
-    fn classify_route(_route: SelectedRoute) -> RouteClass {
-        RouteClass::Unknown
     }
 }
 

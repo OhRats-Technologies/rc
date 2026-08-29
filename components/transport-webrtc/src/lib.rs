@@ -7,10 +7,7 @@ wit_bindgen::generate!({
 use exports::ohrats::rc_transport::provider::Guest as ProviderGuest;
 use ohrats::{
     rc_plugin::types::Service,
-    rc_transport::types::{
-        AnswerPlan, AnswerRequest, Attempt, CandidateKind, IceMode, IceServer, RouteClass,
-        SelectedRoute,
-    },
+    rc_transport::types::{AnswerPlan, AnswerRequest, Attempt, IceMode, IceServer, RouteClass},
 };
 
 const MAX_SERVERS: usize = 8;
@@ -46,18 +43,39 @@ impl Guest for WebrtcTransport {
 }
 
 impl ProviderGuest for WebrtcTransport {
-    fn plan_attempts(transport: String, ice_servers: Vec<IceServer>) -> Result<Vec<Attempt>, String> {
+    fn plan_attempts(
+        transport: String,
+        ice_servers: Vec<IceServer>,
+    ) -> Result<Vec<Attempt>, String> {
         if transport != "webrtc" {
             return Err("unsupported transport".into());
         }
         let has_stun = has_scheme(&ice_servers, &["stun:", "stuns:"])?;
         let has_turn = has_scheme(&ice_servers, &["turn:", "turns:"])?;
-        let mut attempts = vec![attempt(IceMode::Host, 2_000, 6_000, 0)];
+        let mut attempts = vec![attempt(
+            IceMode::Host,
+            RouteClass::DirectHost,
+            2_000,
+            6_000,
+            0,
+        )];
         if has_stun {
-            attempts.push(attempt(IceMode::Stun, 8_000, 12_000, 1_200));
+            attempts.push(attempt(
+                IceMode::Stun,
+                RouteClass::DirectStun,
+                8_000,
+                12_000,
+                1_200,
+            ));
         }
         if has_turn {
-            attempts.push(attempt(IceMode::Relay, 15_000, 18_000, 1_200));
+            attempts.push(attempt(
+                IceMode::Relay,
+                RouteClass::TurnRelay,
+                15_000,
+                18_000,
+                1_200,
+            ));
         }
         Ok(attempts)
     }
@@ -96,30 +114,18 @@ impl ProviderGuest for WebrtcTransport {
             connect_timeout_ms,
         })
     }
-
-    fn classify_route(route: SelectedRoute) -> RouteClass {
-        if route.local == CandidateKind::Relay || route.remote == CandidateKind::Relay {
-            RouteClass::TurnRelay
-        } else if route.local == CandidateKind::ServerReflexive
-            || route.remote == CandidateKind::ServerReflexive
-        {
-            RouteClass::DirectStun
-        } else if route.local == CandidateKind::Host && route.remote == CandidateKind::Host {
-            RouteClass::DirectHost
-        } else {
-            RouteClass::Unknown
-        }
-    }
 }
 
 fn attempt(
     mode: IceMode,
+    route: RouteClass,
     gather_timeout_ms: u32,
     connect_timeout_ms: u32,
     retry_delay_ms: u32,
 ) -> Attempt {
     Attempt {
         mode,
+        route,
         gather_timeout_ms,
         connect_timeout_ms,
         retry_delay_ms,
@@ -197,7 +203,10 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            attempts.iter().map(|attempt| attempt.mode).collect::<Vec<_>>(),
+            attempts
+                .iter()
+                .map(|attempt| attempt.mode)
+                .collect::<Vec<_>>(),
             [IceMode::Host, IceMode::Stun, IceMode::Relay]
         );
     }

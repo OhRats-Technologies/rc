@@ -1,7 +1,7 @@
 use super::values;
 use crate::{descriptor::SelectionMode, service::ServiceRegistry};
 use rc_node::{TransportAnswerPlan, TransportAnswerRequest, TransportPolicy};
-use rc_protocol::{ControlIceAttempt, ControlIceMode, IceServer};
+use rc_protocol::{ControlIceAttempt, ControlIceMode, ControlRouteClass, IceServer};
 use semver::VersionReq;
 use std::time::Duration;
 use wasmtime::component::Val;
@@ -108,6 +108,12 @@ fn attempt_from_value(value: Val) -> Result<ControlIceAttempt, String> {
             "stun" => ControlIceMode::Stun,
             "relay" => ControlIceMode::Relay,
             _ => return Err("transport policy returned an invalid ICE mode".into()),
+        },
+        route: match values::enum_field(&fields, "route")?.as_str() {
+            "direct-host" => ControlRouteClass::DirectHost,
+            "direct-stun" => ControlRouteClass::DirectStun,
+            "turn-relay" => ControlRouteClass::TurnRelay,
+            _ => ControlRouteClass::Unknown,
         },
         gather_timeout_ms: values::u32_field(&fields, "gather-timeout-ms")?,
         connect_timeout_ms: values::u32_field(&fields, "connect-timeout-ms")?,

@@ -24,9 +24,19 @@ pub enum ControlIceMode {
 #[serde(rename_all = "camelCase")]
 pub struct ControlIceAttempt {
     pub mode: ControlIceMode,
+    pub route: ControlRouteClass,
     pub gather_timeout_ms: u32,
     pub connect_timeout_ms: u32,
     pub retry_delay_ms: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlRouteClass {
+    DirectHost,
+    DirectStun,
+    TurnRelay,
+    Unknown,
 }
 
 pub fn control_attempts_payload(attempts: &[ControlIceAttempt]) -> String {
@@ -34,11 +44,17 @@ pub fn control_attempts_payload(attempts: &[ControlIceAttempt]) -> String {
         .iter()
         .map(|attempt| {
             format!(
-                "{}:{}:{}:{}",
+                "{}:{}:{}:{}:{}",
                 match attempt.mode {
                     ControlIceMode::Host => "host",
                     ControlIceMode::Stun => "stun",
                     ControlIceMode::Relay => "relay",
+                },
+                match attempt.route {
+                    ControlRouteClass::DirectHost => "direct-host",
+                    ControlRouteClass::DirectStun => "direct-stun",
+                    ControlRouteClass::TurnRelay => "turn-relay",
+                    ControlRouteClass::Unknown => "unknown",
                 },
                 attempt.gather_timeout_ms,
                 attempt.connect_timeout_ms,

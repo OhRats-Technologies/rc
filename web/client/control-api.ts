@@ -11,6 +11,7 @@ export function controlOpen(input: { deviceId: string; challenge: string; client
 }
 
 export type ControlIceAttempt = { mode: "host" | "stun" | "relay"; gatherTimeoutMs: number;
+  route: "direct-host" | "direct-stun" | "turn-relay" | "unknown";
   connectTimeoutMs: number; retryDelayMs: number };
 
 export function controlWebRTC(

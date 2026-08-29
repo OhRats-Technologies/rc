@@ -3,7 +3,7 @@ use rc_node::{
     ProcessStartPlan, ProcessStartRequest, ProcessTerminalSize, TransportAnswerPlan,
     TransportAnswerRequest, TransportPolicy,
 };
-use rc_protocol::{ControlIceAttempt, ControlIceMode, IceServer};
+use rc_protocol::{ControlIceAttempt, ControlIceMode, ControlRouteClass, IceServer};
 use std::{sync::Arc, time::Duration};
 
 pub fn pair() -> (Arc<dyn ProcessPolicy>, Arc<dyn TransportPolicy>) {
@@ -42,6 +42,7 @@ impl TransportPolicy for Transport {
     fn attempts(&self, _: Vec<IceServer>) -> Result<Vec<ControlIceAttempt>, String> {
         Ok(vec![ControlIceAttempt {
             mode: ControlIceMode::Host,
+            route: ControlRouteClass::DirectHost,
             gather_timeout_ms: 2_000,
             connect_timeout_ms: 6_000,
             retry_delay_ms: 0,

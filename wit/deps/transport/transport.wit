@@ -26,16 +26,10 @@ interface types {
 
     record attempt {
         mode: ice-mode,
+        route: route-class,
         gather-timeout-ms: u32,
         connect-timeout-ms: u32,
         retry-delay-ms: u32,
-    }
-
-    enum candidate-kind {
-        host,
-        server-reflexive,
-        relay,
-        unknown,
     }
 
     enum route-class {
@@ -45,14 +39,10 @@ interface types {
         unknown,
     }
 
-    record selected-route {
-        local: candidate-kind,
-        remote: candidate-kind,
-    }
 }
 
 interface provider {
-    use types.{answer-plan, answer-request, attempt, ice-server, route-class, selected-route};
+    use types.{answer-plan, answer-request, attempt, ice-server};
 
     plan-attempts: func(
         transport: string,
@@ -63,5 +53,4 @@ interface provider {
         transport: string,
         request: answer-request,
     ) -> result<answer-plan, string>;
-    classify-route: func(route: selected-route) -> route-class;
 }

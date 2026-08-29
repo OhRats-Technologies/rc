@@ -169,7 +169,7 @@ pub(super) async fn open_control(harness: &mut Harness) -> anyhow::Result<Sessio
         &transport_public,
         &ephemeral_public,
         &session_id,
-        "host:2000:6000:0",
+        "host:direct-host:2000:6000:0",
     );
     verify_ed25519(
         &harness.node.identity_public_key()?,

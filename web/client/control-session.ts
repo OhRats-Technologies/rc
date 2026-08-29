@@ -21,7 +21,7 @@ function sessionPayload(challenge: string, deviceId: string, clientId: string, p
 }
 function readyPayload(challenge: string, deviceId: string, clientId: string, publicKey: string,
   transportKey: string, ephemeralKey: string, sessionId: string, attempts: import("./control-api").ControlIceAttempt[]) {
-  const plan = attempts.map(attempt => `${attempt.mode}:${attempt.gatherTimeoutMs}:${attempt.connectTimeoutMs}:${attempt.retryDelayMs}`).join(",");
+  const plan = attempts.map(attempt => `${attempt.mode}:${attempt.route}:${attempt.gatherTimeoutMs}:${attempt.connectTimeoutMs}:${attempt.retryDelayMs}`).join(",");
   return `rc-ready-v3\n${challenge}\n${deviceId}\n${clientId}\n${publicKey}\n${transportKey}\n${ephemeralKey}\n${sessionId}\n${plan}`;
 }
 

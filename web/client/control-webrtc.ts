@@ -8,6 +8,7 @@ export type ControlTransportStatus = {
   transport: "webrtc"; phase?: "connecting" | "connected" | "failed"; reason?: string;
   iceState?: string; connectionState?: string; localCandidates?: CandidateSummary; remoteCandidates?: CandidateSummary;
   selected?: { localType?: string; remoteType?: string; protocol?: string };
+  route?: ControlIceAttempt["route"];
 };
 
 type StatusReporter = (status: ControlTransportStatus) => void;
@@ -146,6 +147,7 @@ export async function openWebRTCControlTransport(deviceId: string, sessionId: st
     const selected = await selectedPair(peer);
     publish({ transport: "webrtc", phase: "connected", iceState: peer.iceConnectionState,
       connectionState: peer.connectionState, localCandidates, remoteCandidates, selected,
+      route: attempt.route,
       reason: fallbackReason ? `Direct WebRTC failed before relay fallback: ${fallbackReason}` : undefined });
   } catch (error) {
     closing = true;
