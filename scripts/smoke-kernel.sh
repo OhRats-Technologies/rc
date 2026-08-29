@@ -4,15 +4,20 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
-  scripts/build-component.sh components/fixture-provider >/dev/null
-  scripts/build-component.sh components/fixture-consumer >/dev/null
-  scripts/build-component.sh components/call-context-consumer >/dev/null
-  scripts/build-component.sh components/fixture-broken >/dev/null
-  scripts/build-component.sh components/fixture-collision >/dev/null
-  scripts/build-component.sh components/fixture-trap >/dev/null
-  scripts/build-component.sh components/fixture-limit >/dev/null
-fi
+for fixture in \
+  fixture-provider \
+  fixture-consumer \
+  call-context-consumer \
+  fixture-broken \
+  fixture-collision \
+  fixture-trap \
+  fixture-limit
+do
+  if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ] ||
+    [ ! -f "dist/components/$fixture.wasm" ]; then
+    scripts/build-component.sh "components/$fixture" >/dev/null
+  fi
+done
 for fixture in provider consumer broken collision trap limit; do
   test -f "dist/components/fixture-$fixture.wasm" || {
     echo "missing fixture artifact: fixture-$fixture.wasm" >&2

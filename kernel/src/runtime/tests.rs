@@ -31,7 +31,6 @@ fn invalid_existing_path_is_not_a_removal() -> anyhow::Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn starts_with_a_writable_temporary_root() {
     let root = tempfile::tempdir().unwrap();
