@@ -77,6 +77,9 @@ test "$replacement_status" = 200
 kill "$limit_pid_b"
 wait "$limit_pid_b" 2>/dev/null || true
 limit_pid_b=
+# The timed-out replacement stream is released asynchronously by the producer's
+# bounded disconnect check. Give it one full check interval before consuming both slots.
+sleep 0.08
 
 curl -fsS --no-buffer http://127.0.0.1:32179/events >/dev/null &
 event_pid=$!
