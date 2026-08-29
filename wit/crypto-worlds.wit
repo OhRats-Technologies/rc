@@ -4,3 +4,9 @@ world crypto-ed25519 {
     include plugin;
     export ohrats:rc-crypto/verifier@0.1.0;
 }
+
+world crypto-control {
+    include plugin;
+    import ohrats:rc-keys/host-custody@0.1.0;
+    export ohrats:rc-crypto/control@0.1.0;
+}

@@ -1,0 +1,7 @@
+schema = 1
+
+[profile]
+id = "ohrats:control-crypto-smoke"
+components = [
+  "crypto-control",
+]

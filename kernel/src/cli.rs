@@ -58,6 +58,10 @@ enum KernelCommand {
     PolicyCheck,
     #[command(hide = true)]
     PolicyProbe,
+    #[command(hide = true)]
+    CryptoCheck,
+    #[command(hide = true)]
+    CryptoProbe,
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -108,6 +112,8 @@ pub fn run() -> anyhow::Result<()> {
         ),
         Some(KernelCommand::PolicyCheck) => node::check(&runtime),
         Some(KernelCommand::PolicyProbe) => node::probe(runtime),
+        Some(KernelCommand::CryptoCheck) => node::crypto_check(&runtime),
+        Some(KernelCommand::CryptoProbe) => node::crypto_probe(runtime),
         None => dispatch_plugin(&mut runtime, arguments.plugin_args),
     }
 }

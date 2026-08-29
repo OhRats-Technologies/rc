@@ -3,6 +3,7 @@ package ohrats:rc-keys@0.1.0;
 interface types {
     enum key-algorithm {
         ed25519,
+        x25519,
     }
 
     record public-key {
@@ -17,14 +18,37 @@ interface types {
 interface host-custody {
     use types.{key-algorithm, public-key};
 
+    resource shared-secret;
+
+    resource session-key {
+        encrypt: func(
+            nonce: list<u8>,
+            aad: list<u8>,
+            plaintext: list<u8>,
+        ) -> result<list<u8>, string>;
+        decrypt: func(
+            nonce: list<u8>,
+            aad: list<u8>,
+            ciphertext: list<u8>,
+        ) -> result<list<u8>, string>;
+    }
+
     resource secret-key {
         public-key: func() -> result<public-key, string>;
         sign: func(payload: list<u8>) -> result<list<u8>, string>;
+        agree: func(peer-public: list<u8>) -> result<shared-secret, string>;
     }
 
     open: func(slot: string, algorithm: key-algorithm) -> result<option<secret-key>, string>;
     ensure: func(slot: string, algorithm: key-algorithm) -> result<secret-key, string>;
+    generate: func(algorithm: key-algorithm) -> result<secret-key, string>;
     remove: func(slot: string, algorithm: key-algorithm) -> result<bool, string>;
+    derive: func(
+        first: borrow<shared-secret>,
+        second: borrow<shared-secret>,
+        salt: list<u8>,
+        info: list<u8>,
+    ) -> result<session-key, string>;
 }
 
 /// Component-facing custody service. Providers may use the local host vault or

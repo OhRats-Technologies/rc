@@ -162,6 +162,7 @@ RUNTIME_TOOLING = {
         "key-custody-fixture",
         "key-custody-local",
     },
+    "scripts/smoke-control-crypto.sh": {"crypto-control"},
     "scripts/smoke-api-credentials.sh": {
         "api-credential-fixture",
         "api-credential-store",

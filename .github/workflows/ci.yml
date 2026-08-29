@@ -367,6 +367,32 @@ jobs:
           add-job-id-key: false
       - run: scripts/smoke-keys.sh
 
+  control-crypto-runtime:
+    needs: [changes, components]
+    if: >-
+      always() &&
+      (needs.changes.outputs.kernel == 'true' ||
+       contains(needs.changes.outputs.components, 'crypto-control'))
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/crypto-control -> target
+          shared-key: rc-control-crypto-runtime
+          add-job-id-key: false
+      - run: scripts/smoke-control-crypto.sh
+
   diagnostics-runtime:
     needs: [changes, components]
     if: >-

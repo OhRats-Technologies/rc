@@ -94,18 +94,26 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertFalse(value["kernel"])
         self.assertEqual(
             value["components"],
-            ["authority-store", "crypto-ed25519", "key-custody-fixture"],
+            [
+                "authority-store",
+                "crypto-control",
+                "crypto-ed25519",
+                "key-custody-fixture",
+            ],
         )
-        self.assertEqual(value["profiles"], ["authority-smoke", "keys-smoke"])
+        self.assertEqual(
+            value["profiles"],
+            ["authority-smoke", "control-crypto-smoke", "keys-smoke"],
+        )
 
     def test_keys_wit_change_rebuilds_kernel_and_custody_units(self) -> None:
         value = self.resolve("wit/deps/keys/keys.wit")
         self.assertTrue(value["kernel"])
         self.assertEqual(
             value["components"],
-            ["key-custody-fixture", "key-custody-local"],
+            ["crypto-control", "key-custody-fixture", "key-custody-local"],
         )
-        self.assertEqual(value["profiles"], ["keys-smoke"])
+        self.assertEqual(value["profiles"], ["control-crypto-smoke", "keys-smoke"])
 
     def test_transport_wit_change_rebuilds_kernel_and_providers(self) -> None:
         value = self.resolve("wit/deps/transport/transport.wit")
@@ -211,6 +219,11 @@ class AffectedUnitsTests(unittest.TestCase):
             value["components"],
             ["crypto-ed25519", "key-custody-fixture", "key-custody-local"],
         )
+
+    def test_control_crypto_runtime_smoke_selects_its_graph(self) -> None:
+        value = self.resolve("scripts/smoke-control-crypto.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["crypto-control"])
 
     def test_artifact_cache_runtime_smoke_selects_its_graph(self) -> None:
         value = self.resolve("scripts/smoke-artifact-cache.sh")

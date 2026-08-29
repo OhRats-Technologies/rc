@@ -22,3 +22,41 @@ interface verifier {
     ) -> result<bool, string>;
     sha256: func(value: list<u8>) -> list<u8>;
 }
+
+/// Kernel-owned secret mechanics. Shared and derived session keys never become
+/// WIT byte values; the selectable control suite supplies salt, info, nonce,
+/// and authenticated-data policy.
+interface control {
+    resource session;
+
+    record node-open {
+        session: session,
+        static-public-key: string,
+        ephemeral-public-key: string,
+    }
+
+    static-slot: func(device-id: string) -> string;
+    static-public: func(device-id: string) -> result<string, string>;
+    open-node: func(
+        device-id: string,
+        client-id: string,
+        challenge: string,
+        client-public-key: string,
+    ) -> result<node-open, string>;
+    encrypt: func(
+        session: borrow<session>,
+        direction: u8,
+        sequence: u64,
+        session-id: string,
+        label: string,
+        plaintext: list<u8>,
+    ) -> result<string, string>;
+    decrypt: func(
+        session: borrow<session>,
+        direction: u8,
+        sequence: u64,
+        session-id: string,
+        label: string,
+        ciphertext: string,
+    ) -> result<list<u8>, string>;
+}

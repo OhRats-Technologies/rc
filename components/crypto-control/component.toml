@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:crypto-control"
+version = "0.1.0"
+world = "ohrats:rc-plugin/crypto-control@0.1.0"
+wit = ["crypto", "keys", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-crypto-control"
+artifact = "crypto-control"

@@ -2,6 +2,7 @@ mod bindings;
 mod cli;
 mod component;
 mod config;
+mod control_primitives;
 mod database;
 mod descriptor;
 mod durable;

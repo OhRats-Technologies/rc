@@ -16,7 +16,7 @@ use std::{
 };
 use wasmtime::{
     Store,
-    component::{Func, Val},
+    component::{Func, ResourceAny, Val},
 };
 
 mod call;
@@ -82,6 +82,12 @@ impl PinnedProvider {
         params: &[Val],
     ) -> wasmtime::Result<Vec<Val>> {
         call::provider_owned(self, service, function, params)
+    }
+
+    pub(crate) fn drop_resource(&self, resource: ResourceAny) -> wasmtime::Result<()> {
+        self.provider
+            .handle
+            .with_active(|active| resource.resource_drop(&mut active.store))
     }
 }
 

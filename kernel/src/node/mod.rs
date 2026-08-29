@@ -1,3 +1,4 @@
+mod crypto;
 mod process;
 mod transport;
 mod values;
@@ -114,6 +115,14 @@ pub fn check(runtime: &Runtime) -> anyhow::Result<()> {
     );
     println!("node component policies: ok");
     Ok(())
+}
+
+pub fn crypto_check(runtime: &Runtime) -> anyhow::Result<()> {
+    crypto::check(runtime)
+}
+
+pub fn crypto_probe(runtime: Runtime) -> anyhow::Result<()> {
+    crypto::probe(runtime)
 }
 
 pub fn probe(mut runtime: Runtime) -> anyhow::Result<()> {

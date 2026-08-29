@@ -1,55 +1,86 @@
 use crate::{
     bindings::ohrats::rc_keys::{
-        host_custody::{Host, HostSecretKey, SecretKey},
+        host_custody::{
+            Host, HostSecretKey, HostSharedSecret, SecretKey, SessionKey, SharedSecret,
+        },
         types::{KeyAlgorithm, PublicKey},
     },
-    config,
     host::HostState,
 };
 use ed25519_dalek::{Signer, SigningKey};
-use sha2::{Digest, Sha256};
-use std::{
-    collections::BTreeMap,
-    fs,
-    io::Write,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeMap;
 use wasmtime::component::Resource;
+use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret};
+
+mod storage;
 
 const KEY_BYTES: usize = 32;
-const MAX_SLOT_BYTES: usize = 128;
 const MAX_SIGN_BYTES: usize = 2 * 1024 * 1024;
 
-pub struct ProtectedKey {
-    key: SigningKey,
+enum ProtectedKey {
+    Ed25519(SigningKey),
+    X25519(StaticSecret),
+}
+
+struct SharedSecretValue {
+    bytes: [u8; KEY_BYTES],
 }
 
 #[derive(Default)]
 pub(crate) struct KeyHandles {
     next: u32,
-    values: BTreeMap<u32, ProtectedKey>,
+    keys: BTreeMap<u32, ProtectedKey>,
+    shared: BTreeMap<u32, SharedSecretValue>,
 }
 
 impl KeyHandles {
-    fn insert(&mut self, value: ProtectedKey) -> Result<Resource<SecretKey>, String> {
+    fn next(&mut self) -> Result<u32, String> {
         let rep = self
             .next
             .checked_add(1)
             .ok_or("protected key handle space exhausted")?;
         self.next = rep;
-        self.values.insert(rep, value);
+        Ok(rep)
+    }
+
+    fn insert_key(&mut self, value: ProtectedKey) -> Result<Resource<SecretKey>, String> {
+        let rep = self.next()?;
+        self.keys.insert(rep, value);
         Ok(Resource::new_own(rep))
     }
 
-    fn get(&self, key: &Resource<SecretKey>) -> Result<&ProtectedKey, String> {
-        self.values
+    fn key(&self, key: &Resource<SecretKey>) -> Result<&ProtectedKey, String> {
+        self.keys
             .get(&key.rep())
             .ok_or_else(|| "unknown protected key handle".to_owned())
     }
 
-    fn remove(&mut self, key: Resource<SecretKey>) -> wasmtime::Result<()> {
-        if self.values.remove(&key.rep()).is_none() {
+    fn remove_key(&mut self, key: Resource<SecretKey>) -> wasmtime::Result<()> {
+        if self.keys.remove(&key.rep()).is_none() {
             return Err(wasmtime::Error::msg("unknown protected key handle"));
+        }
+        Ok(())
+    }
+
+    fn insert_shared(&mut self, bytes: [u8; KEY_BYTES]) -> Result<Resource<SharedSecret>, String> {
+        let rep = self.next()?;
+        self.shared.insert(rep, SharedSecretValue { bytes });
+        Ok(Resource::new_own(rep))
+    }
+
+    pub(crate) fn shared_bytes(
+        &self,
+        value: &Resource<SharedSecret>,
+    ) -> Result<[u8; KEY_BYTES], String> {
+        self.shared
+            .get(&value.rep())
+            .map(|value| value.bytes)
+            .ok_or_else(|| "unknown shared-secret handle".to_owned())
+    }
+
+    fn remove_shared(&mut self, value: Resource<SharedSecret>) -> wasmtime::Result<()> {
+        if self.shared.remove(&value.rep()).is_none() {
+            return Err(wasmtime::Error::msg("unknown shared-secret handle"));
         }
         Ok(())
     }
@@ -61,13 +92,11 @@ impl Host for HostState {
         slot: String,
         algorithm: KeyAlgorithm,
     ) -> Result<Option<Resource<SecretKey>>, String> {
-        validate_slot(&slot)?;
-        ensure_ed25519(algorithm)?;
-        let path = key_path(self, &slot)?;
-        let Some(key) = load(&path)? else {
+        storage::validate_slot(&slot)?;
+        let Some(key) = load_key(self, &slot, algorithm)? else {
             return Ok(None);
         };
-        self.key_handles.insert(ProtectedKey { key }).map(Some)
+        self.key_handles.insert_key(key).map(Some)
     }
 
     fn ensure(
@@ -75,187 +104,131 @@ impl Host for HostState {
         slot: String,
         algorithm: KeyAlgorithm,
     ) -> Result<Resource<SecretKey>, String> {
-        validate_slot(&slot)?;
-        ensure_ed25519(algorithm)?;
-        let path = key_path(self, &slot)?;
-        if let Some(key) = load(&path)? {
-            return self.key_handles.insert(ProtectedKey { key });
+        storage::validate_slot(&slot)?;
+        if let Some(key) = load_key(self, &slot, algorithm)? {
+            return self.key_handles.insert_key(key);
         }
-        let mut bytes = [0_u8; KEY_BYTES];
-        getrandom::fill(&mut bytes).map_err(display)?;
-        let generated = SigningKey::from_bytes(&bytes);
-        let created = persist_new(&path, &bytes)?;
+        let mut bytes = random_bytes()?;
+        let generated = key_from_bytes(algorithm, &bytes);
+        let created = storage::persist_new(self, &slot, algorithm, &bytes)?;
         bytes.fill(0);
         let key = if created {
             generated
         } else {
-            load(&path)?.ok_or_else(|| "protected key creation raced with removal".to_owned())?
+            load_key(self, &slot, algorithm)?
+                .ok_or_else(|| "protected key creation raced with removal".to_owned())?
         };
-        self.key_handles.insert(ProtectedKey { key })
+        self.key_handles.insert_key(key)
+    }
+
+    fn generate(&mut self, algorithm: KeyAlgorithm) -> Result<Resource<SecretKey>, String> {
+        let mut bytes = random_bytes()?;
+        let key = key_from_bytes(algorithm, &bytes);
+        bytes.fill(0);
+        self.key_handles.insert_key(key)
     }
 
     fn remove(&mut self, slot: String, algorithm: KeyAlgorithm) -> Result<bool, String> {
-        validate_slot(&slot)?;
-        ensure_ed25519(algorithm)?;
-        let path = key_path(self, &slot)?;
-        match fs::remove_file(&path) {
-            Ok(()) => {
-                sync_directory(path.parent().ok_or("protected key path has no parent")?)?;
-                Ok(true)
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-            Err(error) => Err(error.to_string()),
-        }
+        storage::validate_slot(&slot)?;
+        storage::remove(self, &slot, algorithm)
+    }
+
+    fn derive(
+        &mut self,
+        first: Resource<SharedSecret>,
+        second: Resource<SharedSecret>,
+        salt: Vec<u8>,
+        info: Vec<u8>,
+    ) -> Result<Resource<SessionKey>, String> {
+        crate::control_primitives::derive(self, first, second, salt, info)
     }
 }
 
 impl HostSecretKey for HostState {
     fn public_key(&mut self, key: Resource<SecretKey>) -> Result<PublicKey, String> {
-        let key = self.key_handles.get(&key)?;
-        Ok(PublicKey {
-            algorithm: KeyAlgorithm::Ed25519,
-            bytes: key.key.verifying_key().to_bytes().to_vec(),
-        })
+        public_key(self.key_handles.key(&key)?)
     }
 
     fn sign(&mut self, key: Resource<SecretKey>, payload: Vec<u8>) -> Result<Vec<u8>, String> {
         if payload.len() > MAX_SIGN_BYTES {
             return Err("protected-key signing payload exceeds 2 MiB".into());
         }
-        let key = self.key_handles.get(&key)?;
-        Ok(key.key.sign(&payload).to_bytes().to_vec())
+        match self.key_handles.key(&key)? {
+            ProtectedKey::Ed25519(key) => Ok(key.sign(&payload).to_bytes().to_vec()),
+            ProtectedKey::X25519(_) => Err("X25519 keys do not support signing".into()),
+        }
+    }
+
+    fn agree(
+        &mut self,
+        key: Resource<SecretKey>,
+        peer_public: Vec<u8>,
+    ) -> Result<Resource<SharedSecret>, String> {
+        let peer: [u8; KEY_BYTES] = peer_public
+            .try_into()
+            .map_err(|_| "invalid X25519 peer public key length".to_owned())?;
+        let bytes = match self.key_handles.key(&key)? {
+            ProtectedKey::X25519(secret) => *secret
+                .diffie_hellman(&X25519PublicKey::from(peer))
+                .as_bytes(),
+            ProtectedKey::Ed25519(_) => return Err("Ed25519 keys do not support agreement".into()),
+        };
+        self.key_handles.insert_shared(bytes)
     }
 
     fn drop(&mut self, key: Resource<SecretKey>) -> wasmtime::Result<()> {
-        self.key_handles.remove(key)
+        self.key_handles.remove_key(key)
     }
 }
 
-fn key_path(state: &HostState, slot: &str) -> Result<PathBuf, String> {
-    let owner = digest(state.plugin_id().as_bytes());
-    let slot = digest(slot.as_bytes());
-    let directory = state.environment.state_dir.join("keys").join(owner);
-    config::prepare_private_dir(&directory).map_err(display)?;
-    Ok(directory.join(format!("{slot}.ed25519")))
-}
-
-fn load(path: &Path) -> Result<Option<SigningKey>, String> {
-    match fs::symlink_metadata(path) {
-        Ok(metadata) => {
-            if metadata.file_type().is_symlink() || !metadata.is_file() {
-                return Err("protected key path is not a regular file".into());
-            }
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt as _;
-                if metadata.permissions().mode() & 0o077 != 0 {
-                    return Err("protected key file permissions are too broad".into());
-                }
-            }
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(error.to_string()),
-    }
-    match fs::read(path) {
-        Ok(bytes) => {
-            let secret: [u8; KEY_BYTES] = bytes
-                .as_slice()
-                .try_into()
-                .map_err(|_| "protected key file has invalid length".to_owned())?;
-            Ok(Some(SigningKey::from_bytes(&secret)))
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.to_string()),
+impl HostSharedSecret for HostState {
+    fn drop(&mut self, value: Resource<SharedSecret>) -> wasmtime::Result<()> {
+        self.key_handles.remove_shared(value)
     }
 }
 
-fn persist_new(path: &Path, bytes: &[u8; KEY_BYTES]) -> Result<bool, String> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| "protected key path has no parent".to_owned())?;
-    config::prepare_private_dir(parent).map_err(display)?;
-    let temporary = parent.join(format!(
-        ".key.{}.{}.tmp",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_err(display)?
-            .as_nanos()
-    ));
-    write_private(&temporary, bytes)?;
-    match fs::hard_link(&temporary, path) {
-        Ok(()) => {
-            let _ = fs::remove_file(&temporary);
-            sync_directory(parent)?;
-            Ok(true)
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-            let _ = fs::remove_file(&temporary);
-            Ok(false)
-        }
-        Err(error) => {
-            let _ = fs::remove_file(&temporary);
-            Err(error.to_string())
-        }
-    }
+fn load_key(
+    state: &HostState,
+    slot: &str,
+    algorithm: KeyAlgorithm,
+) -> Result<Option<ProtectedKey>, String> {
+    let Some(mut bytes) = storage::load(state, slot, algorithm)? else {
+        return Ok(None);
+    };
+    let key = key_from_bytes(algorithm, &bytes);
+    bytes.fill(0);
+    Ok(Some(key))
 }
 
-fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt as _;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path).map_err(|error| error.to_string())?;
-    file.write_all(bytes).map_err(|error| error.to_string())?;
-    file.sync_all().map_err(|error| error.to_string())?;
-    Ok(())
-}
-
-#[cfg(unix)]
-fn sync_directory(path: &Path) -> Result<(), String> {
-    fs::File::open(path)
-        .and_then(|file| file.sync_all())
-        .map_err(display)
-}
-
-#[cfg(not(unix))]
-fn sync_directory(_: &Path) -> Result<(), String> {
-    Ok(())
-}
-
-fn ensure_ed25519(algorithm: KeyAlgorithm) -> Result<(), String> {
+fn key_from_bytes(algorithm: KeyAlgorithm, bytes: &[u8; KEY_BYTES]) -> ProtectedKey {
     match algorithm {
-        KeyAlgorithm::Ed25519 => Ok(()),
+        KeyAlgorithm::Ed25519 => ProtectedKey::Ed25519(SigningKey::from_bytes(bytes)),
+        KeyAlgorithm::X25519 => ProtectedKey::X25519(StaticSecret::from(*bytes)),
     }
 }
 
-fn validate_slot(slot: &str) -> Result<(), String> {
-    if slot.is_empty()
-        || slot.len() > MAX_SLOT_BYTES
-        || !slot.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/')
-        })
-    {
-        Err("invalid protected key slot".into())
-    } else {
-        Ok(())
+fn public_key(key: &ProtectedKey) -> Result<PublicKey, String> {
+    match key {
+        ProtectedKey::Ed25519(key) => Ok(PublicKey {
+            algorithm: KeyAlgorithm::Ed25519,
+            bytes: key.verifying_key().to_bytes().to_vec(),
+        }),
+        ProtectedKey::X25519(key) => Ok(PublicKey {
+            algorithm: KeyAlgorithm::X25519,
+            bytes: X25519PublicKey::from(key).as_bytes().to_vec(),
+        }),
     }
 }
 
-fn digest(value: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(value))
-}
-
-fn display(error: impl std::fmt::Display) -> String {
-    error.to_string()
+fn random_bytes() -> Result<[u8; KEY_BYTES], String> {
+    let mut bytes = [0_u8; KEY_BYTES];
+    getrandom::fill(&mut bytes).map_err(|error| error.to_string())?;
+    Ok(bytes)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::validate_slot;
+    use super::storage::validate_slot;
 
     #[test]
     fn slot_names_are_bounded_and_non_path_authoritative() {
