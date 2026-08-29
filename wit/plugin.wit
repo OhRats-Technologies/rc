@@ -46,7 +46,9 @@ interface host {
     use types.{log-level};
     log: func(level: log-level, message: string);
 }
-
+interface call-context {
+    caller-component-id: func() -> option<string>;
+}
 interface component-store {
     record installed-component {
         name: string,
@@ -133,10 +135,10 @@ interface package-source {
 interface greeter {
     greet: func(name: string) -> string;
 }
-
 world plugin {
     use types.{descriptor};
     import host;
+    import call-context;
 
     export descriptor: func() -> descriptor;
     export activate: func() -> result<_, string>;

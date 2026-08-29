@@ -1,7 +1,13 @@
-use crate::bindings::ohrats::rc_plugin::host::{Host, LogLevel};
+use crate::bindings::ohrats::rc_plugin::{
+    call_context::Host as CallContextHost,
+    host::{Host, LogLevel},
+};
 use crate::{database::Database, service::ServiceRegistry};
 use reqwest::blocking::Client;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 use wasmtime::{Cache, CacheConfig, Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
@@ -60,6 +66,7 @@ pub struct HostState {
     wasi: WasiCtx,
     limits: StoreLimits,
     plugin_id: String,
+    call_context: CallContext,
     pub environment: HostEnvironment,
     pub registry: ServiceRegistry,
 }
@@ -80,6 +87,7 @@ impl HostState {
                 .trap_on_grow_failure(true)
                 .build(),
             plugin_id,
+            call_context: CallContext::default(),
             environment,
             registry,
         }
@@ -91,6 +99,36 @@ impl HostState {
 
     pub fn set_plugin_id(&mut self, plugin_id: String) {
         self.plugin_id = plugin_id;
+    }
+
+    pub(crate) fn push_caller(&self, caller: String) -> CallContextGuard {
+        self.call_context.push(caller)
+    }
+}
+
+#[derive(Clone, Default)]
+struct CallContext(Arc<Mutex<Vec<String>>>);
+
+impl CallContext {
+    fn push(&self, caller: String) -> CallContextGuard {
+        self.0.lock().expect("call context poisoned").push(caller);
+        CallContextGuard(self.clone())
+    }
+
+    fn caller(&self) -> Option<String> {
+        self.0
+            .lock()
+            .expect("call context poisoned")
+            .last()
+            .cloned()
+    }
+}
+
+pub(crate) struct CallContextGuard(CallContext);
+
+impl Drop for CallContextGuard {
+    fn drop(&mut self) {
+        self.0.0.lock().expect("call context poisoned").pop();
     }
 }
 
@@ -106,6 +144,12 @@ impl WasiView for HostState {
 impl Host for HostState {
     fn log(&mut self, level: LogLevel, message: String) {
         eprintln!("[{}] {level:?}: {message}", self.plugin_id);
+    }
+}
+
+impl CallContextHost for HostState {
+    fn caller_component_id(&mut self) -> Option<String> {
+        self.call_context.caller()
     }
 }
 
@@ -135,6 +179,10 @@ pub fn store(
 pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> anyhow::Result<()> {
     wasmtime_wasi::p2::add_to_linker_sync(linker)?;
     crate::bindings::ohrats::rc_plugin::host::add_to_linker::<
+        HostState,
+        wasmtime::component::HasSelf<HostState>,
+    >(linker, |state| state)?;
+    crate::bindings::ohrats::rc_plugin::call_context::add_to_linker::<
         HostState,
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;
@@ -171,4 +219,36 @@ pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> 
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CallContext;
+
+    #[test]
+    fn call_context_is_nested_and_restored() {
+        let context = CallContext::default();
+        assert_eq!(context.caller(), None);
+        let outer = context.push("component-a".into());
+        assert_eq!(context.caller().as_deref(), Some("component-a"));
+        {
+            let _inner = context.push("component-b".into());
+            assert_eq!(context.caller().as_deref(), Some("component-b"));
+        }
+        assert_eq!(context.caller().as_deref(), Some("component-a"));
+        drop(outer);
+        assert_eq!(context.caller(), None);
+    }
+
+    #[test]
+    fn call_context_is_restored_during_unwind() {
+        let context = CallContext::default();
+        let unwind_context = context.clone();
+        let result = std::panic::catch_unwind(move || {
+            let _guard = unwind_context.push("component-a".into());
+            panic!("simulated provider trap");
+        });
+        assert!(result.is_err());
+        assert_eq!(context.caller(), None);
+    }
 }

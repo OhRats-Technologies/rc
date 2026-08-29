@@ -145,6 +145,7 @@ impl ServiceRegistry {
 
     fn call(
         &self,
+        caller: &str,
         service: &str,
         requirement: &VersionReq,
         selection: SelectionMode,
@@ -170,7 +171,7 @@ impl ServiceRegistry {
             .ok_or_else(|| {
                 wasmtime::format_err!("service {service} {requirement} is unavailable")
             })?;
-        call::provider(&provider, service, function, params, results)
+        call::provider(&provider, Some(caller), service, function, params, results)
     }
 
     pub fn call_all(

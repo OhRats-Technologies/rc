@@ -41,8 +41,10 @@ fn link_requirement(
         let version = requirement.version.clone();
         let selection = requirement.selection;
         let function_name = function.clone();
-        instance.func_new(function, move |_store, _ty, params, results| {
+        instance.func_new(function, move |store, _ty, params, results| {
+            let caller = store.data().plugin_id().to_owned();
             registry.call(
+                &caller,
                 &service,
                 &version,
                 selection,

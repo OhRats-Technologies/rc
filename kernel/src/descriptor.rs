@@ -188,6 +188,7 @@ fn domain_interface(name: &str, imports: bool) -> bool {
 fn kernel_interface(name: &str) -> bool {
     [
         "ohrats:rc-plugin/host@",
+        "ohrats:rc-plugin/call-context@",
         "ohrats:rc-plugin/component-store@",
         "ohrats:rc-plugin/artifact-cache@",
         "ohrats:rc-plugin/state-store@",
