@@ -16,6 +16,8 @@ use exports::{
     ohrats::rc_http::handler::Guest as HttpGuest,
     ohrats::rc_webui::{shell::Guest as ShellGuest, slots::Guest as SlotsGuest},
 };
+#[cfg(not(test))]
+use ohrats::rc_plugin::call_context;
 use ohrats::{
     rc_http::types::{Request, Response},
     rc_plugin::types::{Command, Service},
@@ -23,9 +25,17 @@ use ohrats::{
 };
 use std::{cell::RefCell, collections::BTreeMap};
 
+#[derive(Clone)]
+pub(crate) struct Owned<T> {
+    owner: String,
+    value: T,
+}
+
 thread_local! {
-    pub(crate) static PAGES: RefCell<BTreeMap<String, Page>> = const { RefCell::new(BTreeMap::new()) };
-    static CONTRIBUTIONS: RefCell<BTreeMap<String, Contribution>> = const { RefCell::new(BTreeMap::new()) };
+    pub(crate) static PAGES: RefCell<BTreeMap<String, Owned<Page>>> = const { RefCell::new(BTreeMap::new()) };
+    static CONTRIBUTIONS: RefCell<BTreeMap<String, Owned<Contribution>>> = const { RefCell::new(BTreeMap::new()) };
+    #[cfg(test)]
+    static TEST_CALLER: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 struct WebUiShell;
@@ -104,59 +114,63 @@ impl HttpGuest for WebUiShell {
 impl SlotsGuest for WebUiShell {
     fn register_page(value: Page) -> Result<(), String> {
         validate_page(&value)?;
+        let owner = caller()?;
         PAGES.with(|pages| {
-            pages.borrow_mut().insert(value.id.clone(), value);
-        });
-        Ok(())
+            insert_owned(
+                &mut pages.borrow_mut(),
+                owner,
+                value.id.clone(),
+                value,
+                "page",
+            )
+        })
     }
 
     fn remove_page(id: String) -> Result<bool, String> {
         validate_id(&id)?;
-        Ok(PAGES.with(|pages| pages.borrow_mut().remove(&id).is_some()))
+        let owner = caller()?;
+        PAGES.with(|pages| remove_owned(&mut pages.borrow_mut(), &owner, &id, "page"))
     }
 
     fn pages() -> Vec<Page> {
-        PAGES.with(|pages| pages.borrow().values().cloned().collect())
+        PAGES.with(|pages| {
+            pages
+                .borrow()
+                .values()
+                .map(|entry| entry.value.clone())
+                .collect()
+        })
     }
 
     fn register_contribution(value: Contribution) -> Result<(), String> {
         validate_id(&value.id)?;
-        validate_owner_id(&value.owner_id)?;
         if value.trusted_html.len() > 16 * 1024 {
             return Err("WebUI contribution is too large".into());
         }
+        let owner = caller()?;
         CONTRIBUTIONS.with(|values| {
-            let mut values = values.borrow_mut();
-            if values
-                .get(&value.id)
-                .is_some_and(|current| current.owner_id != value.owner_id)
-            {
-                return Err("WebUI contribution ID belongs to another component".into());
-            }
-            values.insert(value.id.clone(), value);
-            Ok(())
+            insert_owned(
+                &mut values.borrow_mut(),
+                owner,
+                value.id.clone(),
+                value,
+                "contribution",
+            )
         })
     }
 
-    fn remove_contribution(owner_id: String, id: String) -> Result<bool, String> {
-        validate_owner_id(&owner_id)?;
+    fn remove_contribution(id: String) -> Result<bool, String> {
         validate_id(&id)?;
-        CONTRIBUTIONS.with(|values| {
-            let mut values = values.borrow_mut();
-            if values
-                .get(&id)
-                .is_some_and(|current| current.owner_id != owner_id)
-            {
-                return Err("WebUI contribution belongs to another component".into());
-            }
-            Ok(values.remove(&id).is_some())
-        })
+        let owner = caller()?;
+        CONTRIBUTIONS
+            .with(|values| remove_owned(&mut values.borrow_mut(), &owner, &id, "contribution"))
     }
 
     fn contributions(slot: ExtensionSlot) -> Vec<Contribution> {
         let mut values = CONTRIBUTIONS.with(|all| {
             all.borrow()
                 .values()
+                .map(|entry| &entry.value)
                 .filter(|value| value.slot == slot)
                 .cloned()
                 .collect::<Vec<_>>()
@@ -193,19 +207,38 @@ fn validate_id(value: &str) -> Result<(), String> {
     }
 }
 
-fn validate_owner_id(value: &str) -> Result<(), String> {
-    if value.contains(':')
-        && !value.starts_with(':')
-        && !value.ends_with(':')
-        && value.len() <= 128
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'.' | b'-' | b'_'))
-    {
-        Ok(())
-    } else {
-        Err(format!("invalid WebUI contribution owner {value:?}"))
+fn caller() -> Result<String, String> {
+    #[cfg(test)]
+    let value = TEST_CALLER.with(|caller| caller.borrow().clone());
+    #[cfg(not(test))]
+    let value = call_context::caller_component_id();
+    value.ok_or_else(|| "WebUI registration requires a component caller".into())
+}
+
+fn insert_owned<T>(
+    values: &mut BTreeMap<String, Owned<T>>,
+    owner: String,
+    id: String,
+    value: T,
+    kind: &str,
+) -> Result<(), String> {
+    if values.get(&id).is_some_and(|entry| entry.owner != owner) {
+        return Err(format!("WebUI {kind} ID belongs to another component"));
     }
+    values.insert(id, Owned { owner, value });
+    Ok(())
+}
+
+fn remove_owned<T>(
+    values: &mut BTreeMap<String, Owned<T>>,
+    owner: &str,
+    id: &str,
+    kind: &str,
+) -> Result<bool, String> {
+    if values.get(id).is_some_and(|entry| entry.owner != owner) {
+        return Err(format!("WebUI {kind} belongs to another component"));
+    }
+    Ok(values.remove(id).is_some())
 }
 
 impl ShellGuest for WebUiShell {

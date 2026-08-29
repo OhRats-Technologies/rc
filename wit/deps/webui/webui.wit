@@ -33,8 +33,6 @@ interface types {
 
     record contribution {
         id: string,
-        /// Component ID that owns and is responsible for this markup.
-        owner-id: string,
         slot: extension-slot,
         order: s32,
         /// Trusted HTML produced by the owning installed component. The shell
@@ -81,7 +79,7 @@ interface slots {
     remove-page: func(id: string) -> result<bool, string>;
     pages: func() -> list<page>;
     register-contribution: func(value: contribution) -> result<_, string>;
-    remove-contribution: func(owner-id: string, id: string) -> result<bool, string>;
+    remove-contribution: func(id: string) -> result<bool, string>;
     contributions: func(slot: extension-slot) -> list<contribution>;
 }
 

@@ -112,6 +112,7 @@ fn registered(path: &str) -> Option<RenderedPage> {
         pages
             .borrow()
             .values()
+            .map(|entry| &entry.value)
             .find(|page| page.path == path)
             .map(|page| RenderedPage {
                 status: 200,
