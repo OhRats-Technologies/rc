@@ -94,8 +94,11 @@ validate_single_archive() {
   tar -tzf "$archive" > "$listing"
   tar -tvzf "$archive" | awk '$1 !~ /^-/ { exit 1 }' ||
     { echo "archive contains a non-regular member" >&2; exit 1; }
-  test "$(wc -l < "$listing")" -eq 1 && test "$(sed -n '1p' "$listing")" = "$member" ||
-    { echo "archive must contain only $member" >&2; exit 1; }
+  if ! { test "$(wc -l < "$listing")" -eq 1 &&
+    test "$(sed -n '1p' "$listing")" = "$member"; }; then
+    echo "archive must contain only $member" >&2
+    exit 1
+  fi
 }
 
 validate_bundle_archive() {
