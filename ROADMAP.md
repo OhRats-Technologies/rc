@@ -347,6 +347,10 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: strengthened the authority-lock fixture with an actual signed
+  generation transition: a deterministic control key signs the exact canonical
+  parent/next payload, replay is rejected, restart preserves generation one,
+  and the live-session invalidation epoch is consumed exactly once.
 - 2026-08-29: added typed opaque key handles, crypto verification, and canonical
   workspace authority contracts. The authority-lock component durably preserves
   TOFU state, validates exact-parent Owner transitions through a typed Ed25519

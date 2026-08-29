@@ -32,7 +32,9 @@ run components >"$directory/active.out" 2>/dev/null
 grep -F "ohrats:authority-store" "$directory/active.out" | grep -F Active >/dev/null
 
 fixture="vector"
-seed_output=$(run authority-seed "$fixture")
+control_public=$(run authority-fixture-public)
+printf '%s' "$control_public" | grep -E '^[0-9a-f]{64}$' >/dev/null
+seed_output=$(run authority-seed "$fixture" "$control_public")
 test "${seed_output%% *}" = 0
 hash=${seed_output#* }
 printf '%s' "$hash" | grep -E '^[0-9a-f]{64}$' >/dev/null
@@ -42,6 +44,11 @@ test "$hash" = "$expected"
 # A new kernel process restores the same TOFU snapshot and does not emit a
 # transition invalidation for generation zero.
 run authority-verify "$fixture" | grep -Fx "authority state: ok" >/dev/null
+payload=$(run authority-transition-payload "$fixture")
+signature=$(run authority-fixture-sign "$payload")
+printf '%s' "$signature" | grep -E '^[0-9a-f]{128}$' >/dev/null
+run authority-apply "$fixture" "$signature" | grep -E '^1 [0-9a-f]{64}$' >/dev/null
+run authority-verify-transition "$fixture" | grep -Fx "authority transition: ok" >/dev/null
 
 python3 - "$directory/kernel.sqlite3" <<'PY'
 import sqlite3

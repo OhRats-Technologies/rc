@@ -18,10 +18,16 @@
           "publicKey": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM"
         }
       ],
-      "controlKeys": []
+      "controlKeys": [
+        {
+          "id": "fixture-control",
+          "publicKey": "d1l5O7wTooGagnx2rbb7qKSa7gB_SfLQmS2ZuCWtLEg",
+          "authorizedByPasskey": "fixture-passkey"
+        }
+      ]
     }
   ],
   "apiKeys": [],
   "activeExecutionMcpGrants": [],
-  "canonicalSha256": "984da8e986963227137a0aa6317c20a148f8a142a625ee16c419312d9c85461f"
+  "canonicalSha256": "5eb097a8640b3d42096655d7c218b4139a31946acb3baa9fe42a87ab83c283cc"
 }
