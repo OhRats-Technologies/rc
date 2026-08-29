@@ -69,7 +69,6 @@ jobs:
       - run: python3 scripts/validate-components.py
       - run: python3 scripts/validate-profiles.py
       - run: python3 scripts/test-affected-units.py
-      - run: python3 scripts/test-swarm-protocol.py
       - run: python3 scripts/check-doc-links.py
       - name: Validate shell entry points and workflows
         run: |

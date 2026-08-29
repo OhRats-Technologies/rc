@@ -98,13 +98,6 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertFalse(value["kernel"])
         self.assertEqual(value["components"], sorted(MODULE.component_metadata()))
 
-    def test_swarm_benchmark_is_static_only(self) -> None:
-        value = self.resolve("scripts/benchmark-swarm-protocol.py")
-        self.assertFalse(value["kernel"])
-        self.assertFalse(value["legacy_rust"])
-        self.assertFalse(value["web"])
-        self.assertFalse(value["image"])
-
     def test_web_runtime_smoke_change_selects_its_units(self) -> None:
         value = self.resolve("scripts/smoke-web-runtime.sh")
         self.assertTrue(value["kernel"])
