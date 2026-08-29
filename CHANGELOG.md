@@ -2,6 +2,14 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.1] - 2026-08-28
+
+### Changed
+
+- Included the typed device, workspace, event, identity, SSH, WebSocket, and
+  streaming HTTP component foundations merged with the Node policy migration.
+- Stabilized the finite HTTP stream runtime smoke used by release validation.
+
 ## [0.19.0] - 2026-08-28
 
 ### Changed

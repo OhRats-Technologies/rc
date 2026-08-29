@@ -65,12 +65,13 @@ async function stopServer() {
 
 try {
   startServer(); await waitForHttp(`${base}/healthz`);
-  target = await fetch(`${cdp}/json/new?${encodeURIComponent("about:blank")}`, { method: "PUT" })
+  const createdTarget = await fetch(`${cdp}/json/new?${encodeURIComponent("about:blank")}`, { method: "PUT" })
     .then(async response => {
       if (!response.ok) throw new Error(`create Chrome target: ${response.status}`);
       return await response.json() as { id: string; webSocketDebuggerUrl: string };
     });
-  socket = new WebSocket(target.webSocketDebuggerUrl);
+  target = createdTarget;
+  socket = new WebSocket(createdTarget.webSocketDebuggerUrl);
   let sequence = 0;
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
   socket.onmessage = event => {

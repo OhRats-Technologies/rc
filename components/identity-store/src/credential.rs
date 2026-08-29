@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 const BUCKET: &str = "passkeys";
 const INDEX: &str = "passkeys-by-credential";
 const ID_BYTES: usize = 16;
+type PreparedPasskey = (Passkey, Vec<u8>, Vec<u8>, Vec<u8>);
 
 #[derive(Serialize, Deserialize)]
 struct StoredPasskey {
@@ -160,7 +161,7 @@ fn prepare(
     user_id: String,
     name: String,
     credential: StoredCredential,
-) -> Result<(Passkey, Vec<u8>, Vec<u8>, Vec<u8>), String> {
+) -> Result<PreparedPasskey, String> {
     validate::id(&user_id, "user id")?;
     validate::passkey_name(&name)?;
     validate_credential(&credential)?;
