@@ -7,6 +7,7 @@ mod state;
 wit_bindgen::generate!({
     path: "../../wit",
     world: "package-manager",
+    generate_all,
 });
 
 use ohrats::rc_plugin::types::{Command, Requirement, Selection};
@@ -19,11 +20,18 @@ impl Guest for PackageManager {
             id: "ohrats:package-manager".into(),
             version: "0.1.0".into(),
             provides: Vec::new(),
-            requires: vec![Requirement {
-                name: "ohrats:rc-plugin/package-source".into(),
-                version: "^0.1".into(),
-                selection: Selection::Keyed,
-            }],
+            requires: vec![
+                Requirement {
+                    name: "ohrats:rc-plugin/package-source".into(),
+                    version: "^0.1".into(),
+                    selection: Selection::Keyed,
+                },
+                Requirement {
+                    name: "ohrats:rc-artifact-cache/cache".into(),
+                    version: "^0.1".into(),
+                    selection: Selection::Keyed,
+                },
+            ],
             commands: descriptors(),
         }
     }

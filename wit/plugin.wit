@@ -169,6 +169,7 @@ world kernel-plugin {
     import service-registry;
     import http-client;
     import ohrats:rc-storage/durable-store@0.1.0;
+    import ohrats:rc-artifact-cache/local-storage@0.1.0;
     import ohrats:rc-updater/artifact-source@0.1.0;
     import ohrats:rc-updater/native-replacement@0.1.0;
 }
@@ -180,8 +181,8 @@ world package-manager {
     import catalog-store;
     import service-registry;
     import package-source;
+    import ohrats:rc-artifact-cache/cache@0.1.0;
 }
-
 world local-source {
     include plugin;
     import local-files;

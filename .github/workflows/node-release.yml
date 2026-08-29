@@ -166,7 +166,7 @@ jobs:
             test -s "dist/$name.tar.gz"
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc-kernel"
           done
-          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 11
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 12
           test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '^profile.lock$')" -eq 1
       - name: Publish immutable GitHub release
         env:

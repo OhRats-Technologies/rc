@@ -161,6 +161,20 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["storage-fixture"])
 
+    def test_artifact_cache_runtime_smoke_selects_its_graph(self) -> None:
+        value = self.resolve("scripts/smoke-artifact-cache.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            [
+                "artifact-cache-fixture-consumer",
+                "artifact-cache-fixture-mesh-adapter",
+                "artifact-cache-fixture-provider-v2",
+                "artifact-cache-local",
+                "artifact-cache-mesh",
+            ],
+        )
+
     def test_api_credential_runtime_smoke_selects_its_graph(self) -> None:
         value = self.resolve("scripts/smoke-api-credentials.sh")
         self.assertTrue(value["kernel"])

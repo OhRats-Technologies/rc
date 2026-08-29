@@ -4,7 +4,6 @@ schema = 1
 id = "ohrats:cache-smoke"
 components = [
   "artifact-cache-fixture-consumer",
-  "artifact-cache-fixture-local-storage",
   "artifact-cache-fixture-mesh-adapter",
   "artifact-cache-local",
   "artifact-cache-mesh",

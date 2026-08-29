@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-build="artifact-cache-local artifact-cache-mesh artifact-cache-fixture-local-storage artifact-cache-fixture-mesh-adapter artifact-cache-fixture-consumer artifact-cache-fixture-provider-v2"
+build="artifact-cache-local artifact-cache-mesh artifact-cache-fixture-mesh-adapter artifact-cache-fixture-consumer artifact-cache-fixture-provider-v2"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   for component in $build; do
     scripts/build-component.sh "components/$component" >/dev/null
@@ -22,12 +22,18 @@ cleanup() { rm -rf "$directory"; }
 trap cleanup EXIT INT TERM
 components="$directory/components"
 mkdir -p "$components"
-for component in artifact-cache-local artifact-cache-mesh artifact-cache-fixture-local-storage artifact-cache-fixture-mesh-adapter artifact-cache-fixture-consumer; do
+for component in artifact-cache-local artifact-cache-mesh artifact-cache-fixture-mesh-adapter artifact-cache-fixture-consumer; do
   cp "dist/components/$component.wasm" "$components/$component.wasm"
 done
 kernel=${RC_KERNEL_BIN:-kernel/target/debug/rc-kernel}
 test -x "$kernel"
 run() { "$kernel" --component-dir "$components" "$@"; }
+
+# Seed the kernel-owned content-addressed cache used by the production local
+# provider. The digest is SHA-256("local-cache-hit").
+mkdir -p "$directory/cache/sha256"
+printf 'local-cache-hit' > "$directory/cache/sha256/3071910d02cb4b93c5bf83d2f04eabbd1b1f25062ca6f161e8f60453c96b1f48.wasm"
+printf 'tampered-cache-hit' > "$directory/cache/sha256/5d4553c6b682104be56b7da1ddf97ae3913e29432fb169a13a2310cc861dc36f.wasm"
 
 run cache-local >"$directory/local.out" 2>"$directory/local.err"
 grep -Fx "local:local-cache-hit" "$directory/local.out" >/dev/null
@@ -45,7 +51,7 @@ if run cache-tampered >"$directory/tampered.out" 2>"$directory/tampered.err"; th
   echo "tampered cache artifact succeeded" >&2
   exit 1
 fi
-grep -F "failed digest verification" "$directory/tampered.err" >/dev/null
+grep -F "artifact digest mismatch" "$directory/tampered.err" >/dev/null
 if run cache-oversized >"$directory/oversized.out" 2>"$directory/oversized.err"; then
   echo "oversized cache request succeeded" >&2
   exit 1

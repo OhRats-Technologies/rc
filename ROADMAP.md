@@ -318,7 +318,7 @@ replaceable components.
   atomic replace/re-exec primitive.
 - [x] Install the kernel and a recoverable core component bundle from
   `install.sh`.
-- [ ] Allow local and mesh caches to satisfy digest-addressed artifact fetches
+- [x] Allow local and mesh caches to satisfy digest-addressed artifact fetches
   before an OCI registry is contacted.
 
 Acceptance: changing one component updates only that component with no service
@@ -356,12 +356,12 @@ invariants at the top of this document.
   operation-mismatched proofs, one-use authorization replay, signed-request
   replay races, credential expiry, restart persistence, and provider withdrawal.
   Production HTTP routing and native SQLite removal remain the cutover gate.
-- 2026-08-29: established the typed artifact-cache provider boundary with
-  bounded local storage and RC-Lock-authorized mesh adapters. Runtime fixtures
-  prove explicit local-to-mesh miss fallback, digest/tamper rejection,
-  deterministic provider priority, denied mesh access, and live provider
-  replacement/removal; package-manager and production adapters remain the
-  completion gate for registry fallback.
+- 2026-08-29: completed typed cache routing for package installation. The
+  package manager walks priority-ordered local/mesh cache providers by digest
+  before resolving the locked source, verifies and persists cache hits through
+  the kernel content-addressed store, and only reaches OCI after cache misses.
+  The production local provider now uses the narrow kernel storage adapter;
+  runtime fixtures retain RC-Lock-authorized mesh denial/fallback coverage.
 - 2026-08-29: moved `rc upgrade` policy into the updater component and limited
   the kernel to a digest-pinned, bounded-health, journaled atomic replacement
   primitive. Interrupted activation rolls back on restart, successful restart

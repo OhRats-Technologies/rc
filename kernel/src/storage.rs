@@ -3,14 +3,19 @@ mod fs;
 mod transaction;
 
 use crate::{
-    bindings::ohrats::rc_plugin::{
-        artifact_cache::Host as ArtifactCacheHost,
-        catalog_store::Host as CatalogStoreHost,
-        component_store::{
-            Host as ComponentStoreHost, InstalledComponent, PreparedSet, UpdateCandidate,
+    bindings::ohrats::{
+        rc_artifact_cache::{
+            local_storage::Host as LocalArtifactCacheHost, types::Artifact as CachedArtifact,
         },
-        local_files::Host as LocalFilesHost,
-        state_store::Host as StateStoreHost,
+        rc_plugin::{
+            artifact_cache::Host as ArtifactCacheHost,
+            catalog_store::Host as CatalogStoreHost,
+            component_store::{
+                Host as ComponentStoreHost, InstalledComponent, PreparedSet, UpdateCandidate,
+            },
+            local_files::Host as LocalFilesHost,
+            state_store::Host as StateStoreHost,
+        },
     },
     host::HostState,
 };
@@ -82,6 +87,30 @@ impl ArtifactCacheHost for HostState {
         fs::verify_digest(&digest, &artifact).map_err(display)?;
         let path = fs::cache_path(&self.environment, &digest).map_err(display)?;
         fs::atomic_write(&path, &artifact).map_err(display)
+    }
+}
+
+impl LocalArtifactCacheHost for HostState {
+    fn read(&mut self, digest: String, max_bytes: u64) -> Result<Option<CachedArtifact>, String> {
+        let maximum = usize::try_from(max_bytes)
+            .map_err(|_| "artifact capacity exceeds host limits".to_owned())?;
+        if maximum == 0 || maximum > fs::MAX_ARTIFACT_BYTES {
+            return Err("artifact capacity must be between 1 and 48 MiB".into());
+        }
+        transaction::recover(&self.environment).map_err(display)?;
+        let path = fs::cache_path(&self.environment, &digest).map_err(display)?;
+        match std_fs::read(path) {
+            Ok(value) if value.len() <= maximum => {
+                fs::verify_digest(&digest, &value).map_err(display)?;
+                Ok(Some(CachedArtifact {
+                    digest,
+                    bytes: value,
+                }))
+            }
+            Ok(_) => Err("artifact exceeds requested capacity".into()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
     }
 }
 

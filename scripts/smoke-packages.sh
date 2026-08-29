@@ -4,7 +4,7 @@ set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-build="local-source http-source oci-source package-manager fixture-provider fixture-provider-v2 fixture-consumer"
+build="artifact-cache-local local-source http-source oci-source package-manager fixture-provider fixture-provider-v2 fixture-consumer"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   for component in $build; do
     scripts/build-component.sh "components/$component" >/dev/null
@@ -31,7 +31,7 @@ trap cleanup EXIT INT TERM
 
 components="$directory/components"
 mkdir -p "$components" "$directory/catalogs"
-for component in local-source http-source oci-source package-manager; do
+for component in artifact-cache-local local-source http-source oci-source package-manager; do
   cp "dist/components/$component.wasm" "$components/$component.wasm"
 done
 cp dist/components/fixture-provider.wasm "$directory/demo.wasm"
@@ -99,7 +99,7 @@ run remove fixture-provider >/dev/null 2>&1
 # target is unmanaged, leaving the other target at its original digest.
 transaction_components="$directory/transaction-components"
 mkdir -p "$transaction_components"
-for component in local-source package-manager; do
+for component in artifact-cache-local local-source package-manager; do
   cp "dist/components/$component.wasm" "$transaction_components/$component.wasm"
 done
 cp dist/components/fixture-provider.wasm "$directory/tx-provider.wasm"

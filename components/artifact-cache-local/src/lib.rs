@@ -9,7 +9,7 @@ use ohrats::rc_artifact_cache::{
     local_storage,
     types::{Artifact, FetchRequest},
 };
-use ohrats::rc_plugin::types::{Requirement, Selection, Service};
+use ohrats::rc_plugin::types::Service;
 use sha2::{Digest, Sha256};
 
 const MAX_ARTIFACT_BYTES: usize = 48 * 1024 * 1024;
@@ -28,11 +28,7 @@ impl Guest for LocalCache {
                 priority: PRIORITY,
                 keys: vec!["local".into()],
             }],
-            requires: vec![Requirement {
-                name: "ohrats:rc-artifact-cache/local-storage".into(),
-                version: "^0.1".into(),
-                selection: Selection::Single,
-            }],
+            requires: Vec::new(),
             commands: Vec::new(),
         }
     }

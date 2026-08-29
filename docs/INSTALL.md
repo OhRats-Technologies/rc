@@ -7,7 +7,7 @@ provide a GitHub SHA-256 digest; the installer verifies the digest before it
 reads or activates an archive.
 
 The core archive is a bounded tar file containing exactly `profile.lock` and
-the eleven files under `components/` in the core profile. The lock format is
+the twelve files under `components/` in the core profile. The lock format is
 deliberately line-oriented so validation does not require Python, jq, or RC:
 
 ```text

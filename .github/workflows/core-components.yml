@@ -60,6 +60,7 @@ jobs:
       - name: Build bootstrap components
         run: |
           for component in \
+            artifact-cache-local \
             package-manager local-source http-source oci-source github-source \
             diagnostics-store diagnostics-reporter diagnostics-cli \
             process-policy transport-webrtc updater
@@ -69,7 +70,7 @@ jobs:
       - name: Package portable core bundle
         run: |
           packaging/build-core-bundle.sh
-          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 11
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 12
           tar -xOf dist/rc-core-components.tar.gz profile.lock | grep -Fx 'profile ohrats:core'
       - uses: actions/upload-artifact@v7
         with:

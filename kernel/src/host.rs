@@ -230,6 +230,10 @@ pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> 
         HostState,
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;
+    crate::bindings::ohrats::rc_artifact_cache::local_storage::add_to_linker::<
+        HostState,
+        wasmtime::component::HasSelf<HostState>,
+    >(linker, |state| state)?;
     crate::bindings::ohrats::rc_updater::artifact_source::add_to_linker::<
         HostState,
         wasmtime::component::HasSelf<HostState>,

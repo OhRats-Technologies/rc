@@ -145,6 +145,13 @@ COMPONENT_TOOLING = {
     "scripts/validate-components.py",
 }
 RUNTIME_TOOLING = {
+    "scripts/smoke-artifact-cache.sh": {
+        "artifact-cache-fixture-consumer",
+        "artifact-cache-fixture-mesh-adapter",
+        "artifact-cache-fixture-provider-v2",
+        "artifact-cache-local",
+        "artifact-cache-mesh",
+    },
     "scripts/smoke-api-credentials.sh": {
         "api-credential-fixture",
         "api-credential-store",
@@ -184,6 +191,7 @@ RUNTIME_TOOLING = {
         "webauthn-es256",
     },
     "scripts/smoke-packages.sh": {
+        "artifact-cache-local",
         "http-source",
         "local-source",
         "oci-source",

@@ -14,11 +14,6 @@ world artifact-cache-mesh {
     export ohrats:rc-artifact-cache/cache@0.1.0;
 }
 
-world artifact-cache-fixture-local-storage {
-    include plugin;
-    export ohrats:rc-artifact-cache/local-storage@0.1.0;
-}
-
 world artifact-cache-fixture-mesh-adapter {
     include plugin;
     export ohrats:rc-artifact-cache/authorized-mesh-cache@0.1.0;
