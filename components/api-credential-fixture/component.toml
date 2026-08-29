@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:api-credential-fixture"
+version = "0.1.0"
+world = "ohrats:rc-plugin/api-credential-fixture@0.1.0"
+wit = ["api-credentials", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-api-credential-fixture"
+artifact = "api-credential-fixture"

@@ -235,6 +235,9 @@ contribution smoke tests already pass through the native kernel listener.
   - [x] Add component-owned durable users, browser sessions, and single-use
     ceremony state; prove restart recovery, expiration, revocation, provider
     withdrawal, and that raw bearer tokens never enter durable storage.
+  - [x] Add typed component-owned API/CLI credential state with Ed25519
+    proof-of-possession, canonical request binding, bounded durable nonce replay
+    protection, scopes, expiration/revocation, and passkey-stepped CLI approval.
   - [ ] Route signed API/CLI credential administration through identity services,
     then remove the remaining native SQLite paths.
   - [x] Route setup/login WebAuthn registration and authentication ceremonies,
@@ -340,6 +343,10 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: added the typed API/CLI credential component foundation. It stores
+  public keys and policy metadata only, verifies method/path/query/timestamp/
+  nonce/body-bound Ed25519 requests, commits nonce use with optimistic CAS, and
+  proves restart, tamper, replay-race, expiry, revocation, and one-use CLI flow.
 - 2026-08-29: made package-manager updates graph-transactional. Every selected
   artifact is resolved, digest-bound, cached, inspected, and prepared before a
   fenced publication; host-side journals recover or roll back interrupted
