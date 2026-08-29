@@ -1,0 +1,10 @@
+{
+  "service": "ohrats:rc-artifact-cache/cache",
+  "version": "0.1.0",
+  "providers": [
+    { "id": "ohrats:artifact-cache-local", "priority": 200 },
+    { "id": "ohrats:artifact-cache-mesh", "priority": 100 }
+  ],
+  "selection": "local-before-mesh-before-registry",
+  "fallback": "continue-on-miss"
+}

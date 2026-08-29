@@ -1,0 +1,9 @@
+{
+  "service": "ohrats:rc-artifact-cache/cache",
+  "replacement": {
+    "healthy": "new-provider",
+    "failed": "previous-provider",
+    "withdrawal": "new-fetches-stop-before-old-generation-drains"
+  },
+  "state": "durable-external-by-default"
+}

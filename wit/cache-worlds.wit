@@ -1,0 +1,36 @@
+package ohrats:rc-plugin@0.1.0;
+
+world artifact-cache-local {
+    include plugin;
+    /// Typed durable storage; no ambient filesystem or network capability.
+    import ohrats:rc-artifact-cache/local-storage@0.1.0;
+    export ohrats:rc-artifact-cache/cache@0.1.0;
+}
+
+world artifact-cache-mesh {
+    include plugin;
+    /// The host adapter enforces explicit RC Lock/permit authorization.
+    import ohrats:rc-artifact-cache/authorized-mesh-cache@0.1.0;
+    export ohrats:rc-artifact-cache/cache@0.1.0;
+}
+
+world artifact-cache-fixture-local-storage {
+    include plugin;
+    export ohrats:rc-artifact-cache/local-storage@0.1.0;
+}
+
+world artifact-cache-fixture-mesh-adapter {
+    include plugin;
+    export ohrats:rc-artifact-cache/authorized-mesh-cache@0.1.0;
+}
+
+world artifact-cache-fixture-consumer {
+    include plugin;
+    import service-registry;
+    import ohrats:rc-artifact-cache/cache@0.1.0;
+}
+
+world artifact-cache-fixture-provider-v2 {
+    include plugin;
+    export ohrats:rc-artifact-cache/cache@0.1.0;
+}

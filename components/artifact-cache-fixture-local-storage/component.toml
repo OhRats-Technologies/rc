@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:artifact-cache-fixture-local-storage"
+version = "0.1.0"
+world = "ohrats:rc-plugin/artifact-cache-fixture-local-storage@0.1.0"
+wit = ["artifact-cache", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-artifact-cache-fixture-local-storage"
+artifact = "artifact-cache-fixture-local-storage"

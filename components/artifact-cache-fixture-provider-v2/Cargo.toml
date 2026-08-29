@@ -1,0 +1,14 @@
+[package]
+name = "rc-artifact-cache-fixture-provider-v2"
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.98"
+license = "UNLICENSED"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.61.1"
+
+[workspace]

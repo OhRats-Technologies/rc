@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:artifact-cache-fixture-consumer"
+version = "0.1.0"
+world = "ohrats:rc-plugin/artifact-cache-fixture-consumer@0.1.0"
+wit = ["artifact-cache", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-artifact-cache-fixture-consumer"
+artifact = "artifact-cache-fixture-consumer"

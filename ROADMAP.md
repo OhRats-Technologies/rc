@@ -347,6 +347,12 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: established the typed artifact-cache provider boundary with
+  bounded local storage and RC-Lock-authorized mesh adapters. Runtime fixtures
+  prove explicit local-to-mesh miss fallback, digest/tamper rejection,
+  deterministic provider priority, denied mesh access, and live provider
+  replacement/removal; package-manager and production adapters remain the
+  completion gate for registry fallback.
 - 2026-08-29: moved `rc upgrade` policy into the updater component and limited
   the kernel to a digest-pinned, bounded-health, journaled atomic replacement
   primitive. Interrupted activation rolls back on restart, successful restart

@@ -1,0 +1,50 @@
+package ohrats:rc-artifact-cache@0.1.0;
+
+interface types {
+    /// A content-addressed lookup. The digest is the only artifact identity.
+    record fetch-request {
+        digest: string,
+        max-bytes: u64,
+    }
+
+    /// Returned bytes are untrusted until the provider verifies digest.
+    record artifact {
+        digest: string,
+        bytes: list<u8>,
+    }
+}
+
+/// A read-only provider selected by the local service registry.
+interface cache {
+    use types.{artifact, fetch-request};
+
+    /// A miss is option-none. Consumers call eligible providers in registry
+    /// priority order, continue on a miss, and contact a source registry only
+    /// after all cache providers miss. Providers must not resolve a source or
+    /// use a network as a side effect of this call.
+    /// provider-key is the explicit keyed-service selection (`local` or
+    /// `mesh` for the official providers). It is not part of artifact identity.
+    fetch: func(
+        provider-key: string,
+        request: fetch-request,
+    ) -> result<option<artifact>, string>;
+}
+
+/// Narrow durable storage for a local cache provider. The host owns the
+/// external durable state; component mutable state is not a snapshot ABI.
+/// The host must enforce the artifact capacity and digest address itself.
+interface local-storage {
+    use types.{artifact};
+
+    read: func(digest: string, max-bytes: u64) -> result<option<artifact>, string>;
+}
+
+/// A capability-scoped mesh cache adapter. It is not a generic network API:
+/// the host chooses only RC-Lock-authorized peers and permits, and returns
+/// opaque artifact bytes. No key, passkey, grant secret, or authority
+/// snapshot crosses this boundary.
+interface authorized-mesh-cache {
+    use types.{artifact, fetch-request};
+
+    fetch: func(request: fetch-request) -> result<option<artifact>, string>;
+}
