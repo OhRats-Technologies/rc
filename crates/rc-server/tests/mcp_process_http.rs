@@ -48,7 +48,6 @@ async fn mcp_process_harness_runs_reads_writes_and_cancels() -> anyhow::Result<(
         }
         message => anyhow::bail!("expected MCP start, got {message:?}"),
     }
-
     node.send(&NodeToServer::McpStdout {
         process_id: process_id.clone(),
         data: URL_SAFE_NO_PAD.encode(b"number: "),
