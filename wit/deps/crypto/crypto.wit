@@ -1,0 +1,24 @@
+package ohrats:rc-crypto@0.1.0;
+
+interface types {
+    enum signature-algorithm {
+        ed25519,
+    }
+
+    record public-key {
+        algorithm: signature-algorithm,
+        bytes: list<u8>,
+    }
+}
+
+interface verifier {
+    use types.{public-key, signature-algorithm};
+
+    verify: func(
+        algorithm: signature-algorithm,
+        public-key: public-key,
+        payload: list<u8>,
+        signature: list<u8>,
+    ) -> result<bool, string>;
+    sha256: func(value: list<u8>) -> list<u8>;
+}

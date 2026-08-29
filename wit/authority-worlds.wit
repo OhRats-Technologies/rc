@@ -1,0 +1,13 @@
+package ohrats:rc-plugin@0.1.0;
+
+world authority-store {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    import ohrats:rc-crypto/verifier@0.1.0;
+    export ohrats:rc-authority/policy@0.1.0;
+}
+
+world authority-fixture {
+    include plugin;
+    export ohrats:rc-crypto/verifier@0.1.0;
+}

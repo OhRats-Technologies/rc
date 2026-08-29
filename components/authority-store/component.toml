@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:authority-store"
+version = "0.1.0"
+world = "ohrats:rc-plugin/authority-store@0.1.0"
+wit = ["authority", "crypto", "keys", "plugin", "storage"]
+
+[build]
+kind = "rust"
+package = "rc-authority-store"
+artifact = "authority-store"

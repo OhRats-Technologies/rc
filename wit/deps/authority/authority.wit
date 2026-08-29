@@ -1,0 +1,104 @@
+package ohrats:rc-authority@0.1.0;
+
+interface types {
+    enum role {
+        viewer,
+        operator,
+        owner,
+    }
+
+    record passkey {
+        credential-id: string,
+        public-key: list<u8>,
+    }
+
+    record control-key {
+        id: string,
+        public-key: list<u8>,
+        authorized-by-passkey: string,
+    }
+
+    record member {
+        user-id: string,
+        role: role,
+        passkeys: list<passkey>,
+        control-keys: list<control-key>,
+    }
+
+    record api-key {
+        id: string,
+        user-id: string,
+        public-key: list<u8>,
+        scopes: list<string>,
+        expires-at-ms: u64,
+    }
+
+    record device {
+        id: string,
+        /// Ed25519 Node identity public key.
+        identity-public-key: list<u8>,
+        /// Static X25519 transport public key.
+        transport-public-key: list<u8>,
+    }
+
+    record execution-grant {
+        id: string,
+        user-id: string,
+        hash: string,
+    }
+
+    record snapshot {
+        version: u32,
+        workspace-id: string,
+        devices: list<device>,
+        members: list<member>,
+        api-keys: list<api-key>,
+        active-execution-mcp-grants: list<execution-grant>,
+    }
+
+    record owner-authorization {
+        user-id: string,
+        passkey-credential-id: string,
+        control-key-id: string,
+        signature: list<u8>,
+    }
+
+    record transition {
+        snapshot: snapshot,
+        parent-hash: string,
+        parent-generation: u64,
+        authorization: owner-authorization,
+    }
+
+    record lock {
+        snapshot: snapshot,
+        generation: u64,
+        hash: string,
+    }
+
+    variant rejection {
+        not-initialized,
+        already-initialized,
+        invalid-snapshot(string),
+        stale-parent,
+        workspace-mismatch,
+        owner-required,
+        control-key-required,
+        signature-invalid,
+        generation-exhausted,
+        storage-failure(string),
+    }
+}
+
+interface policy {
+    use types.{lock, rejection, snapshot, transition};
+
+    /// Succeeds only when no durable lock exists. This is the one TOFU boundary.
+    initialize: func(snapshot: snapshot) -> result<lock, rejection>;
+    current: func() -> result<option<lock>, rejection>;
+    snapshot-hash: func(snapshot: snapshot) -> result<string, rejection>;
+    /// Applies one exact-parent Owner transition and persists it atomically.
+    apply: func(value: transition) -> result<lock, rejection>;
+    /// Returns and clears the generation that invalidated live control sessions.
+    take-invalidation-signal: func() -> result<option<u64>, rejection>;
+}

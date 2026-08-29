@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "workspaceId": "fixture-workspace-vector",
+  "devices": [
+    {
+      "id": "fixture-device-vector",
+      "identityPublicKey": "ERERERERERERERERERERERERERERERERERERERERERE",
+      "transportPublicKey": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI"
+    }
+  ],
+  "members": [
+    {
+      "userId": "fixture-owner",
+      "role": "owner",
+      "passkeys": [
+        {
+          "credentialId": "fixture-passkey",
+          "publicKey": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM"
+        }
+      ],
+      "controlKeys": []
+    }
+  ],
+  "apiKeys": [],
+  "activeExecutionMcpGrants": [],
+  "canonicalSha256": "984da8e986963227137a0aa6317c20a148f8a142a625ee16c419312d9c85461f"
+}

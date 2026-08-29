@@ -1,0 +1,15 @@
+package ohrats:rc-keys@0.1.0;
+
+interface types {
+    /// Opaque private-key handle. Secret material is never a WIT value.
+    resource secret-key;
+}
+
+interface custody {
+    use types.{secret-key};
+
+    /// Generates a key inside the owning custody adapter.
+    generate: func() -> result<secret-key, string>;
+    public-key: func(key: borrow<secret-key>) -> result<list<u8>, string>;
+    sign: func(key: borrow<secret-key>, payload: list<u8>) -> result<list<u8>, string>;
+}

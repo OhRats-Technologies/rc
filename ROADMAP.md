@@ -247,6 +247,10 @@ contribution smoke tests already pass through the native kernel listener.
     workspace-store component, including atomic Personal workspace creation,
     Owner and membership invariants, non-Owner expiring/single-use hashed
     invitations, deletion cleanup, and restart smoke coverage.
+  - [x] Add typed key/crypto/authority foundations plus a durable authority-lock
+    component with exact canonical snapshots, one-time TOFU initialization,
+    exact-parent generations, Owner control-key verification, trusted Node keys,
+    active MCP grant hashes, and live-session invalidation signals.
   - [ ] Port and locally enforce signed authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
   - [x] Define and exercise component-owned durable device registry, hashed
@@ -343,6 +347,10 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: added typed opaque key handles, crypto verification, and canonical
+  workspace authority contracts. The authority-lock component durably preserves
+  TOFU state, validates exact-parent Owner transitions through a typed Ed25519
+  verifier, includes Node identity/transport keys, and emits invalidation epochs.
 - 2026-08-29: added the typed API/CLI credential component foundation. It stores
   public keys and policy metadata only, verifies method/path/query/timestamp/
   nonce/body-bound Ed25519 requests, commits nonce use with optimistic CAS, and
