@@ -1,9 +1,9 @@
 use crate::component::{LoadedComponent, ValidatedCommand};
-use crate::graph;
 use crate::host::{HostEnvironment, engine};
 use crate::reconcile;
 use crate::service::ServiceRegistry;
 use crate::status::{ComponentState, ComponentStatus};
+use crate::{config, graph};
 use anyhow::Context as _;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -43,7 +43,9 @@ impl Runtime {
     pub fn new(directory: PathBuf) -> anyhow::Result<Self> {
         fs::create_dir_all(&directory)
             .with_context(|| format!("failed to create {}", directory.display()))?;
-        let engine = engine()?;
+        let wasmtime_cache_dir = config::wasmtime_cache_dir(&directory)?;
+        config::prepare_private_dir(&wasmtime_cache_dir)?;
+        let engine = engine(&wasmtime_cache_dir)?;
         let environment = HostEnvironment::new(engine.clone(), directory.clone())?;
         Ok(Self {
             environment,

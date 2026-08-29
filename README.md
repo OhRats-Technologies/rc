@@ -100,6 +100,12 @@ cp .env.example .env
 bun run dev
 ```
 
+The kernel keeps compiled Wasmtime artifacts in `cache/wasmtime` beside its
+configured component directory. `RC_WASMTIME_CACHE_DIR` provides an isolated
+override for tests. RC supplies this directory directly instead of loading the
+global Wasmtime configuration; Wasmtime keys entries by its engine and compiler
+configuration and cleans toward RC's 256 MiB / 4,096-file soft limits hourly.
+
 The server logs a generated setup URL when `RC_SETUP_TOKEN` is unset. Never use that convenience behavior for a shared production log stream; set an explicit secret instead.
 
 ## Documentation

@@ -2,7 +2,7 @@ use crate::bindings::ohrats::rc_plugin::{
     call_context::Host as CallContextHost,
     host::{Host, LogLevel},
 };
-use crate::{database::Database, service::ServiceRegistry};
+use crate::{config, database::Database, service::ServiceRegistry};
 use reqwest::blocking::Client;
 use std::{
     path::PathBuf,
@@ -153,11 +153,17 @@ impl CallContextHost for HostState {
     }
 }
 
-pub fn engine() -> anyhow::Result<Engine> {
+pub fn engine(cache_dir: &std::path::Path) -> anyhow::Result<Engine> {
     let mut config = Config::new();
     config.wasm_component_model(true);
     config.consume_fuel(true);
-    config.cache(Some(Cache::new(CacheConfig::new())?));
+    let mut cache = CacheConfig::new();
+    cache
+        .with_directory(cache_dir)
+        .with_cleanup_interval(std::time::Duration::from_secs(60 * 60))
+        .with_file_count_soft_limit(config::WASMTIME_CACHE_FILES)
+        .with_files_total_size_soft_limit(config::WASMTIME_CACHE_BYTES);
+    config.cache(Some(Cache::new(cache)?));
     Ok(Engine::new(&config)?)
 }
 

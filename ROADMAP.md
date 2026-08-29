@@ -77,6 +77,7 @@ reject accidental coupling between the native kernel and component source.
 - [x] Create `kernel/` as an independent Cargo workspace and lockfile.
 - [x] Define the first lifecycle/CLI WIT world under `wit/`.
 - [x] Load `.wasm` components from a configurable trusted directory.
+- [x] Cache Wasmtime compilation persistently in a private, bounded kernel cache.
 - [x] Validate component IDs, semantic versions, provided services,
   requirements, and command descriptors.
 - [x] Reconcile components through loaded, waiting, active, and failed states.

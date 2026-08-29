@@ -30,3 +30,25 @@ fn invalid_existing_path_is_not_a_removal() -> anyhow::Result<()> {
     assert!(runtime.failed_paths.contains_key(&path));
     Ok(())
 }
+
+
+#[test]
+fn starts_with_a_writable_temporary_root() {
+    let root = tempfile::tempdir().unwrap();
+    let components = root.path().join("components");
+    let runtime = Runtime::new(components.clone()).unwrap();
+
+    assert_eq!(runtime.directory(), components);
+    assert!(root.path().join("cache/wasmtime").is_dir());
+    assert!(root.path().join("kernel.sqlite3").is_file());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = std::fs::metadata(root.path().join("cache/wasmtime"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o700);
+    }
+}
