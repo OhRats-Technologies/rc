@@ -1,11 +1,13 @@
 mod cancel;
 mod descriptors;
+mod image;
 mod input;
 mod process;
 
 use crate::{AppState, McpGrantRecord};
 use descriptors::{
-    cancel_descriptor, input_descriptor, machines_descriptor, run_descriptor, status_descriptor,
+    cancel_descriptor, image_descriptor, input_descriptor, machines_descriptor, run_descriptor,
+    status_descriptor,
 };
 use rc_protocol::McpGrantPayload;
 
@@ -20,6 +22,7 @@ pub fn tools_for(context: &McpContext) -> Vec<serde_json::Value> {
     if has_scope(&context.payload.scopes, "mcp:terminal") {
         tools = vec![
             machines_descriptor(),
+            image_descriptor(),
             run_descriptor(),
             status_descriptor(),
             input_descriptor(),
@@ -32,7 +35,7 @@ pub fn tools_for(context: &McpContext) -> Vec<serde_json::Value> {
 pub fn registered_scope(name: &str) -> Option<&'static str> {
     match name {
         "machines_list" | "process_status" => Some("mcp:observe"),
-        "process_run" | "process_input" | "process_cancel" => Some("mcp:terminal"),
+        "image_view" | "process_run" | "process_input" | "process_cancel" => Some("mcp:terminal"),
         _ => None,
     }
 }
@@ -45,6 +48,7 @@ pub async fn call_tool(
 ) -> anyhow::Result<serde_json::Value> {
     match name {
         "machines_list" => machines(state, context).await,
+        "image_view" => image::view(state, context, args).await,
         "process_run" => process::run(state, context, args).await,
         "process_status" => process::status(state, context, args).await,
         "process_input" => input::input(state, context, args).await,

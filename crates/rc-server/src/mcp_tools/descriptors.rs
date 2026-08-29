@@ -35,6 +35,35 @@ pub(super) fn machines_descriptor() -> serde_json::Value {
     })
 }
 
+pub(super) fn image_descriptor() -> serde_json::Value {
+    serde_json::json!({
+        "name": "image_view",
+        "title": "View an image",
+        "description": "View a local image file on an explicitly granted RC machine. Returns the image as MCP visual content. Supports PNG, JPEG, WebP, and GIF up to 8 MiB.",
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "deviceId": {"type": "string"},
+                "path": {"type": "string"},
+            },
+            "required": ["deviceId", "path"],
+        },
+        "outputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "deviceId": {"type": "string"},
+                "path": {"type": "string"},
+                "mimeType": {"type": "string", "enum": ["image/png", "image/jpeg", "image/webp", "image/gif"]},
+                "sizeBytes": {"type": "integer", "minimum": 0},
+            },
+            "required": ["deviceId", "path", "mimeType", "sizeBytes"],
+        },
+        "annotations": annotations(true, false, true, false),
+    })
+}
+
 pub(super) fn run_descriptor() -> serde_json::Value {
     serde_json::json!({
         "name": "process_run",
@@ -207,6 +236,7 @@ mod tests {
     fn structured_tools_publish_exact_unbounded_string_schemas() {
         let descriptors = [
             machines_descriptor(),
+            image_descriptor(),
             run_descriptor(),
             status_descriptor(),
             input_descriptor(),

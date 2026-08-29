@@ -119,6 +119,7 @@ async fn mcp_process_harness_runs_reads_writes_and_cancels() -> anyhow::Result<(
     assert_eq!(final_state["exitCode"], 0);
 
     exercise_cancel(&client, &harness, &mut node).await?;
+    exercise_image_view(&client, &harness, &mut node).await?;
     assert_node_transport_limit(&client, &harness, &mut node).await?;
     assert_http_request_limit(&client, &harness).await?;
     node.close().await;
@@ -238,5 +239,63 @@ async fn exercise_cancel(
     .await?;
     assert_eq!(status["result"]["structuredContent"]["status"], "exited");
     assert_eq!(status["result"]["structuredContent"]["signal"], "TERM");
+    Ok(())
+}
+
+async fn exercise_image_view(
+    client: &reqwest::Client,
+    harness: &Harness,
+    node: &mut ServerTransport,
+) -> anyhow::Result<()> {
+    let image_bytes = b"fake-png-bytes";
+    let call = rpc_call(
+        client,
+        harness,
+        "image_view",
+        serde_json::json!({"deviceId": harness.device_id, "path": "/tmp/shot.png"}),
+        10,
+    );
+    let respond = async {
+        let request_id = match recv(node).await? {
+            ServerToNode::McpImageView {
+                request_id,
+                path,
+                user_id,
+                ..
+            } => {
+                assert_eq!(path, "/tmp/shot.png");
+                assert!(!user_id.is_empty());
+                request_id
+            }
+            message => anyhow::bail!("expected MCP image view, got {message:?}"),
+        };
+        node.send(&NodeToServer::McpImageChunk {
+            request_id: request_id.clone(),
+            data: URL_SAFE_NO_PAD.encode(image_bytes),
+        })
+        .await?;
+        node.send(&NodeToServer::McpImageResult {
+            request_id,
+            mime_type: "image/png".into(),
+            size_bytes: image_bytes.len() as u64,
+            error: String::new(),
+        })
+        .await?;
+        Ok::<(), anyhow::Error>(())
+    };
+    let (result, ()) = tokio::try_join!(call, respond)?;
+    let output = &result["result"];
+    assert_eq!(output["structuredContent"]["mimeType"], "image/png");
+    assert_eq!(output["structuredContent"]["sizeBytes"], image_bytes.len());
+    let image = output["content"]
+        .as_array()
+        .and_then(|items| items.iter().find(|item| item["type"] == "image"))
+        .ok_or_else(|| anyhow::anyhow!("missing image content"))?;
+    assert_eq!(image["mimeType"], "image/png");
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD
+            .decode(image["data"].as_str().unwrap_or_default())?,
+        image_bytes
+    );
     Ok(())
 }

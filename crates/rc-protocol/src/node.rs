@@ -160,6 +160,18 @@ pub enum NodeToServer {
         #[serde(default)]
         signal: String,
     },
+    McpImageChunk {
+        request_id: String,
+        data: String,
+    },
+    McpImageResult {
+        request_id: String,
+        #[serde(default)]
+        mime_type: String,
+        size_bytes: u64,
+        #[serde(default)]
+        error: String,
+    },
     UpdateResult {
         ok: bool,
         #[serde(default)]
@@ -264,6 +276,16 @@ pub enum ServerToNode {
     McpSignal {
         process_id: String,
         signal: String,
+    },
+    McpImageView {
+        request_id: String,
+        user_id: String,
+        path: String,
+        mcp_grant: String,
+        mcp_signature: String,
+        control_grant: String,
+        credential_id: String,
+        control_assertion: String,
     },
     Update,
 }

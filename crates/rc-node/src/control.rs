@@ -1,6 +1,7 @@
 mod auth;
 mod direct;
 mod hosted;
+mod image;
 mod lifecycle;
 mod process;
 mod webrtc;
@@ -240,6 +241,28 @@ impl ControlManager {
             }
             ServerToNode::McpSignal { process_id, signal } => {
                 self.hosted_signal(&process_id, &signal, false)
+            }
+            ServerToNode::McpImageView {
+                request_id,
+                user_id,
+                path,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            } => {
+                self.mcp_image_view(
+                    request_id,
+                    user_id,
+                    path,
+                    mcp_grant,
+                    mcp_signature,
+                    control_grant,
+                    credential_id,
+                    control_assertion,
+                )
+                .await
             }
             ServerToNode::Update => self.handle_update().await,
         }

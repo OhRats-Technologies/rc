@@ -1,3 +1,4 @@
+mod image;
 mod output;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -6,7 +7,7 @@ use output::{McpInner, append, snapshot};
 use parking_lot::Mutex;
 use rc_protocol::NodeToServer;
 use std::sync::Arc;
-use tokio::sync::Notify;
+use tokio::sync::{Notify, oneshot};
 
 const COMPLETED_TTL_MS: i64 = 5 * 60_000;
 const MAX_ACTIVE_PROCESSES: usize = 128;
@@ -18,6 +19,19 @@ pub use output::{McpOutputChunk, McpProcessResult};
 pub struct McpHub {
     states: Arc<DashMap<String, Arc<McpState>>>,
     registration: Arc<Mutex<()>>,
+    images: Arc<DashMap<String, Arc<McpImagePending>>>,
+}
+
+pub(super) struct McpImagePending {
+    device_id: String,
+    bytes: Mutex<Vec<u8>>,
+    sender: Mutex<Option<oneshot::Sender<Result<McpImage, String>>>>,
+}
+
+#[derive(Debug)]
+pub struct McpImage {
+    pub mime_type: String,
+    pub bytes: Vec<u8>,
 }
 
 pub(super) struct McpState {
@@ -68,6 +82,19 @@ impl McpHub {
 
     pub fn handle(&self, device_id: &str, message: &NodeToServer) -> Option<(String, i32, String)> {
         match message {
+            NodeToServer::McpImageChunk { request_id, data } => {
+                self.image_chunk(device_id, request_id, data);
+                None
+            }
+            NodeToServer::McpImageResult {
+                request_id,
+                mime_type,
+                size_bytes,
+                error,
+            } => {
+                self.image_finish(device_id, request_id, mime_type, *size_bytes, error);
+                None
+            }
             NodeToServer::McpStdout { process_id, data } => {
                 self.append_message(device_id, process_id, "stdout", data);
                 None
@@ -151,6 +178,7 @@ impl McpHub {
     }
 
     pub fn release_device(&self, device_id: &str) -> Vec<String> {
+        self.release_images(device_id);
         let ids: Vec<_> = self
             .states
             .iter()
