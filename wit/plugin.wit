@@ -155,12 +155,10 @@ world greeter-provider {
     include plugin;
     export greeter;
 }
-
 world greeter-consumer {
     include plugin;
     import greeter;
 }
-
 world kernel-plugin {
     include plugin;
     import component-store;
@@ -174,7 +172,6 @@ world kernel-plugin {
     import ohrats:rc-updater/artifact-source@0.1.0;
     import ohrats:rc-updater/native-replacement@0.1.0;
 }
-
 world package-manager {
     include plugin;
     import component-store;
