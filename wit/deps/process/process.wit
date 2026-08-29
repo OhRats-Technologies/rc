@@ -86,3 +86,65 @@ interface policy {
     normalize-resize: func(request: resize-request) -> result<terminal-size, string>;
     normalize-signal: func(request: signal-request) -> result<string, string>;
 }
+
+/// Kernel-owned byte-stream resource used by component process managers.
+/// Components never receive ambient file descriptors or arbitrary filesystem access.
+interface stream-host {
+    variant read-result {
+        data(list<u8>),
+        would-block,
+        eof,
+    }
+
+    variant write-result {
+        accepted(u32),
+        would-block,
+    }
+
+    resource byte-stream {
+        read: func(max-bytes: u32) -> result<read-result, string>;
+        write: func(bytes: list<u8>) -> result<write-result, string>;
+        close-write: func() -> result<_, string>;
+        close: func(reason: string);
+    }
+}
+
+/// Kernel-owned process handle. Product authorization and lifecycle policy stay in
+/// components; this adapter performs only the already-approved OS operations.
+interface process-host {
+    use types.{terminal};
+    use stream-host.{byte-stream};
+
+    enum state {
+        starting,
+        running,
+        exited,
+        lost,
+    }
+
+    record spawn-request {
+        process-id: string,
+        command: string,
+        args: list<string>,
+        cwd: string,
+        terminal: option<terminal>,
+    }
+
+    record spawned {
+        process: own<process>,
+        stdin: option<own<byte-stream>>,
+        stdout: own<byte-stream>,
+        stderr: option<own<byte-stream>>,
+    }
+
+    resource process {
+        id: func() -> string;
+        state: func() -> state;
+        resize: func(cols: u16, rows: u16) -> result<_, string>;
+        signal: func(signal: string) -> result<_, string>;
+        terminate: func() -> result<_, string>;
+        close: func();
+    }
+
+    spawn: func(request: spawn-request) -> result<spawned, string>;
+}

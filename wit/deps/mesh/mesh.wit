@@ -1,0 +1,128 @@
+package ohrats:rc-mesh@0.1.0;
+
+interface types {
+    record capability-advertisement {
+        id: string,
+        versions: list<u32>,
+        features: list<string>,
+    }
+
+    record capability-requirement {
+        id: string,
+        versions: list<u32>,
+        supported-features: list<string>,
+        required-features: list<string>,
+    }
+
+    record negotiated-capability {
+        id: string,
+        version: u32,
+        features: list<string>,
+    }
+
+    record neighbor {
+        peer-id: string,
+        cost: u32,
+    }
+
+    record service-advertisement {
+        name: string,
+        cost: u32,
+    }
+
+    /// Callers may submit only advertisements whose signatures and RC-Lock trust
+    /// have already been verified. Topology policy does not acquire key authority.
+    record link-advertisement {
+        version: u32,
+        realm-id: string,
+        origin-peer-id: string,
+        sequence: u64,
+        issued-at-ms: u64,
+        expires-at-ms: u64,
+        capabilities: list<capability-advertisement>,
+        neighbors: list<neighbor>,
+        services: list<service-advertisement>,
+    }
+
+    record route {
+        destination-peer-id: string,
+        next-hop-peer-id: string,
+        total-cost: u64,
+        path: list<string>,
+    }
+
+    record service-route {
+        service: string,
+        provider-peer-id: string,
+        route: route,
+        total-cost: u64,
+    }
+
+    /// Ciphertext is opaque to mesh policy. End-to-end control encryption remains
+    /// owned by the control protocol and is never terminated by a relay.
+    record envelope {
+        version: u32,
+        realm-id: string,
+        message-id: string,
+        source-peer-id: string,
+        destination-peer-id: string,
+        issued-at-ms: u64,
+        expires-at-ms: u64,
+        max-hops: u8,
+        ciphertext: list<u8>,
+        route: list<string>,
+    }
+
+    variant rejection {
+        invalid-identifier,
+        invalid-capability,
+        invalid-advertisement,
+        expired,
+        realm-mismatch,
+        untrusted-peer,
+        invalid-envelope,
+        route-rejected,
+    }
+}
+
+interface capabilities {
+    use types.{
+        capability-advertisement,
+        capability-requirement,
+        negotiated-capability,
+        rejection,
+    };
+
+    negotiate: func(
+        local: capability-requirement,
+        remote: capability-advertisement,
+    ) -> result<option<negotiated-capability>, rejection>;
+}
+
+interface topology {
+    use types.{link-advertisement, rejection, route, service-route};
+
+    routes: func(
+        realm-id: string,
+        local-peer-id: string,
+        trusted-peer-ids: list<string>,
+        advertisements: list<link-advertisement>,
+        now-ms: u64,
+    ) -> result<list<route>, rejection>;
+
+    service: func(
+        realm-id: string,
+        local-peer-id: string,
+        trusted-peer-ids: list<string>,
+        advertisements: list<link-advertisement>,
+        service: string,
+        now-ms: u64,
+    ) -> result<option<service-route>, rejection>;
+}
+
+interface envelopes {
+    use types.{envelope, rejection};
+
+    validate: func(value: envelope, now-ms: u64, maximum-hops: u8) -> result<_, rejection>;
+    forward: func(value: envelope, relay-peer-id: string) -> result<envelope, rejection>;
+}

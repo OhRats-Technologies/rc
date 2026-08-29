@@ -285,7 +285,7 @@ component graph, using the existing Coolify volume, ingress, and public routes.
   native product-policy fallback.
 - [x] Carry the host-only, STUN-direct, then TURN-relay plan in the Node-signed
   control handshake for browser and CLI adapters.
-- [ ] Define the remaining typed key, crypto, authority, and mesh WIT
+- [x] Define the remaining typed key, crypto, authority, and mesh WIT
   packages using resource handles for secrets, processes, streams, and
   connections.
 - [ ] Port crypto suites and key-custody adapters into independently selectable
@@ -349,6 +349,13 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: completed the remaining typed runtime contracts needed by the
+  Node/transport migration. Process WIT now defines host-owned opaque process
+  and stream resources alongside the existing secret-key and connection
+  handles. A general mesh package owns bounded capability negotiation,
+  trusted-topology route planning, and opaque-envelope forwarding policy;
+  deterministic component smoke coverage proves provider withdrawal and
+  rejects noncanonical capability input, expired envelopes, and relay loops.
 - 2026-08-29: audited component state migration and found no component that
   requires an in-memory snapshot ABI. Durable domain stores already externalize
   restart state, host-owned bounded config/state adapters cover bootstrap data,

@@ -1,0 +1,15 @@
+package ohrats:rc-plugin@0.1.0;
+
+world mesh-policy {
+    include plugin;
+    export ohrats:rc-mesh/capabilities@0.1.0;
+    export ohrats:rc-mesh/topology@0.1.0;
+    export ohrats:rc-mesh/envelopes@0.1.0;
+}
+
+world mesh-policy-fixture {
+    include plugin;
+    import ohrats:rc-mesh/capabilities@0.1.0;
+    import ohrats:rc-mesh/topology@0.1.0;
+    import ohrats:rc-mesh/envelopes@0.1.0;
+}

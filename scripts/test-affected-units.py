@@ -80,6 +80,15 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["process-policy"])
 
+    def test_mesh_wit_change_rebuilds_mesh_policy_units(self) -> None:
+        value = self.resolve("wit/deps/mesh/mesh.wit")
+        self.assertFalse(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["mesh-policy", "mesh-policy-fixture"],
+        )
+        self.assertEqual(value["profiles"], ["mesh-smoke"])
+
     def test_transport_wit_change_rebuilds_kernel_and_providers(self) -> None:
         value = self.resolve("wit/deps/transport/transport.wit")
         self.assertTrue(value["kernel"])
@@ -160,6 +169,14 @@ class AffectedUnitsTests(unittest.TestCase):
         value = self.resolve("scripts/smoke-storage.sh")
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["storage-fixture"])
+
+    def test_mesh_runtime_smoke_selects_its_graph(self) -> None:
+        value = self.resolve("scripts/smoke-mesh-policy.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["mesh-policy", "mesh-policy-fixture"],
+        )
 
     def test_artifact_cache_runtime_smoke_selects_its_graph(self) -> None:
         value = self.resolve("scripts/smoke-artifact-cache.sh")

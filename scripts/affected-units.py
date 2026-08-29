@@ -180,6 +180,10 @@ RUNTIME_TOOLING = {
         "fixture-provider",
         "fixture-provider-v2",
     },
+    "scripts/smoke-mesh-policy.sh": {
+        "mesh-policy",
+        "mesh-policy-fixture",
+    },
     "scripts/smoke-node-components.sh": {
         "process-policy",
         "transport-test",

@@ -279,6 +279,34 @@ jobs:
           add-job-id-key: false
       - run: scripts/smoke-node-components.sh
 
+  mesh-runtime:
+    needs: [changes, components]
+    if: >-
+      always() &&
+      (needs.changes.outputs.kernel == 'true' ||
+       contains(needs.changes.outputs.components, 'mesh-policy') ||
+       contains(needs.changes.outputs.components, 'mesh-policy-fixture'))
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/mesh-policy -> target
+            components/mesh-policy-fixture -> target
+          shared-key: rc-mesh-runtime
+          add-job-id-key: false
+      - run: scripts/smoke-mesh-policy.sh
+
   diagnostics-runtime:
     needs: [changes, components]
     if: >-
