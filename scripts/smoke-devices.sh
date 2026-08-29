@@ -35,10 +35,10 @@ grep -F "ohrats:device-store" "$directory/active.out" | grep -F Active >/dev/nul
 grep -F "ohrats:device-fixture" "$directory/active.out" | grep -F Active >/dev/null
 
 fixture="smoke-$(date +%s)-$$"
-set -- $(run devices-seed "$fixture" 2>"$directory/seed.err")
-test "$#" -eq 2
-token=$1
-device=$2
+seed_output=$(run devices-seed "$fixture" 2>"$directory/seed.err")
+token=${seed_output%% *}
+device=${seed_output#* }
+test "$token $device" = "$seed_output"
 printf '%s' "$token" | grep -E '^enroll_[A-Za-z0-9_-]{43}$' >/dev/null
 printf '%s' "$device" | grep -E '^[0-9a-f-]{36}$' >/dev/null
 

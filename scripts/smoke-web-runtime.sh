@@ -85,7 +85,8 @@ wait_code /not-real 404 "$directory/missing"
 grep -Fx 'not found' "$directory/missing" >/dev/null
 wait_code /diagnostics 404 "$directory/no-diagnostics"
 
-for css in $(grep -o '/assets/rc\.[0-9a-f]*\.css' "$directory/home.html" | sort -u); do
+grep -o '/assets/rc\.[0-9a-f]*\.css' "$directory/home.html" | sort -u |
+while IFS= read -r css; do
   curl -fsS -D "$directory/css.headers" "$base$css" -o "$directory/$(basename "$css")"
   grep -Fi 'cache-control: public, max-age=31536000, immutable' "$directory/css.headers" >/dev/null
   curl -fsS -I "$base$css" | grep -Fi 'content-type: text/css' >/dev/null

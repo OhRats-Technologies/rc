@@ -72,22 +72,10 @@ jobs:
       - run: python3 scripts/check-doc-links.py
       - name: Validate shell entry points and workflows
         run: |
-          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge public/install.sh \
-            scripts/build-component.sh scripts/check-component.sh scripts/check-components.sh \
-            scripts/find-compatible-workflow-run.sh \
-            scripts/check-source-size.sh scripts/check-version.sh scripts/smoke-container.sh \
-            scripts/smoke-diagnostics.sh scripts/smoke-identity.sh scripts/smoke-kernel.sh \
-            scripts/smoke-node-components.sh scripts/smoke-packages.sh \
-            scripts/smoke-storage.sh scripts/smoke-webauthn.sh \
-            scripts/smoke-web-runtime.sh
+          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
+            public/install.sh scripts/*.sh
           shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
-            public/install.sh scripts/build-component.sh scripts/check-component.sh \
-            scripts/check-components.sh scripts/find-compatible-workflow-run.sh \
-            scripts/check-source-size.sh scripts/check-version.sh \
-            scripts/smoke-container.sh scripts/smoke-diagnostics.sh scripts/smoke-identity.sh \
-            scripts/smoke-kernel.sh scripts/smoke-node-components.sh scripts/smoke-packages.sh \
-            scripts/smoke-storage.sh \
-            scripts/smoke-webauthn.sh scripts/smoke-web-runtime.sh
+            public/install.sh scripts/*.sh
           actionlint -shellcheck shellcheck .github/workflows/*.yml
       - run: git diff --check
 
