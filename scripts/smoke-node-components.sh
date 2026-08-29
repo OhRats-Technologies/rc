@@ -8,6 +8,10 @@ if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   for component in process-policy transport-webrtc transport-test; do
     scripts/build-component.sh "components/$component" >/dev/null
   done
+  cargo build --manifest-path components/process-policy/Cargo.toml --locked --release \
+    --target wasm32-wasip2 --features fixture >/dev/null
+  cp components/process-policy/target/wasm32-wasip2/release/rc_process_policy.wasm \
+    dist/components/process-policy-fixture.wasm
 fi
 
 cargo build --manifest-path kernel/Cargo.toml --locked >/dev/null
@@ -58,6 +62,8 @@ wait_for_line() {
   done
 }
 wait_for_line 'Host 6000'
+printf 'process\n' >&3
+wait_for_line 'Process 1048576'
 cp dist/components/transport-test.wasm "$directory/transport-webrtc.next"
 mv "$directory/transport-webrtc.next" "$directory/transport-webrtc.wasm"
 count=0
@@ -68,6 +74,18 @@ while ! grep -F 'Relay 50' "$directory/probe.out" >/dev/null 2>&1; do
     echo 'hot replacement did not change the transport attempt plan' >&2
     sed -n '1,40p' "$directory/probe.out" >&2
     sed -n '1,80p' "$directory/probe.err" >&2
+    exit 1
+  fi
+  sleep 0.05
+done
+cp dist/components/process-policy-fixture.wasm "$directory/process-policy.next"
+mv "$directory/process-policy.next" "$directory/process-policy.wasm"
+count=0
+while ! grep -F 'Process 64' "$directory/probe.out" >/dev/null 2>&1; do
+  printf 'process\n' >&3
+  count=$((count + 1))
+  if [ "$count" -ge 1200 ]; then
+    echo 'hot replacement did not change the process policy decision' >&2
     exit 1
   fi
   sleep 0.05

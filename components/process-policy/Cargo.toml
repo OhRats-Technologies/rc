@@ -8,6 +8,9 @@ license = "UNLICENSED"
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+fixture = []
+
 [dependencies]
 wit-bindgen = "0.61.1"
 

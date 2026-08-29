@@ -23,7 +23,12 @@ impl Guest for ProcessPolicy {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:process-policy".into(),
-            version: "0.2.0".into(),
+            version: if cfg!(feature = "fixture") {
+                "0.2.1"
+            } else {
+                "0.2.0"
+            }
+            .into(),
             provides: vec![Service {
                 name: "ohrats:rc-process/policy".into(),
                 version: "0.2.0".into(),
@@ -65,7 +70,11 @@ impl PolicyGuest for ProcessPolicy {
             cwd: request.cwd,
             terminal,
             scrollback_bytes: 4 << 20,
-            stdin_chunk_bytes: 1 << 20,
+            stdin_chunk_bytes: if cfg!(feature = "fixture") {
+                64
+            } else {
+                1 << 20
+            },
         })
     }
 

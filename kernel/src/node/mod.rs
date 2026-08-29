@@ -120,7 +120,9 @@ pub fn probe(mut runtime: Runtime) -> anyhow::Result<()> {
     use std::io::BufRead as _;
     use std::io::Write as _;
 
-    let transport = ComponentTransportPolicy::new(runtime.service_registry())?;
+    let registry = runtime.service_registry();
+    let process = ComponentProcessPolicy::new(registry.clone())?;
+    let transport = ComponentTransportPolicy::new(registry)?;
     thread::spawn(move || {
         loop {
             if let Err(error) = runtime.reconcile() {
@@ -130,7 +132,26 @@ pub fn probe(mut runtime: Runtime) -> anyhow::Result<()> {
         }
     });
     for line in std::io::stdin().lock().lines() {
-        line?;
+        if line? == "process" {
+            let plan = process
+                .authorize_start(ProcessStartRequest {
+                    process_id: "probe".into(),
+                    command: "true".into(),
+                    cwd: String::new(),
+                    terminal: None,
+                    channel: ProcessChannel::Control,
+                    principal: ProcessPrincipal {
+                        user_id: "probe".into(),
+                        role: "owner".into(),
+                        can_execute: true,
+                        can_manage_devices: true,
+                    },
+                })
+                .map_err(anyhow::Error::msg)?;
+            println!("Process {}", plan.stdin_chunk_bytes);
+            std::io::stdout().flush()?;
+            continue;
+        }
         let attempts = transport
             .attempts(vec![IceServer {
                 urls: vec!["stun:example.test".into(), "turn:example.test".into()],
