@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer } from "node:net";
@@ -8,6 +8,7 @@ const root = resolve(import.meta.dir, "..");
 const cdp = process.env.RC_CDP_URL || "http://127.0.0.1:9223";
 const binary = process.env.RC_E2E_BINARY || join(root, "target/debug/rc");
 const serverBinary = process.env.RC_E2E_SERVER || join(root, "target/debug/rc-server");
+const kernelBinary = process.env.RC_E2E_KERNEL || join(root, "kernel/target/debug/rc-kernel");
 const assets = process.env.RC_E2E_ASSETS || join(root, "dist/assets");
 const keep = process.env.RC_E2E_KEEP === "1";
 
@@ -42,16 +43,21 @@ async function waitForHttp(url: string, timeoutMs = 20_000) {
   throw new Error(`HTTP endpoint did not become ready: ${url}`);
 }
 
-if (!await Bun.file(binary).exists() || !await Bun.file(serverBinary).exists()) {
-  throw new Error("build rc-server and rc before running browser E2E");
+if (!await Bun.file(binary).exists() || !await Bun.file(serverBinary).exists() || !await Bun.file(kernelBinary).exists()) {
+  throw new Error("build rc-server, rc, and rc-kernel before running browser E2E");
 }
 if (!await Bun.file(join(assets, "auth.js")).exists()) {
   throw new Error("run bun run build:client before running browser E2E");
 }
 
 const directory = await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
-const data = join(directory, "data"), nodeState = join(directory, "node");
-await mkdir(data); await mkdir(nodeState);
+const data = join(directory, "data"), nodeState = join(directory, "node"), components = join(directory, "components");
+await mkdir(data); await mkdir(nodeState); await mkdir(components);
+for (const name of ["process-policy", "transport-webrtc"]) {
+  const source = join(root, "dist/components", `${name}.wasm`);
+  if (!await Bun.file(source).exists()) throw new Error(`build ${name} before running browser E2E`);
+  await copyFile(source, join(components, `${name}.wasm`));
+}
 const port = Number(process.env.RC_E2E_PORT || await freePort());
 const sshPort = await freePort(), sshInternalPort = await freePort();
 const localBase = `http://localhost:${port}`;
@@ -200,7 +206,10 @@ try {
   });
   const [code, output, error] = await Promise.all([enroll.exited, readStream(enroll.stdout), readStream(enroll.stderr)]);
   if (code !== 0) throw new Error(`node enrollment failed (${code}): ${output}\n${error}`);
-  node = Bun.spawn([binary, "run", "--state-dir", nodeState], { stdout: "inherit", stderr: "inherit" });
+  node = Bun.spawn([binary, "run", "--state-dir", nodeState], {
+    env: { ...Bun.env, RC_KERNEL: kernelBinary, RC_COMPONENT_DIR: components },
+    stdout: "inherit", stderr: "inherit",
+  });
   const device = await waitFor(`(async()=>{const r=await fetch('/api/v1/devices');if(!r.ok)return false;const j=await r.json();return j.devices.find(d=>d.name==='Browser E2E Node'&&d.online)||false})()`, 30_000, "Node online") as { id: string };
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/workspaces/${workspace.id}/authority`)});if(!r.ok)return false;const j=await r.json();return j.devices>0&&j.synced===j.devices})()`, 30_000, "RC Lock bootstrap");
   const process = await browserFetch<{ processId: string }>(`/api/v1/devices/${device.id}/processes`, `{
