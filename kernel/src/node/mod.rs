@@ -178,8 +178,7 @@ async fn run_node(
     process_policy: Arc<dyn rc_node::ProcessPolicy>,
     transport_policy: Arc<dyn rc_node::TransportPolicy>,
 ) -> anyhow::Result<()> {
-    let mut runtime =
-        NodeRuntime::new(runner, state_dir, process_policy, transport_policy);
+    let mut runtime = NodeRuntime::new(runner, state_dir, process_policy, transport_policy);
     println!("Connecting to {server} as {}", state.device_id);
     let shutdown = shutdown_signal();
     tokio::pin!(shutdown);

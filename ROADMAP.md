@@ -250,8 +250,8 @@ component graph, using the existing Coolify volume, ingress, and public routes.
 ## 7. Node, controller, and transport components
 
 - [x] Define typed process and transport WIT for process approval, access,
-  terminal sizing, signals, buffer/input limits, ICE attempts, answer planning,
-  timeouts, and route classification.
+  terminal sizing, signals, authorization/termination timing, buffer/input
+  limits, ICE attempts, answer planning, timeouts, and route classification.
 - [x] Require component process/transport services for the Node runtime with no
   native product-policy fallback.
 - [x] Carry the host-only, STUN-direct, then TURN-relay plan in the Node-signed
@@ -262,7 +262,8 @@ component graph, using the existing Coolify volume, ingress, and public routes.
 - [ ] Port crypto suites and key-custody adapters into independently selectable
   components.
 - [ ] Port RC Lock and execution authorization.
-- [ ] Move remaining lifecycle policy out of the bounded OS process adapter.
+- [x] Move process authorization expiry and TERM-to-KILL lifecycle policy out
+  of the bounded OS process adapter.
 - [x] Port WebRTC attempt and answer policy as the first transport provider.
 - [x] Add a second test transport to prove provider selection and replacement
   before implementing QUIC.

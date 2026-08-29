@@ -56,6 +56,8 @@ impl ProcessPolicy for ComponentProcessPolicy {
             terminal: terminal_option(&fields)?,
             scrollback_bytes: values::u32_field(&fields, "scrollback-bytes")?,
             stdin_chunk_bytes: values::u32_field(&fields, "stdin-chunk-bytes")?,
+            authorization_timeout_ms: values::u32_field(&fields, "authorization-timeout-ms")?,
+            terminate_grace_ms: values::u32_field(&fields, "terminate-grace-ms")?,
         })
     }
 

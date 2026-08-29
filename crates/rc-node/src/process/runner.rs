@@ -24,6 +24,11 @@ pub fn run_process_runner() -> i32 {
     };
     let mut lifeline = unsafe { File::from_raw_fd(lifeline_fd) };
     let session_id = std::process::id() as i32;
+    let terminate_grace = std::env::var("OHRATS_TERMINATE_GRACE_MS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(std::time::Duration::from_millis)
+        .unwrap_or_default();
     let mut child = Command::new("sh");
     child
         .args(["-lc", &command])
@@ -62,15 +67,15 @@ pub fn run_process_runner() -> i32 {
     }
     match rx.recv() {
         Ok(RunnerEvent::Child(status)) => {
-            stop_session(session_id, Signal::SIGTERM);
+            stop_session(session_id, Signal::SIGTERM, terminate_grace);
             status.map(exit_code).unwrap_or(1)
         }
         Ok(RunnerEvent::Terminate) => {
-            stop_session(session_id, Signal::SIGTERM);
+            stop_session(session_id, Signal::SIGTERM, terminate_grace);
             143
         }
         Ok(RunnerEvent::Lifeline) | Err(_) => {
-            stop_session(session_id, Signal::SIGKILL);
+            stop_session(session_id, Signal::SIGKILL, terminate_grace);
             137
         }
     }

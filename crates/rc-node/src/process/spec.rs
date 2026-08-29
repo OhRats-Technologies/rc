@@ -12,6 +12,7 @@ pub struct ProcessSpec {
     pub relay_id: String,
     pub scrollback_bytes: u32,
     pub stdin_chunk_bytes: u32,
+    pub terminate_grace_ms: u32,
 }
 
 impl ProcessSpec {
@@ -27,6 +28,7 @@ impl ProcessSpec {
             relay_id: String::new(),
             scrollback_bytes: 0,
             stdin_chunk_bytes: 1 << 20,
+            terminate_grace_ms: 350,
         }
     }
 }

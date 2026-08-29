@@ -75,6 +75,8 @@ impl PolicyGuest for ProcessPolicy {
             } else {
                 1 << 20
             },
+            authorization_timeout_ms: 15_000,
+            terminate_grace_ms: 350,
         })
     }
 

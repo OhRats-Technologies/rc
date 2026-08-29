@@ -16,10 +16,10 @@ pub fn signal_session(session_id: i32, signal: Signal) {
     }
 }
 
-pub fn stop_session(session_id: i32, signal: Signal) {
+pub fn stop_session(session_id: i32, signal: Signal, terminate_grace: Duration) {
     signal_session(session_id, signal);
     if signal != Signal::SIGKILL {
-        std::thread::sleep(Duration::from_millis(350));
+        std::thread::sleep(terminate_grace);
         signal_session(session_id, Signal::SIGKILL);
     }
 }

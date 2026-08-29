@@ -33,6 +33,10 @@ pub(super) fn spawn(runner: &PathBuf, spec: &ProcessSpec) -> io::Result<Spawned>
         .arg("__process-runner")
         .env("OHRATS_PROCESS_COMMAND", &spec.command)
         .env("OHRATS_PROCESS_CWD", &spec.cwd)
+        .env(
+            "OHRATS_TERMINATE_GRACE_MS",
+            spec.terminate_grace_ms.to_string(),
+        )
         .env("OHRATS_LIFELINE_FD", lifeline_fd.to_string());
     let mut pty_master = None;
     if let Some(term) = &spec.terminal {

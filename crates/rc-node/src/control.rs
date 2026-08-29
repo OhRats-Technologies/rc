@@ -14,17 +14,11 @@ use parking_lot::Mutex;
 use rc_protocol::{
     ControlProof, ControlTransportMessage, NodeToServer, ServerToNode, TerminalSpec,
 };
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
 use tokio::sync::mpsc;
 
 const CONTROL_PLAINTEXT_LIMIT: usize = 1_048_576;
 const CONTROL_CIPHERTEXT_LIMIT: usize = 1_500_000;
-const PENDING_START_TTL: Duration = Duration::from_secs(15);
 
 #[derive(Clone)]
 pub struct ControlManager(Arc<ControlInner>);
@@ -64,6 +58,7 @@ struct PendingStart {
     terminal: Option<TerminalSpec>,
     scrollback_bytes: u32,
     stdin_chunk_bytes: u32,
+    terminate_grace_ms: u32,
     expires: Instant,
 }
 

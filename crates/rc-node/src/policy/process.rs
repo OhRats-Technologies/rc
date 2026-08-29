@@ -41,6 +41,8 @@ pub struct ProcessStartPlan {
     pub terminal: Option<TerminalSpec>,
     pub scrollback_bytes: u32,
     pub stdin_chunk_bytes: u32,
+    pub authorization_timeout_ms: u32,
+    pub terminate_grace_ms: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

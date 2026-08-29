@@ -78,8 +78,9 @@ The host exposes narrow interfaces, denies ambient filesystem/network/process ac
 
 Components receive typed records and opaque resource handles. They do not
 receive ambient filesystem, network, process, key, or environment access. The
-process policy validates specifications, access, PTY choices, signals, and
-buffer/input limits; the host performs the approved OS calls. The WebRTC policy
+process policy validates specifications, access, PTY choices, signals,
+authorization and termination timing, and buffer/input limits; the host
+performs the approved OS calls. The WebRTC policy
 filters ICE servers, returns the ordered attempt plan and timeouts, and
 classifies selected routes; browser and native adapters perform WebRTC mechanics.
 

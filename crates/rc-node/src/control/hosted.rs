@@ -71,6 +71,7 @@ impl ControlManager {
             relay_id: format!("ssh:{session_id}"),
             scrollback_bytes: plan.scrollback_bytes,
             stdin_chunk_bytes: plan.stdin_chunk_bytes,
+            terminate_grace_ms: plan.terminate_grace_ms,
         };
         if !matches!(self.0.processes.start(spec), Ok(true)) {
             self.emit(NodeToServer::SshExit {
@@ -153,6 +154,7 @@ impl ControlManager {
             relay_id: format!("mcp:{process_id}"),
             scrollback_bytes: plan.scrollback_bytes,
             stdin_chunk_bytes: plan.stdin_chunk_bytes,
+            terminate_grace_ms: plan.terminate_grace_ms,
         };
         if !matches!(self.0.processes.start(spec), Ok(true)) {
             self.emit(NodeToServer::McpExit {

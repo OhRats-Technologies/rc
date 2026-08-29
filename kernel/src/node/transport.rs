@@ -49,9 +49,9 @@ impl TransportPolicy for ComponentTransportPolicy {
             values::result_value(values, "transport policy")?,
             "ICE attempt plan",
         )?
-            .into_iter()
-            .map(attempt_from_value)
-            .collect()
+        .into_iter()
+        .map(attempt_from_value)
+        .collect()
     }
 
     fn answer_plan(

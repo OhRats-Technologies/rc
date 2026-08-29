@@ -1,4 +1,4 @@
-use super::{ControlManager, PENDING_START_TTL, PendingStart};
+use super::{ControlManager, PendingStart};
 use crate::{ProcessAccessRequest, ProcessAction, ProcessPrincipal, ProcessSpec, ProcessStartPlan};
 use rc_protocol::{ControlMessage, NodeToServer};
 use std::time::Instant;
@@ -24,7 +24,9 @@ impl ControlManager {
                 terminal: plan.terminal,
                 scrollback_bytes: plan.scrollback_bytes,
                 stdin_chunk_bytes: plan.stdin_chunk_bytes,
-                expires: now + PENDING_START_TTL,
+                terminate_grace_ms: plan.terminate_grace_ms,
+                expires: now
+                    + std::time::Duration::from_millis(u64::from(plan.authorization_timeout_ms)),
             },
         );
         drop(pending);
@@ -55,6 +57,7 @@ impl ControlManager {
             relay_id: String::new(),
             scrollback_bytes: pending.scrollback_bytes,
             stdin_chunk_bytes: pending.stdin_chunk_bytes,
+            terminate_grace_ms: pending.terminate_grace_ms,
         };
         if self.0.processes.start(spec).is_err() {
             self.emit(NodeToServer::ProcessExit {

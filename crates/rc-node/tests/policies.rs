@@ -20,6 +20,8 @@ impl ProcessPolicy for Process {
             terminal: request.terminal,
             scrollback_bytes: 4 << 20,
             stdin_chunk_bytes: 1 << 20,
+            authorization_timeout_ms: 15_000,
+            terminate_grace_ms: 350,
         })
     }
 

@@ -43,6 +43,8 @@ interface types {
         terminal: option<terminal>,
         scrollback-bytes: u32,
         stdin-chunk-bytes: u32,
+        authorization-timeout-ms: u32,
+        terminate-grace-ms: u32,
     }
 
     record access-request {
