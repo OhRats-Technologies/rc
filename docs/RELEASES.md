@@ -4,8 +4,8 @@ RC release tags are immutable.
 
 ## Assets
 
-Each release contains four `rc` archives, four kernel archives, and one portable
-core component bundle:
+Each release contains four `rc` archives, four kernel archives, the current core
+profile, and the legacy upgrade bridge:
 
 ```text
 rc-darwin-arm64.tar.gz
@@ -16,12 +16,19 @@ rc-kernel-darwin-arm64.tar.gz
 rc-kernel-darwin-amd64.tar.gz
 rc-kernel-linux-arm64.tar.gz
 rc-kernel-linux-amd64.tar.gz
+rc-core-profile.tar.gz
 rc-core-components.tar.gz
 ```
 
-Native archives contain one executable. The core bundle contains `profile.lock`
-and the exact core component artifacts. Published assets require SHA-256
-digests.
+Native archives contain one executable. `rc-core-profile.tar.gz` contains
+`profile.lock` and the exact twelve core components. `rc-core-components.tar.gz`
+contains the ten names required by the immutable v0.19.2 updater and no lock.
+Published assets require GitHub SHA-256 digests.
+
+Current installers and updaters prefer the profile asset. The legacy asset
+exists only so v0.19.2 can reach a newer native platform; a subsequent
+same-version `rc upgrade` repairs an incomplete legacy core using the profile
+asset.
 
 ## Version
 
@@ -40,7 +47,7 @@ tag.
 1. Run the validation commands in [Development](DEVELOPMENT.md#validation).
 2. Run dependency audits.
 3. Build and smoke-test the production image.
-4. Build release assets and inspect archive membership.
+4. Build release assets and inspect both core archive formats.
 5. Exercise browser setup/login, Node enrollment, direct control, CLI, MCP, and
    SSH on representative systems.
 6. Confirm `git status --short` is empty.
@@ -54,9 +61,9 @@ git tag -a "v$VERSION" -m "RC $VERSION"
 git push origin "v$VERSION"
 ```
 
-Release workflows build native `rc`, the native kernel, and the portable core
-bundle independently. Component implementation changes do not require a native
-platform matrix.
+Release workflows build native `rc`, the native kernel, and portable component
+assets independently. Component implementation changes do not require a native
+platform matrix unless a native dependency changed.
 
 ## Post-release fixes
 

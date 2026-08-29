@@ -1,4 +1,7 @@
-use super::{CORE_COMPONENTS, extract_single, platform_target};
+use super::{
+    CORE_COMPONENTS, core::LEGACY_CORE_COMPONENTS, core::extract_core, extract_single,
+    platform_target,
+};
 use flate2::{Compression, write::GzEncoder};
 use tar::{Builder, Header};
 
@@ -9,6 +12,53 @@ fn core_bundle_has_unique_names() {
     names.dedup();
     assert_eq!(names.len(), CORE_COMPONENTS.len());
     assert_eq!(CORE_COMPONENTS.len(), 12);
+}
+
+#[test]
+fn legacy_core_bundle_is_accepted() -> anyhow::Result<()> {
+    let entries = LEGACY_CORE_COMPONENTS
+        .iter()
+        .map(|name| {
+            (
+                format!("components/{name}.wasm"),
+                format!("legacy:{name}").into_bytes(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let bundle = archive_owned(&entries)?;
+    let values = extract_core(&bundle)?;
+    assert_eq!(values.len(), LEGACY_CORE_COMPONENTS.len());
+    Ok(())
+}
+
+#[test]
+fn canonical_core_bundle_requires_matching_profile_lock() -> anyhow::Result<()> {
+    use sha2::{Digest, Sha256};
+    let mut entries = CORE_COMPONENTS
+        .iter()
+        .map(|name| {
+            (
+                format!("components/{name}.wasm"),
+                format!("core:{name}").into_bytes(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut lock = String::from("schema 1\nprofile ohrats:core\n");
+    for (path, bytes) in &entries {
+        let name = path
+            .trim_start_matches("components/")
+            .trim_end_matches(".wasm");
+        lock.push_str(&format!(
+            "component {name} sha256:{:x}\n",
+            Sha256::digest(bytes)
+        ));
+    }
+    entries.push(("profile.lock".into(), lock.into_bytes()));
+    let values = extract_core(&archive_owned(&entries)?)?;
+    assert_eq!(values.len(), CORE_COMPONENTS.len());
+    entries.last_mut().unwrap().1.extend_from_slice(b"corrupt");
+    assert!(extract_core(&archive_owned(&entries)?).is_err());
+    Ok(())
 }
 
 #[test]
@@ -43,6 +93,19 @@ fn archive(entries: &[(&str, &[u8])]) -> anyhow::Result<Vec<u8>> {
         header.set_mode(0o755);
         header.set_cksum();
         builder.append_data(&mut header, *name, *contents)?;
+    }
+    Ok(builder.into_inner()?.finish()?)
+}
+
+fn archive_owned(entries: &[(String, Vec<u8>)]) -> anyhow::Result<Vec<u8>> {
+    let encoder = GzEncoder::new(Vec::new(), Compression::default());
+    let mut builder = Builder::new(encoder);
+    for (name, contents) in entries {
+        let mut header = Header::new_gnu();
+        header.set_size(contents.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        builder.append_data(&mut header, name, contents.as_slice())?;
     }
     Ok(builder.into_inner()?.finish()?)
 }

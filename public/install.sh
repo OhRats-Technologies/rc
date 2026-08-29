@@ -33,7 +33,6 @@ esac
 TMPDIR_PATH=$(mktemp -d "${TMPDIR:-/tmp}/rc-install.XXXXXX")
 trap 'rm -rf "$TMPDIR_PATH"' EXIT HUP INT TERM
 JSON="$TMPDIR_PATH/release.json"
-
 download() {
   url=$1
   destination=$2
@@ -86,7 +85,6 @@ verify_asset() {
     { echo "downloaded asset checksum mismatch: $asset_name" >&2; exit 1; }
 }
 download "$API" "$JSON" $((4 << 20))
-
 validate_single_archive() {
   archive=$1
   member=$2
@@ -100,26 +98,24 @@ validate_single_archive() {
     exit 1
   fi
 }
-
 validate_bundle_archive() {
-  archive=$1
-  listing=$TMPDIR_PATH/core.list
+  archive=$1 mode=$2 listing=$TMPDIR_PATH/core.list
   tar -tzf "$archive" > "$listing"
   tar -tvzf "$archive" | awk '$1 !~ /^[-d]/ { exit 1 }' ||
     { echo "core bundle contains a non-file member" >&2; exit 1; }
-  awk '
+  awk -v mode="$mode" '
     function allowed_component(name) {
-      return name == "artifact-cache-local" || name == "diagnostics-cli" || name == "diagnostics-reporter" ||
+      if (name == "diagnostics-cli" || name == "diagnostics-reporter" ||
         name == "diagnostics-store" || name == "github-source" ||
         name == "http-source" || name == "local-source" ||
         name == "oci-source" || name == "package-manager" ||
-        name == "process-policy" || name == "transport-webrtc" ||
-        name == "updater"
+        name == "process-policy" || name == "transport-webrtc") return 1
+      return mode == "profile" && (name == "artifact-cache-local" || name == "updater")
     }
     {
       if (seen[$0]++) exit 1
       if ($0 == "components" || $0 == "components/") next
-      if ($0 == "profile.lock") { locks++; next }
+      if ($0 == "profile.lock") { if (mode != "profile") exit 1; locks++; next }
       if (index($0, "components/") == 1 && $0 ~ /\.wasm$/) {
         name = substr($0, 12); sub(/\.wasm$/, "", name)
         if (!allowed_component(name)) exit 1
@@ -128,10 +124,12 @@ validate_bundle_archive() {
       }
       exit 1
     }
-    END { if (locks != 1 || components != 12) exit 1 }
+    END {
+      expected = mode == "profile" ? 12 : 10; expected_locks = mode == "profile" ? 1 : 0
+      if (locks != expected_locks || components != expected) exit 1
+    }
   ' "$listing" || { echo "invalid core bundle members" >&2; exit 1; }
 }
-
 validate_lock() {
   lock=$1
   awk '
@@ -149,44 +147,48 @@ validate_lock() {
     END { if (count != 12) exit 1 }
   ' "$lock" || { echo "invalid core profile lock" >&2; exit 1; }
 }
-
-CORE_COMPONENTS="artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc updater"
+PROFILE_CORE_COMPONENTS="artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc updater"
+LEGACY_CORE_COMPONENTS="diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc"
 component_digest() {
   awk -v wanted="$1" '$1 == "component" && $2 == wanted { print $3; exit }' "$TMPDIR_PATH/profile.lock"
 }
-
 TAG=$(tr -d '\n\r\t ' < "$JSON" | sed -n 's/.*"tag_name":"\([^"]*\)".*/\1/p')
 VERSION=${TAG#v}
 case "$VERSION" in
   [0-9]*.[0-9]*.[0-9]*) ;;
   *) echo "release has an invalid semantic version" >&2; exit 1 ;;
 esac
-
 PLATFORM="${OS}-${ARCH}"
+CORE_ASSET=rc-core-profile.tar.gz CORE_MODE=profile CORE_COMPONENTS=$PROFILE_CORE_COMPONENTS
+if [ -z "$(asset_field "$CORE_ASSET" browser_download_url)" ]; then
+  CORE_ASSET=rc-core-components.tar.gz
+  CORE_MODE=legacy
+  CORE_COMPONENTS=$LEGACY_CORE_COMPONENTS
+fi
 verify_asset "rc-${PLATFORM}.tar.gz" $((160 << 20))
 verify_asset "rc-kernel-${PLATFORM}.tar.gz" $((160 << 20))
-verify_asset "rc-core-components.tar.gz" $((128 << 20))
-
+verify_asset "$CORE_ASSET" $((128 << 20))
 validate_single_archive "$TMPDIR_PATH/rc-${PLATFORM}.tar.gz" rc
 validate_single_archive "$TMPDIR_PATH/rc-kernel-${PLATFORM}.tar.gz" rc-kernel
-validate_bundle_archive "$TMPDIR_PATH/rc-core-components.tar.gz"
-
+validate_bundle_archive "$TMPDIR_PATH/$CORE_ASSET" "$CORE_MODE"
 mkdir -p "$TMPDIR_PATH/new/components"
 tar -xzf "$TMPDIR_PATH/rc-${PLATFORM}.tar.gz" -C "$TMPDIR_PATH/new"
 tar -xzf "$TMPDIR_PATH/rc-kernel-${PLATFORM}.tar.gz" -C "$TMPDIR_PATH/new"
-tar -xzf "$TMPDIR_PATH/rc-core-components.tar.gz" -C "$TMPDIR_PATH/new"
-mv "$TMPDIR_PATH/new/profile.lock" "$TMPDIR_PATH/profile.lock"
-validate_lock "$TMPDIR_PATH/profile.lock"
-
+tar -xzf "$TMPDIR_PATH/$CORE_ASSET" -C "$TMPDIR_PATH/new"
+if [ "$CORE_MODE" = profile ]; then
+  mv "$TMPDIR_PATH/new/profile.lock" "$TMPDIR_PATH/profile.lock"
+  validate_lock "$TMPDIR_PATH/profile.lock"
+fi
 for name in $CORE_COMPONENTS; do
   file="$TMPDIR_PATH/new/components/$name.wasm"
   test -f "$file" || { echo "core bundle is missing $name" >&2; exit 1; }
-  expected=$(component_digest "$name")
-  actual="sha256:$(sha256_file "$file")"
-  test "$actual" = "$expected" ||
-    { echo "core component digest mismatch: $name" >&2; exit 1; }
+  if [ "$CORE_MODE" = profile ]; then
+    expected=$(component_digest "$name")
+    actual="sha256:$(sha256_file "$file")"
+    test "$actual" = "$expected" ||
+      { echo "core component digest mismatch: $name" >&2; exit 1; }
+  fi
 done
-
 chmod 0755 "$TMPDIR_PATH/new/rc" "$TMPDIR_PATH/new/rc-kernel"
 test "$("$TMPDIR_PATH/new/rc" version)" = "RC $VERSION" ||
   { echo "downloaded rc did not report the release version" >&2; exit 1; }
@@ -194,7 +196,6 @@ test "$("$TMPDIR_PATH/new/rc" version)" = "RC $VERSION" ||
   { echo "downloaded kernel did not report a valid version" >&2; exit 1; }
 "$TMPDIR_PATH/new/rc-kernel" --component-dir "$TMPDIR_PATH/new/components" repair >/dev/null ||
   { echo "core profile failed kernel validation" >&2; exit 1; }
-
 mkdir -p "$BIN_DIR" "$COMPONENT_DIR" "$ROLLBACK_DIR"
 BACKUP="$ROLLBACK_DIR/previous"
 rm -rf "$BACKUP.new"
@@ -215,7 +216,6 @@ if [ -f "$BIN_DIR/rc" ] || [ -f "$BIN_DIR/rc-kernel" ]; then
 fi
 rm -rf "$BACKUP"
 mv "$BACKUP.new" "$BACKUP"
-
 restore_previous() {
   for path in rc rc-kernel; do
     if [ -f "$BACKUP/$path" ]; then
@@ -239,7 +239,6 @@ restore_previous() {
     done
   done
 }
-
 cleanup() {
   status=$?
   if [ "${ACTIVATING:-0}" -eq 1 ] && [ "$status" -ne 0 ]; then
@@ -251,7 +250,6 @@ cleanup() {
 }
 ACTIVATING=0
 trap cleanup EXIT HUP INT TERM
-
 install_file() {
   source=$1
   destination=$2
@@ -261,7 +259,6 @@ install_file() {
   chmod "$mode" "$temporary"
   mv "$temporary" "$destination"
 }
-
 ACTIVATING=1
 install_file "$TMPDIR_PATH/new/rc" "$BIN_DIR/rc" 0755
 install_file "$TMPDIR_PATH/new/rc-kernel" "$BIN_DIR/rc-kernel" 0755
@@ -281,7 +278,6 @@ done
 printf '%s\n' "$VERSION" > "$ROLLBACK_DIR/installed-version.tmp"
 mv "$ROLLBACK_DIR/installed-version.tmp" "$ROLLBACK_DIR/installed-version"
 ACTIVATING=0
-
 echo "installed RC $VERSION in $BIN_DIR"
 if [ -n "$TOKEN" ]; then
   if [ -n "$SERVER" ]; then

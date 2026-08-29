@@ -1,14 +1,13 @@
 # Installation
 
-The public installer is a POSIX `sh` script. It downloads the platform RC
-archive, matching kernel archive, and `rc-core-components.tar.gz` from the
-immutable GitHub release named by the release API response. Every asset must
-provide a GitHub SHA-256 digest; the installer verifies the digest before it
-reads or activates an archive.
+The public installer is POSIX `sh`. It downloads the platform `rc` archive,
+matching kernel archive, and the core component asset from the immutable GitHub
+release returned by the release API. GitHub SHA-256 digests are required and
+verified before any archive is read or activated.
 
-The core archive is a bounded tar file containing exactly `profile.lock` and
-the twelve files under `components/` in the core profile. The lock format is
-deliberately line-oriented so validation does not require Python, jq, or RC:
+Current releases publish `rc-core-profile.tar.gz`. It contains exactly
+`profile.lock` plus the twelve files under `components/` in the core profile.
+The lock is line-oriented:
 
 ```text
 schema 1
@@ -16,31 +15,35 @@ profile ohrats:core
 component <name> sha256:<64 hex characters>
 ```
 
-The installer verifies every component digest and asks the staged kernel to
-repair the staged graph before activation. It places `rc` and `rc-kernel` in
-`~/.local/bin` and components in `~/.local/share/rc/components` by default.
-`RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`, and `RC_COMPONENT_DIR` provide explicit
-test or packaging paths. `RC_STATE_DIR` controls where enrollment state is
-read when deciding whether to install the background service.
+The installer verifies every locked component digest and asks the staged kernel
+to validate the staged graph before activation.
 
-Activation uses same-filesystem temporary files and retains the prior native
-pair and core component files under `~/.local/share/rc/rollback/previous`.
-The `.core` files are installer-owned markers, deliberately distinct from the
-package manager's `.managed` markers. This keeps the native/core bundle under
-installer ownership: `rc update` does not claim, remove, or reconcile these
-files, while a matching `.core` marker lets a later installer replace its own
-artifact. Locally overridden components (missing a matching `.core` marker) are
-left untouched. Enrollment and service setup happen only after the verified
-runtime is active; installation never invokes `rc upgrade` as a second step.
+`rc-core-components.tar.gz` is the ten-component compatibility asset accepted
+by the released v0.19.2 upgrader. It has no `profile.lock`. The installer uses
+it only when a release does not provide the current profile asset. This keeps
+old immutable releases installable without weakening validation of current
+releases.
 
-Run the deterministic fixture smoke test with:
+By default, `rc` and `rc-kernel` are installed in `~/.local/bin`; components go
+in `~/.local/share/rc/components`. `RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`,
+`RC_COMPONENT_DIR`, and `RC_STATE_DIR` provide explicit test or packaging
+locations.
+
+Activation uses same-filesystem temporary files and retains the previous native
+pair and installer-owned core component files under
+`~/.local/share/rc/rollback/previous`. `.core` markers are distinct from package
+manager `.managed` markers. A component without a matching `.core` marker is a
+local override and is not replaced by the installer.
+
+Run the deterministic installer smoke with:
 
 ```sh
 sh scripts/smoke-install.sh
 ```
 
-Release jobs should create the core archive with:
+Build release core assets with:
 
 ```sh
 packaging/build-core-bundle.sh
+packaging/build-legacy-core-bundle.sh
 ```

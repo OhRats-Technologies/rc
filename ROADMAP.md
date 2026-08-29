@@ -356,6 +356,12 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: repaired the release upgrade boundary after reproducing the
+  published v0.19.2 ten-component bundle against the newer twelve-component
+  installer contract. Releases now publish a canonical twelve-component
+  `profile.lock` asset plus the exact legacy ten-member asset required by the
+  immutable v0.19.2 updater. Current installers/updaters prefer the canonical
+  asset; legacy fallback remains bounded to the old member set.
 - 2026-08-29: added kernel-owned protected-key custody plus the selectable
   `key-custody-local` adapter and a deterministic custody fixture. The keys
   smoke proves dependency activation/withdrawal, stable public identity across

@@ -7,7 +7,7 @@ if [ "$#" -gt 2 ]; then
 fi
 
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-output=${1:-$root/dist/rc-core-components.tar.gz}
+output=${1:-$root/dist/rc-core-profile.tar.gz}
 source_dir=${2:-$root/dist/components}
 case "$output" in
   /*) ;;

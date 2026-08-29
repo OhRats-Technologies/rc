@@ -9,7 +9,10 @@ use std::{
 };
 
 const MAX_BINARY: u64 = 160 << 20;
-const MAX_COMPONENT: u64 = 48 << 20;
+pub(super) const MAX_COMPONENT: u64 = 48 << 20;
+
+mod core;
+use core::extract_core;
 
 pub const CORE_COMPONENTS: &[&str] = &[
     "artifact-cache-local",
@@ -167,51 +170,6 @@ fn extract_single(archive: &[u8], expected: &str, limit: u64) -> anyhow::Result<
         value = Some(bytes);
     }
     value.ok_or_else(|| anyhow::anyhow!("release archive does not contain {expected}"))
-}
-
-fn extract_core(archive: &[u8]) -> anyhow::Result<BTreeMap<String, Vec<u8>>> {
-    let mut tar = tar::Archive::new(GzDecoder::new(archive));
-    let mut values = BTreeMap::new();
-    for entry in tar.entries()? {
-        let entry = entry?;
-        let path = entry.path()?.into_owned();
-        if entry.header().entry_type().is_dir() && path.as_path() == Path::new("components") {
-            continue;
-        }
-        anyhow::ensure!(
-            entry.header().entry_type().is_file(),
-            "invalid core component archive"
-        );
-        let text = path
-            .to_str()
-            .and_then(|value| value.strip_prefix("components/"))
-            .and_then(|value| value.strip_suffix(".wasm"))
-            .ok_or_else(|| anyhow::anyhow!("unexpected core component path {}", path.display()))?
-            .to_owned();
-        anyhow::ensure!(
-            CORE_COMPONENTS.contains(&text.as_str()),
-            "unexpected core component {text:?}"
-        );
-        anyhow::ensure!(
-            !values.contains_key(&text),
-            "duplicate core component {text:?}"
-        );
-        anyhow::ensure!(entry.size() <= MAX_COMPONENT, "core component is too large");
-        let mut bytes = Vec::with_capacity(entry.size() as usize);
-        entry.take(MAX_COMPONENT + 1).read_to_end(&mut bytes)?;
-        anyhow::ensure!(
-            bytes.len() as u64 <= MAX_COMPONENT,
-            "core component is too large"
-        );
-        values.insert(text, bytes);
-    }
-    anyhow::ensure!(
-        CORE_COMPONENTS
-            .iter()
-            .all(|name| values.contains_key(*name)),
-        "core component archive is incomplete"
-    );
-    Ok(values)
 }
 
 fn component_dir() -> Option<PathBuf> {

@@ -2,6 +2,28 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.3] - 2026-08-29
+
+### Fixed
+
+- Split release core assets into a current twelve-component profile bundle and
+  the exact ten-member compatibility bundle required by the immutable v0.19.2
+  updater.
+- Made the installer accept the published v0.19.2 legacy bundle when no current
+  profile asset exists, while current releases retain profile-lock and digest
+  validation.
+- Made current native updaters prefer the profile asset and accept the legacy
+  format only as an upgrade bridge.
+
+### Validation
+
+- Reproduced the `invalid core bundle members` failure against the real v0.19.2
+  GitHub release and verified the updated installer succeeds with its ten
+  published components.
+- Verified the current kernel validates both the twelve-component profile and
+  the ten-component legacy bridge; Node-required process and WebRTC providers
+  remain active in the bridge graph.
+
 ## [0.19.2] - 2026-08-28
 
 ### Changed

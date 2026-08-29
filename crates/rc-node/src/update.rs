@@ -55,7 +55,7 @@ pub async fn replace_executable_from(
     }
     let platform = format!("{}-{}", release_os(), release_arch());
     let kernel = asset_bytes(&client, &release, &format!("rc-kernel-{platform}.tar.gz")).await?;
-    let core = asset_bytes(&client, &release, "rc-core-components.tar.gz").await?;
+    let core = asset_bytes(&client, &release, core_asset_name(&release)).await?;
     let rc = if ordering == std::cmp::Ordering::Greater {
         Some(asset_bytes(&client, &release, &format!("rc-{platform}.tar.gz")).await?)
     } else {
@@ -63,6 +63,18 @@ pub async fn replace_executable_from(
     };
     bundle::install(rc.as_deref(), &kernel, &core, version)?;
     Ok(true)
+}
+
+fn core_asset_name(release: &GithubRelease) -> &'static str {
+    if release
+        .assets
+        .iter()
+        .any(|asset| asset.name == "rc-core-profile.tar.gz")
+    {
+        "rc-core-profile.tar.gz"
+    } else {
+        "rc-core-components.tar.gz"
+    }
 }
 
 pub fn exec_current() -> io::Result<()> {
@@ -157,8 +169,26 @@ fn hex_lower(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::compare_versions;
+    use super::{GithubAsset, GithubRelease, compare_versions, core_asset_name};
     use std::cmp::Ordering;
+
+    #[test]
+    fn core_asset_prefers_current_profile() {
+        let release = GithubRelease {
+            tag_name: "v1.0.0".into(),
+            assets: vec![GithubAsset {
+                name: "rc-core-profile.tar.gz".into(),
+                browser_download_url: String::new(),
+                digest: None,
+            }],
+        };
+        assert_eq!(core_asset_name(&release), "rc-core-profile.tar.gz");
+        let legacy = GithubRelease {
+            tag_name: "v0.19.2".into(),
+            assets: Vec::new(),
+        };
+        assert_eq!(core_asset_name(&legacy), "rc-core-components.tar.gz");
+    }
 
     #[test]
     fn version_ordering_includes_prereleases() -> anyhow::Result<()> {
