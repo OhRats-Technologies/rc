@@ -152,6 +152,11 @@ RUNTIME_TOOLING = {
         "artifact-cache-local",
         "artifact-cache-mesh",
     },
+    "scripts/smoke-authority.sh": {
+        "authority-fixture",
+        "authority-store",
+        "crypto-ed25519",
+    },
     "scripts/smoke-api-credentials.sh": {
         "api-credential-fixture",
         "api-credential-store",

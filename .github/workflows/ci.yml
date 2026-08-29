@@ -307,6 +307,36 @@ jobs:
           add-job-id-key: false
       - run: scripts/smoke-mesh-policy.sh
 
+  authority-runtime:
+    needs: [changes, components]
+    if: >-
+      always() &&
+      (needs.changes.outputs.kernel == 'true' ||
+       contains(needs.changes.outputs.components, 'authority-fixture') ||
+       contains(needs.changes.outputs.components, 'authority-store') ||
+       contains(needs.changes.outputs.components, 'crypto-ed25519'))
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/authority-fixture -> target
+            components/authority-store -> target
+            components/crypto-ed25519 -> target
+          shared-key: rc-authority-runtime
+          add-job-id-key: false
+      - run: scripts/smoke-authority.sh
+
   diagnostics-runtime:
     needs: [changes, components]
     if: >-

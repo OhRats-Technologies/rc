@@ -7,8 +7,9 @@ cd "$root"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   scripts/build-component.sh components/authority-fixture >/dev/null
   scripts/build-component.sh components/authority-store >/dev/null
+  scripts/build-component.sh components/crypto-ed25519 >/dev/null
 fi
-for artifact in authority-fixture authority-store; do
+for artifact in authority-fixture authority-store crypto-ed25519; do
   test -f "dist/components/$artifact.wasm" || {
     echo "missing $artifact component artifact" >&2
     exit 1
@@ -22,14 +23,17 @@ trap cleanup EXIT INT TERM
 components="$directory/components"
 mkdir -p "$components"
 cp dist/components/authority-fixture.wasm "$components/authority-fixture.wasm"
+cp dist/components/authority-store.wasm "$components/authority-store.wasm"
 kernel=kernel/target/debug/rc-kernel
 run() { "$kernel" --component-dir "$components" "$@"; }
 
 run components >"$directory/waiting.out" 2>/dev/null
 grep -F "ohrats:authority-fixture" "$directory/waiting.out" | grep -F Active >/dev/null
-cp dist/components/authority-store.wasm "$components/authority-store.wasm"
+grep -F "ohrats:authority-store" "$directory/waiting.out" | grep -F Waiting >/dev/null
+cp dist/components/crypto-ed25519.wasm "$components/crypto-ed25519.wasm"
 run components >"$directory/active.out" 2>/dev/null
 grep -F "ohrats:authority-store" "$directory/active.out" | grep -F Active >/dev/null
+grep -F "ohrats:crypto-ed25519" "$directory/active.out" | grep -F Active >/dev/null
 
 fixture="vector"
 control_public=$(run authority-fixture-public)
@@ -63,5 +67,9 @@ assert rows
 assert all(b"private" not in key.lower() + value.lower() for key, value in rows)
 assert all(b"signature" not in key.lower() + value.lower() for key, value in rows)
 PY
+
+rm "$components/crypto-ed25519.wasm"
+run components >"$directory/removed.out" 2>/dev/null
+grep -F "ohrats:authority-store" "$directory/removed.out" | grep -F Waiting >/dev/null
 
 echo "authority storage smoke: ok"

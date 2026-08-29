@@ -292,10 +292,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "rc-authority-fixture"
+name = "rc-crypto-ed25519"
 version = "0.1.0"
 dependencies = [
  "ed25519-dalek",
+ "sha2",
  "wit-bindgen",
 ]
 

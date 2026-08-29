@@ -89,6 +89,15 @@ class AffectedUnitsTests(unittest.TestCase):
         )
         self.assertEqual(value["profiles"], ["mesh-smoke"])
 
+    def test_crypto_wit_change_rebuilds_authority_crypto_units(self) -> None:
+        value = self.resolve("wit/deps/crypto/crypto.wit")
+        self.assertFalse(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["authority-store", "crypto-ed25519"],
+        )
+        self.assertEqual(value["profiles"], ["authority-smoke"])
+
     def test_transport_wit_change_rebuilds_kernel_and_providers(self) -> None:
         value = self.resolve("wit/deps/transport/transport.wit")
         self.assertTrue(value["kernel"])
@@ -176,6 +185,14 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertEqual(
             value["components"],
             ["mesh-policy", "mesh-policy-fixture"],
+        )
+
+    def test_authority_runtime_smoke_selects_its_graph(self) -> None:
+        value = self.resolve("scripts/smoke-authority.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            ["authority-fixture", "authority-store", "crypto-ed25519"],
         )
 
     def test_artifact_cache_runtime_smoke_selects_its_graph(self) -> None:

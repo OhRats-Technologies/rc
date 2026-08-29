@@ -349,6 +349,11 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: replaced the authority fixture's generic signature verifier with
+  a production `crypto-ed25519` component that owns Ed25519 verification and
+  SHA-256. Authority runtime smoke now proves verifier dependency activation
+  and provider withdrawal. Protected-key custody and control-session crypto
+  remain the completion gate for the broader crypto migration item.
 - 2026-08-29: completed the remaining typed runtime contracts needed by the
   Node/transport migration. Process WIT now defines host-owned opaque process
   and stream resources alongside the existing secret-key and connection

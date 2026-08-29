@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:crypto-ed25519"
+version = "0.1.0"
+world = "ohrats:rc-plugin/crypto-ed25519@0.1.0"
+wit = ["crypto", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-crypto-ed25519"
+artifact = "crypto-ed25519"

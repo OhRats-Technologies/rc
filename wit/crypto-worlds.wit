@@ -1,0 +1,6 @@
+package ohrats:rc-plugin@0.1.0;
+
+world crypto-ed25519 {
+    include plugin;
+    export ohrats:rc-crypto/verifier@0.1.0;
+}

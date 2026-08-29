@@ -9,5 +9,4 @@ world authority-store {
 
 world authority-fixture {
     include plugin;
-    export ohrats:rc-crypto/verifier@0.1.0;
 }

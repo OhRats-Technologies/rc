@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:authority-fixture"
 version = "0.1.0"
 world = "ohrats:rc-plugin/authority-fixture@0.1.0"
-wit = ["authority", "crypto", "plugin"]
+wit = ["authority", "plugin"]
 
 [build]
 kind = "rust"
