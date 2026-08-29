@@ -145,6 +145,19 @@ COMPONENT_TOOLING = {
     "scripts/validate-components.py",
 }
 RUNTIME_TOOLING = {
+    "scripts/smoke-api-credentials.sh": {
+        "api-credential-fixture",
+        "api-credential-store",
+        "identity-store",
+        "webauthn-es256",
+    },
+    "scripts/smoke-authenticated-webui.sh": {
+        "identity-fixture",
+        "identity-store",
+        "webauthn-es256",
+        "webui-app",
+        "webui-shell",
+    },
     "scripts/smoke-diagnostics.sh": {
         "diagnostics-cli",
         "diagnostics-mesh",
@@ -165,7 +178,11 @@ RUNTIME_TOOLING = {
         "transport-test",
         "transport-webrtc",
     },
-    "scripts/smoke-identity.sh": {"identity-fixture", "identity-store"},
+    "scripts/smoke-identity.sh": {
+        "identity-fixture",
+        "identity-store",
+        "webauthn-es256",
+    },
     "scripts/smoke-packages.sh": {
         "http-source",
         "local-source",

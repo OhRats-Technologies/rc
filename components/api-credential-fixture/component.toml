@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:api-credential-fixture"
 version = "0.1.0"
 world = "ohrats:rc-plugin/api-credential-fixture@0.1.0"
-wit = ["api-credentials", "plugin"]
+wit = ["api-credentials", "identity", "plugin", "session", "webauthn"]
 
 [build]
 kind = "rust"

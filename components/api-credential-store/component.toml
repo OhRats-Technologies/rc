@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:api-credential-store"
 version = "0.1.0"
 world = "ohrats:rc-plugin/api-credential-store@0.1.0"
-wit = ["api-credentials", "plugin", "storage"]
+wit = ["api-credentials", "identity", "plugin", "storage"]
 
 [build]
 kind = "rust"

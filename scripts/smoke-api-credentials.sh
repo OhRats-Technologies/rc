@@ -2,11 +2,13 @@
 set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
+artifacts="webauthn-es256 identity-store api-credential-store api-credential-fixture"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
-  scripts/build-component.sh components/api-credential-store >/dev/null
-  scripts/build-component.sh components/api-credential-fixture >/dev/null
+  for artifact in $artifacts; do
+    scripts/build-component.sh "components/$artifact" >/dev/null
+  done
 fi
-for artifact in api-credential-store api-credential-fixture; do
+for artifact in $artifacts; do
   test -f "dist/components/$artifact.wasm" || { echo "missing $artifact component artifact" >&2; exit 1; }
 done
 cargo build --manifest-path kernel/Cargo.toml --locked >/dev/null
@@ -14,9 +16,15 @@ directory=$(mktemp -d)
 cleanup() { rm -rf "$directory"; }
 trap cleanup EXIT INT TERM
 mkdir -p "$directory/components"
-cp dist/components/api-credential-store.wasm dist/components/api-credential-fixture.wasm "$directory/components/"
+for artifact in $artifacts; do
+  cp "dist/components/$artifact.wasm" "$directory/components/"
+done
 kernel=kernel/target/debug/rc-kernel
 run() { "$kernel" --component-dir "$directory/components" "$@"; }
+run components >"$directory/components.out" 2>"$directory/components.err"
+for id in webauthn-es256 identity-store api-credential-store api-credential-fixture; do
+  grep -F "ohrats:$id" "$directory/components.out" | grep -F Active >/dev/null
+done
 fixture="smoke-$(date +%s)-$$"
 run api-credentials-seed "$fixture" >"$directory/seed.out" 2>"$directory/seed.err"
 grep -Fx "api credential seed: ok" "$directory/seed.out" >/dev/null
@@ -55,5 +63,17 @@ assert connection.execute(
     ("ohrats:api-credential-store", "api-request-nonces"),
 ).fetchone() == (3,)
 assert hashlib.sha256(f"device-{fixture}".encode()).digest() not in [key for key, _ in rows]
+assert connection.execute(
+    "SELECT count(*) FROM rc_component_entries WHERE owner=? AND bucket=?",
+    ("ohrats:identity-store", "human-admin-authorizations"),
+).fetchone() == (0,)
+assert connection.execute(
+    "SELECT count(*) FROM rc_component_entries WHERE owner=? AND bucket=?",
+    ("ohrats:identity-store", "ceremonies"),
+).fetchone() == (0,)
 PY
+rm "$directory/components/identity-store.wasm"
+run components >"$directory/withdrawn.out" 2>"$directory/withdrawn.err"
+grep -F "ohrats:api-credential-store" "$directory/withdrawn.out" | grep -F Waiting >/dev/null
+grep -F "ohrats:api-credential-fixture" "$directory/withdrawn.out" | grep -F Waiting >/dev/null
 echo "API credential smoke: ok"

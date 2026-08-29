@@ -15,6 +15,12 @@ interface types {
         state: list<u8>,
         expires-at-ms: u64,
     }
+
+    /// A random, short-lived capability. Identity stores only its digest and
+    /// accepts it exactly once for the operation bound during step-up.
+    record human-authorization {
+        token: list<u8>,
+    }
 }
 
 interface users {
@@ -62,4 +68,50 @@ interface ceremonies {
 
     put: func(value: ceremony) -> result<_, string>;
     take: func(id: string, kind: string) -> result<option<ceremony>, string>;
+}
+
+interface admin-issuer {
+    use types.{human-authorization};
+    use ohrats:rc-webauthn/types@0.1.0.{authentication-request, relying-party};
+
+    record challenge {
+        id: string,
+        challenge: list<u8>,
+        relying-party: relying-party,
+        credential-ids: list<list<u8>>,
+    }
+
+    begin: func(
+        session-cookie: string,
+        browser-client-id: string,
+        operation: string,
+        relying-party: relying-party,
+    ) -> result<challenge, string>;
+
+    /// Identity consumes the one-use ceremony, replaces caller credential material
+    /// with its stored key, and invokes the typed WebAuthn verifier itself.
+    issue: func(
+        session-cookie: string,
+        browser-client-id: string,
+        challenge-id: string,
+        authentication: authentication-request,
+    ) -> result<human-authorization, string>;
+}
+
+interface admin-consumer {
+    use types.{human-authorization};
+
+    record claim {
+        user-id: string,
+        browser-client-id: string,
+        issued-at-ms: u64,
+        consumed-at-ms: u64,
+        expires-at-ms: u64,
+    }
+
+    /// Consumes the sealed token exactly once and returns a bounded identity-owned claim.
+    consume: func(
+        authorization: human-authorization,
+        operation: string,
+    ) -> result<claim, string>;
 }

@@ -5,4 +5,5 @@ id = "ohrats:identity-smoke"
 components = [
   "identity-fixture",
   "identity-store",
+  "webauthn-es256",
 ]

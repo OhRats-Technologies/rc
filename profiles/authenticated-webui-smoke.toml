@@ -5,6 +5,7 @@ id = "ohrats:authenticated-webui-smoke"
 components = [
   "identity-fixture",
   "identity-store",
+  "webauthn-es256",
   "webui-app",
   "webui-shell",
 ]

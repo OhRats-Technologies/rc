@@ -1,21 +1,22 @@
 use crate::ohrats::rc_api_credentials::types::{
-    Administrator, Credential, Kind, Lifetime, Request, Scope, Verified,
+    Credential, Kind, Lifetime, Request, Scope, Verified,
 };
 use crate::{
     admin, crypto,
     model::{self, StoredCredential},
+    ohrats::rc_identity::types::HumanAuthorization,
     storage, validate,
 };
 
 pub fn create_api(
-    admin_value: Administrator,
+    admin_value: HumanAuthorization,
     id: String,
     name: String,
     public_key: String,
     requested: Vec<Scope>,
     lifetime: Option<Lifetime>,
 ) -> Result<Credential, String> {
-    admin::check(&admin_value)?;
+    let admin_value = admin::check(admin_value, "api-credential.create")?;
     validate::id(&id, "credential id")?;
     validate::text(&name, "credential name", validate::MAX_NAME)?;
     validate::public_key(&public_key)?;
@@ -38,8 +39,8 @@ pub fn create_api(
         name,
         public_key,
         scopes: scopes.into_iter().map(model::scope).collect(),
-        created_at_ms: admin_value.now_ms,
-        expires_at_ms: validate::lifetime(lifetime, admin_value.now_ms),
+        created_at_ms: admin_value.consumed_at_ms,
+        expires_at_ms: validate::lifetime(lifetime, admin_value.consumed_at_ms),
         last_used_at_ms: None,
         revoked_at_ms: None,
     };
@@ -74,15 +75,15 @@ pub fn get(id: &str) -> Result<Option<Credential>, String> {
         .transpose()?)
 }
 
-pub fn revoke(admin_value: Administrator, id: &str) -> Result<bool, String> {
-    admin::check(&admin_value)?;
+pub fn revoke(admin_value: HumanAuthorization, id: &str) -> Result<bool, String> {
+    let admin_value = admin::check(admin_value, "api-credential.revoke")?;
     let Some(mut value) = load(id)? else {
         return Ok(false);
     };
     if value.user_id != admin_value.user_id || value.revoked_at_ms.is_some() {
         return Ok(false);
     }
-    value.revoked_at_ms = Some(admin_value.now_ms);
+    value.revoked_at_ms = Some(admin_value.consumed_at_ms);
     storage::put(
         storage::CREDENTIALS,
         id.as_bytes().to_vec(),

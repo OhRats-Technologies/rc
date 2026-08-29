@@ -1,9 +1,8 @@
-use crate::ohrats::rc_api_credentials::types::{
-    Administrator, CliAuthorization, Credential, Lifetime, Scope,
-};
+use crate::ohrats::rc_api_credentials::types::{CliAuthorization, Credential, Lifetime, Scope};
 use crate::{
     admin, crypto,
     model::{self, PendingCli, StoredCredential},
+    ohrats::rc_identity::types::HumanAuthorization,
     storage, validate,
 };
 const REQUEST_TTL_MS: u64 = 10 * 60 * 1000;
@@ -52,14 +51,14 @@ pub fn start(
 }
 
 pub fn approve(
-    admin_value: Administrator,
+    admin_value: HumanAuthorization,
     request_id: &str,
     user_code: &str,
     browser_public_key: &str,
 ) -> Result<Credential, String> {
-    admin::check(&admin_value)?;
+    let admin_value = admin::check(admin_value, "api-credential.cli-approve")?;
     let mut pending = load(request_id)?.ok_or_else(|| "CLI authorization expired".to_owned())?;
-    if pending.expires_at_ms <= admin_value.now_ms
+    if pending.expires_at_ms <= admin_value.consumed_at_ms
         || pending.exchanged_at_ms.is_some()
         || pending.approved_at_ms.is_some()
         || pending.user_code_hash != crypto::hash(user_code)
@@ -79,7 +78,7 @@ pub fn approve(
         name: "RC CLI".into(),
         public_key: pending.public_key.clone(),
         scopes: vec![model::scope(Scope::Read), model::scope(Scope::Execute)],
-        created_at_ms: admin_value.now_ms,
+        created_at_ms: admin_value.consumed_at_ms,
         expires_at_ms: crate::validate::lifetime(
             pending.lifetime.map(|value| match value {
                 1 => Lifetime::OneHour,
@@ -91,12 +90,12 @@ pub fn approve(
                 7 => Lifetime::OneYear,
                 _ => Lifetime::Never,
             }),
-            admin_value.now_ms,
+            admin_value.consumed_at_ms,
         ),
         last_used_at_ms: None,
         revoked_at_ms: None,
     };
-    pending.approved_at_ms = Some(admin_value.now_ms);
+    pending.approved_at_ms = Some(admin_value.consumed_at_ms);
     storage::put(
         storage::CREDENTIALS,
         id.into_bytes(),
@@ -138,7 +137,7 @@ pub fn poll(
     Ok(Some(credential))
 }
 
-pub fn revoke(admin_value: Administrator, id: &str) -> Result<bool, String> {
+pub fn revoke(admin_value: HumanAuthorization, id: &str) -> Result<bool, String> {
     crate::credentials::revoke(admin_value, id)
 }
 

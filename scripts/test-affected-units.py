@@ -64,6 +64,8 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertEqual(
             value["components"],
             [
+                "api-credential-store",
+                "authority-store",
                 "device-store",
                 "events-store",
                 "identity-store",
@@ -91,7 +93,13 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertFalse(value["kernel"])
         self.assertEqual(
             value["components"],
-            ["identity-fixture", "identity-http", "identity-store"],
+            [
+                "api-credential-fixture",
+                "api-credential-store",
+                "identity-fixture",
+                "identity-http",
+                "identity-store",
+            ],
         )
 
     def test_session_wit_change_rebuilds_identity_units(self) -> None:
@@ -99,7 +107,13 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertFalse(value["kernel"])
         self.assertEqual(
             value["components"],
-            ["identity-fixture", "identity-http", "identity-store", "webui-app"],
+            [
+                "api-credential-fixture",
+                "identity-fixture",
+                "identity-http",
+                "identity-store",
+                "webui-app",
+            ],
         )
 
     def test_webauthn_wit_change_rebuilds_only_verifier_units(self) -> None:
@@ -108,6 +122,7 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertEqual(
             value["components"],
             [
+                "api-credential-fixture",
                 "identity-fixture",
                 "identity-http",
                 "identity-store",
@@ -146,10 +161,40 @@ class AffectedUnitsTests(unittest.TestCase):
         self.assertTrue(value["kernel"])
         self.assertEqual(value["components"], ["storage-fixture"])
 
+    def test_api_credential_runtime_smoke_selects_its_graph(self) -> None:
+        value = self.resolve("scripts/smoke-api-credentials.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            [
+                "api-credential-fixture",
+                "api-credential-store",
+                "identity-store",
+                "webauthn-es256",
+            ],
+        )
+
+    def test_authenticated_webui_runtime_smoke_selects_its_graph(self) -> None:
+        value = self.resolve("scripts/smoke-authenticated-webui.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(
+            value["components"],
+            [
+                "identity-fixture",
+                "identity-store",
+                "webauthn-es256",
+                "webui-app",
+                "webui-shell",
+            ],
+        )
+
     def test_identity_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
         value = self.resolve("scripts/smoke-identity.sh")
         self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["identity-fixture", "identity-store"])
+        self.assertEqual(
+            value["components"],
+            ["identity-fixture", "identity-store", "webauthn-es256"],
+        )
 
     def test_webauthn_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
         value = self.resolve("scripts/smoke-webauthn.sh")

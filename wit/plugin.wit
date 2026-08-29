@@ -256,11 +256,14 @@ world webauthn-fixture {
 world identity-store {
     include plugin;
     import ohrats:rc-storage/durable-store@0.1.0;
+    import ohrats:rc-webauthn/verifier@0.1.0;
     export ohrats:rc-identity/users@0.1.0;
     export ohrats:rc-identity/credentials@0.1.0;
     export ohrats:rc-identity/ceremonies@0.1.0;
     export ohrats:rc-session/lookup@0.1.0;
     export ohrats:rc-session/management@0.1.0;
+    export ohrats:rc-identity/admin-issuer@0.1.0;
+    export ohrats:rc-identity/admin-consumer@0.1.0;
 }
 
 world identity-fixture {

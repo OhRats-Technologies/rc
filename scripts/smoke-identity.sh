@@ -7,8 +7,9 @@ cd "$root"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   scripts/build-component.sh components/identity-store >/dev/null
   scripts/build-component.sh components/identity-fixture >/dev/null
+  scripts/build-component.sh components/webauthn-es256 >/dev/null
 fi
-for artifact in identity-store identity-fixture; do
+for artifact in identity-store identity-fixture webauthn-es256; do
   test -f "dist/components/$artifact.wasm" || {
     echo "missing $artifact component artifact" >&2
     exit 1
@@ -35,9 +36,11 @@ if run identity-seed unavailable >/dev/null 2>&1; then
 fi
 
 cp dist/components/identity-store.wasm "$components/identity-store.wasm"
+cp dist/components/webauthn-es256.wasm "$components/webauthn-es256.wasm"
 run components >"$directory/active.out" 2>/dev/null
 grep -F "ohrats:identity-store" "$directory/active.out" | grep -F Active >/dev/null
 grep -F "ohrats:identity-fixture" "$directory/active.out" | grep -F Active >/dev/null
+grep -F "ohrats:webauthn-es256" "$directory/active.out" | grep -F Active >/dev/null
 
 fixture="smoke-$(date +%s)-$$"
 token=$(run identity-seed "$fixture" 2>"$directory/seed.err")

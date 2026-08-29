@@ -4,6 +4,7 @@ wit_bindgen::generate!({
     generate_all,
 });
 
+mod admin;
 mod ceremony;
 mod credential;
 mod session;
@@ -14,6 +15,8 @@ mod validate;
 
 use exports::{
     ohrats::rc_identity::{
+        admin_consumer::Guest as AdminConsumerGuest,
+        admin_issuer::{Challenge, Guest as AdminIssuerGuest},
         ceremonies::Guest as CeremoniesGuest,
         credentials::{Guest as CredentialsGuest, Passkey},
         users::Guest as UsersGuest,
@@ -21,8 +24,8 @@ use exports::{
     ohrats::rc_session::{lookup::Guest as LookupGuest, management::Guest as ManagementGuest},
 };
 use ohrats::{
-    rc_identity::types::{Ceremony, User},
-    rc_plugin::types::Service,
+    rc_identity::types::{Ceremony, HumanAuthorization, User},
+    rc_plugin::types::{Requirement, Selection, Service},
     rc_session::types::{IssuedSession, Session},
     rc_webauthn::types::StoredCredential,
 };
@@ -40,8 +43,14 @@ impl Guest for IdentityStore {
                 service("ohrats:rc-identity/ceremonies"),
                 service("ohrats:rc-session/lookup"),
                 service("ohrats:rc-session/management"),
+                service("ohrats:rc-identity/admin-issuer"),
+                service("ohrats:rc-identity/admin-consumer"),
             ],
-            requires: Vec::new(),
+            requires: vec![Requirement {
+                name: "ohrats:rc-webauthn/verifier".into(),
+                version: "^0.1".into(),
+                selection: Selection::Keyed,
+            }],
             commands: Vec::new(),
         }
     }
@@ -50,7 +59,9 @@ impl Guest for IdentityStore {
         Ok(())
     }
 
-    fn deactivate() {}
+    fn deactivate() {
+        admin::withdraw();
+    }
 
     fn invoke(command: String, _args: Vec<String>) -> Result<u32, String> {
         Err(format!("unsupported command {command:?}"))
@@ -133,6 +144,47 @@ impl ManagementGuest for IdentityStore {
 
     fn revoke(cookie_header: String) -> Result<bool, String> {
         session::revoke(&cookie_header)
+    }
+}
+
+impl AdminIssuerGuest for IdentityStore {
+    fn begin(
+        session_cookie: String,
+        browser_client_id: String,
+        operation: String,
+        relying_party: ohrats::rc_webauthn::types::RelyingParty,
+    ) -> Result<Challenge, String> {
+        admin::begin(
+            &session_cookie,
+            &browser_client_id,
+            &operation,
+            relying_party,
+        )
+    }
+
+    fn issue(
+        session_cookie: String,
+        browser_client_id: String,
+        challenge_id: String,
+        authentication: ohrats::rc_webauthn::types::AuthenticationRequest,
+    ) -> Result<HumanAuthorization, String> {
+        Ok(HumanAuthorization {
+            token: admin::issue(
+                &session_cookie,
+                &browser_client_id,
+                &challenge_id,
+                authentication,
+            )?,
+        })
+    }
+}
+
+impl AdminConsumerGuest for IdentityStore {
+    fn consume(
+        authorization: HumanAuthorization,
+        operation: String,
+    ) -> Result<exports::ohrats::rc_identity::admin_consumer::Claim, String> {
+        admin::consume(&authorization.token, &operation)
     }
 }
 

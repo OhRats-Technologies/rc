@@ -10,8 +10,9 @@ mod validate;
 
 use exports::ohrats::rc_api_credentials::credentials::Guest as CredentialsGuest;
 use ohrats::rc_api_credentials::types::{
-    Administrator, CliAuthorization, Credential, Lifetime, Request, Scope, Verified,
+    CliAuthorization, Credential, Lifetime, Request, Scope, Verified,
 };
+use ohrats::rc_identity::types::HumanAuthorization;
 use ohrats::rc_plugin::types::Service;
 
 struct ApiCredentialStore;
@@ -22,7 +23,7 @@ impl Guest for ApiCredentialStore {
             id: "ohrats:api-credential-store".into(),
             version: "0.1.0".into(),
             provides: vec![service("ohrats:rc-api-credentials/credentials")],
-            requires: Vec::new(),
+            requires: vec![single("ohrats:rc-identity/admin-consumer")],
             commands: Vec::new(),
         }
     }
@@ -37,7 +38,7 @@ impl Guest for ApiCredentialStore {
 
 impl CredentialsGuest for ApiCredentialStore {
     fn create_api(
-        a: Administrator,
+        a: HumanAuthorization,
         id: String,
         name: String,
         key: String,
@@ -52,7 +53,7 @@ impl CredentialsGuest for ApiCredentialStore {
     fn get(id: String) -> Result<Option<Credential>, String> {
         credentials::get(&id)
     }
-    fn revoke(a: Administrator, id: String) -> Result<bool, String> {
+    fn revoke(a: HumanAuthorization, id: String) -> Result<bool, String> {
         credentials::revoke(a, &id)
     }
     fn verify(value: Request, now_ms: u64) -> Result<Verified, String> {
@@ -70,7 +71,7 @@ impl CredentialsGuest for ApiCredentialStore {
         cli::start(client, key, life, request, device, user, now)
     }
     fn approve_cli(
-        a: Administrator,
+        a: HumanAuthorization,
         request: String,
         user: String,
         browser_key: String,
@@ -80,7 +81,7 @@ impl CredentialsGuest for ApiCredentialStore {
     fn poll_cli(request: String, device: String, now: u64) -> Result<Option<Credential>, String> {
         cli::poll(&request, &device, now)
     }
-    fn revoke_cli(a: Administrator, id: String) -> Result<bool, String> {
+    fn revoke_cli(a: HumanAuthorization, id: String) -> Result<bool, String> {
         cli::revoke(a, &id)
     }
 }
@@ -91,6 +92,14 @@ fn service(name: &str) -> Service {
         version: "0.1.0".into(),
         priority: 100,
         keys: Vec::new(),
+    }
+}
+
+fn single(name: &str) -> ohrats::rc_plugin::types::Requirement {
+    ohrats::rc_plugin::types::Requirement {
+        name: name.into(),
+        version: "^0.1".into(),
+        selection: ohrats::rc_plugin::types::Selection::Single,
     }
 }
 export!(ApiCredentialStore);

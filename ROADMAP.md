@@ -238,8 +238,10 @@ contribution smoke tests already pass through the native kernel listener.
   - [x] Add typed component-owned API/CLI credential state with Ed25519
     proof-of-possession, canonical request binding, bounded durable nonce replay
     protection, scopes, expiration/revocation, and passkey-stepped CLI approval.
-  - [ ] Route signed API/CLI credential administration through identity services,
-    then remove the remaining native SQLite paths.
+  - [x] Require identity-issued, one-use, operation-bound passkey authorization
+    tokens for component API/CLI credential creation, approval, and revocation.
+  - [ ] Route production API/CLI credential administration through those
+    services, then remove the remaining native SQLite paths.
   - [x] Route setup/login WebAuthn registration and authentication ceremonies,
     browser sessions, logout, and restart persistence through identity components.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
@@ -347,6 +349,13 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: replaced caller-constructed API/CLI administrator records with
+  identity-issued random human-authorization tokens whose durable records are
+  digest-keyed. Identity binds each one-use claim to the browser session, client,
+  operation, fresh passkey assertion, and expiry; runtime smoke covers forged and
+  operation-mismatched proofs, one-use authorization replay, signed-request
+  replay races, credential expiry, restart persistence, and provider withdrawal.
+  Production HTTP routing and native SQLite removal remain the cutover gate.
 - 2026-08-29: established the typed artifact-cache provider boundary with
   bounded local storage and RC-Lock-authorized mesh adapters. Runtime fixtures
   prove explicit local-to-mesh miss fallback, digest/tamper rejection,

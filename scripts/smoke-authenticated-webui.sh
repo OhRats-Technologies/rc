@@ -5,7 +5,7 @@ root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
-  for component in identity-store identity-fixture webui-shell webui-app; do
+  for component in identity-store identity-fixture webauthn-es256 webui-shell webui-app; do
     scripts/build-component.sh "components/$component" >/dev/null
   done
 fi
@@ -26,7 +26,7 @@ trap cleanup EXIT INT TERM
 
 components="$directory/components"
 mkdir -p "$components"
-for component in identity-store identity-fixture webui-shell webui-app; do
+for component in identity-store identity-fixture webauthn-es256 webui-shell webui-app; do
   cp "dist/components/$component.wasm" "$components/$component.wasm"
 done
 
