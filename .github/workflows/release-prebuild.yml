@@ -8,6 +8,7 @@ on:
       - Cargo.lock
       - crates/**
       - public/install.sh
+      - scripts/check-version.sh
       - .github/workflows/release-prebuild.yml
 
 permissions:
