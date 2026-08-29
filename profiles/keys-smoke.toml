@@ -1,0 +1,9 @@
+schema = 1
+
+[profile]
+id = "ohrats:keys-smoke"
+components = [
+  "crypto-ed25519",
+  "key-custody-fixture",
+  "key-custody-local",
+]

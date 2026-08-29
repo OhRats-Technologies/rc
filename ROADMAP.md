@@ -290,6 +290,13 @@ component graph, using the existing Coolify volume, ingress, and public routes.
   connections.
 - [ ] Port crypto suites and key-custody adapters into independently selectable
   components.
+  - [x] Move Ed25519 verification and SHA-256 into the production
+    `crypto-ed25519` component.
+  - [x] Add kernel-owned protected-key handles and a selectable
+    `key-custody-local` adapter whose component-facing service never forwards
+    secret resources or key bytes.
+  - [ ] Port X25519, HKDF-SHA256, and AES-256-GCM control-session crypto out of
+    `rc-crypto` and into independently selectable components.
 - [ ] Port RC Lock and execution authorization.
 - [x] Move process authorization expiry and TERM-to-KILL lifecycle policy out
   of the bounded OS process adapter.
@@ -349,11 +356,18 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: added kernel-owned protected-key custody plus the selectable
+  `key-custody-local` adapter and a deterministic custody fixture. The keys
+  smoke proves dependency activation/withdrawal, stable public identity across
+  fresh kernel processes and provider replacement, 0600 private-key storage,
+  production Ed25519 signature verification, and explicit slot deletion.
+  Secret resources remain host-only. X25519/HKDF-SHA256/AES-256-GCM
+  control-session crypto is still the completion gate for the parent item.
 - 2026-08-29: replaced the authority fixture's generic signature verifier with
   a production `crypto-ed25519` component that owns Ed25519 verification and
   SHA-256. Authority runtime smoke now proves verifier dependency activation
-  and provider withdrawal. Protected-key custody and control-session crypto
-  remain the completion gate for the broader crypto migration item.
+  and provider withdrawal. Control-session crypto remains the completion gate
+  for the broader crypto migration item.
 - 2026-08-29: completed the remaining typed runtime contracts needed by the
   Node/transport migration. Process WIT now defines host-owned opaque process
   and stream resources alongside the existing secret-key and connection

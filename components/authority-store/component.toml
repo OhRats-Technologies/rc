@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:authority-store"
 version = "0.1.0"
 world = "ohrats:rc-plugin/authority-store@0.1.0"
-wit = ["authority", "crypto", "keys", "plugin", "storage"]
+wit = ["authority", "crypto", "plugin", "storage"]
 
 [build]
 kind = "rust"

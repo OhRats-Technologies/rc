@@ -69,6 +69,7 @@ pub struct HostState {
     limits: StoreLimits,
     plugin_id: String,
     call_context: CallContext,
+    pub(crate) key_handles: crate::key_vault::KeyHandles,
     pub environment: HostEnvironment,
     pub registry: ServiceRegistry,
     pub replacement: NativeReplacement,
@@ -92,6 +93,7 @@ impl HostState {
                 .build(),
             plugin_id,
             call_context: CallContext::default(),
+            key_handles: crate::key_vault::KeyHandles::default(),
             environment,
             registry,
             replacement: NativeReplacement::default(),
@@ -231,6 +233,10 @@ pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> 
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;
     crate::bindings::ohrats::rc_artifact_cache::local_storage::add_to_linker::<
+        HostState,
+        wasmtime::component::HasSelf<HostState>,
+    >(linker, |state| state)?;
+    crate::bindings::ohrats::rc_keys::host_custody::add_to_linker::<
         HostState,
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;

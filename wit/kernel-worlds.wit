@@ -1,0 +1,6 @@
+package ohrats:rc-plugin@0.1.0;
+
+world kernel-host {
+    include kernel-plugin;
+    import ohrats:rc-keys/host-custody@0.1.0;
+}

@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:key-custody-local"
+version = "0.1.0"
+world = "ohrats:rc-plugin/key-custody-local@0.1.0"
+wit = ["keys", "plugin"]
+
+[build]
+kind = "rust"
+package = "rc-key-custody-local"
+artifact = "key-custody-local"

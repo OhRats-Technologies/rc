@@ -1,0 +1,13 @@
+package ohrats:rc-plugin@0.1.0;
+
+world key-custody-local {
+    include plugin;
+    import ohrats:rc-keys/host-custody@0.1.0;
+    export ohrats:rc-keys/custody@0.1.0;
+}
+
+world key-custody-fixture {
+    include plugin;
+    import ohrats:rc-keys/custody@0.1.0;
+    import ohrats:rc-crypto/verifier@0.1.0;
+}

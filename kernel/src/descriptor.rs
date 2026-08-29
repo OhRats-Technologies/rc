@@ -198,6 +198,7 @@ fn kernel_interface(name: &str) -> bool {
         "ohrats:rc-plugin/http-client@",
         "ohrats:rc-storage/durable-store@",
         "ohrats:rc-artifact-cache/local-storage@",
+        "ohrats:rc-keys/host-custody@",
         "ohrats:rc-updater/artifact-source@",
         "ohrats:rc-updater/native-replacement@",
     ]

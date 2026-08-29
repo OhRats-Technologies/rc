@@ -1,15 +1,39 @@
 package ohrats:rc-keys@0.1.0;
 
 interface types {
-    /// Opaque private-key handle. Secret material is never a WIT value.
-    resource secret-key;
+    enum key-algorithm {
+        ed25519,
+    }
+
+    record public-key {
+        algorithm: key-algorithm,
+        bytes: list<u8>,
+    }
 }
 
-interface custody {
-    use types.{secret-key};
+/// Kernel-owned protected-key mechanism. Secret material never crosses WIT;
+/// the resource is consumed only inside a component that imports this host
+/// capability and is never forwarded through the component service registry.
+interface host-custody {
+    use types.{key-algorithm, public-key};
 
-    /// Generates a key inside the owning custody adapter.
-    generate: func() -> result<secret-key, string>;
-    public-key: func(key: borrow<secret-key>) -> result<list<u8>, string>;
-    sign: func(key: borrow<secret-key>, payload: list<u8>) -> result<list<u8>, string>;
+    resource secret-key {
+        public-key: func() -> result<public-key, string>;
+        sign: func(payload: list<u8>) -> result<list<u8>, string>;
+    }
+
+    open: func(slot: string, algorithm: key-algorithm) -> result<option<secret-key>, string>;
+    ensure: func(slot: string, algorithm: key-algorithm) -> result<secret-key, string>;
+    remove: func(slot: string, algorithm: key-algorithm) -> result<bool, string>;
+}
+
+/// Component-facing custody service. Providers may use the local host vault or
+/// another explicitly granted key backend. No secret resource crosses this ABI.
+interface custody {
+    use types.{key-algorithm, public-key};
+
+    ensure: func(slot: string, algorithm: key-algorithm) -> result<public-key, string>;
+    lookup: func(slot: string, algorithm: key-algorithm) -> result<option<public-key>, string>;
+    sign: func(slot: string, algorithm: key-algorithm, payload: list<u8>) -> result<list<u8>, string>;
+    remove: func(slot: string, algorithm: key-algorithm) -> result<bool, string>;
 }

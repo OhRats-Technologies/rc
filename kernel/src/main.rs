@@ -7,6 +7,7 @@ mod descriptor;
 mod durable;
 mod graph;
 mod host;
+mod key_vault;
 mod network;
 mod node;
 mod reconcile;

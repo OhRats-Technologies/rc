@@ -1,6 +1,6 @@
 wasmtime::component::bindgen!({
     path: "../wit",
-    world: "kernel-plugin",
+    world: "kernel-host",
 });
 
-pub use KernelPlugin as Plugin;
+pub use KernelHost as Plugin;
