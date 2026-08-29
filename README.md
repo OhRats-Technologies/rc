@@ -1,36 +1,68 @@
 # RC
 
-RC is a Rust remote-control platform for managing machines from a browser, CLI, OpenSSH, API client, or MCP-compatible agent. Human terminal traffic uses application-layer encrypted WebRTC DataChannels directly between the controller and RC Node; the server coordinates identity, authorization, presence, and ICE/TURN.
+RC is a remote-control system for macOS and Linux nodes. It supports browser,
+CLI, API, MCP, and OpenSSH access.
 
-The repository contains the server, browser application, Node runtime, CLI, protocol, cryptography, installer, container image, and release automation.
+The repository is in an active migration from native product crates to a small
+Wasmtime kernel plus independently built WebAssembly components. Production
+still uses parts of `crates/rc-server` and `web/`; [`ROADMAP.md`](ROADMAP.md) is
+the authoritative migration checklist.
 
-## Components
+## Runtime model
 
-| Component | Purpose |
+- The server coordinates identity, authorization, presence, signaling, MCP,
+  and SSH gateway traffic.
+- The Node enforces RC Lock and process execution locally.
+- Browser and CLI process traffic uses encrypted WebRTC DataChannels after
+  HTTP signaling.
+- SSH and MCP are hosted relay surfaces and have different trust boundaries.
+- API and CLI automation credentials use Ed25519 proof-of-possession, not
+  bearer tokens.
+
+## Repository layout
+
+| Path | Purpose |
 | --- | --- |
-| `rc-server` | Axum HTTP service, passkeys, workspaces, signaling, SSH gateway, MCP OAuth/RPC, SQLite persistence |
-| `rc` | Account CLI, remote command/shell client, Node executable, updater, and service manager |
-| `rc-node` | Enrollment, signed Node HTTP, WebRTC control, process runtime, RC Lock, state, and updates |
-| `rc-api-client` | Proof-of-possession API client and control bootstrap |
-| `rc-protocol` | Shared wire messages and authority structures |
-| `rc-crypto` | Request signatures, key agreement, control encryption, and WebAuthn helpers |
-| `rc-context` | Typed runtime services, revertible effect scopes, and dependency reconciliation |
-| `rc-mesh` | Realm-isolated route broker and encrypted transport substrate |
-| `web/` | Browser TypeScript and CSS bundled by Bun; Bun is not present in the runtime image |
+| `kernel/` | Native Wasmtime host and narrow OS adapters |
+| `wit/` | Cross-component contracts and worlds |
+| `components/` | Independently built product components |
+| `profiles/` | Declarative component graph assemblies |
+| `crates/rc-*` | Transitional native product implementations |
+| `web/` | Transitional global browser source |
+| `public/install.sh` | Release installer |
+| `docker/` | SSH gateway support files |
 
-The MCP Terminal surface intentionally exposes one process workflow: `machines_list` → `process_run` → `process_status`, with `process_input` for exact stdin/EOF and `process_cancel` for termination. Output is an ephemeral rolling in-memory stream addressed by cursor; RC does not persist MCP commands, input, or output.
+Native product crates and the global browser tree are deletion queues, not the
+target ownership model.
 
-## Run the server locally
+## Run locally
 
-The fastest production-shaped setup is Docker:
+Required tools:
+
+- Rust 1.98
+- Bun 1.4
+- Docker for container validation
+
+Install dependencies:
 
 ```sh
-git clone git@github.com:OhRats-Technologies/rc.git
-cd rc
-docker build -t rc .
+bun install --frozen-lockfile
+cargo fetch --locked
+```
 
+Build browser assets and run the current server:
+
+```sh
+bun run build:client
+cargo run -p rc-server
+```
+
+For a production-shaped local container:
+
+```sh
+docker build -t rc .
 export RC_SETUP_TOKEN="$(openssl rand -hex 24)"
-docker run --name rc --rm \
+docker run --rm --name rc \
   -p 3000:3000 \
   -v rc-data:/data \
   -e PUBLIC_URL=http://localhost:3000 \
@@ -38,31 +70,28 @@ docker run --name rc --rm \
   rc
 ```
 
-Open the one-time setup URL, not the bare home page:
+Open `http://localhost:3000/setup/<RC_SETUP_TOKEN>` to create the first
+passkey-backed account. Use HTTPS and the exact external `PUBLIC_URL` outside
+localhost.
+
+Health endpoints:
 
 ```text
-http://localhost:3000/setup/<RC_SETUP_TOKEN>
+/healthz
+/api/v1/health
 ```
 
-Create the first passkey-backed owner account. The setup authorization cookie lasts 15 minutes. For a non-local deployment, configure HTTPS and set `PUBLIC_URL` to the exact external origin before creating passkeys.
+## Node and CLI
 
-Health checks are available at `/healthz` and `/api/v1/health`.
-The production image also declares a Docker health check backed by `rc-server --healthcheck`.
-
-## Enroll a Node
-
-In the browser, open **Devices → Enroll device**, choose an owned workspace, and generate the one-time install command. The command includes the server URL so self-hosted Nodes reconnect to the correct origin.
-
-The equivalent installer interface is:
+Generate an enrollment command from **Devices → Enroll device**, or use the
+installer directly:
 
 ```sh
 curl -fsSL https://rc.example/install.sh \
   | sh -s -- ENROLLMENT_TOKEN https://rc.example
 ```
 
-The installer verifies and installs the matching native `rc` release, the platform kernel, and the portable core WebAssembly component bundle. It then enrolls the Node and installs a per-user launchd or systemd service when enrollment state exists.
-
-Useful CLI commands:
+Common commands:
 
 ```sh
 rc login --url https://rc.example
@@ -72,55 +101,50 @@ rc run DEVICE -- printf '%s\n' 'hello world'
 rc shell DEVICE
 rc ssh-key add ~/.ssh/id_ed25519.pub
 rc ssh-config >> ~/.ssh/config
-rc service status
 rc update
 rc upgrade
 rc list
 ```
 
-`rc update` updates managed components. `rc upgrade` updates the native RC platform and core bundle. Run `rc` with no command for grouped help, or `rc commands` to inspect commands provided by active components.
+`rc update` changes managed components. `rc upgrade` changes the native
+platform and core component bundle.
 
-## Develop
+## Validation
 
-Required tools are Rust 1.98 and Bun 1.4. Docker is optional but required for runtime-image validation.
+Use the same entry points as CI:
 
 ```sh
-bun install --frozen-lockfile
-bun run typecheck
-bun run build:client
+sh scripts/check-version.sh
+sh scripts/check-source-size.sh
+python3 scripts/check-component-boundaries.py
+python3 scripts/validate-components.py
+python3 scripts/validate-profiles.py
+python3 scripts/test-affected-units.py
+python3 scripts/check-doc-links.py
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets
+cargo test --workspace --all-targets --locked
+bun run typecheck
 ```
 
-Start a development server with:
-
-```sh
-cp .env.example .env
-bun run dev
-```
-
-The kernel keeps compiled Wasmtime artifacts in `cache/wasmtime` beside its
-configured component directory. `RC_WASMTIME_CACHE_DIR` provides an isolated
-override for tests. RC supplies this directory directly instead of loading the
-global Wasmtime configuration; Wasmtime keys entries by its engine and compiler
-configuration and cleans toward RC's 256 MiB / 4,096-file soft limits hourly.
-
-The server logs a generated setup URL when `RC_SETUP_TOKEN` is unset. Never use that convenience behavior for a shared production log stream; set an explicit secret instead.
+Component-only changes should use `scripts/check-component.sh <name>`. A WIT
+change must rebuild every importing component.
 
 ## Documentation
 
-- [Architecture and data flows](docs/ARCHITECTURE.md)
-- [Runtime context and mesh architecture](docs/CONTEXT_AND_MESH.md)
-- [Deployment, backup, and recovery](docs/OPERATIONS.md)
-- [Development and test matrix](docs/DEVELOPMENT.md)
-- [Proof-of-possession HTTP API](docs/API.md)
-- [Release process and rollback](docs/RELEASES.md)
-- [Security model and reporting](SECURITY.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development](docs/DEVELOPMENT.md)
+- [Installation internals](docs/INSTALL.md)
+- [Operations](docs/OPERATIONS.md)
+- [API signing](docs/API.md)
+- [Releases](docs/RELEASES.md)
+- [Security](SECURITY.md)
+- [Migration roadmap](ROADMAP.md)
+- [Acceptance baseline](CHECKLIST.md)
 - [Release history](CHANGELOG.md)
 
-`AGENTS.md` contains repository implementation invariants, and `CHECKLIST.md` is the engineering acceptance checklist.
+Repository implementation rules are in `AGENTS.md`.
 
 ## License
 
-This repository is proprietary and unlicensed for redistribution (`UNLICENSED`).
+`UNLICENSED`.

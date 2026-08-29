@@ -14,7 +14,7 @@ component tests.
 - [x] Signed device identity and workspace enrollment tokens
 - [x] RC Node reconnect, signed HTTP bootstrap, and capability advertisement
 - [x] Client-generated Ed25519 API signing keys with replay-resistant request signatures
-- [x] OhRats sidebar/page UI
+- [x] Persistent sidebar/page UI
 - [x] Downloadable Linux/macOS RC Nodes
 - [x] Persistent Coolify deployment
 - [x] Cookie-authenticated SSE for live metadata plus direct/TURN WebRTC DataChannels for browser/CLI control

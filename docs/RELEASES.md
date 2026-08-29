@@ -1,66 +1,69 @@
 # Releases
 
-RC releases are immutable GitHub tags with four CLI/Node archives:
+RC release tags are immutable.
+
+## Assets
+
+Each release contains four `rc` archives, four kernel archives, and one portable
+core component bundle:
 
 ```text
 rc-darwin-arm64.tar.gz
 rc-darwin-amd64.tar.gz
 rc-linux-arm64.tar.gz
 rc-linux-amd64.tar.gz
+rc-kernel-darwin-arm64.tar.gz
+rc-kernel-darwin-amd64.tar.gz
+rc-kernel-linux-arm64.tar.gz
+rc-kernel-linux-amd64.tar.gz
+rc-core-components.tar.gz
 ```
 
-Each archive must contain exactly one executable named `rc`.
+Native archives contain one executable. The core bundle contains `profile.lock`
+and the exact core component artifacts. Published assets require SHA-256
+digests.
 
-## Version sources
+## Version
 
-These values must match:
-
-- `package.json`
-- `crates/rc-cli/Cargo.toml`
-- `crates/rc-server/Cargo.toml`
-- the newest `CHANGELOG.md` release heading
-- release tag without its leading `v`
-
-Validate them with:
+The release version is validated by:
 
 ```sh
 VERSION="$(sh scripts/check-version.sh)"
 sh scripts/check-version.sh "$VERSION"
 ```
 
-## Release checklist
+Versioned release metadata and the newest changelog entry must agree with the
+tag.
 
-1. Finish code, documentation, and `CHANGELOG.md`.
-2. Run every command in [Development](DEVELOPMENT.md#required-validation), including RustSec and Bun dependency audits.
-3. Build and inspect the production Docker image.
-4. Exercise public pages, setup authorization, authenticated page integration tests, Node enrollment, direct control, CLI help/status, and service definitions on macOS.
-5. Confirm `git status --short` is empty.
-6. Push `main` and require the CI workflow to pass.
-7. Create and push an annotated or signed tag:
+## Pre-release checks
 
-   ```sh
-   VERSION="$(sh scripts/check-version.sh)"
-   git tag -a "v$VERSION" -m "RC $VERSION"
-   git push origin "v$VERSION"
-   ```
+1. Run the validation commands in [Development](DEVELOPMENT.md#validation).
+2. Run dependency audits.
+3. Build and smoke-test the production image.
+4. Build release assets and inspect archive membership.
+5. Exercise browser setup/login, Node enrollment, direct control, CLI, MCP, and
+   SSH on representative systems.
+6. Confirm `git status --short` is empty.
+7. Push `main` and require CI success.
 
-8. Require the `RC release` workflow to pass and publish a non-draft latest release. Release artifacts must come from the exact tagged SHA and pass archive validation before publication.
-9. Download the native RC and kernel archives on each available platform plus the portable core-component bundle; verify their digests/archive shapes and run `rc version`, `rc commands`, and `rc list`.
-10. Test `public/install.sh`, `rc update`, and `rc upgrade` against the published release from an isolated temporary home directory.
+## Tag
 
-`CI` verifies formatting, strict Clippy, Rust tests, dependency audits, source size, documentation links, browser checks, shell/workflow linting, and the production container. Cross-platform release artifacts are built from the same source revision. Rust warnings remain denied.
+```sh
+VERSION="$(sh scripts/check-version.sh)"
+git tag -a "v$VERSION" -m "RC $VERSION"
+git push origin "v$VERSION"
+```
 
-Darwin arm64 and amd64 archives are built on Apple Silicon runners. Linux archives use `cargo-zigbuild`. The production Dockerfile uses a pinned `cargo-chef` builder so dependency compilation is reusable across source-only builds.
+Release workflows build native `rc`, the native kernel, and the portable core
+bundle independently. Component implementation changes do not require a native
+platform matrix.
 
 ## Post-release fixes
 
-Never move or overwrite a published tag. Fix forward:
-
-1. Increment the prerelease or patch version in all three version sources.
-2. Add the fix to `CHANGELOG.md` and a regression test.
-3. Repeat validation and publish a new tag.
-4. Mark the new release latest only after its artifacts pass installation and Mac surface smoke tests.
+Do not rewrite a published tag. Fix forward, validate, and publish a new tag.
 
 ## Rollback
 
-Server rollback requires a database backup created by the matching server build and the corresponding image. Node self-update refuses semantic-version downgrades. A manual Node rollback is an incident procedure: stop its service, replace the executable with a verified prior artifact, restart, and verify connectivity.
+Server rollback requires a tested data backup compatible with the selected
+image. Node updaters do not perform automatic downgrades; installing an older
+native binary is an explicit recovery action.
