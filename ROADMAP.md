@@ -216,7 +216,7 @@ commands run through the installed Wasm kernel.
   continuing to consume company-wide immutable assets from
   `assets.ohrats.party`.
 - [x] Define and exercise WebUI page slots with the diagnostics UI component.
-- [ ] Add sidebar, device-panel, and settings-panel contribution interfaces.
+- [x] Add sidebar, device-panel, and settings-panel contribution interfaces.
 - [ ] Delete the replaced native page renderer/routes and the global browser
   build lane.
 
@@ -347,6 +347,10 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: reconciled the WebUI slot checklist with the implemented typed
+  shell contract. Caller-owned sidebar, device-panel, and settings-panel
+  contributions are bounded, deterministically ordered, withdrawn on provider
+  removal, and rendered only in their selected authenticated-page context.
 - 2026-08-29: strengthened the authority-lock fixture with an actual signed
   generation transition: a deterministic control key signs the exact canonical
   parent/next payload, replay is rejected, restart preserves generation one,
