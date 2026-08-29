@@ -10,7 +10,9 @@ import tomllib
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-PLUGIN = (ROOT / "wit" / "plugin.wit").read_text(encoding="utf-8")
+WIT = "\n".join(
+    path.read_text(encoding="utf-8") for path in sorted((ROOT / "wit").glob("*.wit"))
+)
 ALLOWED = {
     "diagnostics-store": set(),
     "diagnostics-cli": {"ohrats:rc-diagnostics/query@0.1.0"},
@@ -23,25 +25,25 @@ ALLOWED = {
         "ohrats:rc-diagnostics/query@0.1.0",
         "ohrats:rc-mesh-diagnostics/authorization@0.1.0",
     },
-    "webui-shell": set(),
+    "webui-shell": {"state-store"},
 }
 
 
 def world_body(name: str) -> str:
-    match = re.search(rf"world\s+{re.escape(name)}\s*\{{", PLUGIN)
+    match = re.search(rf"world\s+{re.escape(name)}\s*\{{", WIT)
     if not match:
         raise ValueError(f"missing WIT world {name}")
     depth = 1
     position = match.end()
-    while position < len(PLUGIN) and depth:
-        if PLUGIN[position] == "{":
+    while position < len(WIT) and depth:
+        if WIT[position] == "{":
             depth += 1
-        elif PLUGIN[position] == "}":
+        elif WIT[position] == "}":
             depth -= 1
         position += 1
     if depth:
         raise ValueError(f"unterminated WIT world {name}")
-    return PLUGIN[match.end() : position - 1]
+    return WIT[match.end() : position - 1]
 
 
 def imports(name: str) -> set[str]:
