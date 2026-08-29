@@ -121,16 +121,7 @@ impl ControlManager {
                         principal: principal(user_id, role, can_execute, can_manage_devices),
                     })
                     .map_err(anyhow::Error::msg)?;
-                self.queue_start(
-                    session_id,
-                    user_id,
-                    id,
-                    plan.command,
-                    plan.cwd,
-                    plan.terminal,
-                    plan.scrollback_bytes,
-                    plan.stdin_chunk_bytes,
-                );
+                self.queue_start(session_id, user_id, id, plan);
             }
             ControlMessage::ProcessAttach { id } => {
                 self.require_process_access(

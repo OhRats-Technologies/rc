@@ -1,6 +1,6 @@
 use super::{ControlManager, PENDING_START_TTL, PendingStart};
-use crate::{ProcessAccessRequest, ProcessAction, ProcessPrincipal, ProcessSpec};
-use rc_protocol::{ControlMessage, NodeToServer, TerminalSpec};
+use crate::{ProcessAccessRequest, ProcessAction, ProcessPrincipal, ProcessSpec, ProcessStartPlan};
+use rc_protocol::{ControlMessage, NodeToServer};
 use std::time::Instant;
 
 impl ControlManager {
@@ -9,11 +9,7 @@ impl ControlManager {
         session_id: &str,
         user_id: &str,
         id: String,
-        command: String,
-        cwd: String,
-        terminal: Option<TerminalSpec>,
-        scrollback_bytes: u32,
-        stdin_chunk_bytes: u32,
+        plan: ProcessStartPlan,
     ) {
         let now = Instant::now();
         let mut pending = self.0.pending_starts.lock();
@@ -23,11 +19,11 @@ impl ControlManager {
             PendingStart {
                 session_id: session_id.to_owned(),
                 user_id: user_id.to_owned(),
-                command,
-                cwd,
-                terminal,
-                scrollback_bytes,
-                stdin_chunk_bytes,
+                command: plan.command,
+                cwd: plan.cwd,
+                terminal: plan.terminal,
+                scrollback_bytes: plan.scrollback_bytes,
+                stdin_chunk_bytes: plan.stdin_chunk_bytes,
                 expires: now + PENDING_START_TTL,
             },
         );

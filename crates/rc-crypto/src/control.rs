@@ -31,6 +31,7 @@ pub fn session_payload(
     format!("rc-session-v1\n{challenge}\n{device_id}\n{client_id}\n{public_key}")
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn ready_payload(
     challenge: &str,
     device_id: &str,
