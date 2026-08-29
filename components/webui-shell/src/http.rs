@@ -4,6 +4,7 @@ use crate::{COPY_SCRIPT_PATH, PUBLIC_STYLES_PATH, SOCIAL_CARD_PATH, STYLES_PATH,
 const STYLES: &[u8] = include_bytes!("../assets/styles.css");
 const PUBLIC_STYLES: &[u8] = include_bytes!("../assets/public.css");
 const COPY_SCRIPT: &[u8] = include_bytes!("../assets/copy.js");
+const SIDEBAR_SCRIPT: &[u8] = include_bytes!("../assets/sidebar.js");
 const SOCIAL_CARD: &[u8] = include_bytes!("../assets/social-card.png");
 
 pub fn handle(value: Request) -> Result<Option<Response>, String> {
@@ -47,6 +48,9 @@ fn asset(path: &str) -> Option<(&'static str, &'static [u8])> {
         value if value == STYLES_PATH => Some(("text/css; charset=utf-8", STYLES)),
         value if value == PUBLIC_STYLES_PATH => Some(("text/css; charset=utf-8", PUBLIC_STYLES)),
         value if value == COPY_SCRIPT_PATH => Some(("text/javascript; charset=utf-8", COPY_SCRIPT)),
+        value if value == crate::SIDEBAR_SCRIPT_PATH => {
+            Some(("text/javascript; charset=utf-8", SIDEBAR_SCRIPT))
+        }
         value if value == SOCIAL_CARD_PATH => Some(("image/png", SOCIAL_CARD)),
         _ => None,
     }

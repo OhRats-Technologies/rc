@@ -226,6 +226,13 @@ world webui-shell {
     export ohrats:rc-http/handler@0.1.0;
 }
 
+world webui-app {
+    include plugin;
+    import ohrats:rc-session/lookup@0.1.0;
+    import ohrats:rc-webui/shell@0.1.0;
+    export ohrats:rc-http/handler@0.1.0;
+}
+
 world diagnostics-ui {
     include plugin;
     import ohrats:rc-diagnostics/query@0.1.0;

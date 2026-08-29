@@ -1,0 +1,10 @@
+schema = 1
+
+[profile]
+id = "ohrats:authenticated-webui-smoke"
+components = [
+  "identity-fixture",
+  "identity-store",
+  "webui-app",
+  "webui-shell",
+]

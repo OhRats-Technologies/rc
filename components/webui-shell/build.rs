@@ -6,6 +6,7 @@ fn main() {
         ("STYLES_PATH", "assets/styles.css", "css"),
         ("PUBLIC_STYLES_PATH", "assets/public.css", "css"),
         ("COPY_SCRIPT_PATH", "assets/copy.js", "js"),
+        ("SIDEBAR_SCRIPT_PATH", "assets/sidebar.js", "js"),
         ("SOCIAL_CARD_PATH", "assets/social-card.png", "png"),
     ];
     let mut generated = String::new();

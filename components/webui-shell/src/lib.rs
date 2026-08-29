@@ -8,6 +8,7 @@ mod config;
 mod document;
 mod http;
 mod pages;
+mod sidebar;
 
 include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 
@@ -18,12 +19,13 @@ use exports::{
 use ohrats::{
     rc_http::types::{Request, Response},
     rc_plugin::types::{Command, Service},
-    rc_webui::types::{Page, PublicDocument},
+    rc_webui::types::{AuthenticatedDocument, Contribution, ExtensionSlot, Page, PublicDocument},
 };
 use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
     pub(crate) static PAGES: RefCell<BTreeMap<String, Page>> = const { RefCell::new(BTreeMap::new()) };
+    static CONTRIBUTIONS: RefCell<BTreeMap<String, Contribution>> = const { RefCell::new(BTreeMap::new()) };
 }
 
 struct WebUiShell;
@@ -75,6 +77,7 @@ impl Guest for WebUiShell {
 
     fn deactivate() {
         PAGES.with(|pages| pages.borrow_mut().clear());
+        CONTRIBUTIONS.with(|values| values.borrow_mut().clear());
     }
 
     fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
@@ -115,6 +118,52 @@ impl SlotsGuest for WebUiShell {
     fn pages() -> Vec<Page> {
         PAGES.with(|pages| pages.borrow().values().cloned().collect())
     }
+
+    fn register_contribution(value: Contribution) -> Result<(), String> {
+        validate_id(&value.id)?;
+        validate_owner_id(&value.owner_id)?;
+        if value.trusted_html.len() > 16 * 1024 {
+            return Err("WebUI contribution is too large".into());
+        }
+        CONTRIBUTIONS.with(|values| {
+            let mut values = values.borrow_mut();
+            if values
+                .get(&value.id)
+                .is_some_and(|current| current.owner_id != value.owner_id)
+            {
+                return Err("WebUI contribution ID belongs to another component".into());
+            }
+            values.insert(value.id.clone(), value);
+            Ok(())
+        })
+    }
+
+    fn remove_contribution(owner_id: String, id: String) -> Result<bool, String> {
+        validate_owner_id(&owner_id)?;
+        validate_id(&id)?;
+        CONTRIBUTIONS.with(|values| {
+            let mut values = values.borrow_mut();
+            if values
+                .get(&id)
+                .is_some_and(|current| current.owner_id != owner_id)
+            {
+                return Err("WebUI contribution belongs to another component".into());
+            }
+            Ok(values.remove(&id).is_some())
+        })
+    }
+
+    fn contributions(slot: ExtensionSlot) -> Vec<Contribution> {
+        let mut values = CONTRIBUTIONS.with(|all| {
+            all.borrow()
+                .values()
+                .filter(|value| value.slot == slot)
+                .cloned()
+                .collect::<Vec<_>>()
+        });
+        values.sort_by(|left, right| (left.order, &left.id).cmp(&(right.order, &right.id)));
+        values
+    }
 }
 
 fn validate_page(value: &Page) -> Result<(), String> {
@@ -144,10 +193,48 @@ fn validate_id(value: &str) -> Result<(), String> {
     }
 }
 
+fn validate_owner_id(value: &str) -> Result<(), String> {
+    if value.contains(':')
+        && !value.starts_with(':')
+        && !value.ends_with(':')
+        && value.len() <= 128
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'.' | b'-' | b'_'))
+    {
+        Ok(())
+    } else {
+        Err(format!("invalid WebUI contribution owner {value:?}"))
+    }
+}
+
 impl ShellGuest for WebUiShell {
     fn render_public(value: PublicDocument) -> String {
         document::public(value)
     }
+
+    fn render_authenticated(mut value: AuthenticatedDocument) -> String {
+        let panel_slot = if value.path.starts_with("/devices/") {
+            Some(ExtensionSlot::DevicePanel)
+        } else if value.path == "/account" || value.path.starts_with("/settings") {
+            Some(ExtensionSlot::SettingsPanel)
+        } else {
+            None
+        };
+        let sidebar_additions = Self::contributions(ExtensionSlot::Sidebar)
+            .into_iter()
+            .map(|entry| entry.trusted_html)
+            .collect::<String>();
+        if let Some(slot) = panel_slot {
+            for contribution in Self::contributions(slot) {
+                value.trusted_body.push_str(&contribution.trusted_html);
+            }
+        }
+        document::authenticated(value, &sidebar_additions)
+    }
 }
 
 export!(WebUiShell);
+
+#[cfg(test)]
+mod tests;

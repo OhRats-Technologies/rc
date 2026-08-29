@@ -1,6 +1,47 @@
 package ohrats:rc-webui@0.1.0;
 
 interface types {
+    enum sidebar-state {
+        open,
+        closed,
+    }
+
+    enum extension-slot {
+        sidebar,
+        device-panel,
+        settings-panel,
+    }
+
+    record principal {
+        user-id: string,
+        display-name: string,
+    }
+
+    record navigation-entry {
+        id: string,
+        label: string,
+        path: string,
+        icon: string,
+    }
+
+    record workspace-summary {
+        id: string,
+        name: string,
+        role: string,
+        device-count: u32,
+    }
+
+    record contribution {
+        id: string,
+        /// Component ID that owns and is responsible for this markup.
+        owner-id: string,
+        slot: extension-slot,
+        order: s32,
+        /// Trusted HTML produced by the owning installed component. The shell
+        /// inserts this verbatim; producers must escape all untrusted values.
+        trusted-html: string,
+    }
+
     record page {
         id: string,
         title: string,
@@ -17,16 +58,35 @@ interface types {
         extra-head: string,
         indexable: bool,
     }
+
+    record authenticated-document {
+        title: string,
+        principal: principal,
+        path: string,
+        sidebar: sidebar-state,
+        navigation: list<navigation-entry>,
+        workspaces: list<workspace-summary>,
+        /// Trusted HTML produced by the authenticated page component. The
+        /// shell inserts this verbatim; the producer escapes untrusted values.
+        trusted-body: string,
+        /// Trusted component-owned script and stylesheet URLs.
+        scripts: list<string>,
+        styles: list<string>,
+    }
 }
 
 interface slots {
-    use types.{page};
+    use types.{contribution, extension-slot, page};
     register-page: func(value: page) -> result<_, string>;
     remove-page: func(id: string) -> result<bool, string>;
     pages: func() -> list<page>;
+    register-contribution: func(value: contribution) -> result<_, string>;
+    remove-contribution: func(owner-id: string, id: string) -> result<bool, string>;
+    contributions: func(slot: extension-slot) -> list<contribution>;
 }
 
 interface shell {
-    use types.{public-document};
+    use types.{authenticated-document, public-document};
     render-public: func(value: public-document) -> string;
+    render-authenticated: func(value: authenticated-document) -> string;
 }

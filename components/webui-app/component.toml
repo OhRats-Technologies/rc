@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:webui-app"
+version = "0.1.0"
+world = "ohrats:rc-plugin/webui-app@0.1.0"
+wit = ["http", "plugin", "session", "webui"]
+
+[build]
+kind = "rust"
+package = "rc-webui-app"
+artifact = "webui-app"
