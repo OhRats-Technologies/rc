@@ -176,6 +176,44 @@ jobs:
             RC_SKIP_COMPONENT_BUILD=1 scripts/smoke-kernel.sh
           fi
 
+  updater-runtime:
+    needs: [changes, components]
+    if: >-
+      always() &&
+      (needs.changes.outputs.kernel == 'true' ||
+       contains(needs.changes.outputs.components, 'updater'))
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/updater -> target
+          shared-key: rc-updater-runtime
+          add-job-id-key: false
+      - uses: actions/download-artifact@v7
+        if: contains(needs.changes.outputs.components, 'updater')
+        with:
+          name: rc-component-updater
+          path: dist/components
+      - name: Exercise native replacement recovery
+        env:
+          COMPONENTS: ${{ needs.changes.outputs.components }}
+        run: |
+          case "$COMPONENTS" in
+            *updater*) RC_SKIP_COMPONENT_BUILD=1 scripts/smoke-updater.sh ;;
+            *) scripts/smoke-updater.sh ;;
+          esac
+
   package-runtime:
     needs: [changes, components]
     if: >-

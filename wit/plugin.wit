@@ -1,5 +1,4 @@
 package ohrats:rc-plugin@0.1.0;
-
 interface types {
     enum selection {
         single,
@@ -152,7 +151,6 @@ world plugin {
     export deactivate: func();
     export invoke: func(command: string, args: list<string>) -> result<u32, string>;
 }
-
 world greeter-provider {
     include plugin;
     export greeter;
@@ -173,6 +171,8 @@ world kernel-plugin {
     import service-registry;
     import http-client;
     import ohrats:rc-storage/durable-store@0.1.0;
+    import ohrats:rc-updater/artifact-source@0.1.0;
+    import ohrats:rc-updater/native-replacement@0.1.0;
 }
 
 world package-manager {

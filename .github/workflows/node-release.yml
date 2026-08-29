@@ -147,7 +147,8 @@ jobs:
             components/package-manager components/local-source components/http-source \
             components/oci-source components/github-source components/diagnostics-store \
             components/diagnostics-reporter components/diagnostics-cli \
-            components/process-policy components/transport-webrtc \
+            components/process-policy components/transport-webrtc components/updater \
+            packaging/build-core-bundle.sh \
             scripts/build-component.sh scripts/check-component.sh \
             .github/workflows/core-components.yml)
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
@@ -165,7 +166,8 @@ jobs:
             test -s "dist/$name.tar.gz"
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc-kernel"
           done
-          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 10
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 11
+          test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '^profile.lock$')" -eq 1
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:updater"
+version = "0.1.0"
+world = "ohrats:rc-plugin/updater@0.1.0"
+wit = ["plugin", "updater"]
+
+[build]
+kind = "rust"
+package = "rc-updater"
+artifact = "updater"

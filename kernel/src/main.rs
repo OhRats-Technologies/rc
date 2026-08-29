@@ -15,6 +15,7 @@ mod server;
 mod service;
 mod status;
 mod storage;
+mod updater;
 mod watch;
 
 fn main() -> anyhow::Result<()> {

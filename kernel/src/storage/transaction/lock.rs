@@ -52,6 +52,7 @@ fn acquire(environment: &HostEnvironment) -> anyhow::Result<File> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(environment.cache_dir.join(LOCK))?;
     file.try_lock()
         .map_err(|error| anyhow::anyhow!("cannot acquire component transaction lock: {error}"))?;

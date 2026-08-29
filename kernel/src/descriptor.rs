@@ -197,6 +197,8 @@ fn kernel_interface(name: &str) -> bool {
         "ohrats:rc-plugin/service-registry@",
         "ohrats:rc-plugin/http-client@",
         "ohrats:rc-storage/durable-store@",
+        "ohrats:rc-updater/artifact-source@",
+        "ohrats:rc-updater/native-replacement@",
     ]
     .iter()
     .any(|prefix| name.starts_with(prefix))

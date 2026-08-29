@@ -2,6 +2,7 @@ use crate::bindings::ohrats::rc_plugin::{
     call_context::Host as CallContextHost,
     host::{Host, LogLevel},
 };
+use crate::updater::{ArtifactSource, NativeReplacement};
 use crate::{config, database::Database, service::ServiceRegistry};
 use reqwest::blocking::Client;
 use std::{
@@ -42,6 +43,7 @@ impl HostEnvironment {
         std::fs::create_dir_all(&state_dir)?;
         std::fs::create_dir_all(&cache_dir)?;
         std::fs::create_dir_all(&catalog_dir)?;
+        crate::updater::recover_on_startup().map_err(anyhow::Error::msg)?;
         let http = Client::builder()
             .user_agent(format!("rc-kernel/{}", env!("CARGO_PKG_VERSION")))
             .connect_timeout(std::time::Duration::from_secs(10))
@@ -69,6 +71,8 @@ pub struct HostState {
     call_context: CallContext,
     pub environment: HostEnvironment,
     pub registry: ServiceRegistry,
+    pub replacement: NativeReplacement,
+    pub artifact: ArtifactSource,
 }
 
 impl HostState {
@@ -90,6 +94,8 @@ impl HostState {
             call_context: CallContext::default(),
             environment,
             registry,
+            replacement: NativeReplacement::default(),
+            artifact: ArtifactSource::default(),
         }
     }
 
@@ -221,6 +227,14 @@ pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> 
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;
     crate::bindings::ohrats::rc_storage::durable_store::add_to_linker::<
+        HostState,
+        wasmtime::component::HasSelf<HostState>,
+    >(linker, |state| state)?;
+    crate::bindings::ohrats::rc_updater::artifact_source::add_to_linker::<
+        HostState,
+        wasmtime::component::HasSelf<HostState>,
+    >(linker, |state| state)?;
+    crate::bindings::ohrats::rc_updater::native_replacement::add_to_linker::<
         HostState,
         wasmtime::component::HasSelf<HostState>,
     >(linker, |state| state)?;

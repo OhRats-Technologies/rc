@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "artifact": "fixtures/updater-artifact.sh",
+  "digest": "sha256:5fd5f1394836f6710e3b6aa51027e1c224277fd8047c34249e4adf347181e6a2",
+  "current": "0.1.0",
+  "target": "0.1.1"
+}

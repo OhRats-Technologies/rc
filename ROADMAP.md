@@ -312,7 +312,7 @@ replaceable components.
   drain on the previous generation.
 - [ ] Define explicit state snapshot/restore only for components that need it;
   prefer durable external state and generation draining.
-- [ ] Implement `rc upgrade` through an updater component plus one kernel-owned
+- [x] Implement `rc upgrade` through an updater component plus one kernel-owned
   atomic replace/re-exec primitive.
 - [x] Install the kernel and a recoverable core component bundle from
   `install.sh`.
@@ -347,6 +347,11 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: moved `rc upgrade` policy into the updater component and limited
+  the kernel to a digest-pinned, bounded-health, journaled atomic replacement
+  primitive. Interrupted activation rolls back on restart, successful restart
+  acknowledges and removes the backup, same-digest updates are no-ops, and the
+  exact updater artifact now ships in the recoverable core profile.
 - 2026-08-29: replaced the installer’s second native-upgrade step with one
   digest-locked bootstrap of `rc`, the kernel, and an exact core profile. It
   validates archive shape and every component digest before activation,

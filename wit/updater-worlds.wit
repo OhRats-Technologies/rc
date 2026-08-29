@@ -1,0 +1,7 @@
+package ohrats:rc-plugin@0.1.0;
+
+world updater {
+    include plugin;
+    import ohrats:rc-updater/artifact-source@0.1.0;
+    import ohrats:rc-updater/native-replacement@0.1.0;
+}

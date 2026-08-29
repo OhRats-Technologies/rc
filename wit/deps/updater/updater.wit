@@ -1,0 +1,34 @@
+package ohrats:rc-updater@0.1.0;
+
+interface native-replacement {
+    record current-state {
+        digest: string,
+        version: string,
+    }
+
+    record staged {
+        token: string,
+        digest: string,
+        version: string,
+    }
+
+    /// Return the digest of the executable currently running the kernel.
+    current: func() -> result<current-state, string>;
+
+    /// Validate, durably stage, and digest-pin a bounded native artifact.
+    prepare: func(artifact: list<u8>, expected-digest: string) -> result<staged, string>;
+
+    /// Atomically replace the running kernel. Recovery completes or rolls back
+    /// the journal before a later process can trust the executable.
+    commit: func(staged: staged) -> result<_, string>;
+    abort: func(staged: staged);
+
+    /// Re-exec the replaced kernel with the original process arguments.
+    reexec: func() -> result<_, string>;
+}
+
+interface artifact-source {
+    /// Select an artifact prepared by the host; paths never cross the WIT boundary.
+    select: func() -> result<string, string>;
+    read: func(handle: string) -> result<list<u8>, string>;
+}

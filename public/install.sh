@@ -110,7 +110,8 @@ validate_bundle_archive() {
         name == "diagnostics-store" || name == "github-source" ||
         name == "http-source" || name == "local-source" ||
         name == "oci-source" || name == "package-manager" ||
-        name == "process-policy" || name == "transport-webrtc"
+        name == "process-policy" || name == "transport-webrtc" ||
+        name == "updater"
     }
     {
       if (seen[$0]++) exit 1
@@ -124,7 +125,7 @@ validate_bundle_archive() {
       }
       exit 1
     }
-    END { if (locks != 1 || components != 10) exit 1 }
+    END { if (locks != 1 || components != 11) exit 1 }
   ' "$listing" || { echo "invalid core bundle members" >&2; exit 1; }
 }
 
@@ -142,11 +143,11 @@ validate_lock() {
       next
     }
     { exit 1 }
-    END { if (count != 10) exit 1 }
+    END { if (count != 11) exit 1 }
   ' "$lock" || { echo "invalid core profile lock" >&2; exit 1; }
 }
 
-CORE_COMPONENTS="diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc"
+CORE_COMPONENTS="diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc updater"
 component_digest() {
   awk -v wanted="$1" '$1 == "component" && $2 == wanted { print $3; exit }' "$TMPDIR_PATH/profile.lock"
 }

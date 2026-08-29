@@ -66,11 +66,11 @@ pub(super) fn rollback(
 
 pub(super) fn read_names(path: &Path) -> anyhow::Result<Vec<String>> {
     let file = fs::File::open(path)?;
-    Ok(BufReader::new(file)
+    BufReader::new(file)
         .lines()
         .map(|line| line.map_err(Into::into))
         .filter(|line| line.as_ref().is_ok_and(|value| !value.is_empty()))
-        .collect::<Result<_, anyhow::Error>>()?)
+        .collect::<Result<_, anyhow::Error>>()
 }
 
 pub(super) fn read_phase(path: &Path) -> anyhow::Result<String> {
