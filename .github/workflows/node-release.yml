@@ -144,7 +144,7 @@ jobs:
           run_id=$(scripts/find-compatible-workflow-run.sh \
             core-components.yml "$GITHUB_SHA" \
             wit \
-            components/package-manager components/local-source components/http-source \
+            components/artifact-cache-local components/package-manager components/local-source \
             components/oci-source components/github-source components/diagnostics-store \
             components/diagnostics-reporter components/diagnostics-cli \
             components/process-policy components/transport-webrtc components/updater \

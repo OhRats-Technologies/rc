@@ -12,6 +12,7 @@ const MAX_BINARY: u64 = 160 << 20;
 const MAX_COMPONENT: u64 = 48 << 20;
 
 pub const CORE_COMPONENTS: &[&str] = &[
+    "artifact-cache-local",
     "diagnostics-cli",
     "diagnostics-reporter",
     "diagnostics-store",
@@ -22,6 +23,7 @@ pub const CORE_COMPONENTS: &[&str] = &[
     "package-manager",
     "process-policy",
     "transport-webrtc",
+    "updater",
 ];
 
 pub fn runtime_complete() -> bool {

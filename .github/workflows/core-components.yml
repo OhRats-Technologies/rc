@@ -6,6 +6,7 @@ on:
     paths:
       - wit/**
       - components/package-manager/**
+      - components/artifact-cache-local/**
       - components/local-source/**
       - components/http-source/**
       - components/oci-source/**

@@ -8,6 +8,7 @@ fn core_bundle_has_unique_names() {
     names.sort_unstable();
     names.dedup();
     assert_eq!(names.len(), CORE_COMPONENTS.len());
+    assert_eq!(CORE_COMPONENTS.len(), 12);
 }
 
 #[test]
