@@ -1,16 +1,29 @@
 use crate::runtime::Runtime;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
-use std::{path::Path, sync::mpsc, time::Duration};
+use std::{
+    path::Path,
+    sync::mpsc::{self, RecvTimeoutError},
+    time::Duration,
+};
+
+const DEBOUNCE: Duration = Duration::from_millis(150);
+const SAFETY_RESCAN: Duration = Duration::from_secs(1);
 
 pub fn run(runtime: &mut Runtime) -> anyhow::Result<()> {
-    runtime.reconcile()?;
-    print_status(runtime);
     let (sender, receiver) = mpsc::channel();
     let mut watcher = RecommendedWatcher::new(sender, Config::default())?;
     watcher.watch(runtime.directory(), RecursiveMode::NonRecursive)?;
+    runtime.reconcile()?;
+    print_status(runtime);
     loop {
-        let _event = receiver.recv()??;
-        while receiver.recv_timeout(Duration::from_millis(150)).is_ok() {}
+        match receiver.recv_timeout(SAFETY_RESCAN) {
+            Ok(event) => {
+                event?;
+                while receiver.recv_timeout(DEBOUNCE).is_ok() {}
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => anyhow::bail!("component watcher disconnected"),
+        }
         if runtime.reconcile()? {
             print_status(runtime);
         }

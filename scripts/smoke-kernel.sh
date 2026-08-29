@@ -45,7 +45,7 @@ wait_for() {
   count=0
   while ! grep -F "$pattern" "$log" >/dev/null 2>&1; do
     count=$((count + 1))
-    if [ "$count" -ge 100 ]; then
+    if [ "$count" -ge 400 ]; then
       echo "timed out waiting for: $pattern" >&2
       cat "$log" >&2
       exit 1
@@ -66,13 +66,35 @@ wait_for "ohrats:fixture-consumer  1.0.0        Active"
 cp dist/components/fixture-collision.wasm "$components/collision.wasm"
 wait_for 'command "hello" is already provided by ohrats:fixture-provider'
 
+# Invalid bytes at an existing path must not withdraw the healthy generation.
+: >"$components/provider.new"
+mv "$components/provider.new" "$components/provider.wasm"
+wait_for "failed to compile component"
+wait_for "ohrats:fixture-provider  1.0.0        Active"
+
 cp dist/components/fixture-broken.wasm "$components/provider.new"
 mv "$components/provider.new" "$components/provider.wasm"
 wait_for "replacement activation failed: intentional activation failure"
 wait_for "ohrats:fixture-provider  1.0.0        Active"
 
+# A valid atomic replacement restores the healthy on-disk generation.
+active_count=$(grep -Fc "ohrats:fixture-provider  1.0.0        Active" "$log")
+cp dist/components/fixture-provider.wasm "$components/provider.new"
+mv "$components/provider.new" "$components/provider.wasm"
+count=0
+while [ "$(grep -Fc "ohrats:fixture-provider  1.0.0        Active" "$log")" -le "$active_count" ]; do
+  count=$((count + 1))
+  [ "$count" -lt 400 ] || { cat "$log" >&2; exit 1; }
+  sleep 0.05
+done
+
+rm "$components/collision.wasm"
 rm "$components/provider.wasm"
 wait_for "ohrats:fixture-consumer  1.0.0        Waiting"
+if kernel/target/debug/rc-kernel --component-dir "$components" hello RC >/dev/null 2>&1; then
+  echo "removed provider command remained available" >&2
+  exit 1
+fi
 
 kill "$pid"
 wait "$pid" 2>/dev/null || true

@@ -8,8 +8,19 @@ use anyhow::Context as _;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    io::ErrorKind,
     path::{Path, PathBuf},
+    thread,
+    time::Duration,
 };
+
+const RECONCILE_ATTEMPTS: usize = 4;
+const RECONCILE_BACKOFF: Duration = Duration::from_millis(10);
+
+struct LoadOutcome {
+    changed: bool,
+    vanished: bool,
+}
 
 pub(crate) struct Entry {
     pub(crate) current: LoadedComponent,
@@ -24,6 +35,8 @@ pub struct Runtime {
     entries: BTreeMap<String, Entry>,
     failed_paths: BTreeMap<PathBuf, String>,
     registry: ServiceRegistry,
+    #[cfg(test)]
+    after_scan: Option<Box<dyn FnOnce() + Send>>,
 }
 
 impl Runtime {
@@ -38,6 +51,8 @@ impl Runtime {
             entries: BTreeMap::new(),
             failed_paths: BTreeMap::new(),
             registry: ServiceRegistry::default(),
+            #[cfg(test)]
+            after_scan: None,
         })
     }
 
@@ -46,15 +61,40 @@ impl Runtime {
     }
 
     pub fn reconcile(&mut self) -> anyhow::Result<bool> {
-        let paths = graph::component_paths(&self.directory)?;
-        let desired = paths.iter().cloned().collect::<BTreeSet<_>>();
-        let mut changed =
-            reconcile::remove_missing(&mut self.entries, &mut self.failed_paths, &desired);
-        self.registry
-            .refresh(self.entries.values().map(|entry| &entry.current));
-        for path in paths {
-            changed |= self.load_path(path);
+        let mut changed = false;
+        for attempt in 0..RECONCILE_ATTEMPTS {
+            let paths = graph::component_paths(&self.directory)?;
+            let desired = paths.iter().cloned().collect::<BTreeSet<_>>();
+            #[cfg(test)]
+            if let Some(after_scan) = self.after_scan.take() {
+                after_scan();
+            }
+            self.registry
+                .refresh(self.entries.values().map(|entry| &entry.current));
+            let mut vanished = false;
+            for path in paths {
+                let outcome = self.load_path(path);
+                changed |= outcome.changed;
+                vanished |= outcome.vanished;
+            }
+            let confirmed = graph::component_paths(&self.directory)?
+                .into_iter()
+                .collect::<BTreeSet<_>>();
+            if !vanished && desired == confirmed {
+                changed |= reconcile::remove_missing(
+                    &mut self.entries,
+                    &mut self.failed_paths,
+                    &confirmed,
+                );
+                changed |= reconcile::states(&mut self.entries, &self.registry);
+                return Ok(changed);
+            }
+            if attempt + 1 < RECONCILE_ATTEMPTS {
+                thread::sleep(RECONCILE_BACKOFF);
+            }
         }
+        // Continuous churn exhausted the bounded attempts. Preserve the last
+        // healthy generations; a later notification can start a fresh pass.
         changed |= reconcile::states(&mut self.entries, &self.registry);
         Ok(changed)
     }
@@ -153,17 +193,30 @@ impl Runtime {
             .invoke(command, args)
     }
 
-    fn load_path(&mut self, path: PathBuf) -> bool {
+    fn load_path(&mut self, path: PathBuf) -> LoadOutcome {
         let candidate = match LoadedComponent::load(&self.environment, path.clone()) {
             Ok(value) => value,
             Err(error) => {
+                if error
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|error| error.kind() == ErrorKind::NotFound)
+                {
+                    let changed = self.failed_paths.remove(&path).is_some();
+                    return LoadOutcome {
+                        changed,
+                        vanished: true,
+                    };
+                }
                 let message = format!("{error:#}");
                 let changed = self.failed_paths.get(&path) != Some(&message);
                 self.failed_paths.insert(path, message);
-                return changed;
+                return LoadOutcome {
+                    changed,
+                    vanished: false,
+                };
             }
         };
-        self.failed_paths.remove(&path);
+        let cleared_path_failure = self.failed_paths.remove(&path).is_some();
         let id = candidate.descriptor.id.clone();
         let Some(entry) = self.entries.get_mut(&id) else {
             self.entries.insert(
@@ -175,7 +228,10 @@ impl Runtime {
                     rejected_digest: None,
                 },
             );
-            return true;
+            return LoadOutcome {
+                changed: true,
+                vanished: false,
+            };
         };
         if entry.current.path != candidate.path {
             let message = format!(
@@ -184,7 +240,10 @@ impl Runtime {
             );
             let changed = self.failed_paths.get(&candidate.path) != Some(&message);
             self.failed_paths.insert(candidate.path.clone(), message);
-            return changed;
+            return LoadOutcome {
+                changed,
+                vanished: false,
+            };
         }
         if entry.current.digest == candidate.digest
             || entry
@@ -193,9 +252,26 @@ impl Runtime {
                 .is_some_and(|pending| pending.digest == candidate.digest)
             || entry.rejected_digest.as_deref() == Some(&candidate.digest)
         {
-            return false;
+            let restored_current = entry.current.digest == candidate.digest
+                && entry.current.is_active()
+                && (entry.error.is_some() || entry.rejected_digest.is_some());
+            if restored_current {
+                entry.error = None;
+                entry.rejected_digest = None;
+            }
+            return LoadOutcome {
+                changed: cleared_path_failure || restored_current,
+                vanished: false,
+            };
         }
         entry.pending = Some(candidate);
-        true
+        LoadOutcome {
+            changed: true,
+            vanished: false,
+        }
     }
 }
+
+#[cfg(test)]
+#[path = "runtime/tests.rs"]
+mod tests;
