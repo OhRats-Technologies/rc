@@ -4,6 +4,7 @@ wit_bindgen::generate!({
     generate_all,
 });
 
+mod config;
 mod document;
 mod http;
 mod pages;
@@ -11,12 +12,13 @@ mod pages;
 include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 
 use exports::{
-    ohrats::rc_http::handler::Guest as HttpGuest, ohrats::rc_webui::slots::Guest as SlotsGuest,
+    ohrats::rc_http::handler::Guest as HttpGuest,
+    ohrats::rc_webui::{shell::Guest as ShellGuest, slots::Guest as SlotsGuest},
 };
 use ohrats::{
     rc_http::types::{Request, Response},
     rc_plugin::types::{Command, Service},
-    rc_webui::types::Page,
+    rc_webui::types::{Page, PublicDocument},
 };
 use std::{cell::RefCell, collections::BTreeMap};
 
@@ -30,7 +32,7 @@ impl Guest for WebUiShell {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:webui-shell".into(),
-            version: "0.1.0".into(),
+            version: "0.2.0".into(),
             provides: vec![
                 Service {
                     name: "ohrats:rc-http/handler".into(),
@@ -44,13 +46,26 @@ impl Guest for WebUiShell {
                     priority: 100,
                     keys: Vec::new(),
                 },
+                Service {
+                    name: "ohrats:rc-webui/shell".into(),
+                    version: "0.1.0".into(),
+                    priority: 100,
+                    keys: Vec::new(),
+                },
             ],
             requires: Vec::new(),
-            commands: vec![Command {
-                name: "ui-pages".into(),
-                summary: "List active WebUI page contributions".into(),
-                usage: "rc ui-pages".into(),
-            }],
+            commands: vec![
+                Command {
+                    name: "ui-pages".into(),
+                    summary: "List active WebUI page contributions".into(),
+                    usage: "rc ui-pages".into(),
+                },
+                Command {
+                    name: "webui-config".into(),
+                    summary: "Read or change WebUI deployment configuration".into(),
+                    usage: "rc webui-config [public-signup BOOL|public-url URL|auto]".into(),
+                },
+            ],
         }
     }
 
@@ -63,6 +78,9 @@ impl Guest for WebUiShell {
     }
 
     fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
+        if command == "webui-config" {
+            return config::invoke(&args);
+        }
         if command != "ui-pages" || !args.is_empty() {
             return Err("usage: rc ui-pages".into());
         }
@@ -123,6 +141,12 @@ fn validate_id(value: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("invalid WebUI page id {value:?}"))
+    }
+}
+
+impl ShellGuest for WebUiShell {
+    fn render_public(value: PublicDocument) -> String {
+        document::public(value)
     }
 }
 

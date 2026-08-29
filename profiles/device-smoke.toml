@@ -1,0 +1,8 @@
+schema = 1
+
+[profile]
+id = "ohrats:device-smoke"
+components = [
+  "device-fixture",
+  "device-store",
+]

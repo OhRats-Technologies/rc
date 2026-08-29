@@ -1,13 +1,56 @@
 package ohrats:rc-events@0.1.0;
 
 interface types {
-    record event {
-        cursor: u64,
-        kind: string,
-        subject: option<string>,
-        payload: list<u8>,
+    enum lifecycle-kind {
+        account-created, account-renamed, account-deleted,
+        workspace-created, workspace-renamed, workspace-deleted,
+        workspace-member-joined, workspace-member-role-changed,
+        workspace-member-left, workspace-invite-created,
+        workspace-invite-revoked,
+        device-enrolled, device-renamed, device-online, device-offline,
+        device-revoked,
     }
 
+    record account-detail { account-id: string, display-name: option<string> }
+    record workspace-detail { workspace-id: string, name: option<string> }
+    record membership-detail {
+        workspace-id: string,
+        account-id: string,
+        role: option<string>,
+    }
+    record invitation-detail { workspace-id: string, invitation-id: string }
+    record device-detail { workspace-id: string, device-id: string, name: option<string> }
+    variant detail {
+        account(account-detail), workspace(workspace-detail),
+        membership(membership-detail), invitation(invitation-detail),
+        device(device-detail),
+    }
+
+    record append-request {
+        kind: lifecycle-kind,
+        occurred-at-ms: u64,
+        actor-account-id: option<string>,
+        detail: detail,
+        idempotency-key: option<string>,
+    }
+    record event {
+        cursor: u64,
+        kind: lifecycle-kind,
+        occurred-at-ms: u64,
+        actor-account-id: option<string>,
+        detail: detail,
+    }
+    record authorization {
+        requester-account-id: string,
+        workspace-ids: list<string>,
+        include-own-account-events: bool,
+    }
+    record filter {
+        kinds: list<lifecycle-kind>,
+        workspace-id: option<string>,
+        device-id: option<string>,
+        account-id: option<string>,
+    }
     record batch {
         events: list<event>,
         next-cursor: u64,
@@ -15,7 +58,23 @@ interface types {
     }
 }
 
+interface append {
+    use types.{append-request, event};
+    append: func(request: append-request) -> result<event, string>;
+}
+
+interface query {
+    use types.{authorization, batch, filter};
+    query: func(auth: authorization, after: u64, limit: u32, filter: filter) -> result<batch, string>;
+}
+
 interface feed {
-    use types.{batch};
-    poll: func(after: u64, limit: u32, wait-ms: u32) -> result<batch, string>;
+    use types.{authorization, batch, filter};
+    poll: func(auth: authorization, after: u64, limit: u32, filter: filter) -> result<batch, string>;
+}
+
+interface retention {
+    record policy { maximum-events: u32 }
+    configure: func(policy: policy) -> result<_, string>;
+    current: func() -> result<policy, string>;
 }

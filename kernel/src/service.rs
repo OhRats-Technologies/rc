@@ -60,6 +60,24 @@ struct Provider {
     handle: InstanceHandle,
 }
 
+#[derive(Clone)]
+pub(crate) struct PinnedProvider(Provider);
+
+impl PinnedProvider {
+    pub(crate) fn component_id(&self) -> &str {
+        &self.0.component_id
+    }
+
+    pub(crate) fn call(
+        &self,
+        service: &str,
+        function: &str,
+        params: &[Val],
+    ) -> wasmtime::Result<Vec<Val>> {
+        call::provider_owned(&self.0, service, function, params)
+    }
+}
+
 impl ServiceRegistryHost for HostState {
     fn providers(
         &mut self,
@@ -125,8 +143,10 @@ impl ServiceRegistry {
         *self.providers.write().expect("service registry poisoned") = providers;
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn call(
         &self,
+        caller: &str,
         service: &str,
         requirement: &VersionReq,
         selection: SelectionMode,
@@ -152,7 +172,7 @@ impl ServiceRegistry {
             .ok_or_else(|| {
                 wasmtime::format_err!("service {service} {requirement} is unavailable")
             })?;
-        call::provider(&provider, service, function, params, results)
+        call::provider(&provider, Some(caller), service, function, params, results)
     }
 
     pub fn call_all(
@@ -211,6 +231,18 @@ impl ServiceRegistry {
             .matching(service, requirement)?
             .into_iter()
             .any(|provider| key.is_none_or(|key| provider.keys.iter().any(|value| value == key))))
+    }
+
+    pub(crate) fn pinned(
+        &self,
+        service: &str,
+        requirement: &VersionReq,
+    ) -> wasmtime::Result<Vec<PinnedProvider>> {
+        Ok(self
+            .matching(service, requirement)?
+            .into_iter()
+            .map(PinnedProvider)
+            .collect())
     }
 
     fn matching(&self, service: &str, requirement: &VersionReq) -> wasmtime::Result<Vec<Provider>> {

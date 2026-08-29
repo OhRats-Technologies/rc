@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:process-policy"
 version = "0.2.0"
 world = "ohrats:rc-plugin/process-policy@0.1.0"
-wit = ["plugin", "process"]
+wit = ["node-worlds", "plugin", "process"]
 
 [build]
 kind = "rust"

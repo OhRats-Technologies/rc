@@ -46,7 +46,9 @@ interface host {
     use types.{log-level};
     log: func(level: log-level, message: string);
 }
-
+interface call-context {
+    caller-component-id: func() -> option<string>;
+}
 interface component-store {
     record installed-component {
         name: string,
@@ -133,10 +135,10 @@ interface package-source {
 interface greeter {
     greet: func(name: string) -> string;
 }
-
 world plugin {
     use types.{descriptor};
     import host;
+    import call-context;
 
     export descriptor: func() -> descriptor;
     export activate: func() -> result<_, string>;
@@ -218,7 +220,9 @@ world diagnostics-reporter {
 
 world webui-shell {
     include plugin;
+    import state-store;
     export ohrats:rc-webui/slots@0.1.0;
+    export ohrats:rc-webui/shell@0.1.0;
     export ohrats:rc-http/handler@0.1.0;
 }
 
@@ -254,6 +258,7 @@ world identity-store {
     include plugin;
     import ohrats:rc-storage/durable-store@0.1.0;
     export ohrats:rc-identity/users@0.1.0;
+    export ohrats:rc-identity/credentials@0.1.0;
     export ohrats:rc-identity/ceremonies@0.1.0;
     export ohrats:rc-session/lookup@0.1.0;
     export ohrats:rc-session/management@0.1.0;
@@ -262,22 +267,34 @@ world identity-store {
 world identity-fixture {
     include plugin;
     import ohrats:rc-identity/users@0.1.0;
+    import ohrats:rc-identity/credentials@0.1.0;
     import ohrats:rc-identity/ceremonies@0.1.0;
     import ohrats:rc-session/lookup@0.1.0;
     import ohrats:rc-session/management@0.1.0;
 }
 
-world process-policy {
+world identity-http {
     include plugin;
-    export ohrats:rc-process/policy@0.2.0;
+    import state-store;
+    import ohrats:rc-identity/users@0.1.0;
+    import ohrats:rc-identity/credentials@0.1.0;
+    import ohrats:rc-identity/ceremonies@0.1.0;
+    import ohrats:rc-session/lookup@0.1.0;
+    import ohrats:rc-session/management@0.1.0;
+    import ohrats:rc-webauthn/verifier@0.1.0;
+    import ohrats:rc-webui/shell@0.1.0;
+    export ohrats:rc-http/handler@0.1.0;
 }
 
-world transport-webrtc {
+world ssh-policy-store {
     include plugin;
-    export ohrats:rc-transport/provider@0.2.0;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    export ohrats:rc-ssh/credentials@0.1.0;
+    export ohrats:rc-ssh/policy@0.1.0;
 }
 
-world transport-test {
+world ssh-policy-fixture {
     include plugin;
-    export ohrats:rc-transport/provider@0.2.0;
+    import ohrats:rc-ssh/credentials@0.1.0;
+    import ohrats:rc-ssh/policy@0.1.0;
 }

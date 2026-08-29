@@ -154,6 +154,7 @@ RUNTIME_TOOLING = {
         "webui-shell",
     },
     "scripts/smoke-kernel.sh": {
+        "call-context-consumer",
         "fixture-broken",
         "fixture-consumer",
         "fixture-provider",

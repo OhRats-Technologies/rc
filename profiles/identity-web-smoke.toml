@@ -1,0 +1,10 @@
+schema = 1
+
+[profile]
+id = "ohrats:identity-web-smoke"
+components = [
+  "identity-http",
+  "identity-store",
+  "webauthn-es256",
+  "webui-shell",
+]

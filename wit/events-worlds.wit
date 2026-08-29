@@ -1,0 +1,18 @@
+package ohrats:rc-plugin@0.1.0;
+
+world events-store {
+    include plugin;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    export ohrats:rc-events/append@0.1.0;
+    export ohrats:rc-events/query@0.1.0;
+    export ohrats:rc-events/feed@0.1.0;
+    export ohrats:rc-events/retention@0.1.0;
+}
+
+world events-fixture {
+    include plugin;
+    import ohrats:rc-events/append@0.1.0;
+    import ohrats:rc-events/query@0.1.0;
+    import ohrats:rc-events/feed@0.1.0;
+    import ohrats:rc-events/retention@0.1.0;
+}

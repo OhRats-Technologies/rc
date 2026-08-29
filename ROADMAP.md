@@ -176,17 +176,17 @@ metadata-only.
 
 ## 4.5. RC 0.18 dogfood release
 
-- [ ] Ship the existing native Node/controller path together with the new
+- [x] Ship the existing native Node/controller path together with the new
   Wasmtime kernel rather than replacing working remote control prematurely.
-- [ ] Install package-manager, local/HTTP/GitHub/OCI source providers, and
+- [x] Install package-manager, local/HTTP/GitHub/OCI source providers, and
   local diagnostics as a portable core component bundle.
-- [ ] Dispatch component-provided top-level commands through `rc` while
+- [x] Dispatch component-provided top-level commands through `rc` while
   retaining native Node/controller commands until their WIT ports are ready.
-- [ ] Make `rc update` update managed components and `rc upgrade` refresh the
+- [x] Make `rc update` update managed components and `rc upgrade` refresh the
   native platform/core bundle.
-- [ ] Publish four native `rc` assets, four native kernel assets, and one
+- [x] Publish four native `rc` assets, four native kernel assets, and one
   portable core-component bundle without rebuilding Wasm per platform.
-- [ ] Install 0.18 on a real enrolled Mac, verify the component graph and
+- [x] Install 0.18 on a real enrolled Mac, verify the component graph and
   package commands, then execute a GUI process through production RC.
 
 Acceptance: 0.18 can be dogfooded on an enrolled machine without losing the
@@ -199,8 +199,10 @@ commands run through the installed Wasm kernel.
   asset, and event-stream WIT packages.
 - [x] Implement the native HTTP listener as a capability-scoped kernel adapter
   and route requests to active components.
-- [x] Move the landing page, sign-in/setup surfaces, and public docs into the
-  `ohrats:webui-shell` component.
+- [x] Move the exact canonical landing page and complete public documentation
+  catalog into the `ohrats:webui-shell` component without reconstructed copy or
+  layout.
+- [x] Move sign-in/setup surfaces into identity-backed component routes.
 - [ ] Move passkey ceremony handling, authenticated shell, sidebar, account,
   workspace, device, API, MCP, CLI authorization, and error views into
   componentized routes as their domain services become available.
@@ -232,13 +234,30 @@ contribution smoke tests already pass through the native kernel listener.
   - [x] Add component-owned durable users, browser sessions, and single-use
     ceremony state; prove restart recovery, expiration, revocation, provider
     withdrawal, and that raw bearer tokens never enter durable storage.
-  - [ ] Route passkey ceremonies and signed API/CLI credential administration
-    through the identity services, then remove their native SQLite paths.
+  - [ ] Route signed API/CLI credential administration through identity services,
+    then remove the remaining native SQLite paths.
+  - [x] Route setup/login WebAuthn registration and authentication ceremonies,
+    browser sessions, logout, and restart persistence through identity components.
 - [ ] Port workspaces, membership, invitations, and authority snapshots.
+  - [x] Add the typed workspace/membership/invitation package and durable
+    workspace-store component, including atomic Personal workspace creation,
+    Owner and membership invariants, non-Owner expiring/single-use hashed
+    invitations, deletion cleanup, and restart smoke coverage.
+  - [ ] Port and locally enforce signed authority snapshots.
 - [ ] Port device enrollment, revocation, presence, and Node rendezvous.
+  - [x] Define and exercise component-owned durable device registry, hashed
+    one-time enrollment, immutable Node keys, tombstone revocation, presence
+    leases, and transport-neutral rendezvous metadata services.
 - [ ] Port control authorization, TURN provider, signaling, and events.
+  - [x] Add a typed lifecycle-event component with durable monotonic cursors,
+    authorization-scoped filters, idempotent appends, bounded retention, and
+    restart/gap recovery fixtures. Live HTTP event streaming remains pending.
 - [ ] Port MCP OAuth and the five-tool process harness.
 - [ ] Port the OpenSSH gateway integration.
+  - [x] Add component-owned durable SSH public-key credentials and typed policy
+    decisions for immutable device routing, workspace roles, forced commands,
+    forwarding prohibitions, and bounded sessions. Native sshd/bridge adapters
+    remain to be reduced to consumers of these contracts.
 - [ ] Define the canonical server profile and exact lockfile.
 - [ ] Replace the giant native `AppState` with component services and host
   resources.
@@ -355,6 +374,11 @@ invariants at the top of this document.
   optimistic transactions, writer locking, abrupt rollback, persistence, and
   consistent online backup. The OpenSSL-backed `webauthn-rs` implementation was
   rejected for WASIp2.
+
+- 2026-08-28: added an identity HTTP component with exact setup/login views,
+  ES256 registration and authentication through the keyed verifier, atomic
+  user/passkey storage, HttpOnly browser sessions, setup-token configuration,
+  reliable logout, and persistent-Chrome setup/restart/login coverage.
 - 2026-08-28: added a keyed ES256 WebAuthn verifier component using a pinned
   pure-Rust relying-party core. Typed WIT carries RP policy and portable COSE
   credential state; unit and runtime fixtures prove registration,
@@ -365,3 +389,7 @@ invariants at the top of this document.
   planning into independently built typed components. Browser and CLI control
   use the Node-signed host/STUN/TURN plan; the native host fails closed when a
   required policy service is absent.
+- 2026-08-28: added a generic typed streamed HTTP provider contract and kernel
+  adapter with pinned provider sessions, bounded incremental chunks, delayed
+  polling, disconnect close notification, finite-route fallthrough, and SSE
+  lifecycle/concurrency fixtures. WebSocket transport remains separate work.

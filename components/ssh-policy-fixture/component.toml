@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:ssh-policy-fixture"
+version = "0.1.0"
+world = "ohrats:rc-plugin/ssh-policy-fixture@0.1.0"
+wit = ["plugin", "ssh"]
+
+[build]
+kind = "rust"
+package = "rc-ssh-policy-fixture"
+artifact = "ssh-policy-fixture"

@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:transport-webrtc"
 version = "0.2.0"
 world = "ohrats:rc-plugin/transport-webrtc@0.1.0"
-wit = ["plugin", "transport"]
+wit = ["node-worlds", "plugin", "transport"]
 
 [build]
 kind = "rust"

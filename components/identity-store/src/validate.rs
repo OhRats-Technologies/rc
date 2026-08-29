@@ -50,3 +50,38 @@ pub fn ceremony_payload(metadata: &[u8], state: &[u8]) -> Result<(), String> {
     }
     Ok(())
 }
+
+pub fn passkey_name(value: &str) -> Result<(), String> {
+    if !value.trim().is_empty()
+        && value.len() <= MAX_NAME_BYTES
+        && !value.chars().any(char::is_control)
+    {
+        Ok(())
+    } else {
+        Err("invalid passkey name".into())
+    }
+}
+
+pub fn credential_id(id: &[u8]) -> Result<(), String> {
+    if id.is_empty() || id.len() > 1024 {
+        Err("invalid WebAuthn credential id".into())
+    } else {
+        Ok(())
+    }
+}
+
+pub fn stored_credential(id: &[u8], algorithm: &str, public_key_cose: &[u8]) -> Result<(), String> {
+    credential_id(id)?;
+    if algorithm.is_empty()
+        || algorithm.len() > 32
+        || !algorithm
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        return Err("invalid WebAuthn algorithm".into());
+    }
+    if public_key_cose.is_empty() || public_key_cose.len() > 16 * 1024 {
+        return Err("invalid WebAuthn public key".into());
+    }
+    Ok(())
+}

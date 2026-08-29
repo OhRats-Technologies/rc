@@ -56,12 +56,22 @@ class AffectedUnitsTests(unittest.TestCase):
     def test_http_wit_change_rebuilds_kernel_adapter_and_web_consumer(self) -> None:
         value = self.resolve("wit/deps/http/http.wit")
         self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["webui-shell"])
+        self.assertEqual(value["components"], ["identity-http", "webui-shell"])
 
     def test_storage_wit_change_rebuilds_kernel_adapter_and_fixture(self) -> None:
         value = self.resolve("wit/deps/storage/storage.wit")
         self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["identity-store", "storage-fixture"])
+        self.assertEqual(
+            value["components"],
+            [
+                "device-store",
+                "events-store",
+                "identity-store",
+                "ssh-policy-store",
+                "storage-fixture",
+                "workspace-store",
+            ],
+        )
 
     def test_process_wit_change_rebuilds_kernel_and_policy(self) -> None:
         value = self.resolve("wit/deps/process/process.wit")
@@ -79,19 +89,31 @@ class AffectedUnitsTests(unittest.TestCase):
     def test_identity_wit_change_rebuilds_identity_units(self) -> None:
         value = self.resolve("wit/deps/identity/identity.wit")
         self.assertFalse(value["kernel"])
-        self.assertEqual(value["components"], ["identity-fixture", "identity-store"])
+        self.assertEqual(
+            value["components"],
+            ["identity-fixture", "identity-http", "identity-store"],
+        )
 
     def test_session_wit_change_rebuilds_identity_units(self) -> None:
         value = self.resolve("wit/deps/session/session.wit")
         self.assertFalse(value["kernel"])
-        self.assertEqual(value["components"], ["identity-fixture", "identity-store"])
+        self.assertEqual(
+            value["components"],
+            ["identity-fixture", "identity-http", "identity-store"],
+        )
 
     def test_webauthn_wit_change_rebuilds_only_verifier_units(self) -> None:
         value = self.resolve("wit/deps/webauthn/webauthn.wit")
         self.assertFalse(value["kernel"])
         self.assertEqual(
             value["components"],
-            ["webauthn-es256", "webauthn-fixture"],
+            [
+                "identity-fixture",
+                "identity-http",
+                "identity-store",
+                "webauthn-es256",
+                "webauthn-fixture",
+            ],
         )
 
     def test_profile_change_compiles_nothing(self) -> None:

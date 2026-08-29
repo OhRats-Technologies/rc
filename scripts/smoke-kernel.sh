@@ -7,6 +7,7 @@ cd "$root"
 if [ "${RC_SKIP_COMPONENT_BUILD:-0}" != 1 ]; then
   scripts/build-component.sh components/fixture-provider >/dev/null
   scripts/build-component.sh components/fixture-consumer >/dev/null
+  scripts/build-component.sh components/call-context-consumer >/dev/null
   scripts/build-component.sh components/fixture-broken >/dev/null
   scripts/build-component.sh components/fixture-collision >/dev/null
   scripts/build-component.sh components/fixture-trap >/dev/null
@@ -18,6 +19,10 @@ for fixture in provider consumer broken collision trap limit; do
     exit 1
   }
 done
+test -f "dist/components/call-context-consumer.wasm" || {
+  echo "missing fixture artifact: call-context-consumer.wasm" >&2
+  exit 1
+}
 cargo build --manifest-path kernel/Cargo.toml --locked >/dev/null
 
 directory=$(mktemp -d)
@@ -80,8 +85,16 @@ test "$output" = "hello, RC"
 cp dist/components/fixture-consumer.wasm "$components/consumer.wasm"
 output=$(kernel/target/debug/rc-kernel --component-dir "$components" consume WIT 2>/dev/null)
 test "$output" = "hello, WIT"
+output=$(kernel/target/debug/rc-kernel --component-dir "$components" caller 2>/dev/null)
+test "$output" = "ohrats:fixture-consumer"
+cp dist/components/call-context-consumer.wasm "$components/caller-alt.wasm"
+output=$(kernel/target/debug/rc-kernel --component-dir "$components" caller-alt 2>/dev/null)
+test "$output" = "ohrats:call-context-consumer"
+rm "$components/consumer.wasm" "$components/caller-alt.wasm"
+output=$(kernel/target/debug/rc-kernel --component-dir "$components" provider-caller 2>/dev/null)
+test "$output" = "none"
 
-rm -f "$components/provider.wasm" "$components/consumer.wasm"
+rm -f "$components/provider.wasm"
 cp dist/components/fixture-trap.wasm "$components/trap.wasm"
 if kernel/target/debug/rc-kernel --component-dir "$components" repair >/dev/null 2>&1; then
   echo "trapping component unexpectedly passed repair" >&2

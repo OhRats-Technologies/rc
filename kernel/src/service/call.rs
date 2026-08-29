@@ -20,12 +20,13 @@ pub(super) fn provider_owned(
     let count = func.ty(&active.store).results().len();
     drop(active);
     let mut results = vec![Val::Bool(false); count];
-    self::provider(provider, service, function, params, &mut results)?;
+    self::provider(provider, None, service, function, params, &mut results)?;
     Ok(results)
 }
 
 pub(super) fn provider(
     provider: &Provider,
+    caller: Option<&str>,
     service: &str,
     function: &str,
     params: &[Val],
@@ -41,6 +42,7 @@ pub(super) fn provider(
         .exports
         .get(&(service.to_owned(), function.to_owned()))
         .ok_or_else(|| wasmtime::format_err!("provider is missing {service}#{function}"))?;
+    let _context = caller.map(|caller| active.store.data().push_caller(caller.to_owned()));
     active.store.set_fuel(host::SERVICE_FUEL)?;
     func.call(&mut active.store, params, results)
 }

@@ -36,6 +36,33 @@ interface handler {
     handle: func(value: request) -> result<option<response>, string>;
 }
 
+interface stream-handler {
+    use types.{header, request};
+
+    record opened-response {
+        status: u16,
+        headers: list<header>,
+        session-id: string,
+    }
+
+    variant poll-result {
+        chunk(list<u8>),
+        pending(u32),
+        done,
+    }
+
+    enum close-reason {
+        completed,
+        client-disconnected,
+        limit-exceeded,
+        provider-error,
+    }
+
+    open: func(value: request) -> result<option<opened-response>, string>;
+    poll: func(session-id: string) -> result<poll-result, string>;
+    close: func(session-id: string, reason: close-reason);
+}
+
 interface static-assets {
     use types.{asset};
     get: func(path: string) -> result<option<asset>, string>;

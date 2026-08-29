@@ -5,9 +5,10 @@ wit_bindgen::generate!({
 });
 
 use ohrats::{
-    rc_identity::{ceremonies, types::Ceremony, users},
+    rc_identity::{ceremonies, credentials, types::Ceremony, users},
     rc_plugin::types::{Command, Requirement, Selection},
     rc_session::{lookup, management},
+    rc_webauthn::types::StoredCredential,
 };
 use std::{
     thread,
@@ -27,6 +28,7 @@ impl Guest for IdentityFixture {
             provides: Vec::new(),
             requires: vec![
                 requirement("ohrats:rc-identity/users"),
+                requirement("ohrats:rc-identity/credentials"),
                 requirement("ohrats:rc-identity/ceremonies"),
                 requirement("ohrats:rc-session/lookup"),
                 requirement("ohrats:rc-session/management"),
@@ -67,12 +69,21 @@ fn seed(args: &[String]) -> Result<u32, String> {
     };
     validate_fixture(fixture)?;
     let user_id = user_id(fixture);
-    let user = users::create(&user_id, "Identity Fixture")?;
+    let credential = fixture_credential(fixture, 0);
+    let user =
+        credentials::create_user(&user_id, "Identity Fixture", "Fixture Passkey", &credential)?;
     if user.id != user_id || user.display_name != "Identity Fixture" || user.created_at_ms == 0 {
         return Err("identity user creation returned invalid state".into());
     }
-    if users::create(&user_id, "Duplicate").is_ok() {
-        return Err("duplicate identity user was accepted".into());
+    if credentials::create_user(
+        &user_id,
+        "Duplicate",
+        "Duplicate",
+        &fixture_credential(fixture, 0),
+    )
+    .is_ok()
+    {
+        return Err("duplicate identity user or credential was accepted".into());
     }
     ceremonies::put(&Ceremony {
         id: ceremony_id(fixture),
@@ -109,6 +120,21 @@ fn verify(args: &[String]) -> Result<u32, String> {
     let user = users::get(&user_id)?.ok_or_else(|| "identity user was not restored".to_owned())?;
     if user.display_name != "Identity Fixture" || users::count()? == 0 {
         return Err("restored identity user is invalid".into());
+    }
+    if users::all()?.iter().all(|value| value.id != user_id) {
+        return Err("identity user listing omitted fixture user".into());
+    }
+    let credential_id = fixture_credential(fixture, 0).id;
+    let passkey = credentials::get_by_credential_id(&credential_id)?
+        .ok_or_else(|| "identity passkey was not restored".to_owned())?;
+    if passkey.user_id != user_id || passkey.name != "Fixture Passkey" {
+        return Err("restored identity passkey is invalid".into());
+    }
+    let mut next = passkey.credential.clone();
+    next.sign_count = 1;
+    let updated = credentials::update(&passkey.id, &next, now_ms())?;
+    if updated.credential.sign_count != 1 || updated.last_used_at_ms.is_none() {
+        return Err("identity passkey update was not persisted".into());
     }
     let expires_at_ms = now_ms().saturating_add(EXPIRY_TEST_MS);
     let expiring = management::issue(&user_id, expires_at_ms)?;
@@ -153,6 +179,17 @@ fn verify(args: &[String]) -> Result<u32, String> {
     }
     println!("identity state: ok");
     Ok(0)
+}
+
+fn fixture_credential(fixture: &str, sign_count: u32) -> StoredCredential {
+    StoredCredential {
+        id: format!("credential-{fixture}").into_bytes(),
+        algorithm: "es256".into(),
+        public_key_cose: vec![0xa5, 0x01, 0x02],
+        sign_count,
+        backup_eligible: true,
+        backup_state: false,
+    }
 }
 
 fn requirement(name: &str) -> Requirement {

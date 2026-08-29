@@ -22,7 +22,39 @@ interface users {
 
     create: func(id: string, display-name: string) -> result<user, string>;
     get: func(id: string) -> result<option<user>, string>;
+    all: func() -> result<list<user>, string>;
     count: func() -> result<u64, string>;
+    rename: func(id: string, display-name: string) -> result<user, string>;
+}
+
+interface credentials {
+    use types.{user};
+    use ohrats:rc-webauthn/types@0.1.0.{stored-credential};
+
+    record passkey {
+        id: string,
+        user-id: string,
+        name: string,
+        credential: stored-credential,
+        created-at-ms: u64,
+        last-used-at-ms: option<u64>,
+    }
+
+    create-user: func(
+        user-id: string,
+        display-name: string,
+        passkey-name: string,
+        credential: stored-credential,
+    ) -> result<user, string>;
+    add: func(
+        user-id: string,
+        name: string,
+        credential: stored-credential,
+    ) -> result<passkey, string>;
+    get-by-credential-id: func(id: list<u8>) -> result<option<passkey>, string>;
+    all: func(user-id: option<string>) -> result<list<passkey>, string>;
+    update: func(id: string, credential: stored-credential, used-at-ms: u64) -> result<passkey, string>;
+    remove: func(id: string, user-id: string) -> result<bool, string>;
 }
 
 interface ceremonies {

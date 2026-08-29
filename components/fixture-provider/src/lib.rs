@@ -9,6 +9,7 @@ struct FixtureProvider;
 
 impl Guest for FixtureProvider {
     fn descriptor() -> Descriptor {
+        assert!(ohrats::rc_plugin::call_context::caller_component_id().is_none());
         Descriptor {
             id: "ohrats:fixture-provider".into(),
             version: "1.0.0".into(),
@@ -19,15 +20,25 @@ impl Guest for FixtureProvider {
                 keys: Vec::new(),
             }],
             requires: Vec::new(),
-            commands: vec![Command {
-                name: "hello".into(),
-                summary: "Print a greeting from a dynamically loaded component".into(),
-                usage: "rc hello [name]".into(),
-            }],
+            commands: vec![
+                Command {
+                    name: "hello".into(),
+                    summary: "Print a greeting from a dynamically loaded component".into(),
+                    usage: "rc hello [name]".into(),
+                },
+                Command {
+                    name: "provider-caller".into(),
+                    summary: "Report call context for a kernel-origin invocation".into(),
+                    usage: "rc provider-caller".into(),
+                },
+            ],
         }
     }
 
     fn activate() -> Result<(), String> {
+        if ohrats::rc_plugin::call_context::caller_component_id().is_some() {
+            return Err("activation unexpectedly inherited call context".into());
+        }
         ohrats::rc_plugin::host::log(
             ohrats::rc_plugin::host::LogLevel::Info,
             "fixture provider activated",
@@ -43,6 +54,15 @@ impl Guest for FixtureProvider {
     }
 
     fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
+        if command == "provider-caller" {
+            println!(
+                "{}",
+                ohrats::rc_plugin::call_context::caller_component_id()
+                    .as_deref()
+                    .unwrap_or("none")
+            );
+            return Ok(0);
+        }
         if command != "hello" {
             return Err(format!("unsupported command {command:?}"));
         }
@@ -54,6 +74,10 @@ impl Guest for FixtureProvider {
 
 impl exports::ohrats::rc_plugin::greeter::Guest for FixtureProvider {
     fn greet(name: String) -> String {
+        if name == "__caller__" {
+            return ohrats::rc_plugin::call_context::caller_component_id()
+                .unwrap_or_else(|| "none".into());
+        }
         format!("hello, {name}")
     }
 }

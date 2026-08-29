@@ -1,0 +1,13 @@
+package ohrats:rc-plugin@0.1.0;
+
+world websocket-provider {
+    include plugin;
+    /// Direct kernel host import; it is not resolved through descriptor requirements.
+    import ohrats:rc-net/byte-stream-host@0.1.0;
+    export ohrats:rc-websocket/handler@0.1.0;
+}
+
+world websocket-test {
+    include plugin;
+    import ohrats:rc-websocket/handler@0.1.0;
+}

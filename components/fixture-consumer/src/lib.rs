@@ -18,11 +18,18 @@ impl Guest for FixtureConsumer {
                 version: "^0.1".into(),
                 selection: Selection::Single,
             }],
-            commands: vec![Command {
-                name: "consume".into(),
-                summary: "Prove dependency-driven component activation".into(),
-                usage: "rc consume".into(),
-            }],
+            commands: vec![
+                Command {
+                    name: "consume".into(),
+                    summary: "Prove dependency-driven component activation".into(),
+                    usage: "rc consume".into(),
+                },
+                Command {
+                    name: "caller".into(),
+                    summary: "Report the immediate caller seen by a service provider".into(),
+                    usage: "rc caller".into(),
+                },
+            ],
         }
     }
 
@@ -42,6 +49,10 @@ impl Guest for FixtureConsumer {
     }
 
     fn invoke(command: String, args: Vec<String>) -> Result<u32, String> {
+        if command == "caller" {
+            println!("{}", ohrats::rc_plugin::greeter::greet("__caller__"));
+            return Ok(0);
+        }
         if command != "consume" {
             return Err(format!("unsupported command {command:?}"));
         }

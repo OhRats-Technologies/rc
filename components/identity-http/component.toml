@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:identity-http"
+version = "0.1.0"
+world = "ohrats:rc-plugin/identity-http@0.1.0"
+wit = ["http", "identity", "plugin", "session", "webauthn", "webui"]
+
+[build]
+kind = "rust"
+package = "rc-identity-http"
+artifact = "identity-http"
