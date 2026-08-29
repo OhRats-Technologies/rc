@@ -312,7 +312,7 @@ replaceable components.
 - [x] Resolve/download/compile candidates before changing the active graph.
 - [x] Route new calls/sessions to a healthy new generation while old sessions
   drain on the previous generation.
-- [ ] Define explicit state snapshot/restore only for components that need it;
+- [x] Define explicit state snapshot/restore only for components that need it;
   prefer durable external state and generation draining.
 - [x] Implement `rc upgrade` through an updater component plus one kernel-owned
   atomic replace/re-exec primitive.
@@ -349,6 +349,12 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: audited component state migration and found no component that
+  requires an in-memory snapshot ABI. Durable domain stores already externalize
+  restart state, host-owned bounded config/state adapters cover bootstrap data,
+  and pinned runtime generations drain in-flight calls before deactivation.
+  Snapshot/restore remains intentionally absent until a component demonstrates
+  state that cannot fit either durable external storage or generation draining.
 - 2026-08-29: replaced caller-constructed API/CLI administrator records with
   identity-issued random human-authorization tokens whose durable records are
   digest-keyed. Identity binds each one-use claim to the browser session, client,
