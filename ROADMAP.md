@@ -340,6 +340,11 @@ invariants at the top of this document.
 
 ## Iteration log
 
+- 2026-08-29: aligned the linked architecture, capability, context, and mesh
+  specifications with the WIT/Wasmtime end state. Transitional `rc-context`,
+  `rc-mesh`, native product crates, and the global browser tree are now
+  explicitly documented as deletion queues rather than the target plugin ABI.
+
 - 2026-08-28: inventoried the repository and handbook; selected a monorepo,
   WASIp2, WIT-first component ABI, OCI artifact plumbing, declarative catalogs,
   Bun-like package commands, and Coolify-preserving migration.

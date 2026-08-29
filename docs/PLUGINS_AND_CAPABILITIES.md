@@ -10,13 +10,21 @@ Each swappable feature has three roles:
 - a **provider** implements the service;
 - a **consumer** depends on the service instead of a concrete provider.
 
-`rc-context::Component` owns activation, requirements, and cleanup. `rc-context::Broker` keeps preferred and fallback providers behind a stable handle. `rc-mesh` advertises signed peer services and routes opaque encrypted frames.
+WIT interfaces define services. Component descriptors declare requirements and
+providers; the kernel keeps the active provider registry and owns the resource
+handles needed to invoke them. A registration belongs to one component
+generation and is withdrawn before that generation's effects are recovered.
+
+The transitional `rc-context` and `rc-mesh` crates are migration inputs, not the
+end-state plugin ABI. Their product semantics must move into independently
+built components; only generic lifecycle and opaque host mechanisms remain
+native.
 
 A transport consumer depends on the transport service. Transport providers register behind that service, and dropping a provider lease exposes the next eligible provider without changing execution authority.
 
 ## Runtime profiles
 
-The unified `rc` executable is composed from named roles:
+Exact profile manifests and lockfiles compose named roles:
 
 | Profile | Components |
 | --- | --- |
@@ -26,7 +34,9 @@ The unified `rc` executable is composed from named roles:
 | `gateway` | OpenSSH bridge and hosted relay adapters |
 | `mcp` | OAuth resource metadata and process tools |
 
-Profiles select components; they do not fork identity, execution, or authority implementations.
+Profiles select component artifacts by digest; changing a profile assembles a
+new graph without compiling code. They do not fork identity, execution, or
+authority implementations.
 
 ## Peer capabilities
 
@@ -96,11 +106,16 @@ Browser extensions are signed modules associated with a host component manifest.
 
 Component boundaries also define rebuild boundaries:
 
-- browser-only changes do not rebuild Rust;
+- browser-only component asset changes rebuild only their owning component;
 - standalone WebAssembly components do not relink `rc`;
-- first-party Rust providers rebuild their dependency cone;
-- shared protocol and authority changes rebuild their consumers.
+- a native kernel implementation change builds only native kernel targets;
+- a WIT change rebuilds only components that import the changed package;
+- a profile or lock change assembles artifacts without compiling code.
 
 Native Rust dynamic libraries are not a plugin boundary because Rust's native ABI is unstable. RC uses static Rust, WebAssembly components, supervised processes, or browser modules depending on the trust boundary.
 
-Optional components must be removable without preventing RC from starting. Core identity, authority, update, and recovery paths do not depend on third-party extensions.
+Optional components must be removable without preventing RC from starting.
+Core identity, authority, update, and recovery paths do not depend on
+third-party extensions. A failed replacement leaves the previous healthy
+generation active; successful withdrawal first makes the provider unavailable
+to new consumers, drains dependents and pinned resources, then runs cleanup.

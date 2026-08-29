@@ -2,23 +2,33 @@
 
 RC separates coordination from execution. The server decides who may request control, but the RC Node remains authoritative for machine access, local authority state, and process execution.
 
-## Runtime topology
+## Target runtime topology
 
 ```text
 Browser / rc CLI
        │ HTTPS: pages, JSON, signaling, SSE
        ▼
-   rc-server ───────── SQLite
-       │                    
+  rc-kernel
+       │
+       ├── exact locked server component graph
+       ├── narrow storage / HTTP / process / socket / key adapters
+       └── /data (component-owned durable records)
+       │
        │ signed Node HTTP + signaling
        ▼
-    RC Node
+  rc-kernel + exact locked Node component graph
 
 Browser / rc CLI ══ encrypted WebRTC DataChannel ══ RC Node
 
-OpenSSH ── rc ssh-proxy ── public WebSocket ── SSH gateway ── RC Node process
-MCP client ── OAuth 2.0 + JSON-RPC/HTTP ── rc-server ── bounded Node command relay
+OpenSSH ── rc ssh-proxy ── public WebSocket ── SSH gateway components ── RC Node process
+MCP client ── OAuth 2.0 + JSON-RPC/HTTP ── server components ── bounded Node command relay
 ```
+
+The migration is not complete while `crates/rc-server` or the native product
+crates remain on a production path. The completion gates are recorded in the
+[component migration matrix](COMPONENT_MIGRATION_MATRIX.md). Until cutover, the
+legacy server preserves product behavior while each domain is moved behind WIT
+contracts and its replaced native implementation is deleted.
 
 The Node profile requires `ohrats:process-policy` and
 `ohrats:transport-webrtc`. The native host has no product-policy fallback. A
@@ -86,13 +96,27 @@ Reconnect reconciliation marks server-side `starting` or `running` processes as 
 
 Completed execution history is disabled by default. `RC_EXECUTION_HISTORY=metadata` is an explicit opt-in for bounded lifecycle metadata; command text and streams remain non-persistent in every mode. Presence and transport-connectivity events are live-only. On startup, process rows that cannot still be running are reconciled as lost before the retention policy is applied.
 
-## Runtime context and mesh substrate
+## Component context and mesh substrate
 
-`rc-context` mediates typed services, component requirements, and revertible cleanup effects. Server workspace contexts inherit global services while remaining isolated from sibling workspaces. Node connection resources are unwound through an effect scope when a transport ends.
+WIT packages own service contracts. Component descriptors declare provided and
+required services; the kernel reconciles activation, withdrawal, replacement,
+and dependent shutdown. Registrations and host resources are generation-owned
+effects. New consumers bind to the current healthy generation while resources
+already pinned to an older generation drain before that generation is
+deactivated.
 
-`rc-mesh` provides realm/peer/service identifiers, RC-Lock-pinned peer keys, signed expiring topology/service advertisements, deterministic transitive routes, replay-protected opaque envelopes, signed state digests, provider leases, cost-ordered failover, and the `EncryptedFrameTransport` interface used by CLI WebRTC control. WebRTC is the control transport provider. Mesh identities, routes, capabilities, and authority checks are transport-independent. See [Runtime context and mesh architecture](CONTEXT_AND_MESH.md).
+Workspace isolation, RC-Lock-pinned peer keys, signed expiring topology and
+capability announcements, replay-protected opaque envelopes, and route
+selection are product semantics and therefore belong to components. Native
+code may retain only opaque connection/resource handles and bounded transport
+mechanics. The transitional `rc-context` and `rc-mesh` crates are not the
+target composition ABI and must disappear after those semantics move behind
+WIT. See [Runtime context and mesh architecture](CONTEXT_AND_MESH.md).
 
-Local runtime composition and remote peer negotiation use the same service-seam model without conflating code loading with authority. Built-in components are native Rust; signed capability announcements let peers select compatible providers. Optional extension code uses explicit capability boundaries rather than a Rust dynamic-library ABI. See [Plugins and capability negotiation](PLUGINS_AND_CAPABILITIES.md).
+Local component services and remote peer negotiation share typed capability
+identities without conflating code loading with authority. Installed code is
+trusted by placement; execution authority still comes only from RC Lock and
+operation-specific permits. See [Plugins and capability negotiation](PLUGINS_AND_CAPABILITIES.md).
 
 The Rust server uses SQLite WAL mode with foreign keys and a busy timeout. The default development database is `./data-v2/rc-v2.sqlite3`; the container default is `/data/rc-v2.sqlite3`. The data directory is mode `0700` and the main database is mode `0600` on Unix.
 
@@ -108,23 +132,23 @@ Node state defaults to `~/.config/rc`:
 | `lock.json` | Local RC Lock authority state |
 | `node.log` | launchd service output on macOS |
 
-## Source layout
+## Source layout during migration
 
 ```text
-crates/rc-server      HTTP service and persistence
-crates/rc-cli         rc executable and service integration
-crates/rc-node        Node runtime, process manager, WebRTC, update
-crates/rc-context     typed component services and effect ownership
-crates/rc-mesh        realm-isolated routing and transport substrate
-crates/rc-api-client  signed HTTP and control bootstrap client
-crates/rc-protocol    serialized protocol structures
-crates/rc-crypto      cryptographic primitives
-web/client            browser TypeScript
-web                   CSS and static source assets
+kernel                native Wasmtime host and narrow OS adapters
+wit                   cross-component contracts and worlds
+components            independently built product components
+profiles              declarative component graph assemblies
+crates/rc-*            transitional native product implementations
+web                    transitional global browser source
 public/install.sh     verified release installer
 docker                SSH bridge support files
 fixtures              cross-implementation protocol vectors
 ```
+
+The `crates/rc-*` and global `web/` entries are deletion queues, not endorsed
+end-state ownership. A native crate leaves only after its last product semantic
+has a tested component owner and production-shaped adapter.
 
 Production source files are kept below 300 lines and split by responsibility. Wire changes require protocol fixtures and tests before consumers are updated.
 

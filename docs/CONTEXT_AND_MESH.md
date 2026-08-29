@@ -24,9 +24,9 @@ Durable state is limited to identity, authority, configuration, revocation, enro
 
 At-most-once execution is mandatory. An ambiguous process start is queried or marked lost; it is never replayed.
 
-## Runtime context
+## Component context
 
-`rc-context` provides:
+The target WIT/kernel component context provides:
 
 - parent and child realm contexts;
 - typed and optionally named services;
@@ -36,13 +36,15 @@ At-most-once execution is mandatory. An ambiguous process start is queried or ma
 - dependency-driven activation and deactivation;
 - component replacement with rollback when activation fails.
 
-Child contexts inherit parent services. Sibling contexts cannot see one another's local services. The server uses child contexts for workspace isolation.
+Child realms inherit explicitly shared services. Sibling realms cannot see one
+another's local services. Workspace isolation is component policy expressed
+through these typed scopes, not a product type embedded in the kernel.
 
 Node connections own an effect scope. When a transport ends, connection-owned resources are unwound in reverse acquisition order.
 
 ## Mesh substrate
 
-`rc-mesh` provides:
+Mesh components provide:
 
 - realm, peer, service, and route identities;
 - peer identities derived from RC Lock-pinned Ed25519 keys;
@@ -53,9 +55,13 @@ Node connections own an effect scope. When a transport ends, connection-owned re
 - signed content-addressed authority, revocation, device-operation, and release digests;
 - provider leases, cost ordering, failover, and realm isolation;
 - the `EncryptedFrameTransport` interface used by encrypted control;
-- a component that publishes the route broker through `rc-context`.
+- a typed route-broker service consumed through WIT.
 
-The control encryption layer targets `EncryptedFrameTransport`. Authorization and frame encryption do not depend on a particular transport provider.
+The control encryption layer targets an opaque encrypted-frame transport
+resource. Authorization and frame encryption do not depend on a particular
+transport provider. The transitional `rc-context` and `rc-mesh` crates are
+deleted once these contracts, components, and production-shaped adapters own
+their final behavior.
 
 RC Lock snapshots contain the device ID, Ed25519 identity public key, and X25519 transport public key for every trusted device in the workspace. A Node derives its mesh realm and trusted-peer directory only from its locally accepted RC Lock.
 
