@@ -31,7 +31,8 @@ artifact=${values#* }
 
 cargo build --manifest-path "$manifest" --locked --release --target wasm32-wasip2
 mkdir -p dist/components
-source="$component/target/wasm32-wasip2/release/$(printf '%s' "$package" | tr - _).wasm"
+target_root=${CARGO_TARGET_DIR:-"$component/target"}
+source="$target_root/wasm32-wasip2/release/$(printf '%s' "$package" | tr - _).wasm"
 test -f "$source" || {
   echo "component output not found: $source" >&2
   exit 1

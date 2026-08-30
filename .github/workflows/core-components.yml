@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.ci/component-target
     steps:
       - uses: actions/checkout@v7
         with:
@@ -51,25 +52,10 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            components/artifact-cache-local -> target
-            components/package-manager -> target
-            components/local-source -> target
-            components/http-source -> target
-            components/oci-source -> target
-            components/github-source -> target
-            components/diagnostics-store -> target
-            components/diagnostics-reporter -> target
-            components/diagnostics-cli -> target
-            components/process-policy -> target
-            components/execution-runtime -> target
-            components/scheduler -> target
-            components/shell -> target
-            components/transport-webrtc -> target
-            components/updater -> target
+          workspaces: . -> .ci/component-target
           shared-key: rc-core-components
           add-job-id-key: false
-      - name: Build bootstrap components
+      - name: Build release components
         run: |
           for component in \
             artifact-cache-local \
@@ -77,7 +63,7 @@ jobs:
             diagnostics-store diagnostics-reporter diagnostics-cli \
             process-policy execution-runtime scheduler shell transport-webrtc updater
           do
-            scripts/check-component.sh "$component"
+            scripts/build-component.sh "components/$component"
           done
       - name: Package portable core bundles
         run: |
