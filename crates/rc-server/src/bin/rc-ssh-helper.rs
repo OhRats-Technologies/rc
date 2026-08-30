@@ -1,6 +1,6 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
-use std::{env, process::ExitCode};
+use std::{env, io::IsTerminal as _, process::ExitCode};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -174,10 +174,10 @@ fn enc(value: &str) -> String {
 }
 
 fn is_terminal() -> bool {
-    // SAFETY: isatty only reads the validity and terminal status of these process-owned FDs.
-    unsafe { libc::isatty(libc::STDIN_FILENO) == 1 && libc::isatty(libc::STDOUT_FILENO) == 1 }
+    std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
 }
 
+#[cfg(unix)]
 fn terminal_size() -> (u16, u16) {
     let mut size = libc::winsize {
         ws_row: 24,
@@ -188,6 +188,10 @@ fn terminal_size() -> (u16, u16) {
     // SAFETY: `size` is a valid writable winsize for the duration of this ioctl call.
     unsafe { libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut size) };
     (size.ws_col.clamp(2, 500), size.ws_row.clamp(2, 500))
+}
+#[cfg(not(unix))]
+fn terminal_size() -> (u16, u16) {
+    (80, 24)
 }
 #[cfg(unix)]
 async fn resize_signal() {
