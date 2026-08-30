@@ -2,6 +2,15 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.5] - 2026-08-30
+
+- Repair native upgrades as one compatible kernel/core-profile unit and validate
+  required execution, scheduler, policy, and transport services before activation.
+- Add release upgrader compatibility metadata and actionable bootstrap guidance
+  for native profile migrations.
+- Make `rc repair` fail when core files parse but required runtime services are
+  unavailable.
+
 ## [0.19.4] - 2026-08-30
 
 ### Added

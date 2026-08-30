@@ -202,7 +202,7 @@ test "$("$TMPDIR_PATH/new/rc" version)" = "RC $VERSION" ||
   { echo "downloaded rc did not report the release version" >&2; exit 1; }
 "$TMPDIR_PATH/new/rc-kernel" --version | grep -Eq '^RC kernel [0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$' ||
   { echo "downloaded kernel did not report a valid version" >&2; exit 1; }
-"$TMPDIR_PATH/new/rc-kernel" --component-dir "$TMPDIR_PATH/new/components" repair >/dev/null ||
+"$TMPDIR_PATH/new/rc-kernel" --component-dir "$TMPDIR_PATH/new/components" policy-check >/dev/null ||
   { echo "core profile failed kernel validation" >&2; exit 1; }
 mkdir -p "$BIN_DIR" "$COMPONENT_DIR" "$ROLLBACK_DIR"
 BACKUP="$ROLLBACK_DIR/previous"
@@ -273,12 +273,6 @@ install_file "$TMPDIR_PATH/new/rc-kernel" "$BIN_DIR/rc-kernel" 0755
 for name in $CORE_COMPONENTS; do
   target="$COMPONENT_DIR/$name.wasm"
   marker="$COMPONENT_DIR/$name.core"
-  if [ -f "$target" ] && {
-    [ ! -f "$marker" ] || [ "$(cat "$marker")" != "sha256:$(sha256_file "$target")" ];
-  }; then
-    echo "preserving locally overridden component $target" >&2
-    continue
-  fi
   install_file "$TMPDIR_PATH/new/components/$name.wasm" "$target" 0644
   printf 'sha256:%s\n' "$(sha256_file "$TMPDIR_PATH/new/components/$name.wasm")" > "$marker.rc-install.$$"
   mv "$marker.rc-install.$$" "$marker"

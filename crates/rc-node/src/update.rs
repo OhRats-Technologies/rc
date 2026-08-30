@@ -21,6 +21,13 @@ struct GithubAsset {
     digest: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpgradeManifest {
+    schema: u32,
+    minimum_upgrader: String,
+}
+
 pub async fn replace_executable(current_version: &str) -> anyhow::Result<bool> {
     let api = std::env::var("RC_RELEASE_API")
         .ok()
@@ -53,6 +60,7 @@ pub async fn replace_executable_from(
         std::cmp::Ordering::Equal => {}
         std::cmp::Ordering::Greater => {}
     }
+    enforce_upgrade_manifest(&client, &release, current_version).await?;
     let platform = format!("{}-{}", release_os(), release_arch());
     let kernel = asset_bytes(&client, &release, &format!("rc-kernel-{platform}.tar.gz")).await?;
     let core = asset_bytes(&client, &release, core_asset_name(&release)).await?;
@@ -61,8 +69,36 @@ pub async fn replace_executable_from(
     } else {
         None
     };
-    bundle::install(rc.as_deref(), &kernel, &core, version)?;
+    bundle::install(rc.as_deref(), &kernel, &core, version).map_err(|error| {
+        anyhow::anyhow!(
+            "RC platform upgrade failed: {error:#}. Reinstall from the verified release installer to repair the native runtime and core profile together"
+        )
+    })?;
     Ok(true)
+}
+
+async fn enforce_upgrade_manifest(
+    client: &reqwest::Client,
+    release: &GithubRelease,
+    current_version: &str,
+) -> anyhow::Result<()> {
+    if !release
+        .assets
+        .iter()
+        .any(|asset| asset.name == "rc-upgrade.json")
+    {
+        return Ok(());
+    }
+    let bytes = asset_bytes(client, release, "rc-upgrade.json").await?;
+    let manifest: UpgradeManifest = serde_json::from_slice(&bytes)?;
+    anyhow::ensure!(manifest.schema == 1, "unsupported RC upgrade manifest");
+    if compare_versions(current_version, &manifest.minimum_upgrader)?.is_lt() {
+        anyhow::bail!(
+            "this RC release requires upgrader {} or newer; use the verified install.sh/install.ps1 release installer once to migrate the complete native runtime",
+            manifest.minimum_upgrader
+        );
+    }
+    Ok(())
 }
 
 fn core_asset_name(release: &GithubRelease) -> &'static str {

@@ -61,6 +61,13 @@ pub fn dispatch_if_component_command() -> Result<Option<i32>> {
     if !KERNEL_COMMANDS.contains(&first) && !component_command_exists(&kernel, first)? {
         return Ok(None);
     }
+    if first == "repair" {
+        let repaired = run_kernel(&kernel, args)?;
+        if repaired != Some(0) {
+            return Ok(repaired);
+        }
+        return run_kernel(&kernel, [OsString::from("policy-check")]);
+    }
     run_kernel(&kernel, args)
 }
 

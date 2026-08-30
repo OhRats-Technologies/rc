@@ -109,6 +109,12 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Persist the previous Windows activation and conservatively remove stale semantic-version generations while preserving active, rollback, and unknown directories.
 
 ## Scheduler and cutover
+
+- [x] Make native upgrade completeness semantic so an equal-version upgrade repairs missing or unloadable required runtime services.
+- [x] Validate the complete execution/policy/scheduler/transport service graph before installer or updater activation.
+- [x] Make `rc repair` report required-service failures instead of treating parseable component files as sufficient.
+- [x] Publish minimum-upgrader metadata for future native core-profile transitions and retain one-time verified-installer migration guidance.
+- [x] Treat canonical core-profile members as an atomic native runtime while preserving unrelated third-party components.
 - [x] Publish the typed scheduler definition/evaluator WIT contract using normal execution modes and environments.
 - [x] Build the first-party scheduler WASIp2 component with five-field cron and bundled IANA timezone rules.
 - [x] Define deterministic wall-clock occurrence IDs and test spring-forward skip/fall-back at-most-once behavior.

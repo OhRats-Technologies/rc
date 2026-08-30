@@ -6,6 +6,11 @@ matching kernel archive, and the core component asset from the immutable GitHub
 release returned by the release API. GitHub SHA-256 digests are required and
 verified before any archive is read or activated.
 
+The canonical core profile is an atomic part of the native runtime. Install and
+upgrade replace its named members together while leaving non-core third-party
+components untouched. RC performs a semantic policy/runtime check before native
+activation; file integrity alone is not considered healthy.
+
 Current releases publish `rc-core-profile.tar.gz`. It contains exactly
 `profile.lock` plus the exact files declared by the core profile.
 The lock is line-oriented:

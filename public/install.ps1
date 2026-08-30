@@ -128,11 +128,6 @@ function Install-Components([string]$Stage, [string[]]$Names) {
     $source = Join-Path $Stage "components\$name.wasm"
     $target = Join-Path $Components "$name.wasm"
     $marker = Join-Path $Components "$name.core"
-    if (Test-Path $target) {
-      $owned = (Test-Path $marker) -and ((Get-Content -Raw $marker).Trim() -eq
-        ('sha256:' + (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant()))
-      if (!$owned) { Write-Warning "preserving locally overridden component $target"; continue }
-    }
     Copy-Item -Force $source "$target.new-$PID"
     Move-Item -Force "$target.new-$PID" $target
     Atomic-Text $marker ('sha256:' + (Get-FileHash -Algorithm SHA256 $target).Hash.ToLowerInvariant())
@@ -244,7 +239,7 @@ try {
       Require-Kernel-NotDowngrade $kernelVersion (Parse-Kernel-Version $activeOutput)
     }
   }
-  & (Join-Path $stage 'rc-kernel.exe') --component-dir (Join-Path $stage 'components') repair | Out-Null
+  & (Join-Path $stage 'rc-kernel.exe') --component-dir (Join-Path $stage 'components') policy-check | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'kernel rejected the core profile' }
 
   $versionDir = Join-Path $Versions $version

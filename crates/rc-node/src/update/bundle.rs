@@ -53,6 +53,14 @@ pub fn runtime_complete() -> bool {
         && CORE_COMPONENTS
             .iter()
             .all(|name| components.join(format!("{name}.wasm")).is_file())
+        && Command::new(kernel)
+            .arg("--component-dir")
+            .arg(components)
+            .arg("policy-check")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
 }
 
 pub fn install(
@@ -133,7 +141,7 @@ fn validate_kernel(
     let status = Command::new(kernel)
         .arg("--component-dir")
         .arg(&validation)
-        .arg("repair")
+        .arg("policy-check")
         .status()?;
     let _ = fs::remove_dir_all(&validation);
     anyhow::ensure!(
@@ -178,18 +186,6 @@ fn validate_rc(path: &Path, version: &str) -> anyhow::Result<()> {
 fn install_core_component(directory: &Path, name: &str, bytes: &[u8]) -> anyhow::Result<()> {
     let target = directory.join(format!("{name}.wasm"));
     let marker = directory.join(format!("{name}.core"));
-    if target.exists() {
-        let current = fs::read(&target)?;
-        let current_digest = format!("sha256:{:x}", Sha256::digest(&current));
-        let owned = fs::read_to_string(&marker).is_ok_and(|value| value.trim() == current_digest);
-        if !owned {
-            eprintln!(
-                "preserving locally overridden component {}",
-                target.display()
-            );
-            return Ok(());
-        }
-    }
     atomic_write(&target, bytes)?;
     let digest = format!("sha256:{:x}\n", Sha256::digest(bytes));
     atomic_write(&marker, digest.as_bytes())
