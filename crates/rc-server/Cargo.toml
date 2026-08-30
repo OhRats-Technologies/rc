@@ -1,6 +1,6 @@
 [package]
 name = "rc-server"
-version = "0.19.3"
+version = "0.19.4"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -50,3 +50,9 @@ path = "src/bin/rc-ssh-helper.rs"
 [dev-dependencies]
 rc-node = { path = "../rc-node" }
 webauthn-authenticator-rs = { version = "0.5.3", features = ["softpasskey"] }
+
+[target.'cfg(windows)'.dependencies]
+# webauthn-rs uses OpenSSL for attestation parsing. Build it statically on
+# Windows so native CI and developer builds do not depend on a machine-global
+# OpenSSL installation or ship undeclared DLLs.
+openssl = { version = "0.10.81", features = ["vendored"] }

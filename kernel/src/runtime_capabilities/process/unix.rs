@@ -181,9 +181,9 @@ impl Group {
         kill(
             Pid::from_raw(-group),
             match signal {
-            Signal::Interrupt => UnixSignal::SIGINT,
-            Signal::Terminate => UnixSignal::SIGTERM,
-            Signal::Kill => UnixSignal::SIGKILL,
+                Signal::Interrupt => UnixSignal::SIGINT,
+                Signal::Terminate => UnixSignal::SIGTERM,
+                Signal::Kill => UnixSignal::SIGKILL,
             },
         )
         .map_err(display)

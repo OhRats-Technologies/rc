@@ -75,11 +75,8 @@ mod tests {
     #[test]
     fn wasmtime_cache_override_is_used() {
         assert_eq!(
-            wasmtime_cache_dir_with_override(
-                Path::new(COMPONENTS),
-                Some(PathBuf::from(OVERRIDE)),
-            )
-            .unwrap(),
+            wasmtime_cache_dir_with_override(Path::new(COMPONENTS), Some(PathBuf::from(OVERRIDE)),)
+                .unwrap(),
             Path::new(OVERRIDE)
         );
     }

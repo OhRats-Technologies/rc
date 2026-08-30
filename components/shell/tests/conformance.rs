@@ -67,6 +67,8 @@ fn command_substitution_balancing_ignores_quoted_parentheses() {
     let script = parse("echo $(echo ')' \"(nested)\")").unwrap();
     assert_eq!(
         script.chains[0].pipeline.commands[0].words[1].parts,
-        [WordPart::CommandSubstitution("echo ')' \"(nested)\"".into())]
+        [WordPart::CommandSubstitution(
+            "echo ')' \"(nested)\"".into()
+        )]
     );
 }

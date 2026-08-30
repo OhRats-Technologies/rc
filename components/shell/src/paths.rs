@@ -55,7 +55,10 @@ mod tests {
 
     #[test]
     fn resolves_unix_relative_paths() {
-        assert_eq!(resolve(Some("/tmp/root"), "child", false), "/tmp/root/child");
+        assert_eq!(
+            resolve(Some("/tmp/root"), "child", false),
+            "/tmp/root/child"
+        );
         assert_eq!(resolve(Some("/tmp/root"), "/etc", false), "/etc");
     }
 
@@ -66,6 +69,9 @@ mod tests {
         assert_eq!(resolve(Some("C:\\root"), "D:child", true), "D:child");
         assert_eq!(resolve(Some("C:\\root"), "\\child", true), "C:\\child");
         assert_eq!(resolve(Some("C:\\root"), "D:\\child", true), "D:\\child");
-        assert_eq!(resolve(Some("C:\\root"), "\\\\server\\share", true), "\\\\server\\share");
+        assert_eq!(
+            resolve(Some("C:\\root"), "\\\\server\\share", true),
+            "\\\\server\\share"
+        );
     }
 }

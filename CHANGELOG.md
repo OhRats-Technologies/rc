@@ -2,6 +2,32 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.4] - 2026-08-30
+
+### Added
+
+- Added the normative portable execution-runtime architecture, exact argv and
+  typed shell intents, explicit execution lifetimes, and Node-owned output
+  journals.
+- Added the Bun-derived portable RC Shell, first-party execution-runtime and
+  scheduler components, and their versioned WIT contracts.
+- Added native Windows process, ConPTY, Job Object, platform-directory, ACL,
+  run-lock, per-user service, installer, updater, and release foundations.
+
+### Changed
+
+- Migrated browser, CLI, and MCP execution requests to typed execution modes;
+  browser and CLI process traffic remains on encrypted WebRTC DataChannels.
+- Added Windows AMD64 release archives containing `rc.exe` and
+  `rc-kernel.exe`, with verified PowerShell installation and side-by-side
+  activation.
+
+### Fixed
+
+- Statically linked the Windows WebAuthn OpenSSL dependency so native CI and
+  release builds do not depend on a machine-global OpenSSL installation.
+- Applied the pinned Rust 1.98 formatter to the new kernel and shell sources.
+
 ## [0.19.3] - 2026-08-29
 
 ### Fixed

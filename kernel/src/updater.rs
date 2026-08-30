@@ -5,9 +5,9 @@ use crate::bindings::ohrats::rc_updater::{
     native_replacement::{CurrentState, Host, Staged},
 };
 #[cfg(not(windows))]
-use std::process::Command;
-#[cfg(not(windows))]
 use std::collections::BTreeMap;
+#[cfg(not(windows))]
+use std::process::Command;
 use std::{fs, path::PathBuf};
 
 const MAX_ARTIFACT: usize = 160 * 1024 * 1024;

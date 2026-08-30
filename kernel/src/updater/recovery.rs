@@ -1,6 +1,4 @@
 use sha2::{Digest, Sha256};
-#[cfg(not(windows))]
-use std::{fs::File, io::Write};
 use std::{
     fs,
     io::Read,
@@ -9,6 +7,8 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+#[cfg(not(windows))]
+use std::{fs::File, io::Write};
 
 const JOURNAL: &str = ".rc-kernel-replacement.journal";
 const HEALTH_LIMIT: u64 = 4097;
@@ -191,9 +191,9 @@ fn sync_parent(_path: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{digest, recover};
     #[cfg(unix)]
     use super::verify_kernel;
+    use super::{digest, recover};
     use std::{fs, path::Path};
 
     #[cfg(unix)]

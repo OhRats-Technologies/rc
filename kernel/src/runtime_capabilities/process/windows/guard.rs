@@ -1,5 +1,5 @@
-use std::{ffi::OsString, os::windows::ffi::OsStrExt as _, process::Command};
 use anyhow::Context as _;
+use std::{ffi::OsString, os::windows::ffi::OsStrExt as _, process::Command};
 use windows::{
     Win32::{
         Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0},

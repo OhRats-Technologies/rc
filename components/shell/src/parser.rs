@@ -287,7 +287,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn error(&self, message: &'static str) -> ParseError {
-        ParseError { offset: self.position, message }
+        ParseError {
+            offset: self.position,
+            message,
+        }
     }
 }
 
