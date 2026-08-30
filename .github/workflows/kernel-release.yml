@@ -1,6 +1,7 @@
 name: RC kernel release assets
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
