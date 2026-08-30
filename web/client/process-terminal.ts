@@ -14,6 +14,7 @@ const transcript = qs<HTMLElement>("#process-transcript"), host = qs<HTMLElement
 const live = page.dataset.processLive === "true", interactive = page.dataset.processInteractive === "true";
 const style = getComputedStyle(document.documentElement), color = (name: string) => style.getPropertyValue(name).trim();
 const terminal = new Terminal({ cursorBlink: interactive && page.dataset.processStatus === "running", disableStdin: !interactive, scrollback: 10_000,
+  fontFamily: color("--or-font-mono"),
   theme: { background: color("--or-bg"), foreground: color("--or-text"), cursor: color("--or-text"), selectionBackground: color("--or-surface-hover") } });
 const fit = new FitAddon(); terminal.loadAddon(fit); host.hidden = false; transcript.hidden = true; terminal.open(host);
 let webgl: WebglAddon | null = null;
