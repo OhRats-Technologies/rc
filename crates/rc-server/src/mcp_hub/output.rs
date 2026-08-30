@@ -97,7 +97,7 @@ pub(super) fn snapshot(process_id: &str, state: &McpState, cursor: usize) -> Mcp
         .map_or(inner.total_bytes, |chunk| chunk.start);
     let mut position = cursor.min(inner.total_bytes).max(earliest);
     let mut remaining = OUTPUT_RESPONSE_LIMIT;
-    let mut chunks = Vec::new();
+    let mut chunks: Vec<McpOutputChunk> = Vec::new();
     for chunk in &inner.output {
         let end = chunk.start + chunk.data.len();
         if end <= position {
