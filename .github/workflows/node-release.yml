@@ -188,7 +188,7 @@ jobs:
           test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '\.wasm$')" -eq "$expected"
           test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '^profile.lock$')" -eq 1
           python3 -m json.tool dist/rc-upgrade.json >/dev/null
-          cp public/install.ps1 dist/install.ps1
+          cp public/install.sh public/install.ps1 dist/
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -198,5 +198,5 @@ jobs:
             --draft \
             --title "RC ${GITHUB_REF_NAME#v}" \
             --generate-notes \
-            dist/rc-*.tar.gz dist/rc-upgrade.json dist/install.ps1
+            dist/rc-*.tar.gz dist/rc-upgrade.json dist/install.sh dist/install.ps1
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

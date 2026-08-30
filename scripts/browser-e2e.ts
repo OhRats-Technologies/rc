@@ -236,7 +236,8 @@ try {
         .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
     throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
   }
-  await waitFor(`document.querySelector('#process-state')?.textContent?.includes('EXIT 0')`, 35_000, "process exit");
+  await waitFor(`String(window.__rcE2EOutput || '').includes('RC_BROWSER_E2E_OK')`, 35_000, "terminal output");
+  await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${process.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
   if (!terminalText.includes("RC_BROWSER_E2E_OK")) throw new Error("terminal output did not traverse encrypted WebRTC control");
   const transport = await evaluate<string>(`document.querySelector('#control-transport')?.textContent || ""`);
