@@ -20,7 +20,13 @@ async fn responses_have_security_cache_and_request_id_headers() -> anyhow::Resul
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(header_value(&response, "x-content-type-options"), "nosniff");
     assert_eq!(header_value(&response, "x-frame-options"), "DENY");
-    assert!(header_value(&response, "content-security-policy").contains("frame-ancestors 'none'"));
+    let content_security_policy = header_value(&response, "content-security-policy");
+    assert!(content_security_policy.contains("frame-ancestors 'none'"));
+    assert!(
+        content_security_policy.contains(
+            "font-src 'self' data: https://assets.ohrats.party https://fonts.gstatic.com"
+        )
+    );
     assert_eq!(
         header_value(&response, header::CACHE_CONTROL.as_str()),
         "no-store"
