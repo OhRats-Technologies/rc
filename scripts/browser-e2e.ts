@@ -218,7 +218,7 @@ try {
   const process = await browserFetch<{ processId: string }>(`/api/v1/devices/${device.id}/processes`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({terminal:true})
   }`);
-  await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${process.processId}`)},JSON.stringify({command:"printf 'RC_BROWSER_E2E_OK\\n'; sleep 0.2; exit 0",cwd:"",terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${process.processId}`)};return true})()`);
+  await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${process.processId}`)},JSON.stringify({mode:{kind:"systemLoginShell"},terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${process.processId}`)};return true})()`);
   await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${process.processId}`)}) && document.readyState === "complete"`, 20_000, "process page");
   const terminalFonts = await evaluate<string[]>(`[getComputedStyle(document.querySelector('.terminal-host')).fontFamily,getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily]`);
   if (terminalFonts.some(font => !font.includes("MesloLGS Nerd Font Mono"))) throw new Error(`terminal font did not use Nerd Font: ${terminalFonts.join(" / ")}`);
@@ -233,6 +233,9 @@ try {
         .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
     throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
   }
+  await waitFor(`document.querySelector('#process-state')?.textContent?.includes('RUNNING')`, 15_000, "process running");
+  await evaluate(`(()=>{document.querySelector('.xterm-helper-textarea')?.focus();return true})()`);
+  await call("Input.insertText", { text: "printf 'RC_BROWSER_E2E_OK\\n'; exit 0\n" });
   await waitFor(`document.querySelector('#process-state')?.textContent?.includes('EXIT 0')`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
   if (!terminalText.includes("RC_BROWSER_E2E_OK")) throw new Error("terminal output did not traverse encrypted WebRTC control");
