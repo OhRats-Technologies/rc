@@ -858,8 +858,12 @@ jobs:
       - run: bun run build:client
       - run: cargo build --locked -p rc-server --bin rc-server -p rc-cli --bin rc
       - run: cargo build --locked --manifest-path kernel/Cargo.toml
-      - run: scripts/build-component.sh components/process-policy
-      - run: scripts/build-component.sh components/transport-webrtc
+      - name: Build Node runtime components
+        run: |
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/browser-components-target"
+          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
+            scripts/build-component.sh "components/$component"
+          done
       - name: Start persistent Chrome DevTools
         run: |
           chrome=$(command -v google-chrome || command -v chromium || command -v chromium-browser)

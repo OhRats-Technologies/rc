@@ -53,7 +53,10 @@ if (!await Bun.file(join(assets, "auth.js")).exists()) {
 const directory = await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
 const data = join(directory, "data"), nodeState = join(directory, "node"), components = join(directory, "components");
 await mkdir(data); await mkdir(nodeState); await mkdir(components);
-for (const name of ["process-policy", "transport-webrtc"]) {
+for (const name of [
+  "diagnostics-store", "process-policy", "shell",
+  "execution-runtime", "scheduler", "transport-webrtc",
+]) {
   const source = join(root, "dist/components", `${name}.wasm`);
   if (!await Bun.file(source).exists()) throw new Error(`build ${name} before running browser E2E`);
   await copyFile(source, join(components, `${name}.wasm`));
