@@ -8,7 +8,6 @@
 
 Secure remote control for macOS and Linux through the browser, CLI, API, MCP, and OpenSSH.
 
-
 ## Install
 
 ```sh
