@@ -1,5 +1,4 @@
 use crate::{RedirectMode, RedirectStream, Script, Word, WordPart};
-
 mod syntax;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
