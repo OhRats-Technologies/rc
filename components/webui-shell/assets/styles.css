@@ -253,7 +253,7 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .terminal-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--or-text-muted); font-family:var(--or-font-mono); font-size:.62rem; transition:color var(--or-theme-transition); }
 .terminal-actions { display:flex; flex-wrap:wrap; gap:.9rem; }
 .terminal-transcript { flex:1; min-width:0; min-height:0; padding:10px 0; overflow:auto; white-space:pre-wrap; font-family:var(--or-font-mono); font-size:.78rem; }
-.terminal-host { flex:1; min-width:0; min-height:0; height:auto; padding:10px 0; overflow:hidden; }
+.terminal-host { flex:1; min-width:0; min-height:0; height:auto; padding:10px 0; overflow:hidden; font-family:var(--or-font-mono); }
 .terminal-host .xterm { height:100%; max-width:100%; font-family:var(--or-font-mono); }
 .process-message { flex:none; min-height:1.2rem; margin-top:.3rem; }
 .process-client-alert { flex:none; display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:.65rem 0; border-bottom:1px solid var(--or-border); }

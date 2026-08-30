@@ -217,8 +217,8 @@ try {
   }`);
   await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${process.processId}`)},JSON.stringify({command:"printf 'RC_BROWSER_E2E_OK\\n'; sleep 0.2; exit 0",cwd:"",terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${process.processId}`)};return true})()`);
   await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${process.processId}`)}) && document.readyState === "complete"`, 20_000, "process page");
-  const terminalFont = await evaluate<string>(`getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily`);
-  if (!terminalFont.includes("MesloLGS Nerd Font Mono")) throw new Error(`terminal font did not use Nerd Font: ${terminalFont}`);
+  const terminalFonts = await evaluate<string[]>(`[getComputedStyle(document.querySelector('.terminal-host')).fontFamily,getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily]`);
+  if (terminalFonts.some(font => !font.includes("MesloLGS Nerd Font Mono"))) throw new Error(`terminal font did not use Nerd Font: ${terminalFonts.join(" / ")}`);
   try {
     await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('WEBRTC') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "WebRTC control transport");
   } catch (failure) {
