@@ -112,10 +112,17 @@ pub(super) fn snapshot(process_id: &str, state: &McpState, cursor: usize) -> Mcp
         if take == 0 {
             break;
         }
-        chunks.push(McpOutputChunk {
-            stream: chunk.stream,
-            text: String::from_utf8_lossy(&available[..take]).into_owned(),
-        });
+        let text = String::from_utf8_lossy(&available[..take]).into_owned();
+        if let Some(previous) = chunks.last_mut()
+            && previous.stream == chunk.stream
+        {
+            previous.text.push_str(&text);
+        } else {
+            chunks.push(McpOutputChunk {
+                stream: chunk.stream,
+                text,
+            });
+        }
         position += take;
         remaining -= take;
         if take < available.len() {

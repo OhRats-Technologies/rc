@@ -94,7 +94,7 @@ pub(super) fn status_descriptor() -> serde_json::Value {
     serde_json::json!({
         "name": "process_status",
         "title": "Read process status",
-        "description": "Read ordered incremental stdout/stderr and status for a process created by this same MCP grant. Pass the previous nextCursor to avoid repeated output. waitSeconds long-polls for new output or exit. The rolling buffer is bounded and ephemeral.",
+        "description": "Read ordered incremental stdout/stderr and status for a process created by this same MCP grant. Adjacent chunks from the same stream are coalesced while stdout/stderr ordering is preserved. Pass the previous nextCursor to avoid repeated output. waitSeconds long-polls for new output or exit. The rolling buffer is bounded and ephemeral.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": false,
