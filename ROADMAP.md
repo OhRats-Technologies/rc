@@ -110,6 +110,10 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 
 ## Scheduler and cutover
 
+- [x] Make reinstall-with-token idempotent: preserve an existing enrollment, leave the token unused, and print actionable guidance.
+- [x] Split WebUI enrollment output into full-width new-install and already-installed commands.
+- [x] Document one default background enrollment per OS user and explicit state-directory isolation for advanced foreground Nodes.
+
 - [x] Make native upgrade completeness semantic so an equal-version upgrade repairs missing or unloadable required runtime services.
 - [x] Validate the complete execution/policy/scheduler/transport service graph before installer or updater activation.
 - [x] Make `rc repair` report required-service failures instead of treating parseable component files as sufficient.

@@ -220,7 +220,8 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .simple-form .or-button { justify-self:start; }
 .inline-form { width:min(100%,720px); display:grid; grid-template-columns:minmax(180px,1fr) auto; gap:1rem; align-items:end; }
 .compact-inline-form { width:min(100%,640px); }
-.enrollment-command,.invite-link,.token-secret { width:min(100%,640px); display:flex; flex-direction:column; gap:.4rem; }
+.enrollment-command { width:100%; display:flex; flex-direction:column; gap:.4rem; }
+.invite-link,.token-secret { width:min(100%,640px); display:flex; flex-direction:column; gap:.4rem; }
 .inline-code { color:var(--or-text-muted); font-size:.7rem; transition:color var(--or-theme-transition); }
 .actions { display:flex; align-items:center; gap:1.25rem; }
 .row-actions { display:flex; align-items:center; justify-content:flex-end; gap:1rem; flex-wrap:wrap; }

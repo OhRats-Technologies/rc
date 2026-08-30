@@ -2072,7 +2072,7 @@ dependencies = [
 
 [[package]]
 name = "rc-cli"
-version = "0.19.5"
+version = "0.19.6"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2202,7 +2202,7 @@ dependencies = [
 
 [[package]]
 name = "rc-server"
-version = "0.19.5"
+version = "0.19.6"
 dependencies = [
  "anyhow",
  "axum",

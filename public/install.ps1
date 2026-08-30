@@ -274,7 +274,10 @@ try {
   Install-Components $stage $names
   Atomic-Text (Join-Path $Runtime 'installed-version') $version
   if ($Token) {
-    if ($Server) { & (Join-Path $Bin 'rc.exe') enroll $Token --url $Server }
+    if (Test-Path (Join-Path $State 'device.json')) {
+      Write-Host 'enrollment: unchanged (this OS user already has a device identity)'
+      Write-Host "token:      not consumed; use the separate 'rc enroll' command on an unenrolled machine"
+    } elseif ($Server) { & (Join-Path $Bin 'rc.exe') enroll $Token --url $Server }
     else { & (Join-Path $Bin 'rc.exe') enroll $Token }
   }
   if (Test-Path (Join-Path $State 'device.json')) { & (Join-Path $Bin 'rc.exe') service install }

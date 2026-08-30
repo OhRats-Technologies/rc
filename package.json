@@ -1,7 +1,7 @@
 {
   "name": "rc",
   "private": true,
-  "version": "0.19.5",
+  "version": "0.19.6",
   "scarfSettings": {
     "enabled": false
   },

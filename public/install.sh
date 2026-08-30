@@ -282,10 +282,15 @@ mv "$ROLLBACK_DIR/installed-version.tmp" "$ROLLBACK_DIR/installed-version"
 ACTIVATING=0
 echo "installed RC $VERSION in $BIN_DIR"
 if [ -n "$TOKEN" ]; then
-  if [ -n "$SERVER" ]; then
-    "$BIN_DIR/rc" enroll "$TOKEN" --url "$SERVER"
+  if [ -s "$STATE_DIR/device.json" ]; then
+    echo "enrollment: unchanged (this OS user already has a device identity)"
+    echo "token:      not consumed; use the separate 'rc enroll' command on an unenrolled machine"
   else
-    "$BIN_DIR/rc" enroll "$TOKEN"
+    if [ -n "$SERVER" ]; then
+      "$BIN_DIR/rc" enroll "$TOKEN" --url "$SERVER"
+    else
+      "$BIN_DIR/rc" enroll "$TOKEN"
+    fi
   fi
 fi
 if [ -s "$STATE_DIR/device.json" ]; then

@@ -141,12 +141,12 @@ pub(super) async fn enroll(
     if let Ok(existing) = load_state(&dir) {
         match fetch_status(&server, &existing).await {
             Ok(remote) => bail!(
-                "this machine is already enrolled as {} ({}); remove or uninstall that enrollment before moving it",
+                "this OS user is already enrolled as {} ({}). RC keeps one default background enrollment per user; run `rc uninstall` before replacing it, or use `--state-dir` for a separate foreground Node",
                 remote.name,
                 existing.device_id
             ),
             Err(EnrollmentError::Removed) => bail!(
-                "existing enrollment {} is no longer recognized; refusing to overwrite local state",
+                "existing enrollment {} was revoked. RC will not overwrite its local identity; run `rc uninstall`, then run the new install/enroll command",
                 existing.device_id
             ),
             Err(error) => bail!(

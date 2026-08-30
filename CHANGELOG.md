@@ -2,6 +2,12 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.6] - 2026-08-30
+
+- Make reinstall-with-token safe and idempotent when a default enrollment already exists.
+- Show separate full-width commands for new installations and already-installed Nodes.
+- Clarify default enrollment ownership and explicit state-directory isolation.
+
 ## [0.19.5] - 2026-08-30
 
 - Repair native upgrades as one compatible kernel/core-profile unit and validate

@@ -11,6 +11,13 @@ upgrade replace its named members together while leaving non-core third-party
 components untouched. RC performs a semantic policy/runtime check before native
 activation; file integrity alone is not considered healthy.
 
+Running the installer again is safe and updates the existing installation. If
+an enrollment token is supplied while the default state directory already has
+a device identity, the installer leaves that identity unchanged and does not
+consume the token. Use the separately generated `rc enroll` command on an
+unenrolled machine. RC supports one default per-user background enrollment;
+advanced foreground Nodes may use distinct explicit `--state-dir` directories.
+
 Current releases publish `rc-core-profile.tar.gz`. It contains exactly
 `profile.lock` plus the exact files declared by the core profile.
 The lock is line-oriented:

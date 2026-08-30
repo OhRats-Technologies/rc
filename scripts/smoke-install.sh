@@ -19,7 +19,7 @@ cat > "$fixture/rc" <<'EOF'
 #!/bin/sh
 case "${1:-}" in
   version) echo 'RC 1.0.0' ;;
-  enroll) exit 0 ;;
+  enroll) printf 'enroll-called\n' > "$RC_INSTALL_FIXTURE/enroll-called" ;;
   service) printf 'service-called\n' > "$RC_INSTALL_FIXTURE/service-called" ;;
   *) exit 0 ;;
 esac
@@ -120,7 +120,7 @@ PATH="$fixture/bin:$PATH" HOME="$fixture/home" RC_INSTALL_FIXTURE="$fixture" \
   RC_RELEASE_API=https://api.github.com/repos/OhRats-Technologies/rc/releases/latest \
   RC_STATE_DIR="$fixture/custom-state" \
   RC_INSTALL_BIN_DIR="$fixture/home/.local/bin" \
-  RC_DATA_DIR="$fixture/home/.local/share/rc" sh "$root/public/install.sh"
+  RC_DATA_DIR="$fixture/home/.local/share/rc" sh "$root/public/install.sh" enroll_existing https://rc.example
 
 test "$(HOME="$fixture/home" "$fixture/home/.local/bin/rc" version)" = 'RC 1.0.0'
 test -x "$fixture/home/.local/bin/rc-kernel"
@@ -129,6 +129,7 @@ test "$(HOME="$fixture/home" "$fixture/home/.local/share/rc/rollback/previous/rc
 grep -F 'old:package-manager' \
   "$fixture/home/.local/share/rc/rollback/previous/components/package-manager.wasm" >/dev/null
 test -f "$fixture/service-called"
+test ! -e "$fixture/enroll-called"
 test -f "$fixture/home/.local/share/rc/components/package-manager.core"
 test ! -e "$fixture/home/.local/share/rc/components/package-manager.managed"
 test -f "$fixture/home/.local/share/rc/components/artifact-cache-local.wasm"

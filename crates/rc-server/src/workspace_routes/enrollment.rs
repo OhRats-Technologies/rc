@@ -47,9 +47,19 @@ pub(super) async fn enrollment(
         StatusCode::CREATED,
         Json(serde_json::json!({
             "token":token,"expiresAt":expires,
-            "install":install_command(&state.config.public_url, &token)
+            "install":install_command(&state.config.public_url, &token),
+            "enroll":enroll_command(&state.config.public_url, &token)
         })),
     ))
+}
+
+fn enroll_command(public_url: &str, token: &str) -> String {
+    let server = public_url.trim_end_matches('/');
+    format!(
+        "rc enroll {} --url {}",
+        shell_quote(token),
+        shell_quote(server)
+    )
 }
 
 fn install_command(public_url: &str, token: &str) -> String {
@@ -69,7 +79,7 @@ fn shell_quote(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::install_command;
+    use super::{enroll_command, install_command};
 
     #[test]
     fn self_hosted_install_persists_originating_server() {
@@ -84,6 +94,14 @@ mod tests {
         assert_eq!(
             install_command("https://rc.example/o'hare", "enroll_$(false)"),
             "curl -fsSL 'https://rc.example/o'\"'\"'hare/install.sh' | sh -s -- 'enroll_$(false)' 'https://rc.example/o'\"'\"'hare'"
+        );
+    }
+
+    #[test]
+    fn installed_node_gets_a_separate_enroll_command() {
+        assert_eq!(
+            enroll_command("https://rc.example/", "enroll_test"),
+            "rc enroll 'enroll_test' --url 'https://rc.example'"
         );
     }
 }
