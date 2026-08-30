@@ -1,4 +1,4 @@
-import { copyFile, mkdtemp, mkdir, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createServer } from "node:net";
@@ -53,6 +53,9 @@ if (!await Bun.file(join(assets, "auth.js")).exists()) {
 const directory = await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
 const data = join(directory, "data"), nodeState = join(directory, "node"), components = join(directory, "components");
 await mkdir(data); await mkdir(nodeState); await mkdir(components);
+const loginShell = join(directory, "login-shell");
+await writeFile(loginShell, "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n", { mode: 0o700 });
+await chmod(loginShell, 0o700);
 for (const name of [
   "diagnostics-store", "process-policy", "shell",
   "execution-runtime", "scheduler", "transport-webrtc",
@@ -210,7 +213,7 @@ try {
   const [code, output, error] = await Promise.all([enroll.exited, readStream(enroll.stdout), readStream(enroll.stderr)]);
   if (code !== 0) throw new Error(`node enrollment failed (${code}): ${output}\n${error}`);
   node = Bun.spawn([binary, "run", "--state-dir", nodeState], {
-    env: { ...Bun.env, RC_KERNEL: kernelBinary, RC_COMPONENT_DIR: components },
+    env: { ...Bun.env, RC_KERNEL: kernelBinary, RC_COMPONENT_DIR: components, RC_SHELL: loginShell },
     stdout: "inherit", stderr: "inherit",
   });
   const device = await waitFor(`(async()=>{const r=await fetch('/api/v1/devices');if(!r.ok)return false;const j=await r.json();return j.devices.find(d=>d.name==='Browser E2E Node'&&d.online)||false})()`, 30_000, "Node online") as { id: string };
@@ -233,9 +236,6 @@ try {
         .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
     throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
   }
-  await waitFor(`document.querySelector('#process-state')?.textContent?.includes('RUNNING')`, 15_000, "process running");
-  await evaluate(`(()=>{document.querySelector('.xterm-helper-textarea')?.focus();return true})()`);
-  await call("Input.insertText", { text: "printf 'RC_BROWSER_E2E_OK\\n'; exit 0\n" });
   await waitFor(`document.querySelector('#process-state')?.textContent?.includes('EXIT 0')`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
   if (!terminalText.includes("RC_BROWSER_E2E_OK")) throw new Error("terminal output did not traverse encrypted WebRTC control");
