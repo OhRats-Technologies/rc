@@ -45,7 +45,7 @@ pub fn render(page: PublicPage, public_signup: bool, public_url: &str) -> String
 }
 
 pub fn asset_revision() -> &'static str {
-    concat!(env!("CARGO_PKG_VERSION"), "-browser2")
+    concat!(env!("CARGO_PKG_VERSION"), "-browser3")
 }
 
 fn currentize(page: PublicPage, html: String) -> String {

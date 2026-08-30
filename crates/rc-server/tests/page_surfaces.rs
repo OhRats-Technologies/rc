@@ -133,7 +133,7 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
         assert!(
             process_page
                 .body
-                .contains(&format!("{asset}?v={}-browser2", env!("CARGO_PKG_VERSION"))),
+                .contains(&format!("{asset}?v={}-browser3", env!("CARGO_PKG_VERSION"))),
             "authenticated process page is missing a versioned {asset} URL"
         );
     }
