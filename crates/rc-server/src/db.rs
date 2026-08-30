@@ -54,7 +54,10 @@ impl Database {
             connection.execute_batch(schema::SCHEMA)?;
         } else if current == 1 {
             connection.execute_batch(schema::MIGRATE_1_TO_2)?;
-        } else if current != 2 {
+            connection.execute_batch(schema::MIGRATE_2_TO_3)?;
+        } else if current == 2 {
+            connection.execute_batch(schema::MIGRATE_2_TO_3)?;
+        } else if current != 3 {
             anyhow::bail!("unsupported RC database schema {current}");
         }
         secure_database(path)?;
@@ -105,15 +108,8 @@ impl Database {
     }
 }
 
-#[cfg(unix)]
 fn secure_database(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-}
-
-#[cfg(not(unix))]
-fn secure_database(_: &Path) -> std::io::Result<()> {
-    Ok(())
+    rc_platform::protect_private_path(path, false)
 }
 
 #[derive(Debug, Clone)]

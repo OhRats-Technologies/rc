@@ -1,11 +1,13 @@
+#[path = "mcp_process_http/execution_modes.rs"]
+mod execution_modes;
 #[path = "mcp_process_http/support.rs"]
 mod support;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_node::ServerTransport;
-use rc_protocol::{NodeToServer, ServerToNode};
+use rc_protocol::{ExecutionMode, NodeToServer, ServerToNode};
 use std::time::Duration;
-use support::{Harness, recv, rpc_call};
+use support::{Harness, accept_operation, recv, respond_status, rpc_call};
 use tokio::time::timeout;
 
 #[tokio::test]
@@ -18,7 +20,7 @@ async fn mcp_process_harness_runs_reads_writes_and_cancels() -> anyhow::Result<(
     )
     .await??;
 
-    let run = rpc_call(
+    let run_call = rpc_call(
         &client,
         &harness,
         "process_run",
@@ -28,159 +30,142 @@ async fn mcp_process_harness_runs_reads_writes_and_cancels() -> anyhow::Result<(
             "waitSeconds": 0,
         }),
         1,
-    )
-    .await?;
+    );
+    let start_exchange = async {
+        let start = recv(&mut node).await?;
+        let ServerToNode::McpStart { process_id, .. } = &start else {
+            anyhow::bail!("expected MCP start, got {start:?}");
+        };
+        respond_status(&mut node, process_id, "running", Vec::new(), None, "").await?;
+        Ok::<_, anyhow::Error>(start)
+    };
+    let (run, start) = tokio::try_join!(run_call, start_exchange)?;
     let process_id = run["result"]["structuredContent"]["processId"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing process ID"))?
         .to_owned();
     assert_eq!(run["result"]["structuredContent"]["status"], "running");
-    match recv(&mut node).await? {
+    match start {
         ServerToNode::McpStart {
             process_id: id,
-            command,
+            mode,
             cwd,
             ..
         } => {
             assert_eq!(id, process_id);
-            assert!(command.contains("input"));
+            assert!(matches!(mode, ExecutionMode::RcShell { script } if script.contains("input")));
             assert!(cwd.is_empty());
         }
         message => anyhow::bail!("expected MCP start, got {message:?}"),
     }
-    node.send(&NodeToServer::McpStdout {
-        process_id: process_id.clone(),
-        data: URL_SAFE_NO_PAD.encode(b"number: "),
-    })
-    .await?;
-    let prompt = rpc_call(
+    let prompt_call = rpc_call(
         &client,
         &harness,
         "process_status",
-        serde_json::json!({"processId": process_id, "cursor": 0, "waitSeconds": 2}),
+        serde_json::json!({"deviceId": harness.device_id, "processId": process_id, "cursor": 0, "waitSeconds": 2}),
         2,
-    )
-    .await?;
+    );
+    let prompt_status = respond_status(
+        &mut node,
+        &process_id,
+        "running",
+        vec![("stdout", b"number: ".to_vec())],
+        None,
+        "",
+    );
+    let (prompt, ()) = tokio::try_join!(prompt_call, prompt_status)?;
     let prompt_state = &prompt["result"]["structuredContent"];
     assert_eq!(prompt_state["chunks"][0]["stream"], "stdout");
-    assert_eq!(prompt_state["chunks"][0]["text"], "number: ");
+    assert_eq!(prompt_state["chunks"][0]["cursor"], 0);
+    assert_eq!(prompt_state["chunks"][0]["encoding"], "text");
+    assert_eq!(prompt_state["chunks"][0]["data"], "number: ");
     let cursor = prompt_state["nextCursor"].as_u64().unwrap_or_default();
 
-    let input = rpc_call(
+    let input_call = rpc_call(
         &client,
         &harness,
         "process_input",
-        serde_json::json!({"processId": process_id, "data": "42\n", "eof": true}),
+        serde_json::json!({"deviceId": harness.device_id, "processId": process_id, "data": "42\n", "eof": true}),
         3,
-    )
-    .await?;
+    );
+    let input_exchange = accept_operation(&mut node);
+    let (input, input_message) = tokio::try_join!(input_call, input_exchange)?;
     assert_eq!(input["result"]["structuredContent"]["acceptedBytes"], 3);
     assert_eq!(input["result"]["structuredContent"]["stdinClosed"], true);
-    match recv(&mut node).await? {
-        ServerToNode::McpStdin {
+    match input_message {
+        ServerToNode::McpExecutionInput {
             process_id: id,
             data,
+            eof,
+            user_id,
+            mcp_grant,
+            control_grant,
+            ..
         } => {
             assert_eq!(id, process_id);
             assert_eq!(URL_SAFE_NO_PAD.decode(data)?, b"42\n");
+            assert!(eof);
+            assert!(!user_id.is_empty());
+            assert!(!mcp_grant.is_empty());
+            assert!(!control_grant.is_empty());
         }
         message => anyhow::bail!("expected MCP stdin, got {message:?}"),
     }
-    assert_eq!(
-        recv(&mut node).await?,
-        ServerToNode::McpStdinClose {
-            process_id: process_id.clone(),
-        }
-    );
 
-    node.send(&NodeToServer::McpStdout {
-        process_id: process_id.clone(),
-        data: URL_SAFE_NO_PAD.encode(b"84\n"),
-    })
-    .await?;
     node.send(&NodeToServer::McpExit {
         process_id: process_id.clone(),
         exit_code: 0,
         signal: String::new(),
     })
     .await?;
-    let finished = rpc_call(
+    let finished_call = rpc_call(
         &client,
         &harness,
         "process_status",
-        serde_json::json!({"processId": process_id, "cursor": cursor, "waitSeconds": 2}),
+        serde_json::json!({"deviceId": harness.device_id, "processId": process_id, "cursor": cursor, "waitSeconds": 2}),
         4,
-    )
-    .await?;
+    );
+    let finished_status = respond_status(
+        &mut node,
+        &process_id,
+        "exited",
+        vec![("stdout", b"84\n".to_vec())],
+        Some(0),
+        "",
+    );
+    let (finished, ()) = tokio::try_join!(finished_call, finished_status)?;
     let final_state = &finished["result"]["structuredContent"];
     assert_eq!(final_state["status"], "exited");
-    assert_eq!(final_state["chunks"][0]["text"], "84\n");
+    assert_eq!(final_state["chunks"][0]["data"], "84\n");
     assert_eq!(final_state["exitCode"], 0);
 
+    let binary_cursor = final_state["nextCursor"].as_u64().unwrap_or_default();
+    let binary_call = rpc_call(
+        &client,
+        &harness,
+        "process_status",
+        serde_json::json!({"deviceId": harness.device_id, "processId": process_id, "cursor": binary_cursor}),
+        40,
+    );
+    let binary_status = respond_status(
+        &mut node,
+        &process_id,
+        "exited",
+        vec![("stdout", vec![0xff, 0x00, 0x80])],
+        Some(0),
+        "",
+    );
+    let (binary, ()) = tokio::try_join!(binary_call, binary_status)?;
+    let chunk = &binary["result"]["structuredContent"]["chunks"][0];
+    assert_eq!(chunk["encoding"], "base64");
+    assert_eq!(chunk["data"], "/wCA");
+
+    execution_modes::exercise_exact_argv(&client, &harness, &mut node).await?;
     exercise_cancel(&client, &harness, &mut node).await?;
     exercise_image_view(&client, &harness, &mut node).await?;
-    assert_node_transport_limit(&client, &harness, &mut node).await?;
-    assert_http_request_limit(&client, &harness).await?;
+    execution_modes::assert_node_transport_limit(&client, &harness, &mut node).await?;
+    execution_modes::assert_http_request_limit(&client, &harness).await?;
     node.close().await;
-    Ok(())
-}
-
-async fn assert_node_transport_limit(
-    client: &reqwest::Client,
-    harness: &Harness,
-    node: &mut ServerTransport,
-) -> anyhow::Result<()> {
-    let command = "x".repeat(rc_protocol::NODE_CONTROL_MESSAGE_LIMIT + 1024);
-    let result = rpc_call(
-        client,
-        harness,
-        "process_run",
-        serde_json::json!({
-            "deviceId": harness.device_id,
-            "command": command,
-            "waitSeconds": 0,
-        }),
-        8,
-    )
-    .await?;
-    let state = &result["result"]["structuredContent"];
-    assert_eq!(state["status"], "lost");
-    assert!(
-        state["error"]
-            .as_str()
-            .is_some_and(|error| error.contains("transport frame"))
-    );
-    assert!(
-        timeout(Duration::from_millis(100), node.recv())
-            .await
-            .is_err()
-    );
-    Ok(())
-}
-
-async fn assert_http_request_limit(
-    client: &reqwest::Client,
-    harness: &Harness,
-) -> anyhow::Result<()> {
-    let command = "x".repeat(2 * 1024 * 1024);
-    let response = client
-        .post(format!("{}/mcp", harness.base))
-        .bearer_auth(&harness.access_token)
-        .header("mcp-protocol-version", rc_server::MCP_PROTOCOL_VERSION)
-        .header("mcp-method", "tools/call")
-        .header("mcp-name", "process_run")
-        .json(&serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": 9,
-            "method": "tools/call",
-            "params": {
-                "name": "process_run",
-                "arguments": {"deviceId": harness.device_id, "command": command},
-            },
-        }))
-        .send()
-        .await?;
-    assert_eq!(response.status(), reqwest::StatusCode::PAYLOAD_TOO_LARGE);
     Ok(())
 }
 
@@ -189,7 +174,7 @@ async fn exercise_cancel(
     harness: &Harness,
     node: &mut ServerTransport,
 ) -> anyhow::Result<()> {
-    let run = rpc_call(
+    let run_call = rpc_call(
         client,
         harness,
         "process_run",
@@ -199,43 +184,51 @@ async fn exercise_cancel(
             "waitSeconds": 0,
         }),
         5,
-    )
-    .await?;
+    );
+    let start_exchange = async {
+        let start = recv(node).await?;
+        let ServerToNode::McpStart { process_id, .. } = &start else {
+            anyhow::bail!("expected cancellation MCP start");
+        };
+        respond_status(node, process_id, "running", Vec::new(), None, "").await?;
+        Ok::<_, anyhow::Error>(start)
+    };
+    let (run, start) = tokio::try_join!(run_call, start_exchange)?;
     let process_id = run["result"]["structuredContent"]["processId"]
         .as_str()
         .ok_or_else(|| anyhow::anyhow!("missing cancellation process ID"))?
         .to_owned();
-    assert!(matches!(recv(node).await?, ServerToNode::McpStart { .. }));
-    let cancelled = rpc_call(
+    assert!(matches!(start, ServerToNode::McpStart { .. }));
+    let cancelled_call = rpc_call(
         client,
         harness,
         "process_cancel",
-        serde_json::json!({"processId": process_id}),
+        serde_json::json!({"deviceId": harness.device_id, "processId": process_id}),
         6,
-    )
-    .await?;
-    assert_eq!(cancelled["result"]["structuredContent"]["signal"], "TERM");
-    assert_eq!(
-        recv(node).await?,
-        ServerToNode::McpSignal {
-            process_id: process_id.clone(),
-            signal: "TERM".into(),
-        }
     );
+    let cancel_exchange = accept_operation(node);
+    let (cancelled, cancel_message) = tokio::try_join!(cancelled_call, cancel_exchange)?;
+    assert_eq!(cancelled["result"]["structuredContent"]["signal"], "TERM");
+    assert!(matches!(
+        cancel_message,
+        ServerToNode::McpExecutionSignal { process_id: id, signal, .. }
+            if id == process_id && signal == "TERM"
+    ));
     node.send(&NodeToServer::McpExit {
         process_id: process_id.clone(),
         exit_code: -1,
         signal: "TERM".into(),
     })
     .await?;
-    let status = rpc_call(
+    let status_call = rpc_call(
         client,
         harness,
         "process_status",
-        serde_json::json!({"processId": process_id, "waitSeconds": 2}),
+        serde_json::json!({"deviceId": harness.device_id, "processId": process_id, "waitSeconds": 2}),
         7,
-    )
-    .await?;
+    );
+    let status_response = respond_status(node, &process_id, "exited", Vec::new(), Some(-1), "TERM");
+    let (status, ()) = tokio::try_join!(status_call, status_response)?;
     assert_eq!(status["result"]["structuredContent"]["status"], "exited");
     assert_eq!(status["result"]["structuredContent"]["signal"], "TERM");
     Ok(())

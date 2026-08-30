@@ -44,6 +44,22 @@ impl ApiClient {
         self.json(Method::POST, path, Some(body)).await
     }
 
+    pub async fn put<I: Serialize + ?Sized, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &I,
+    ) -> Result<T, ApiError> {
+        self.json(Method::PUT, path, Some(body)).await
+    }
+
+    pub async fn delete_json<I: Serialize + ?Sized, T: DeserializeOwned>(
+        &self,
+        path: &str,
+        body: &I,
+    ) -> Result<T, ApiError> {
+        self.json(Method::DELETE, path, Some(body)).await
+    }
+
     pub async fn delete<T: DeserializeOwned>(&self, path: &str) -> Result<T, ApiError> {
         self.json(Method::DELETE, path, Option::<&()>::None).await
     }

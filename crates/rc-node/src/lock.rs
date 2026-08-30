@@ -1,11 +1,13 @@
 mod mcp;
 mod persistence;
 mod proof;
+mod schedule;
 mod sync;
 
 pub use mcp::verify_mcp_grant;
 pub use persistence::{bootstrap_lock, load_lock, lock_metadata, snapshot_hash};
 pub use proof::{api_control_authority, hosted_control_authority, verify_control_proof};
+pub use schedule::schedule_authority;
 pub use sync::sync_lock;
 
 use rc_protocol::ControlGrant;
@@ -49,6 +51,8 @@ pub enum LockError {
     McpGrant,
     #[error("MCP grant signature rejected")]
     McpSignature,
+    #[error("schedule authority rejected")]
+    ScheduleGrant,
     #[error("RC Lock generation exhausted")]
     GenerationExhausted,
     #[error(transparent)]
@@ -70,7 +74,7 @@ pub struct ControlAuthority {
     pub role: String,
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()

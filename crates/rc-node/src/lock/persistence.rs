@@ -5,7 +5,15 @@ use std::{fs, io, path::Path};
 use url::Url;
 
 pub fn load_lock(dir: &Path) -> Result<LockState, LockError> {
-    let bytes = fs::read(crate::lock_path(dir)).map_err(|error| {
+    let path = crate::lock_path(dir);
+    rc_platform::validate_private_path(&path, false).map_err(|error| {
+        if error.kind() == io::ErrorKind::NotFound {
+            LockError::Missing
+        } else {
+            LockError::Io(error)
+        }
+    })?;
+    let bytes = fs::read(path).map_err(|error| {
         if error.kind() == io::ErrorKind::NotFound {
             LockError::Missing
         } else {
@@ -81,13 +89,6 @@ pub(super) fn save_lock(dir: &Path, value: &LockState) -> Result<(), LockError> 
     Ok(())
 }
 
-#[cfg(unix)]
 fn set_mode(path: &Path, mode: u32) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(mode))
-}
-
-#[cfg(not(unix))]
-fn set_mode(_: &Path, _: u32) -> io::Result<()> {
-    Ok(())
+    rc_platform::protect_private_path(path, mode & 0o100 != 0)
 }

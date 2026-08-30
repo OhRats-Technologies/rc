@@ -4,21 +4,8 @@ use std::path::{Path, PathBuf};
 pub const WASMTIME_CACHE_BYTES: u64 = 256 * 1024 * 1024;
 pub const WASMTIME_CACHE_FILES: u64 = 4_096;
 
-pub fn default_data_dir() -> PathBuf {
-    std::env::var_os("RC_DATA_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| {
-            let home = std::env::var_os("HOME")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from("."));
-            home.join(".local/share/rc")
-        })
-}
-
 pub fn default_component_dir() -> PathBuf {
-    std::env::var_os("RC_COMPONENT_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| default_data_dir().join("components"))
+    rc_platform::component_dir().expect("RC component directory is unavailable")
 }
 
 pub fn wasmtime_cache_dir(component_dir: &Path) -> anyhow::Result<PathBuf> {
@@ -54,12 +41,8 @@ pub fn prepare_private_dir(path: &Path) -> anyhow::Result<()> {
             path.display()
         )
     })?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
-            .with_context(|| format!("failed to protect cache directory {}", path.display()))?;
-    }
+    rc_platform::protect_private_path(path, true)
+        .with_context(|| format!("failed to protect cache directory {}", path.display()))?;
     Ok(())
 }
 
@@ -68,11 +51,24 @@ mod tests {
     use super::wasmtime_cache_dir_with_override;
     use std::path::{Path, PathBuf};
 
+    #[cfg(windows)]
+    const COMPONENTS: &str = r"C:\data\components";
+    #[cfg(not(windows))]
+    const COMPONENTS: &str = "/data/components";
+    #[cfg(windows)]
+    const CACHE: &str = r"C:\data\cache\wasmtime";
+    #[cfg(not(windows))]
+    const CACHE: &str = "/data/cache/wasmtime";
+    #[cfg(windows)]
+    const OVERRIDE: &str = r"C:\temp\rc-test-cache";
+    #[cfg(not(windows))]
+    const OVERRIDE: &str = "/tmp/rc-test-cache";
+
     #[test]
     fn wasmtime_cache_is_below_component_root_cache() {
         assert_eq!(
-            wasmtime_cache_dir_with_override(Path::new("/data/components"), None).unwrap(),
-            Path::new("/data/cache/wasmtime")
+            wasmtime_cache_dir_with_override(Path::new(COMPONENTS), None).unwrap(),
+            Path::new(CACHE)
         );
     }
 
@@ -80,11 +76,11 @@ mod tests {
     fn wasmtime_cache_override_is_used() {
         assert_eq!(
             wasmtime_cache_dir_with_override(
-                Path::new("/data/components"),
-                Some(PathBuf::from("/tmp/rc-test-cache")),
+                Path::new(COMPONENTS),
+                Some(PathBuf::from(OVERRIDE)),
             )
             .unwrap(),
-            Path::new("/tmp/rc-test-cache")
+            Path::new(OVERRIDE)
         );
     }
 }

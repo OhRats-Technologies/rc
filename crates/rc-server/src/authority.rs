@@ -1,7 +1,7 @@
 use crate::{Database, now_ms, passkey_authority_material};
 use rc_protocol::{
     AuthorityApiKey, AuthorityCredential, AuthorityDevice, AuthorityMcpGrant, AuthorityMember,
-    AuthoritySnapshot,
+    AuthorityScheduleGrant, AuthoritySnapshot,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,6 +12,7 @@ pub fn authority_snapshot(db: &Database, workspace_id: &str) -> anyhow::Result<A
     let members = authority_members(db, workspace_id)?;
     let api_keys = authority_api_keys(db, workspace_id)?;
     let mcp_grants = authority_mcp_grants(db, workspace_id)?;
+    let schedule_grants = authority_schedule_grants(db, workspace_id)?;
     Ok(AuthoritySnapshot {
         v: 1,
         workspace_id: workspace_id.to_owned(),
@@ -19,7 +20,32 @@ pub fn authority_snapshot(db: &Database, workspace_id: &str) -> anyhow::Result<A
         members,
         api_keys,
         mcp_grants,
+        schedule_grants,
     })
+}
+
+fn authority_schedule_grants(
+    db: &Database,
+    workspace_id: &str,
+) -> anyhow::Result<Vec<AuthorityScheduleGrant>> {
+    let now = now_ms();
+    Ok(db.with_connection(|db| {
+        let mut statement = db.prepare(
+            "SELECT schedule_id,device_id,user_id,spec_hash,max_runtime_ms,expires_at FROM schedule_grants WHERE workspace_id=? AND (expires_at=0 OR expires_at>?) ORDER BY schedule_id",
+        )?;
+        statement
+            .query_map(rusqlite::params![workspace_id, now], |row| {
+                Ok(AuthorityScheduleGrant {
+                    schedule_id: row.get(0)?,
+                    device_id: row.get(1)?,
+                    user_id: row.get(2)?,
+                    spec_hash: row.get(3)?,
+                    max_runtime_ms: row.get::<_, i64>(4)? as u64,
+                    expires_at: row.get(5)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()
+    })?)
 }
 
 fn authority_devices(db: &Database, workspace_id: &str) -> anyhow::Result<Vec<AuthorityDevice>> {

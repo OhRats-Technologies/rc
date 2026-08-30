@@ -18,7 +18,7 @@ case "$source_dir" in
   *) source_dir="$root/$source_dir" ;;
 esac
 
-components="artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc updater"
+components=$(python3 "$root/scripts/profile-components.py" core)
 for name in $components; do
   test -f "$source_dir/$name.wasm" || {
     echo "missing component artifact: $source_dir/$name.wasm" >&2

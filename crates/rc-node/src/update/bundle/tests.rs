@@ -1,3 +1,5 @@
+#[cfg(unix)]
+use super::reject_kernel_downgrade;
 use super::{
     CORE_COMPONENTS, core::LEGACY_CORE_COMPONENTS, core::extract_core, extract_single,
     platform_target,
@@ -11,7 +13,8 @@ fn core_bundle_has_unique_names() {
     names.sort_unstable();
     names.dedup();
     assert_eq!(names.len(), CORE_COMPONENTS.len());
-    assert_eq!(CORE_COMPONENTS.len(), 12);
+    assert!(CORE_COMPONENTS.contains(&"scheduler"));
+    assert!(CORE_COMPONENTS.contains(&"shell"));
 }
 
 #[test]
@@ -81,6 +84,54 @@ fn single_archive_rejects_extra_entries() -> anyhow::Result<()> {
         b"ok"
     );
     assert!(extract_single(&archive(&[("rc", b"ok"), ("extra", b"bad")])?, "rc", 10).is_err());
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn native_kernel_downgrades_are_rejected_independently_of_cli_version() -> anyhow::Result<()> {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let directory = std::env::temp_dir().join(format!(
+        "rc-kernel-version-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    std::fs::create_dir(&directory)?;
+    let current = directory.join("rc-kernel");
+    std::fs::write(&current, "#!/bin/sh\nprintf 'RC kernel 2.3.0\\n'\n")?;
+    std::fs::set_permissions(&current, std::fs::Permissions::from_mode(0o755))?;
+    assert!(reject_kernel_downgrade(&"2.2.9".parse()?, &current).is_err());
+    reject_kernel_downgrade(&"2.3.0".parse()?, &current)?;
+    reject_kernel_downgrade(&"2.4.0".parse()?, &current)?;
+    std::fs::remove_dir_all(directory)?;
+    Ok(())
+}
+
+#[test]
+fn version_cleanup_retains_active_previous_and_unknown_directories() -> anyhow::Result<()> {
+    let root = std::env::temp_dir().join(format!(
+        "rc-version-cleanup-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_nanos()
+    ));
+    let previous = root.join("1.0.0");
+    let active = root.join("2.0.0");
+    let stale = root.join("0.9.0");
+    let unknown = root.join("locally-managed");
+    for directory in [&previous, &active, &stale, &unknown] {
+        std::fs::create_dir_all(directory)?;
+    }
+    super::cleanup::versions(&root, &active, Some(&previous))?;
+    assert!(previous.is_dir());
+    assert!(active.is_dir());
+    assert!(!stale.exists());
+    assert!(unknown.is_dir());
+    std::fs::remove_dir_all(root)?;
     Ok(())
 }
 

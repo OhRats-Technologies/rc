@@ -1,0 +1,46 @@
+package ohrats:rc-shell@0.1.0;
+
+interface types {
+    enum connector { always, and, or }
+    enum word-part-kind { literal, variable, command-substitution, glob }
+    enum redirect-stream { stdin, stdout, stderr, stdout-and-stderr }
+    enum redirect-mode { read, write, append }
+    record word-part { kind: word-part-kind, value: string }
+    record word { parts: list<word-part> }
+    record assignment { name: string, value: word }
+    record redirect { target-stream: redirect-stream, mode: redirect-mode, target: word }
+    record command {
+        assignments: list<assignment>,
+        words: list<word>,
+        redirects: list<redirect>,
+    }
+    record pipeline { commands: list<command> }
+    record chain { pipeline: pipeline, next: option<connector> }
+    record script { chains: list<chain> }
+}
+
+interface compiler {
+    use types.{script};
+    compile: func(source: string) -> result<script, string>;
+}
+
+interface executor {
+    use ohrats:rc-process/types@0.3.0.{environment, signal, stream-kind, terminal};
+    enum state { running, exited, lost }
+    record output { kind: stream-kind, bytes: list<u8> }
+    record exit-result { code: option<u32>, signal: option<signal> }
+    record poll-result { state: state, output: list<output>, exit: option<exit-result> }
+    record start-request {
+        script: string,
+        cwd: option<string>,
+        environment: environment,
+        terminal: option<terminal>,
+    }
+    start: func(id: string, request: start-request) -> result<_, string>;
+    poll: func(id: string, max-bytes: u32) -> result<poll-result, string>;
+    input: func(id: string, bytes: list<u8>) -> result<u32, string>;
+    close-input: func(id: string) -> result<_, string>;
+    resize: func(id: string, cols: u16, rows: u16) -> result<_, string>;
+    request-signal: func(id: string, operation: signal) -> result<_, string>;
+    close: func(id: string);
+}

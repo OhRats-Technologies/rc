@@ -68,22 +68,38 @@ pub(super) fn run_descriptor() -> serde_json::Value {
     serde_json::json!({
         "name": "process_run",
         "title": "Run a command",
-        "description": "Start one non-PTY shell command on an explicitly granted RC machine. waitSeconds controls how long this call waits for output or exit; it is not a process runtime limit. Use process_status for continued incremental output. MCP command and output plaintext pass through RC memory and are never persisted.",
+        "description": "Start one managed non-PTY execution on an explicitly granted RC machine. Provide argv for exact argument-preserving execution, or command as shell source with shell=rc (portable RC Shell, the default) or shell=system (the target machine's native shell semantics). waitSeconds observes without changing lifetime; maxRuntimeSeconds bounds lifetime. MCP execution plaintext transits RC memory and is never persisted or logged.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
                 "deviceId": {"type": "string"},
+                "argv": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                },
                 "command": {"type": "string"},
+                "shell": {"type": "string", "enum": ["rc", "system"], "default": "rc"},
                 "cwd": {"type": "string"},
+                "envBase": {"type": "string", "enum": ["inherit", "clean"], "default": "inherit"},
+                "env": {
+                    "type": "object",
+                    "additionalProperties": {"type": ["string", "null"]},
+                },
                 "waitSeconds": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 60,
                     "default": 20,
                 },
+                "maxRuntimeSeconds": {"type": "integer", "minimum": 1},
             },
-            "required": ["deviceId", "command"],
+            "required": ["deviceId"],
+            "oneOf": [
+                {"required": ["argv"], "not": {"required": ["command"]}},
+                {"required": ["command"], "not": {"required": ["argv"]}},
+            ],
         },
         "outputSchema": process_output_schema(),
         "annotations": annotations(false, true, false, true),
@@ -94,11 +110,12 @@ pub(super) fn status_descriptor() -> serde_json::Value {
     serde_json::json!({
         "name": "process_status",
         "title": "Read process status",
-        "description": "Read ordered incremental stdout/stderr and status for a process created by this same MCP grant. Adjacent chunks from the same stream are coalesced while stdout/stderr ordering is preserved. Pass the previous nextCursor to avoid repeated output. waitSeconds long-polls for new output or exit. The rolling buffer is bounded and ephemeral.",
+        "description": "Read ordered incremental stdout/stderr and status for a process created by this same MCP grant on deviceId. Adjacent chunks from the same stream are coalesced while stdout/stderr ordering is preserved. Pass the previous nextCursor to avoid repeated output. waitSeconds long-polls for new output or exit. The rolling buffer is bounded, ephemeral, and remains Node-owned across hosted RC restarts.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
+                "deviceId": {"type": "string"},
                 "processId": {"type": "string"},
                 "cursor": {"type": "integer", "minimum": 0},
                 "waitSeconds": {
@@ -108,7 +125,7 @@ pub(super) fn status_descriptor() -> serde_json::Value {
                     "default": 0,
                 },
             },
-            "required": ["processId"],
+            "required": ["deviceId", "processId"],
         },
         "outputSchema": process_output_schema(),
         "annotations": annotations(true, false, true, false),
@@ -119,16 +136,18 @@ pub(super) fn input_descriptor() -> serde_json::Value {
     serde_json::json!({
         "name": "process_input",
         "title": "Write process input",
-        "description": "Write exact UTF-8 text to stdin for a running process created by this same MCP grant and optionally close stdin. RC does not append a newline; include \\n in data for line-oriented programs. Requests are limited by the actual RC process-input transport chunk, not an arbitrary string-length schema.",
+        "description": "Write exact text or base64-encoded bytes to stdin for a running process created by this same MCP grant and optionally close stdin. RC does not append a newline. Requests are limited by the decoded RC process-input transport chunk, not an arbitrary string-length schema.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
+                "deviceId": {"type": "string"},
                 "processId": {"type": "string"},
                 "data": {"type": "string"},
+                "encoding": {"type": "string", "enum": ["text", "base64"], "default": "text"},
                 "eof": {"type": "boolean", "default": false},
             },
-            "required": ["processId"],
+            "required": ["deviceId", "processId"],
             "anyOf": [
                 {"required": ["data"]},
                 {"properties": {"eof": {"const": true}}, "required": ["eof"]},
@@ -138,6 +157,7 @@ pub(super) fn input_descriptor() -> serde_json::Value {
             "type": "object",
             "additionalProperties": false,
             "properties": {
+                "deviceId": {"type": "string"},
                 "processId": {"type": "string"},
                 "acceptedBytes": {"type": "integer", "minimum": 0},
                 "stdinClosed": {"type": "boolean"},
@@ -164,7 +184,7 @@ pub(super) fn cancel_descriptor() -> serde_json::Value {
                     "default": "TERM",
                 },
             },
-            "required": ["processId"],
+            "required": ["deviceId", "processId"],
         },
         "outputSchema": {
             "type": "object",
@@ -194,9 +214,11 @@ fn process_output_schema() -> serde_json::Value {
                     "additionalProperties": false,
                     "properties": {
                         "stream": {"type": "string", "enum": ["stdout", "stderr"]},
-                        "text": {"type": "string"},
+                        "cursor": {"type": "integer", "minimum": 0},
+                        "encoding": {"type": "string", "enum": ["text", "base64"]},
+                        "data": {"type": "string"},
                     },
-                    "required": ["stream", "text"],
+                    "required": ["stream", "cursor", "encoding", "data"],
                 },
             },
             "exitCode": {"type": ["integer", "null"]},

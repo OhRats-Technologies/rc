@@ -1,3 +1,4 @@
+use super::responses::public_not_found;
 use crate::AppState;
 use axum::{
     extract::{Path, State},
@@ -14,11 +15,7 @@ pub(super) async fn topic(State(state): State<AppState>, Path(topic): Path<Strin
         return (StatusCode::PERMANENT_REDIRECT, [("location", "/docs")]).into_response();
     }
     let Some(page) = render(&state, &topic) else {
-        return (
-            StatusCode::NOT_FOUND,
-            Html(crate::page_html::error(404, "Documentation not found")),
-        )
-            .into_response();
+        return public_not_found(&state);
     };
     Html(page).into_response()
 }

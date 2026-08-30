@@ -44,15 +44,18 @@ impl ProcessEvent {
         }
     }
 
-    pub fn estimated_size(&self) -> usize {
+    pub fn output_bytes(&self) -> Option<(StreamKind, Vec<u8>)> {
         match self {
-            Self::Stdout { data, .. } | Self::Stderr { data, .. } => data.len() + 128,
-            _ => 128,
+            Self::Stdout { data, .. } => URL_SAFE_NO_PAD
+                .decode(data)
+                .ok()
+                .map(|bytes| (StreamKind::Stdout, bytes)),
+            Self::Stderr { data, .. } => URL_SAFE_NO_PAD
+                .decode(data)
+                .ok()
+                .map(|bytes| (StreamKind::Stderr, bytes)),
+            _ => None,
         }
-    }
-
-    pub fn is_output(&self) -> bool {
-        matches!(self, Self::Stdout { .. } | Self::Stderr { .. })
     }
 }
 

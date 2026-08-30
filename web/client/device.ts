@@ -3,16 +3,17 @@ import { api, qs } from "./http";
 const page = document.querySelector<HTMLElement>("[data-device-page]");
 const deviceId = page?.dataset.devicePage || "";
 
-async function start(command: string, cwd = "") {
+async function startTerminal() {
   const result = await api<{ processId: string }>(`/api/v1/devices/${encodeURIComponent(deviceId)}/processes`, { method: "POST", body: JSON.stringify({ terminal: true }) });
   sessionStorage.setItem(`rc_process_start_${result.processId}`, JSON.stringify({
-    command, cwd, terminal: { cols: 80, rows: 24, term: "xterm-256color" },
+    mode: { kind: "systemLoginShell" },
+    terminal: { cols: 80, rows: 24, term: "xterm-256color" },
   }));
   location.href = `/devices/${deviceId}/processes/${result.processId}`;
 }
 
 document.querySelector<HTMLButtonElement>("#open-terminal")?.addEventListener("click", async () => {
-  try { await start('exec "${SHELL:-sh}" -l'); }
+  try { await startTerminal(); }
   catch (error) { qs<HTMLElement>("#process-error").textContent = error instanceof Error ? error.message : String(error); }
 });
 

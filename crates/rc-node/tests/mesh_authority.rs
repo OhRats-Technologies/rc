@@ -10,6 +10,7 @@ fn snapshot(workspace: &str, devices: Vec<AuthorityDevice>) -> String {
         members: Vec::new(),
         api_keys: Vec::new(),
         mcp_grants: Vec::new(),
+        schedule_grants: Vec::new(),
     })
     .unwrap()
 }

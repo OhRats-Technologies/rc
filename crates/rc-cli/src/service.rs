@@ -1,14 +1,21 @@
 use crate::ServiceCommand;
-use anyhow::{Context, Result, bail};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    thread,
-    time::Duration,
-};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use anyhow::bail;
+use anyhow::{Context, Result};
+use std::{fs, path::Path};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::{path::PathBuf, process::Command};
 
+#[cfg(target_os = "macos")]
+use std::{thread, time::Duration};
+
+#[cfg(windows)]
+mod windows;
+
+#[cfg(target_os = "macos")]
 const LABEL: &str = "party.ohrats.rc";
+
+mod platform;
 
 pub fn command(command: ServiceCommand) -> Result<()> {
     let dir = rc_node::resolve_state_dir(None);
@@ -32,15 +39,11 @@ pub fn command(command: ServiceCommand) -> Result<()> {
 pub fn install(state_dir: &Path) -> Result<()> {
     fs::create_dir_all(state_dir)?;
     let (executable, arguments) = crate::commands::node_runtime::arguments(state_dir)?;
-    match std::env::consts::OS {
-        "macos" => install_launch_agent(&executable, &arguments, state_dir),
-        "linux" => install_systemd(&executable, &arguments),
-        other => bail!("background service is not supported on {other}"),
-    }
+    platform::install(&executable, &arguments, state_dir)
 }
 
 pub fn installed() -> bool {
-    service_path().is_some_and(|path| path.exists())
+    platform::installed()
 }
 
 pub fn restart() -> Result<()> {
@@ -49,63 +52,19 @@ pub fn restart() -> Result<()> {
 }
 
 pub fn stop() -> Result<()> {
-    match std::env::consts::OS {
-        "macos" => {
-            if let Ok(path) = launch_agent_path() {
-                let _ = Command::new("launchctl")
-                    .arg("bootout")
-                    .arg(format!("gui/{}", unsafe { libc::getuid() }))
-                    .arg(path)
-                    .status();
-            }
-            Ok(())
-        }
-        "linux" => {
-            let _ = Command::new("systemctl")
-                .args(["--user", "stop", "rc.service"])
-                .status();
-            Ok(())
-        }
-        _ => Ok(()),
-    }
+    platform::stop()
 }
 
 pub fn status() -> Result<()> {
-    match std::env::consts::OS {
-        "macos" => run(
-            "launchctl",
-            &[
-                "print",
-                &format!("gui/{}/{}", unsafe { libc::getuid() }, LABEL),
-            ],
-        ),
-        "linux" => run(
-            "systemctl",
-            &["--user", "status", "--no-pager", "rc.service"],
-        ),
-        other => bail!("background service is not supported on {other}"),
-    }
+    platform::status()
 }
 
 pub fn remove() -> Result<()> {
     let _ = stop();
-    match std::env::consts::OS {
-        "macos" => remove_file(&launch_agent_path()?),
-        "linux" => {
-            let path = systemd_path()?;
-            let _ = Command::new("systemctl")
-                .args(["--user", "disable", "rc.service"])
-                .status();
-            remove_file(&path)?;
-            let _ = Command::new("systemctl")
-                .args(["--user", "daemon-reload"])
-                .status();
-            Ok(())
-        }
-        _ => Ok(()),
-    }
+    platform::remove()
 }
 
+#[cfg(target_os = "macos")]
 fn install_launch_agent(executable: &Path, arguments: &[String], state_dir: &Path) -> Result<()> {
     let path = launch_agent_path()?;
     let parent = path
@@ -132,6 +91,7 @@ fn install_launch_agent(executable: &Path, arguments: &[String], state_dir: &Pat
     start_launch_agent(&path)
 }
 
+#[cfg(target_os = "macos")]
 fn start_launch_agent(path: &Path) -> Result<()> {
     let domain = format!("gui/{}", unsafe { libc::getuid() });
     let target = format!("{domain}/{LABEL}");
@@ -165,6 +125,7 @@ fn start_launch_agent(path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
 fn launch_agent_output_running(output: &str) -> bool {
     let mut running = false;
     let mut pid = false;
@@ -175,6 +136,7 @@ fn launch_agent_output_running(output: &str) -> bool {
     running && pid
 }
 
+#[cfg(target_os = "linux")]
 fn install_systemd(executable: &Path, arguments: &[String]) -> Result<()> {
     if Command::new("systemctl").arg("--version").output().is_err() {
         bail!("systemd user services are unavailable; run `rc run` manually");
@@ -196,26 +158,21 @@ fn install_systemd(executable: &Path, arguments: &[String]) -> Result<()> {
     run("systemctl", &["--user", "enable", "--now", "rc.service"])
 }
 
-fn service_path() -> Option<PathBuf> {
-    match std::env::consts::OS {
-        "macos" => launch_agent_path().ok(),
-        "linux" => systemd_path().ok(),
-        _ => None,
-    }
-}
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn home() -> Result<PathBuf> {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .context("HOME is unavailable")
+    rc_platform::user_home().context("user home is unavailable")
 }
+#[cfg(target_os = "macos")]
 fn launch_agent_path() -> Result<PathBuf> {
     Ok(home()?
         .join("Library/LaunchAgents")
         .join(format!("{LABEL}.plist")))
 }
+#[cfg(target_os = "linux")]
 fn systemd_path() -> Result<PathBuf> {
     Ok(home()?.join(".config/systemd/user/rc.service"))
 }
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn remove_file(path: &Path) -> Result<()> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
@@ -223,6 +180,7 @@ fn remove_file(path: &Path) -> Result<()> {
         Err(e) => Err(e.into()),
     }
 }
+#[cfg(target_os = "macos")]
 fn xml(value: &str) -> String {
     value
         .replace('&', "&amp;")
@@ -230,12 +188,15 @@ fn xml(value: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
 }
+#[cfg(target_os = "linux")]
 fn quote(path: &Path) -> String {
     quote_text(path.to_string_lossy().as_ref())
 }
+#[cfg(target_os = "linux")]
 fn quote_text(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
 }
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn run(name: &str, args: &[&str]) -> Result<()> {
     let status = Command::new(name).args(args).status()?;
     if !status.success() {
@@ -243,6 +204,7 @@ fn run(name: &str, args: &[&str]) -> Result<()> {
     }
     Ok(())
 }
+#[cfg(target_os = "macos")]
 fn run_owned(name: &str, args: Vec<String>) -> Result<()> {
     let status = Command::new(name).args(args).status()?;
     if !status.success() {
@@ -251,7 +213,7 @@ fn run_owned(name: &str, args: Vec<String>) -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::launch_agent_output_running;
 

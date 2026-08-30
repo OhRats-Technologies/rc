@@ -1,0 +1,57 @@
+package ohrats:rc-scheduler@0.1.0;
+
+interface types {
+    use ohrats:rc-process/types@0.3.0.{environment, execution-mode};
+    enum overlap-policy { forbid }
+    enum misfire-policy { skip, run-once }
+    record definition {
+        id: string,
+        name: option<string>,
+        cron: string,
+        timezone: string,
+        mode: execution-mode,
+        cwd: option<string>,
+        environment: environment,
+        enabled: bool,
+        overlap: overlap-policy,
+        misfire: misfire-policy,
+        max-runtime-ms: option<u64>,
+        permit-hash: string,
+        created-by: string,
+        created-at-ms: u64,
+        expires-at-ms: option<u64>,
+    }
+    record occurrence { id: string, scheduled-at-ms: u64 }
+}
+
+interface evaluator {
+    use types.{definition, occurrence};
+    next-occurrence: func(
+        schedule: definition,
+        after-unix-ms: u64,
+        last-occurrence-id: option<string>,
+    ) -> result<option<occurrence>, string>;
+}
+
+interface management {
+    use types.{definition};
+    list-schedules: func() -> result<list<definition>, string>;
+    get-schedule: func(id: string) -> result<option<definition>, string>;
+    upsert-schedule: func(schedule: definition) -> result<_, string>;
+    remove-schedule: func(id: string) -> result<bool, string>;
+    set-enabled: func(id: string, enabled: bool) -> result<bool, string>;
+}
+
+interface driver {
+    use types.{definition, occurrence};
+    record trigger { schedule: definition, occurrence: occurrence }
+    record tick-result {
+        triggers: list<trigger>,
+        next-wake-unix-ms: option<u64>,
+    }
+    tick: func(
+        now-unix-ms: u64,
+        recovering: bool,
+        active-schedule-ids: list<string>,
+    ) -> result<tick-result, string>;
+}

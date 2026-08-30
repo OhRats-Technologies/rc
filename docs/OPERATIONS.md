@@ -1,8 +1,7 @@
 # Operations
 
-This runbook describes the current single-instance production server. The
-server still contains transitional native product code; production cutover to
-the canonical component graph is tracked in `ROADMAP.md`.
+This runbook describes the current single-instance production server and the
+component-backed Node runtime.
 
 ## Container
 
@@ -96,7 +95,39 @@ rc status
 ```
 
 `rc update` changes managed components. `rc upgrade` changes the native
-platform and core component bundle.
+Native Windows activation is side-by-side: the verified candidate is staged in
+the versioned runtime directory and the active pointer changes atomically. Do
+not replace the running `.exe` in place.
+
+## Node runtime
+
+The standard profile must activate `process-policy`, `execution-runtime`,
+`shell`, and `scheduler`. Use `rc status` and bounded diagnostics to verify the
+selected process/terminal backend and active execution counts; diagnostics
+must never include argv, shell source, cwd, environment values, or output.
+
+On Windows, RC installs a per-user Scheduled Task. Run service management as
+the enrolled user:
+
+```text
+rc service status
+rc service stop
+rc service start
+```
+
+The task must not be converted to LocalSystem. Private state and RC Lock files
+must continue to pass the protected-DACL validation. A second Node using the
+same state directory must fail its local run lock before opening transport.
+The task is registered with the interactive-user flag and an ONLOGON trigger:
+it is available only while that enrolled user has an interactive session. RC
+does not silently substitute an unattended or machine-wide identity.
+
+Schedules and their execution definitions are stored only in protected local
+Node storage. Include the Node data directory in machine backup policy if
+schedule recovery is required. Hosted server backups contain only signed
+schedule-permit metadata, not command, cwd, or environment content. After a
+restore, verify disabled schedules remain disabled and inspect the next wake
+before enabling unattended execution.
 
 ## Incident actions
 

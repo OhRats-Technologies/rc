@@ -60,15 +60,8 @@ impl Config {
     }
 }
 
-#[cfg(unix)]
 fn secure_directory(path: &std::path::Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))
-}
-
-#[cfg(not(unix))]
-fn secure_directory(_: &std::path::Path) -> std::io::Result<()> {
-    Ok(())
+    rc_platform::protect_private_path(path, true)
 }
 
 fn env_nonempty(key: &str) -> Option<String> {

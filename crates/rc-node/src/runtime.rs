@@ -1,15 +1,17 @@
 use crate::{
-    ControlManager, NODE_CAPABILITIES, NodeState, ProcessEvent, ProcessManager, ProcessPolicy,
-    ServerTransport, TransportPolicy, lock_metadata,
+    ControlManager, ExecutionManager, NODE_CAPABILITIES, NodeState, ProcessEvent, ProcessEventSink,
+    ProcessPolicy, ScheduleManager, ServerTransport, TransportPolicy, lock_metadata,
+    unavailable_schedule_manager,
 };
 use rc_protocol::{NodeHello, NodeToServer};
 use std::{collections::VecDeque, io, path::PathBuf, sync::Arc};
 use tokio::sync::mpsc;
+mod access;
 
 const LIFECYCLE_QUEUE_LIMIT: usize = 4096;
 
 pub struct NodeRuntime {
-    manager: Arc<ProcessManager>,
+    manager: Arc<dyn ExecutionManager>,
     state_dir: PathBuf,
     outbound: mpsc::UnboundedSender<NodeToServer>,
     lifecycle: mpsc::UnboundedReceiver<NodeToServer>,
@@ -19,18 +21,19 @@ pub struct NodeRuntime {
     _service_leases: Vec<rc_context::ServiceLease>,
     process_policy: Arc<dyn ProcessPolicy>,
     transport_policy: Arc<dyn TransportPolicy>,
+    schedules: Arc<dyn ScheduleManager>,
 }
 
 impl NodeRuntime {
-    pub fn new(
-        runner: PathBuf,
+    pub fn with_execution_manager(
         state_dir: PathBuf,
         process_policy: Arc<dyn ProcessPolicy>,
         transport_policy: Arc<dyn TransportPolicy>,
+        create: impl FnOnce(ProcessEventSink) -> Arc<dyn ExecutionManager>,
     ) -> Self {
         let (tx, lifecycle) = mpsc::unbounded_channel();
         let event_tx = tx.clone();
-        let manager = Arc::new(ProcessManager::new(runner, move |event| {
+        let event_sink: ProcessEventSink = Arc::new(move |event| {
             let message = match event {
                 ProcessEvent::Started { id } => NodeToServer::ProcessStarted { id },
                 ProcessEvent::Exit {
@@ -45,9 +48,10 @@ impl NodeRuntime {
                 ProcessEvent::Stdout { .. } | ProcessEvent::Stderr { .. } => return,
             };
             let _ = event_tx.send(message);
-        }));
+        });
+        let manager = create(event_sink);
         let relay_tx = tx.clone();
-        manager.set_relay_sink(move |relay_id, event| {
+        manager.set_relay_sink(Arc::new(move |relay_id, event| {
             let message = if let Some(session_id) = relay_id.strip_prefix("ssh:") {
                 match event {
                     ProcessEvent::Started { .. } => return true,
@@ -69,15 +73,9 @@ impl NodeRuntime {
                 }
             } else if let Some(process_id) = relay_id.strip_prefix("mcp:") {
                 match event {
-                    ProcessEvent::Started { .. } => return true,
-                    ProcessEvent::Stdout { data, .. } => NodeToServer::McpStdout {
-                        process_id: process_id.to_owned(),
-                        data,
-                    },
-                    ProcessEvent::Stderr { data, .. } => NodeToServer::McpStderr {
-                        process_id: process_id.to_owned(),
-                        data,
-                    },
+                    ProcessEvent::Started { .. }
+                    | ProcessEvent::Stdout { .. }
+                    | ProcessEvent::Stderr { .. } => return true,
                     ProcessEvent::Exit {
                         exit_code, signal, ..
                     } => NodeToServer::McpExit {
@@ -90,14 +88,11 @@ impl NodeRuntime {
                 return false;
             };
             relay_tx.send(message).is_ok()
-        });
+        }));
         let services = rc_context::Context::root("rc-node");
         let mesh = rc_mesh::RouteBroker::default();
         let mesh_policy = rc_mesh::MeshPolicy::default();
         let service_leases = vec![
-            services
-                .provide(manager.clone())
-                .expect("fresh Node context accepts process manager"),
             services
                 .provide(Arc::new(mesh.clone()))
                 .expect("fresh Node context accepts route broker"),
@@ -116,19 +111,8 @@ impl NodeRuntime {
             _service_leases: service_leases,
             process_policy,
             transport_policy,
+            schedules: unavailable_schedule_manager(),
         }
-    }
-
-    pub fn manager(&self) -> &ProcessManager {
-        &self.manager
-    }
-
-    pub fn context(&self) -> &rc_context::Context {
-        &self.services
-    }
-
-    pub fn mesh(&self) -> &rc_mesh::RouteBroker {
-        &self.mesh
     }
 
     pub fn shutdown(&self) {
@@ -151,11 +135,13 @@ impl NodeRuntime {
             version,
             self.process_policy.clone(),
             self.transport_policy.clone(),
+            self.schedules.clone(),
         );
         let secure_control = control.clone();
-        self.manager.set_secure_sink(move |session_id, event| {
-            secure_control.send_process_event(session_id, event)
-        });
+        self.manager
+            .set_secure_sink(Arc::new(move |session_id, event| {
+                secure_control.send_process_event(session_id, event)
+            }));
         let mut effects = rc_context::EffectScope::new();
         let manager = self.manager.clone();
         effects.defer(move || manager.clear_secure_sink());

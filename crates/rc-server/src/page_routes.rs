@@ -3,7 +3,10 @@ mod auth;
 mod context;
 mod data;
 mod docs;
+mod fallback;
 mod responses;
+
+pub(crate) use fallback::route as fallback;
 
 use responses::{internal, not_found, redirect};
 
@@ -92,7 +95,7 @@ async fn device(
         .find(|device| device["id"] == id)
         .cloned()
     else {
-        return not_found();
+        return not_found(&context);
     };
     let processes = if device["role"] == "viewer" {
         Vec::new()
@@ -128,17 +131,17 @@ async fn process(
         .find(|device| device["id"] == device_id)
         .cloned()
     else {
-        return not_found();
+        return not_found(&context);
     };
     let process = match process_json(&state, &context.user.id, &process_id) {
         Ok(value) => value,
         Err(error) => return internal(error),
     };
     let Some(process) = process else {
-        return not_found();
+        return not_found(&context);
     };
     if process["device_id"] != device_id {
-        return not_found();
+        return not_found(&context);
     }
     Html(crate::page_html::process(&context, &device, &process)).into_response()
 }
@@ -233,14 +236,14 @@ async fn workspace_access(
         Err(error) => return internal(error.into()),
     };
     if role.as_deref() != Some("owner") {
-        return not_found();
+        return not_found(&context);
     }
     let workspace = match workspace_json(&state, &context.user.id, &id) {
         Ok(value) => value,
         Err(error) => return internal(error),
     };
     let Some(workspace) = workspace else {
-        return not_found();
+        return not_found(&context);
     };
     let (members, invites) = match data::workspace_access(&state, &id) {
         Ok(value) => value,
@@ -268,14 +271,14 @@ async fn workspace_activity(
         Err(error) => return internal(error.into()),
     };
     if role.is_none() {
-        return not_found();
+        return not_found(&context);
     }
     let workspace = match workspace_json(&state, &context.user.id, &id) {
         Ok(value) => value,
         Err(error) => return internal(error),
     };
     let Some(workspace) = workspace else {
-        return not_found();
+        return not_found(&context);
     };
     let events = match data::activity(&state, &id) {
         Ok(value) => value,

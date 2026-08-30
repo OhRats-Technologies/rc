@@ -6,6 +6,7 @@ use rc_protocol::{MCP_IMAGE_MAX_BYTES, ServerToNode};
 use std::{sync::Arc, time::Duration};
 
 const IMAGE_TIMEOUT: Duration = Duration::from_secs(20);
+const MAX_PENDING_IMAGES: usize = 128;
 
 impl McpHub {
     pub async fn request_image(
@@ -15,15 +16,21 @@ impl McpHub {
         request_id: &str,
         message: &ServerToNode,
     ) -> anyhow::Result<McpImage> {
+        let capacity = self.capacity.lock();
+        if self.images.len() >= MAX_PENDING_IMAGES {
+            anyhow::bail!("hosted MCP image correlation capacity reached");
+        }
         let (tx, rx) = tokio::sync::oneshot::channel();
         let pending = Arc::new(McpImagePending {
             device_id: device_id.to_owned(),
             bytes: Mutex::new(Vec::new()),
             sender: Mutex::new(Some(tx)),
         });
-        if self.images.insert(request_id.to_owned(), pending).is_some() {
+        if self.images.contains_key(request_id) {
             anyhow::bail!("image request ID is already active");
         }
+        self.images.insert(request_id.to_owned(), pending);
+        drop(capacity);
         if let Err(error) = nodes.send(device_id, message).await {
             self.images.remove(request_id);
             anyhow::bail!("RC image request delivery failed: {error}");

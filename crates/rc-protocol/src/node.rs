@@ -1,85 +1,8 @@
-use crate::TerminalSpec;
+use crate::{
+    ControlIceAttempt, ControlIceMode, EnvironmentSpec, ExecutionMode, IceServer,
+    McpExecutionChunk, NodeHello, TerminalSpec,
+};
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct IceServer {
-    pub urls: Vec<String>,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub username: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub credential: String,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ControlIceMode {
-    Host,
-    #[default]
-    Stun,
-    Relay,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ControlIceAttempt {
-    pub mode: ControlIceMode,
-    pub route: ControlRouteClass,
-    pub gather_timeout_ms: u32,
-    pub connect_timeout_ms: u32,
-    pub retry_delay_ms: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum ControlRouteClass {
-    DirectHost,
-    DirectStun,
-    TurnRelay,
-    Unknown,
-}
-
-pub fn control_attempts_payload(attempts: &[ControlIceAttempt]) -> String {
-    attempts
-        .iter()
-        .map(|attempt| {
-            format!(
-                "{}:{}:{}:{}:{}",
-                match attempt.mode {
-                    ControlIceMode::Host => "host",
-                    ControlIceMode::Stun => "stun",
-                    ControlIceMode::Relay => "relay",
-                },
-                match attempt.route {
-                    ControlRouteClass::DirectHost => "direct-host",
-                    ControlRouteClass::DirectStun => "direct-stun",
-                    ControlRouteClass::TurnRelay => "turn-relay",
-                    ControlRouteClass::Unknown => "unknown",
-                },
-                attempt.gather_timeout_ms,
-                attempt.connect_timeout_ms,
-                attempt.retry_delay_ms
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",")
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NodeHello {
-    pub version: String,
-    pub hostname: String,
-    pub platform: String,
-    pub arch: String,
-    #[serde(default)]
-    pub capabilities: Vec<String>,
-    pub transport_public_key: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub lock_hash: String,
-    #[serde(default)]
-    pub lock_generation: u64,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -146,19 +69,32 @@ pub enum NodeToServer {
         #[serde(default)]
         signal: String,
     },
-    McpStdout {
-        process_id: String,
-        data: String,
-    },
-    McpStderr {
-        process_id: String,
-        data: String,
-    },
     McpExit {
         process_id: String,
         exit_code: i32,
         #[serde(default)]
         signal: String,
+    },
+    McpExecutionStatusResult {
+        request_id: String,
+        process_id: String,
+        status: String,
+        chunks: Vec<McpExecutionChunk>,
+        next_cursor: u64,
+        truncated_before_cursor: u64,
+        output_pending: bool,
+        exit_code: Option<i32>,
+        #[serde(default)]
+        signal: String,
+        #[serde(default)]
+        error: String,
+    },
+    McpExecutionOperationResult {
+        request_id: String,
+        process_id: String,
+        accepted: bool,
+        #[serde(default)]
+        error: String,
     },
     McpImageChunk {
         request_id: String,
@@ -257,25 +193,53 @@ pub enum ServerToNode {
     McpStart {
         process_id: String,
         user_id: String,
-        command: String,
+        mode: ExecutionMode,
         #[serde(default)]
         cwd: String,
+        #[serde(default)]
+        environment: EnvironmentSpec,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        max_runtime_seconds: Option<u64>,
         mcp_grant: String,
         mcp_signature: String,
         control_grant: String,
         credential_id: String,
         control_assertion: String,
     },
-    McpStdin {
+    McpExecutionInput {
+        request_id: String,
         process_id: String,
+        user_id: String,
         data: String,
+        eof: bool,
+        mcp_grant: String,
+        mcp_signature: String,
+        control_grant: String,
+        credential_id: String,
+        control_assertion: String,
     },
-    McpStdinClose {
+    McpExecutionSignal {
+        request_id: String,
         process_id: String,
-    },
-    McpSignal {
-        process_id: String,
+        user_id: String,
         signal: String,
+        mcp_grant: String,
+        mcp_signature: String,
+        control_grant: String,
+        credential_id: String,
+        control_assertion: String,
+    },
+    McpExecutionStatus {
+        request_id: String,
+        process_id: String,
+        user_id: String,
+        cursor: u64,
+        wait_seconds: u64,
+        mcp_grant: String,
+        mcp_signature: String,
+        control_grant: String,
+        credential_id: String,
+        control_assertion: String,
     },
     McpImageView {
         request_id: String,

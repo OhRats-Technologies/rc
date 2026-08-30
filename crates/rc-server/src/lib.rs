@@ -28,6 +28,7 @@ mod page_html;
 mod page_routes;
 mod request_auth;
 mod resource_views;
+mod schedule_authority_routes;
 mod ssh_hub;
 mod ssh_routes;
 mod step_up;
@@ -80,6 +81,7 @@ pub fn app(state: AppState) -> Router {
         .merge(token_routes::routes())
         .merge(workspace_routes::routes())
         .merge(workspace_authority_routes::routes())
+        .merge(schedule_authority_routes::routes())
         .merge(device_process_routes::routes())
         .merge(event_routes::routes())
         .merge(ssh_routes::routes())
@@ -88,6 +90,7 @@ pub fn app(state: AppState) -> Router {
         .nest_service("/assets", assets)
         .merge(control_routes::routes())
         .merge(node_routes::routes())
+        .fallback(page_routes::fallback)
         .layer(axum::extract::DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(axum::middleware::from_fn_with_state(
             middleware_state,

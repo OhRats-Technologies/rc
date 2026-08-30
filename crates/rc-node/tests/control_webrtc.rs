@@ -1,5 +1,9 @@
+#![cfg(unix)]
+
 #[path = "control_webrtc/fixture.rs"]
 mod fixture;
+#[path = "support/mock_execution.rs"]
+mod mock_execution;
 #[path = "control_webrtc/peer.rs"]
 mod peer;
 mod policies;
@@ -9,6 +13,7 @@ use peer::{
     assert_encrypted_process_output, assert_hosted_exit_without_plaintext, connect_peer,
     send_encrypted, wait_control_closed,
 };
+use rc_node::ExecutionManager;
 use rc_protocol::{ControlMessage, NodeToServer, ServerToNode};
 
 #[tokio::test]
@@ -19,8 +24,11 @@ async fn direct_webrtc_control_keeps_process_plaintext_off_hosted_channel() -> a
 
     let command = ControlMessage::ProcessStart {
         id: "secret-process".into(),
-        command: "printf 'phase34-secret'".into(),
-        cwd: String::new(),
+        mode: rc_protocol::ExecutionMode::SystemShell {
+            command: "printf 'phase34-secret'".into(),
+        },
+        cwd: None,
+        environment: rc_protocol::EnvironmentSpec::default(),
         terminal: None,
     };
     send_encrypted(&peer.channel, &session.key, &session.id, 1, &command).await?;

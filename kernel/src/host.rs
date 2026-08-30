@@ -2,7 +2,9 @@ use crate::bindings::ohrats::rc_plugin::{
     call_context::Host as CallContextHost,
     host::{Host, LogLevel},
 };
-use crate::updater::{ArtifactSource, NativeReplacement};
+use crate::updater::ArtifactSource;
+#[cfg(not(windows))]
+use crate::updater::NativeReplacement;
 use crate::{config, database::Database, service::ServiceRegistry};
 use reqwest::blocking::Client;
 use std::{
@@ -11,6 +13,9 @@ use std::{
 };
 use wasmtime::{Cache, CacheConfig, Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
+
+mod imports;
+pub use imports::add_base_imports;
 
 pub const ACTIVATION_FUEL: u64 = 5_000_000;
 pub const INVOCATION_FUEL: u64 = 50_000_000;
@@ -43,6 +48,14 @@ impl HostEnvironment {
         std::fs::create_dir_all(&state_dir)?;
         std::fs::create_dir_all(&cache_dir)?;
         std::fs::create_dir_all(&catalog_dir)?;
+        for directory in [&component_dir, &state_dir, &cache_dir, &catalog_dir] {
+            rc_platform::protect_private_path(directory, true).map_err(|error| {
+                anyhow::anyhow!(
+                    "failed to protect kernel directory {}: {error}",
+                    directory.display()
+                )
+            })?;
+        }
         crate::updater::recover_on_startup().map_err(anyhow::Error::msg)?;
         let http = Client::builder()
             .user_agent(format!("rc-kernel/{}", env!("CARGO_PKG_VERSION")))
@@ -71,8 +84,10 @@ pub struct HostState {
     call_context: CallContext,
     pub(crate) control_keys: crate::control_primitives::SessionKeyHandles,
     pub(crate) key_handles: crate::key_vault::KeyHandles,
+    pub(crate) runtime_handles: crate::runtime_capabilities::RuntimeHandles,
     pub environment: HostEnvironment,
     pub registry: ServiceRegistry,
+    #[cfg(not(windows))]
     pub replacement: NativeReplacement,
     pub artifact: ArtifactSource,
 }
@@ -96,8 +111,10 @@ impl HostState {
             call_context: CallContext::default(),
             control_keys: crate::control_primitives::SessionKeyHandles::default(),
             key_handles: crate::key_vault::KeyHandles::default(),
+            runtime_handles: crate::runtime_capabilities::RuntimeHandles::default(),
             environment,
             registry,
+            #[cfg(not(windows))]
             replacement: NativeReplacement::default(),
             artifact: ArtifactSource::default(),
         }
@@ -190,67 +207,6 @@ pub fn store(
     store.set_hostcall_fuel(128 * 1024 * 1024);
     store.set_fuel(INVOCATION_FUEL)?;
     Ok(store)
-}
-
-pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> anyhow::Result<()> {
-    wasmtime_wasi::p2::add_to_linker_sync(linker)?;
-    crate::bindings::ohrats::rc_plugin::host::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::call_context::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::component_store::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::artifact_cache::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::state_store::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::local_files::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::catalog_store::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::service_registry::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_plugin::http_client::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_storage::durable_store::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_artifact_cache::local_storage::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_keys::host_custody::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_updater::artifact_source::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    crate::bindings::ohrats::rc_updater::native_replacement::add_to_linker::<
-        HostState,
-        wasmtime::component::HasSelf<HostState>,
-    >(linker, |state| state)?;
-    Ok(())
 }
 
 #[cfg(test)]

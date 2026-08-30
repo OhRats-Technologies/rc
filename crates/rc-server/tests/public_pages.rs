@@ -93,9 +93,33 @@ async fn exact_landing_and_documentation_surfaces_are_preserved() -> anyhow::Res
             .body
             .contains("https://challenges.cloudflare.com/turnstile/v0/api.js")
     );
-    let missing = get(&application, "/docs/not-a-topic").await?;
-    assert_eq!(missing.status, StatusCode::NOT_FOUND);
-    assert!(missing.body.contains("Documentation not found"));
+    for path in ["/docs/not-a-topic", "/not-a-page"] {
+        let missing = get(&application, path).await?;
+        assert_eq!(missing.status, StatusCode::NOT_FOUND, "GET {path}");
+        for required in [
+            "<meta name=\"robots\" content=\"noindex,nofollow\"/>",
+            "<span class=\"logo-text\">RC</span>",
+            "class=\"or-status-page\"",
+            "Page not found.",
+            "status.3662d6fc2b2e.css",
+            "<footer>",
+        ] {
+            assert!(
+                missing.body.contains(required),
+                "GET {path} missing {required}"
+            );
+        }
+        assert!(!missing.body.contains("<link rel=\"canonical\""));
+        assert!(!missing.body.contains("<meta property=\"og:url\""));
+        assert!(
+            missing
+                .body
+                .contains("<meta property=\"og:title\" content=\"Page not found | RC\"/>")
+        );
+    }
+    let missing_api = get(&application, "/api/v1/not-a-route").await?;
+    assert_eq!(missing_api.status, StatusCode::NOT_FOUND);
+    assert!(missing_api.body.is_empty());
     let install = get(&application, "/install.sh").await?;
     assert_eq!(install.status, StatusCode::OK);
     assert!(install.body.starts_with("#!/bin/sh"));

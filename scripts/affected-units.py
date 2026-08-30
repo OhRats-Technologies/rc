@@ -196,7 +196,11 @@ RUNTIME_TOOLING = {
         "mesh-policy-fixture",
     },
     "scripts/smoke-node-components.sh": {
+        "diagnostics-store",
+        "execution-runtime",
         "process-policy",
+        "scheduler",
+        "shell",
         "transport-test",
         "transport-webrtc",
     },

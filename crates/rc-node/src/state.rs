@@ -77,15 +77,7 @@ pub fn resolve_state_dir(explicit: Option<&str>) -> PathBuf {
     if let Some(value) = explicit.filter(|value| !value.trim().is_empty()) {
         return PathBuf::from(value);
     }
-    if let Ok(value) = std::env::var("RC_STATE_DIR")
-        && !value.trim().is_empty()
-    {
-        return PathBuf::from(value);
-    }
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".config/rc")
+    rc_platform::state_dir().expect("RC state directory is unavailable")
 }
 
 pub fn state_path(dir: &Path) -> PathBuf {
@@ -138,6 +130,7 @@ fn load_optional_json<T: DeserializeOwned + Default>(path: &Path) -> io::Result<
     }
 }
 fn load_json<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
+    rc_platform::validate_private_path(path, false)?;
     let bytes = fs::read(path)?;
     serde_json::from_slice(&bytes)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
@@ -153,12 +146,6 @@ fn save_json<T: Serialize>(dir: &Path, path: &Path, value: &T) -> io::Result<()>
     fs::rename(&temporary, path)?;
     set_mode(path, 0o600)
 }
-#[cfg(unix)]
 fn set_mode(path: &Path, mode: u32) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(mode))
-}
-#[cfg(not(unix))]
-fn set_mode(_: &Path, _: u32) -> io::Result<()> {
-    Ok(())
+    rc_platform::protect_private_path(path, mode & 0o100 != 0)
 }

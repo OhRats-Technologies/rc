@@ -1,10 +1,12 @@
+pub(super) mod wire;
+
+use self::wire::*;
 use super::values;
 use crate::{descriptor::SelectionMode, service::ServiceRegistry};
 use rc_node::{
-    ProcessAccessRequest, ProcessAction, ProcessChannel, ProcessPolicy, ProcessResizeRequest,
+    ProcessAccessRequest, ProcessAction, ProcessPolicy, ProcessResizeRequest, ProcessSignal,
     ProcessSignalRequest, ProcessStartPlan, ProcessStartRequest, ProcessTerminalSize,
 };
-use rc_protocol::TerminalSpec;
 use semver::VersionReq;
 use wasmtime::component::Val;
 
@@ -20,7 +22,7 @@ impl ComponentProcessPolicy {
     pub fn new(registry: ServiceRegistry) -> anyhow::Result<Self> {
         Ok(Self {
             registry,
-            requirement: VersionReq::parse("^0.2")?,
+            requirement: VersionReq::parse("^0.3")?,
         })
     }
 
@@ -51,13 +53,16 @@ impl ProcessPolicy for ComponentProcessPolicy {
             "start plan",
         )?;
         Ok(ProcessStartPlan {
-            command: values::string_field(&fields, "command")?,
-            cwd: values::string_field(&fields, "cwd")?,
+            mode: mode_field(&fields, "mode")?,
+            cwd: option_string_field(&fields, "cwd")?,
+            environment: environment_field(&fields, "environment")?,
             terminal: terminal_option(&fields)?,
             scrollback_bytes: values::u32_field(&fields, "scrollback-bytes")?,
             stdin_chunk_bytes: values::u32_field(&fields, "stdin-chunk-bytes")?,
             authorization_timeout_ms: values::u32_field(&fields, "authorization-timeout-ms")?,
             terminate_grace_ms: values::u32_field(&fields, "terminate-grace-ms")?,
+            reattach_grace_ms: values::u32_field(&fields, "reattach-grace-ms")?,
+            max_runtime_ms: option_u64_field(&fields, "max-runtime-ms")?,
         })
     }
 
@@ -88,35 +93,44 @@ impl ProcessPolicy for ComponentProcessPolicy {
         })
     }
 
-    fn normalize_signal(&self, request: ProcessSignalRequest) -> Result<String, String> {
+    fn authorize_signal(&self, request: ProcessSignalRequest) -> Result<ProcessSignal, String> {
         let value = Val::Record(vec![
             ("access".into(), access_request(request.access)),
-            ("signal".into(), Val::String(request.signal)),
+            (
+                "signal".into(),
+                Val::Enum(signal_name(request.signal).into()),
+            ),
         ]);
-        match values::result_value(self.call("normalize-signal", value)?, "process policy")? {
-            Val::String(value) => Ok(value),
-            _ => Err("process policy returned a non-string signal".into()),
+        match values::result_value(self.call("authorize-signal", value)?, "process policy")? {
+            Val::Enum(value) => parse_signal(&value),
+            _ => Err("process policy returned a non-signal".into()),
         }
     }
 }
 
-fn start_request(request: ProcessStartRequest) -> Val {
+pub(super) fn start_request(request: ProcessStartRequest) -> Val {
     Val::Record(vec![
-        ("process-id".into(), Val::String(request.process_id)),
-        ("command".into(), Val::String(request.command)),
-        ("cwd".into(), Val::String(request.cwd)),
+        ("execution-id".into(), Val::String(request.execution_id)),
+        ("mode".into(), mode_value(request.mode)),
+        ("cwd".into(), option_string(request.cwd)),
+        ("environment".into(), environment_value(request.environment)),
         ("terminal".into(), terminal_value(request.terminal)),
         (
             "channel".into(),
             Val::Enum(channel_name(request.channel).into()),
         ),
+        (
+            "lifetime".into(),
+            Val::Enum(lifetime_name(request.lifetime).into()),
+        ),
         ("principal".into(), principal_value(request.principal)),
+        ("max-runtime-ms".into(), option_u64(request.max_runtime_ms)),
     ])
 }
 
 fn access_request(request: ProcessAccessRequest) -> Val {
     Val::Record(vec![
-        ("process-id".into(), Val::String(request.process_id)),
+        ("execution-id".into(), Val::String(request.execution_id)),
         ("owner-user-id".into(), Val::String(request.owner_user_id)),
         (
             "action".into(),
@@ -138,38 +152,9 @@ fn principal_value(value: rc_node::ProcessPrincipal) -> Val {
     ])
 }
 
-fn terminal_value(value: Option<TerminalSpec>) -> Val {
-    Val::Option(value.map(|value| {
-        Box::new(Val::Record(vec![
-            ("cols".into(), Val::U16(value.cols)),
-            ("rows".into(), Val::U16(value.rows)),
-            ("term".into(), Val::String(value.term)),
-        ]))
-    }))
-}
-
-fn terminal_option(fields: &[(String, Val)]) -> Result<Option<TerminalSpec>, String> {
-    values::option_record_field(fields, "terminal")?
-        .map(|fields| {
-            Ok(TerminalSpec {
-                cols: values::u16_field(&fields, "cols")?,
-                rows: values::u16_field(&fields, "rows")?,
-                term: values::string_field(&fields, "term")?,
-            })
-        })
-        .transpose()
-}
-
-fn channel_name(value: ProcessChannel) -> &'static str {
-    match value {
-        ProcessChannel::Control => "control",
-        ProcessChannel::Ssh => "ssh",
-        ProcessChannel::Mcp => "mcp",
-    }
-}
-
 fn action_name(value: ProcessAction) -> &'static str {
     match value {
+        ProcessAction::Observe => "observe",
         ProcessAction::Attach => "attach",
         ProcessAction::Input => "input",
         ProcessAction::CloseInput => "close-input",

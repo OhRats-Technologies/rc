@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:shell"
+version = "0.1.0"
+world = "ohrats:rc-plugin/shell@0.1.0"
+wit = ["node-worlds", "plugin", "shell"]
+
+[build]
+kind = "rust"
+package = "rc-shell"
+artifact = "shell"

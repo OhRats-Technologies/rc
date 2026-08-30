@@ -32,6 +32,10 @@ impl Database {
     pub fn open(path: &Path) -> anyhow::Result<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
+            rc_platform::protect_private_path(parent, true)?;
+        }
+        if path.exists() {
+            rc_platform::validate_private_path(path, false)?;
         }
         let connection = Connection::open(path)?;
         secure_database(path)?;
@@ -145,15 +149,8 @@ fn check_connection(connection: &Connection) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
 fn secure_database(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-}
-
-#[cfg(not(unix))]
-fn secure_database(_: &Path) -> std::io::Result<()> {
-    Ok(())
+    rc_platform::protect_private_path(path, false)
 }
 
 #[cfg(unix)]

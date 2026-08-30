@@ -13,13 +13,12 @@ base64.workspace = true
 ed25519-dalek.workspace = true
 flate2.workspace = true
 rand.workspace = true
-signal-hook.workspace = true
-nix.workspace = true
 parking_lot.workspace = true
 rc-api-client = { path = "../rc-api-client" }
 rc-context = { path = "../rc-context" }
 rc-crypto = { path = "../rc-crypto" }
 rc-mesh = { path = "../rc-mesh" }
+rc-platform.workspace = true
 rc-protocol = { path = "../rc-protocol" }
 reqwest.workspace = true
 serde.workspace = true
@@ -31,6 +30,9 @@ thiserror.workspace = true
 tokio.workspace = true
 url.workspace = true
 x25519-dalek.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
 
 [dev-dependencies]
 p256 = { version = "0.13.2", features = ["ecdsa"] }

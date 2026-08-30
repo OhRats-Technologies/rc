@@ -4,83 +4,35 @@ mod hosted;
 mod image;
 mod lifecycle;
 mod process;
+mod schedule;
+mod state;
 mod webrtc;
 
+pub use state::ControlManager;
+use state::{ControlInner, ControlSession, PendingStart, SessionAuthority};
+
 use crate::{
-    MeshAuthority, NodeState, ProcessManager, ProcessPolicy, TransportPolicy, bootstrap_lock,
-    sync_lock,
+    ExecutionManager, MeshAuthority, NodeState, ProcessPolicy, ScheduleManager, TransportPolicy,
+    bootstrap_lock, sync_lock,
 };
-use ::webrtc::peer_connection::RTCPeerConnection;
 use parking_lot::Mutex;
-use rc_protocol::{
-    ControlProof, ControlTransportMessage, NodeToServer, ServerToNode, TerminalSpec,
-};
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Instant};
+use rc_protocol::{ControlProof, NodeToServer, ServerToNode};
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 use tokio::sync::mpsc;
 
 const CONTROL_PLAINTEXT_LIMIT: usize = 1_048_576;
 const CONTROL_CIPHERTEXT_LIMIT: usize = 1_500_000;
-
-#[derive(Clone)]
-pub struct ControlManager(Arc<ControlInner>);
-
-struct ControlInner {
-    state: NodeState,
-    version: String,
-    state_dir: PathBuf,
-    processes: Arc<ProcessManager>,
-    outbound: mpsc::UnboundedSender<NodeToServer>,
-    challenges: Mutex<HashMap<String, Instant>>,
-    sessions: Mutex<HashMap<String, ControlSession>>,
-    pending_starts: Mutex<HashMap<(String, String), PendingStart>>,
-    mesh: Mutex<Option<Arc<MeshAuthority>>>,
-    process_policy: Arc<dyn ProcessPolicy>,
-    transport_policy: Arc<dyn TransportPolicy>,
-}
-
-struct ControlSession {
-    key: [u8; 32],
-    user_id: String,
-    role: String,
-    can_execute: bool,
-    can_manage_devices: bool,
-    recv_sequence: u64,
-    send_sequence: u64,
-    transport_id: String,
-    peer: Option<Arc<RTCPeerConnection>>,
-    sender: Option<mpsc::UnboundedSender<ControlTransportMessage>>,
-}
-
-struct PendingStart {
-    session_id: String,
-    user_id: String,
-    command: String,
-    cwd: String,
-    terminal: Option<TerminalSpec>,
-    scrollback_bytes: u32,
-    stdin_chunk_bytes: u32,
-    terminate_grace_ms: u32,
-    expires: Instant,
-}
-
-struct SessionAuthority {
-    user_id: String,
-    role: String,
-    public_key: String,
-    can_execute: bool,
-    can_manage_devices: bool,
-}
-
 impl ControlManager {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         state: NodeState,
         state_dir: PathBuf,
-        processes: Arc<ProcessManager>,
+        processes: Arc<dyn ExecutionManager>,
         outbound: mpsc::UnboundedSender<NodeToServer>,
         version: impl Into<String>,
         process_policy: Arc<dyn ProcessPolicy>,
         transport_policy: Arc<dyn TransportPolicy>,
+        schedules: Arc<dyn ScheduleManager>,
     ) -> Self {
         let mesh = MeshAuthority::from_lock(&state, &state_dir)
             .ok()
@@ -97,6 +49,7 @@ impl ControlManager {
             mesh: Mutex::new(mesh),
             process_policy,
             transport_policy,
+            schedules,
         }))
     }
 
@@ -135,6 +88,7 @@ impl ControlManager {
                 ) {
                     Ok(()) => {
                         self.refresh_mesh_authority();
+                        self.reconcile_execution_authority();
                         self.invalidate_sessions().await;
                         self.send_lock_state();
                     }
@@ -215,8 +169,10 @@ impl ControlManager {
             ServerToNode::McpStart {
                 process_id,
                 user_id,
-                command,
+                mode,
                 cwd,
+                environment,
+                max_runtime_seconds,
                 mcp_grant,
                 mcp_signature,
                 control_grant,
@@ -225,23 +181,83 @@ impl ControlManager {
             } => self.mcp_start(
                 process_id,
                 user_id,
-                command,
+                mode,
                 cwd,
+                environment,
+                max_runtime_seconds,
                 mcp_grant,
                 mcp_signature,
                 control_grant,
                 credential_id,
                 control_assertion,
             ),
-            ServerToNode::McpStdin { process_id, data } => {
-                self.hosted_input(&process_id, &data, false)
-            }
-            ServerToNode::McpStdinClose { process_id } => {
-                self.hosted_close_input(&process_id, false)
-            }
-            ServerToNode::McpSignal { process_id, signal } => {
-                self.hosted_signal(&process_id, &signal, false)
-            }
+            ServerToNode::McpExecutionInput {
+                request_id,
+                process_id,
+                user_id,
+                data,
+                eof,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            } => self.mcp_input(
+                request_id,
+                process_id,
+                user_id,
+                data,
+                eof,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            ),
+            ServerToNode::McpExecutionSignal {
+                request_id,
+                process_id,
+                user_id,
+                signal,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            } => self.mcp_signal(
+                request_id,
+                process_id,
+                user_id,
+                signal,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            ),
+            ServerToNode::McpExecutionStatus {
+                request_id,
+                process_id,
+                user_id,
+                cursor,
+                wait_seconds,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            } => self.mcp_status(
+                request_id,
+                process_id,
+                user_id,
+                cursor,
+                wait_seconds,
+                mcp_grant,
+                mcp_signature,
+                control_grant,
+                credential_id,
+                control_assertion,
+            ),
             ServerToNode::McpImageView {
                 request_id,
                 user_id,
@@ -265,22 +281,6 @@ impl ControlManager {
                 .await
             }
             ServerToNode::Update => self.handle_update().await,
-        }
-    }
-
-    pub fn mesh_authority(&self) -> Option<Arc<MeshAuthority>> {
-        self.0.mesh.lock().clone()
-    }
-
-    fn refresh_mesh_authority(&self) {
-        match MeshAuthority::from_lock(&self.0.state, &self.0.state_dir) {
-            Ok(mesh) => {
-                *self.0.mesh.lock() = Some(Arc::new(mesh));
-            }
-            Err(error) => {
-                eprintln!("RC mesh authority is unavailable: {error}");
-                *self.0.mesh.lock() = None;
-            }
         }
     }
 }

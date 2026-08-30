@@ -8,6 +8,7 @@ impl ControlManager {
         &self,
         session_id: &str,
         user_id: &str,
+        principal: ProcessPrincipal,
         id: String,
         plan: ProcessStartPlan,
     ) {
@@ -19,12 +20,16 @@ impl ControlManager {
             PendingStart {
                 session_id: session_id.to_owned(),
                 user_id: user_id.to_owned(),
-                command: plan.command,
-                cwd: plan.cwd,
+                principal,
+                mode: plan.mode,
+                environment: plan.environment,
+                cwd: plan.cwd.unwrap_or_default(),
                 terminal: plan.terminal,
                 scrollback_bytes: plan.scrollback_bytes,
                 stdin_chunk_bytes: plan.stdin_chunk_bytes,
                 terminate_grace_ms: plan.terminate_grace_ms,
+                reattach_grace_ms: plan.reattach_grace_ms,
+                max_runtime_ms: plan.max_runtime_ms,
                 expires: now
                     + std::time::Duration::from_millis(u64::from(plan.authorization_timeout_ms)),
             },
@@ -48,16 +53,23 @@ impl ControlManager {
         }
         let spec = ProcessSpec {
             id: id.to_owned(),
-            command: pending.command,
+            mode: pending.mode,
+            environment: pending.environment,
             cwd: pending.cwd,
             terminal: pending.terminal,
             session_id: pending.session_id.clone(),
             user_id: pending.user_id,
+            authorization_id: String::new(),
             secure: true,
             relay_id: String::new(),
             scrollback_bytes: pending.scrollback_bytes,
             stdin_chunk_bytes: pending.stdin_chunk_bytes,
             terminate_grace_ms: pending.terminate_grace_ms,
+            reattach_grace_ms: pending.reattach_grace_ms,
+            lifetime: crate::ProcessLifetime::Attached,
+            channel: crate::ProcessChannel::Control,
+            principal: pending.principal,
+            max_runtime_ms: pending.max_runtime_ms,
         };
         if self.0.processes.start(spec).is_err() {
             self.emit(NodeToServer::ProcessExit {
@@ -101,7 +113,7 @@ impl ControlManager {
             .owner(id)
             .ok_or_else(|| anyhow::anyhow!("process unavailable"))?;
         Ok(ProcessAccessRequest {
-            process_id: id.to_owned(),
+            execution_id: id.to_owned(),
             owner_user_id: owner,
             action,
             principal,

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     path::PathBuf,
     process::{Command, Stdio},
 };
@@ -143,21 +143,27 @@ pub(crate) fn kernel_path() -> Option<PathBuf> {
     if let Some(value) = std::env::var_os("RC_KERNEL").filter(|value| !value.is_empty()) {
         return Some(PathBuf::from(value));
     }
+    if let Some(active) = rc_platform::active_runtime_dir() {
+        let kernel = active.join(rc_platform::executable_name("rc-kernel"));
+        if kernel.is_file() {
+            return Some(kernel);
+        }
+    }
     if let Ok(current) = std::env::current_exe()
         && let Some(parent) = current.parent()
     {
-        let sibling = parent.join("rc-kernel");
+        let sibling = parent.join(rc_platform::executable_name("rc-kernel"));
         if sibling.is_file() {
             return Some(sibling);
         }
     }
-    path_lookup("rc-kernel")
+    path_lookup(&rc_platform::executable_name("rc-kernel"))
 }
 
-fn path_lookup(name: &str) -> Option<PathBuf> {
+fn path_lookup(name: &OsStr) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
-        .map(|directory| directory.join(OsString::from(name)))
+        .map(|directory| directory.join(name))
         .find(|candidate| candidate.is_file())
 }
 

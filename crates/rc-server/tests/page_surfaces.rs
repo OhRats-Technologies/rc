@@ -128,6 +128,23 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
             );
         }
     }
+    for path in ["/devices/not-a-device", "/not-a-page"] {
+        let missing = get(&application, path, Some(&cookie)).await?;
+        assert_eq!(missing.status, StatusCode::NOT_FOUND, "GET {path}");
+        for required in [
+            "class=\"site-shell\"",
+            "class=\"or-status-page\"",
+            "Page not found.",
+            "status.3662d6fc2b2e.css",
+            "sidebar.js",
+        ] {
+            assert!(
+                missing.body.contains(required),
+                "GET {path} missing {required}"
+            );
+        }
+    }
+
     let process_page = get(&application, &ids.process_path, Some(&cookie)).await?;
     for asset in ["sidebar.js", "process-terminal.js", "process-terminal.css"] {
         assert!(

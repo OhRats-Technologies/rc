@@ -5,7 +5,7 @@
 - Rust 1.98
 - Bun 1.4
 - Docker for runtime-image validation
-- macOS or Linux for Node/service integration
+- macOS, Linux, or Windows for native Node/service integration
 
 Install dependencies without changing lockfiles:
 

@@ -11,6 +11,7 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 KERNEL_HOST_ADAPTERS = {
     (ROOT / "crates" / "rc-node").resolve(),
+    (ROOT / "crates" / "rc-platform").resolve(),
     (ROOT / "crates" / "rc-protocol").resolve(),
 }
 

@@ -6,7 +6,9 @@ use rc_node::{
     AccountSession, DEFAULT_SERVER, load_account, load_config, resolve_state_dir, save_account,
 };
 use serde::Deserialize;
-use std::{io, process::Command, time::Duration};
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::process::Command;
+use std::{io, time::Duration};
 
 pub fn defaults(url: Option<&str>, token: Option<&str>) -> Result<(String, Credential), ApiError> {
     let dir = resolve_state_dir(None);
@@ -151,9 +153,75 @@ fn open_browser(url: &str) -> io::Result<()> {
         c.arg(url);
         c
     };
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    #[cfg(windows)]
+    return open_browser_windows(url);
+    #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
     return Err(io::Error::other(format!("open {url} in your browser")));
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     command.spawn().map(|_| ())
+}
+
+#[cfg(windows)]
+fn open_browser_windows(url: &str) -> io::Result<()> {
+    use windows::{
+        Win32::{Foundation::HWND, UI::Shell::ShellExecuteW},
+        core::PCWSTR,
+    };
+    let operation = windows_wide("open")?;
+    let target = windows_wide(url)?;
+    let result = unsafe {
+        ShellExecuteW(
+            Some(HWND::default()),
+            PCWSTR(operation.as_ptr()),
+            PCWSTR(target.as_ptr()),
+            None,
+            None,
+            windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        )
+    };
+    if result.0 as isize > 32 {
+        Ok(())
+    } else {
+        Err(io::Error::other("Windows could not open the browser"))
+    }
+}
+
+#[cfg(windows)]
+fn windows_wide(value: &str) -> io::Result<Vec<u16>> {
+    use std::os::windows::ffi::OsStrExt as _;
+    let mut encoded: Vec<u16> = std::ffi::OsStr::new(value).encode_wide().collect();
+    if encoded.contains(&0) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "browser target contains a NUL",
+        ));
+    }
+    encoded.push(0);
+    Ok(encoded)
+}
+
+#[cfg(all(test, windows))]
+mod windows_browser_tests {
+    #[test]
+    fn browser_target_is_unicode_and_nul_terminated() {
+        let encoded = super::windows_wide("https://rc.example/é/🐀").unwrap();
+        assert_eq!(encoded.last(), Some(&0));
+        assert!(!encoded[..encoded.len() - 1].contains(&0));
+        assert_eq!(
+            String::from_utf16(&encoded[..encoded.len() - 1]).unwrap(),
+            "https://rc.example/é/🐀"
+        );
+    }
+
+    #[test]
+    fn browser_target_rejects_interior_nul() {
+        assert_eq!(
+            super::windows_wide("https://rc.example/\0ignored")
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::InvalidInput
+        );
+    }
 }
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key)

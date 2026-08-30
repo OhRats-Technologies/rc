@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:execution-runtime"
+version = "0.1.0"
+world = "ohrats:rc-plugin/execution-runtime@0.1.0"
+wit = ["diagnostics", "node-worlds", "plugin", "process", "shell", "storage"]
+
+[build]
+kind = "rust"
+package = "rc-execution-runtime"
+artifact = "execution-runtime"

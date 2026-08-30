@@ -51,7 +51,7 @@ pub(super) async fn uninstall(url: Option<String>, state_dir: Option<String>) ->
     }
     remove_component_runtime()?;
     if let Ok(path) = std::env::current_exe()
-        && path.file_name().and_then(|value| value.to_str()) == Some("rc")
+        && path.file_name() == Some(rc_platform::executable_name("rc").as_os_str())
     {
         let _ = std::fs::remove_file(path);
     }
@@ -63,20 +63,13 @@ fn remove_component_runtime() -> Result<()> {
     if let Ok(executable) = std::env::current_exe()
         && let Some(parent) = executable.parent()
     {
-        match std::fs::remove_file(parent.join("rc-kernel")) {
+        match std::fs::remove_file(parent.join(rc_platform::executable_name("rc-kernel"))) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
         }
     }
-    let data = std::env::var_os("RC_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(std::path::PathBuf::from)
-                .map(|home| home.join(".local/share/rc"))
-        });
-    if let Some(data) = data {
+    if let Ok(data) = rc_platform::data_dir() {
         match std::fs::remove_dir_all(data) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::NotFound => {}

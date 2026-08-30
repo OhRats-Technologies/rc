@@ -13,7 +13,10 @@ struct DevicePin {
 pub(super) fn verify_device_pin(dir: &Path, device: &Device) -> Result<()> {
     let path = dir.join("device-pins.json");
     let mut pins: BTreeMap<String, DevicePin> = match fs::read(&path) {
-        Ok(bytes) => serde_json::from_slice(&bytes).context("read device pins")?,
+        Ok(bytes) => {
+            rc_platform::validate_private_path(&path, false)?;
+            serde_json::from_slice(&bytes).context("read device pins")?
+        }
         Err(error) if error.kind() == io::ErrorKind::NotFound => BTreeMap::new(),
         Err(error) => return Err(error.into()),
     };
@@ -36,6 +39,7 @@ pub(super) fn verify_device_pin(dir: &Path, device: &Device) -> Result<()> {
 
 fn save_pins(dir: &Path, path: &Path, value: &BTreeMap<String, DevicePin>) -> io::Result<()> {
     fs::create_dir_all(dir)?;
+    rc_platform::protect_private_path(dir, true)?;
     let bytes = serde_json::to_vec_pretty(value).map_err(io::Error::other)?;
     let temp = path.with_extension(format!("tmp-{}", std::process::id()));
     fs::write(&temp, bytes)?;
@@ -44,13 +48,6 @@ fn save_pins(dir: &Path, path: &Path, value: &BTreeMap<String, DevicePin>) -> io
     set_mode(path, 0o600)
 }
 
-#[cfg(unix)]
 fn set_mode(path: &Path, mode: u32) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(mode))
-}
-
-#[cfg(not(unix))]
-fn set_mode(_: &Path, _: u32) -> io::Result<()> {
-    Ok(())
+    rc_platform::protect_private_path(path, mode & 0o100 != 0)
 }

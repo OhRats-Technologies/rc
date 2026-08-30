@@ -1,7 +1,13 @@
 use anyhow::{Result, bail};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_protocol::ControlMessage;
-use std::{io, os::fd::AsRawFd};
+#[cfg(unix)]
+use std::io;
+#[cfg(unix)]
+use std::os::fd::AsRawFd;
+
+#[cfg(windows)]
+mod windows_terminal;
 use tokio::io::AsyncWriteExt;
 
 pub(super) async fn wait_remote_process(
@@ -86,10 +92,10 @@ pub(super) fn terminal_attached() -> bool {
     unsafe {
         nix::libc::isatty(nix::libc::STDIN_FILENO) == 1
     }
-    #[cfg(not(unix))]
-    {
-        true
-    }
+    #[cfg(windows)]
+    return windows_terminal::attached();
+    #[cfg(not(any(unix, windows)))]
+    false
 }
 
 pub(super) fn terminal_size() -> (u16, u16) {
@@ -104,10 +110,10 @@ pub(super) fn terminal_size() -> (u16, u16) {
         unsafe { nix::libc::ioctl(io::stdin().as_raw_fd(), nix::libc::TIOCGWINSZ, &mut size) };
         (size.ws_col.clamp(2, 500), size.ws_row.clamp(2, 500))
     }
-    #[cfg(not(unix))]
-    {
-        (80, 24)
-    }
+    #[cfg(windows)]
+    return windows_terminal::size().unwrap_or((80, 24));
+    #[cfg(not(any(unix, windows)))]
+    (80, 24)
 }
 
 #[cfg(unix)]
@@ -137,10 +143,18 @@ impl Drop for RawTerminal {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+pub(super) use windows_terminal::RawTerminal;
+
+#[cfg(windows)]
+pub(super) async fn next_terminal_resize(previous: (u16, u16)) -> (u16, u16) {
+    windows_terminal::next_resize(previous).await
+}
+
+#[cfg(not(any(unix, windows)))]
 pub(super) struct RawTerminal;
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 impl RawTerminal {
     pub(super) fn enter() -> Result<Self> {
         Ok(Self)

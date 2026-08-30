@@ -147,9 +147,10 @@ jobs:
             components/artifact-cache-local components/package-manager components/local-source components/http-source \
             components/oci-source components/github-source components/diagnostics-store \
             components/diagnostics-reporter components/diagnostics-cli \
-            components/process-policy components/transport-webrtc components/updater \
+            components/process-policy components/execution-runtime components/scheduler components/shell \
+            components/transport-webrtc components/updater profiles/core.toml \
             packaging/build-core-bundle.sh packaging/build-legacy-core-bundle.sh \
-            scripts/build-component.sh scripts/check-component.sh \
+            scripts/build-component.sh scripts/check-component.sh scripts/profile-components.py \
             .github/workflows/core-components.yml)
           gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
             --name rc-core-components --dir dist/core
@@ -158,19 +159,34 @@ jobs:
           rmdir dist/core
       - name: Validate release assets
         run: |
-          test "$(find dist -maxdepth 1 -name 'rc-*.tar.gz' | wc -l)" -eq 10
+          {
+            for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64 rc-windows-amd64; do
+              echo "$name.tar.gz"
+            done
+            for name in rc-kernel-darwin-arm64 rc-kernel-darwin-amd64 rc-kernel-linux-arm64 rc-kernel-linux-amd64 rc-kernel-windows-amd64; do
+              echo "$name.tar.gz"
+            done
+            echo rc-core-components.tar.gz
+            echo rc-core-profile.tar.gz
+          } | sort > "$RUNNER_TEMP/expected-assets"
+          find dist -maxdepth 1 -name 'rc-*.tar.gz' -printf '%f\n' | sort > "$RUNNER_TEMP/actual-assets"
+          cmp "$RUNNER_TEMP/expected-assets" "$RUNNER_TEMP/actual-assets"
           for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64; do
             test -s "dist/$name.tar.gz"
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc"
           done
+          test "$(tar -tzf dist/rc-windows-amd64.tar.gz)" = "rc.exe"
           for name in rc-kernel-darwin-arm64 rc-kernel-darwin-amd64 rc-kernel-linux-arm64 rc-kernel-linux-amd64; do
             test -s "dist/$name.tar.gz"
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc-kernel"
           done
+          test "$(tar -tzf dist/rc-kernel-windows-amd64.tar.gz)" = "rc-kernel.exe"
           test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 10
           test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '^profile.lock$')" -eq 0
-          test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '\.wasm$')" -eq 12
+          expected=$(python3 scripts/profile-components.py core | wc -l)
+          test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '\.wasm$')" -eq "$expected"
           test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '^profile.lock$')" -eq 1
+          cp public/install.ps1 dist/install.ps1
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -180,5 +196,5 @@ jobs:
             --draft \
             --title "RC ${GITHUB_REF_NAME#v}" \
             --generate-notes \
-            dist/rc-*.tar.gz
+            dist/rc-*.tar.gz dist/install.ps1
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest

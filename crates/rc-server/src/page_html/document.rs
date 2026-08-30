@@ -22,6 +22,21 @@ pub fn authenticated_document(
     document(title, body, Some(context), scripts, styles, "", false)
 }
 
+pub fn authenticated_status_document(context: &PageContext, title: &str, body: String) -> String {
+    document(
+        title,
+        body,
+        Some(context),
+        &[],
+        &[],
+        &format!(
+            "<link rel=\"stylesheet\" href=\"{}\">",
+            super::status::SHARED_STATUS_STYLE
+        ),
+        false,
+    )
+}
+
 fn document(
     title: &str,
     body: String,

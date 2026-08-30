@@ -29,6 +29,10 @@ fn rc_lock_snapshots_publish_pinned_mesh_device_identities() -> anyhow::Result<(
                    ('c','realm','C','c','linux','amd64','identity-c','transport-c','test','[]',?)",
             rusqlite::params![now, now],
         )?;
+        connection.execute(
+            "INSERT INTO schedule_grants(schedule_id,workspace_id,device_id,user_id,spec_hash,max_runtime_ms,expires_at,created_at) VALUES('nightly','realm','b','owner',?,60000,0,?),('expired','realm','b','owner',?,60000,?,?)",
+            rusqlite::params!["a".repeat(64), now, "b".repeat(64), now - 1, now],
+        )?;
     }
     drop(connection);
     let database = Database::open(&path)?;
@@ -40,6 +44,10 @@ fn rc_lock_snapshots_publish_pinned_mesh_device_identities() -> anyhow::Result<(
     assert_eq!(snapshot.devices[0].identity_public_key, "identity-b");
     assert_eq!(snapshot.devices[0].transport_public_key, "transport-b");
     assert_eq!(snapshot.devices[1].id, "c");
+    assert_eq!(snapshot.schedule_grants.len(), 1);
+    assert_eq!(snapshot.schedule_grants[0].schedule_id, "nightly");
+    assert_eq!(snapshot.schedule_grants[0].device_id, "b");
+    assert_eq!(snapshot.schedule_grants[0].spec_hash, "a".repeat(64));
     drop(database);
     std::fs::remove_dir_all(root)?;
     Ok(())

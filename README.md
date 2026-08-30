@@ -6,7 +6,9 @@
 [![website](https://img.shields.io/badge/website-rc.ohrats.party-purple.svg)](https://rc.ohrats.party)
 [![support](https://img.shields.io/badge/sponsor-Open%20Collective-blue.svg)](https://opencollective.com/ohrats)
 
-Secure remote control for macOS and Linux through the browser, CLI, API, MCP, and OpenSSH.
+Secure remote control for macOS, Linux, and Windows through the browser, CLI,
+API, and MCP. OpenSSH compatibility is advertised only where the target Node
+supports it.
 
 ## Install
 

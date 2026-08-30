@@ -76,6 +76,7 @@ pub(super) fn fixture(role: &str) -> anyhow::Result<Fixture> {
             }],
             api_keys: Vec::new(),
             mcp_grants: Vec::new(),
+            schedule_grants: Vec::new(),
         },
         proof: ControlProof {
             grant,

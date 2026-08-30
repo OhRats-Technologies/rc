@@ -199,6 +199,10 @@ fn kernel_interface(name: &str) -> bool {
         "ohrats:rc-storage/durable-store@",
         "ohrats:rc-artifact-cache/local-storage@",
         "ohrats:rc-keys/host-custody@",
+        "ohrats:rc-process/environment-host@",
+        "ohrats:rc-process/filesystem-host@",
+        "ohrats:rc-process/clock-host@",
+        "ohrats:rc-process/process-host@",
         "ohrats:rc-updater/artifact-source@",
         "ohrats:rc-updater/native-replacement@",
     ]

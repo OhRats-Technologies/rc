@@ -89,7 +89,7 @@ wait_for_line 'Closed'
 
 mv "$components/crypto-control.disabled" "$components/crypto-control.wasm"
 count=0
-while ! grep -Fx 'Available' "$directory/probe.out" >/dev/null 2>&1; do
+while [ "$(grep -c '^Available$' "$directory/probe.out" 2>/dev/null || true)" -lt 2 ]; do
   printf 'available\n' >&3
   count=$((count + 1))
   test "$count" -lt 200 || exit 1

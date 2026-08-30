@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use super::terminal::next_terminal_resize;
 use super::{
     encode,
     terminal::{
@@ -9,12 +11,12 @@ use anyhow::{Result, bail};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_api_client::{ApiClient, Credential, Device};
 use rc_node::resolve_state_dir;
-use rc_protocol::{ControlMessage, TerminalSpec};
+use rc_protocol::{ControlMessage, EnvironmentSpec, ExecutionMode, TerminalSpec};
 use tokio::io::AsyncReadExt;
 
 pub(super) async fn run(
     selector: String,
-    command: Vec<String>,
+    mut command: Vec<String>,
     url: Option<String>,
     token: Option<String>,
 ) -> Result<()> {
@@ -23,12 +25,17 @@ pub(super) async fn run(
     let process_id = allocate_process(&client, &device.id, false).await?;
     let dir = resolve_state_dir(None);
     let mut control = RemoteControl::open(client.clone(), &credential, &device, &dir).await?;
+    let program = command.remove(0);
     control
         .sender
         .send(&ControlMessage::ProcessStart {
             id: process_id.clone(),
-            command: shell_join(&command),
-            cwd: String::new(),
+            mode: ExecutionMode::Argv {
+                program,
+                args: command,
+            },
+            cwd: None,
+            environment: EnvironmentSpec::default(),
             terminal: None,
         })
         .await?;
@@ -38,22 +45,34 @@ pub(super) async fn run(
     result
 }
 
-fn shell_join(args: &[String]) -> String {
-    args.iter()
-        .map(|value| shell_quote(value))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn shell_quote(value: &str) -> String {
-    if !value.is_empty()
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || b"_@%+=:,./-".contains(&byte))
-    {
-        return value.to_owned();
+pub(super) async fn run_shell(
+    selector: String,
+    script: String,
+    url: Option<String>,
+    token: Option<String>,
+) -> Result<()> {
+    if script.trim().is_empty() {
+        bail!("portable RC Shell source must not be empty");
     }
-    format!("'{}'", value.replace('\'', "'\"'\"'"))
+    let (client, credential, device) =
+        remote_device(url.as_deref(), token.as_deref(), &selector).await?;
+    let process_id = allocate_process(&client, &device.id, false).await?;
+    let dir = resolve_state_dir(None);
+    let mut control = RemoteControl::open(client.clone(), &credential, &device, &dir).await?;
+    control
+        .sender
+        .send(&ControlMessage::ProcessStart {
+            id: process_id.clone(),
+            mode: ExecutionMode::RcShell { script },
+            cwd: None,
+            environment: EnvironmentSpec::default(),
+            terminal: None,
+        })
+        .await?;
+    eprintln!("Started {process_id} on {}", device.name);
+    let result = wait_remote_process(&control.sender, &mut control.receiver, &process_id).await;
+    control.close().await;
+    result
 }
 
 pub(super) async fn shell(
@@ -75,8 +94,9 @@ pub(super) async fn shell(
         .sender
         .send(&ControlMessage::ProcessStart {
             id: process_id.clone(),
-            command: "exec \"${SHELL:-sh}\" -l".into(),
-            cwd: String::new(),
+            mode: ExecutionMode::SystemLoginShell,
+            cwd: None,
+            environment: EnvironmentSpec::default(),
             terminal: Some(TerminalSpec {
                 cols,
                 rows,
@@ -137,15 +157,38 @@ pub(super) async fn shell(
             }
         })
     };
+    #[cfg(windows)]
+    let resize = {
+        let sender = control.sender.clone();
+        let id = process_id.clone();
+        tokio::spawn(async move {
+            let mut previous = (cols, rows);
+            loop {
+                let (cols, rows) = next_terminal_resize(previous).await;
+                previous = (cols, rows);
+                if sender
+                    .send(&ControlMessage::ProcessResize {
+                        id: id.clone(),
+                        cols,
+                        rows,
+                    })
+                    .await
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        })
+    };
     let result = read_shell_output(&mut control.receiver, &process_id).await;
     input.abort();
-    #[cfg(unix)]
+    #[cfg(any(unix, windows))]
     resize.abort();
     control.close().await;
     result
 }
 
-async fn remote_device(
+pub(super) async fn remote_device(
     url: Option<&str>,
     token: Option<&str>,
     selector: &str,
@@ -189,29 +232,4 @@ async fn allocate_process(client: &ApiClient, device_id: &str, terminal: bool) -
         bail!("RC server did not allocate a process");
     }
     Ok(value.process_id)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::shell_join;
-
-    fn values(input: &[&str]) -> Vec<String> {
-        input.iter().map(|value| (*value).to_owned()).collect()
-    }
-
-    #[test]
-    fn remote_command_preserves_argument_boundaries() {
-        assert_eq!(
-            shell_join(&values(&["printf", "%s", "hello world"])),
-            "printf %s 'hello world'"
-        );
-    }
-
-    #[test]
-    fn remote_command_quotes_empty_apostrophe_and_shell_syntax() {
-        assert_eq!(
-            shell_join(&values(&["tool", "", "it's", "$(touch /tmp/nope)"])),
-            "tool '' 'it'\"'\"'s' '$(touch /tmp/nope)'"
-        );
-    }
 }

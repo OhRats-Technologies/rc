@@ -4,26 +4,33 @@ RC release tags are immutable.
 
 ## Assets
 
-Each release contains four `rc` archives, four kernel archives, the current core
-profile, and the legacy upgrade bridge:
+Each release contains five `rc` archives, five kernel archives, the current core
+profile, the legacy upgrade bridge, and the verified Windows installer:
 
 ```text
 rc-darwin-arm64.tar.gz
 rc-darwin-amd64.tar.gz
 rc-linux-arm64.tar.gz
 rc-linux-amd64.tar.gz
+rc-windows-amd64.tar.gz
 rc-kernel-darwin-arm64.tar.gz
 rc-kernel-darwin-amd64.tar.gz
 rc-kernel-linux-arm64.tar.gz
 rc-kernel-linux-amd64.tar.gz
+rc-kernel-windows-amd64.tar.gz
 rc-core-profile.tar.gz
 rc-core-components.tar.gz
+install.ps1
 ```
 
 Native archives contain one executable. `rc-core-profile.tar.gz` contains
-`profile.lock` and the exact twelve core components. `rc-core-components.tar.gz`
+`profile.lock` and the exact components selected by `profiles/core.toml`.
+`rc-core-components.tar.gz`
 contains the ten names required by the immutable v0.19.2 updater and no lock.
 Published assets require GitHub SHA-256 digests.
+Windows activation retains active and previous native generations, removes
+older versioned generations after commit, and rejects both CLI and independent
+kernel downgrades.
 
 Current installers and updaters prefer the profile asset. The legacy asset
 exists only so v0.19.2 can reach a newer native platform; a subsequent

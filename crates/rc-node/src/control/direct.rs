@@ -2,11 +2,15 @@ use super::{
     CONTROL_CIPHERTEXT_LIMIT, CONTROL_PLAINTEXT_LIMIT, ControlManager, process::principal,
 };
 use crate::{
-    ProcessAction, ProcessChannel, ProcessResizeRequest, ProcessSignalRequest, ProcessStartRequest,
+    ProcessAction, ProcessChannel, ProcessEnvironment, ProcessExecutionMode, ProcessLifetime,
+    ProcessResizeRequest, ProcessSignal, ProcessSignalRequest, ProcessStartRequest,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_crypto::{decrypt_frame, encrypt_frame};
-use rc_protocol::{ControlMessage, ControlTransportMessage, PROCESS_INPUT_CHUNK_LIMIT};
+use rc_protocol::{
+    ControlMessage, ControlTransportMessage, EnvironmentBase, EnvironmentSpec, ExecutionMode,
+    PROCESS_INPUT_CHUNK_LIMIT,
+};
 use std::time::Duration;
 
 impl ControlManager {
@@ -61,6 +65,15 @@ impl ControlManager {
         can_manage_devices: bool,
         command: ControlMessage,
     ) -> anyhow::Result<()> {
+        let command = match command {
+            value @ (ControlMessage::ScheduleList { .. }
+            | ControlMessage::ScheduleUpsert { .. }
+            | ControlMessage::ScheduleRemove { .. }
+            | ControlMessage::ScheduleSetEnabled { .. }) => {
+                return self.handle_schedule(session_id, user_id, can_manage_devices, value);
+            }
+            value => value,
+        };
         match command {
             ControlMessage::NodeUpdate { request_id } => {
                 if !can_manage_devices {
@@ -105,23 +118,28 @@ impl ControlManager {
             }
             ControlMessage::ProcessStart {
                 id,
-                command,
+                mode,
                 cwd,
+                environment,
                 terminal,
             } => {
+                let principal = principal(user_id, role, can_execute, can_manage_devices);
                 let plan = self
                     .0
                     .process_policy
                     .authorize_start(ProcessStartRequest {
-                        process_id: id.clone(),
-                        command,
+                        execution_id: id.clone(),
+                        mode: execution_mode(mode),
                         cwd,
+                        environment: process_environment(environment),
                         terminal,
                         channel: ProcessChannel::Control,
-                        principal: principal(user_id, role, can_execute, can_manage_devices),
+                        lifetime: ProcessLifetime::Attached,
+                        principal: principal.clone(),
+                        max_runtime_ms: None,
                     })
                     .map_err(anyhow::Error::msg)?;
-                self.queue_start(session_id, user_id, id, plan);
+                self.queue_start(session_id, user_id, principal, id, plan);
             }
             ControlMessage::ProcessAttach { id } => {
                 self.require_process_access(
@@ -137,6 +155,7 @@ impl ControlManager {
                     ProcessAction::Input,
                     principal(user_id, role, can_execute, can_manage_devices),
                 )?;
+                self.require_writer(&id, session_id)?;
                 let bytes = URL_SAFE_NO_PAD.decode(data)?;
                 if bytes.len() > PROCESS_INPUT_CHUNK_LIMIT {
                     anyhow::bail!("process input too large");
@@ -149,6 +168,7 @@ impl ControlManager {
                     ProcessAction::CloseInput,
                     principal(user_id, role, can_execute, can_manage_devices),
                 )?;
+                self.require_writer(&id, session_id)?;
                 self.0.processes.close_input(&id);
             }
             ControlMessage::ProcessResize { id, cols, rows } => {
@@ -157,6 +177,7 @@ impl ControlManager {
                     ProcessAction::Resize,
                     principal(user_id, role, can_execute, can_manage_devices),
                 )?;
+                self.require_writer(&id, session_id)?;
                 let size = self
                     .0
                     .process_policy
@@ -170,17 +191,26 @@ impl ControlManager {
                     ProcessAction::Signal,
                     principal(user_id, role, can_execute, can_manage_devices),
                 )?;
+                self.require_writer(&id, session_id)?;
                 let signal = self
                     .0
                     .process_policy
-                    .normalize_signal(ProcessSignalRequest { access, signal })
+                    .authorize_signal(ProcessSignalRequest {
+                        access,
+                        signal: ProcessSignal::parse(&signal).map_err(anyhow::Error::msg)?,
+                    })
                     .map_err(anyhow::Error::msg)?;
-                self.0.processes.signal(&id, &signal)?;
+                self.0.processes.signal(&id, signal.legacy_name())?;
             }
             ControlMessage::ProcessStdout { .. }
             | ControlMessage::ProcessStderr { .. }
             | ControlMessage::ProcessStarted { .. }
             | ControlMessage::ProcessExit { .. }
+            | ControlMessage::ScheduleList { .. }
+            | ControlMessage::ScheduleUpsert { .. }
+            | ControlMessage::ScheduleRemove { .. }
+            | ControlMessage::ScheduleSetEnabled { .. }
+            | ControlMessage::ScheduleResult { .. }
             | ControlMessage::Result { .. }
             | ControlMessage::Revoked => anyhow::bail!("invalid client control message"),
         }
@@ -221,5 +251,38 @@ impl ControlManager {
                 ciphertext,
             })
             .is_ok()
+    }
+
+    fn require_writer(&self, id: &str, session_id: &str) -> anyhow::Result<()> {
+        if !self.0.processes.secure_writer(id, session_id) {
+            anyhow::bail!("process attachment was superseded");
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn execution_mode(value: ExecutionMode) -> ProcessExecutionMode {
+    match value {
+        ExecutionMode::Argv { program, args } => ProcessExecutionMode::Argv { program, args },
+        ExecutionMode::RcShell { script } => ProcessExecutionMode::RcShell { script },
+        ExecutionMode::SystemShell { command } => ProcessExecutionMode::SystemShell { command },
+        ExecutionMode::SystemLoginShell => ProcessExecutionMode::SystemLoginShell,
+    }
+}
+
+pub(super) fn process_environment(value: EnvironmentSpec) -> ProcessEnvironment {
+    ProcessEnvironment {
+        base: match value.base {
+            EnvironmentBase::Inherit => crate::ProcessEnvironmentBase::Inherit,
+            EnvironmentBase::Clean => crate::ProcessEnvironmentBase::Clean,
+        },
+        changes: value
+            .changes
+            .into_iter()
+            .map(|change| crate::ProcessEnvironmentChange {
+                name: change.name,
+                value: change.value,
+            })
+            .collect(),
     }
 }

@@ -13,6 +13,7 @@ mod network;
 mod node;
 mod reconcile;
 mod runtime;
+mod runtime_capabilities;
 mod server;
 mod service;
 mod status;
@@ -21,5 +22,9 @@ mod updater;
 mod watch;
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(windows)]
+    if let Some(result) = runtime_capabilities::maybe_run_windows_execution_guard() {
+        return result;
+    }
     cli::run()
 }

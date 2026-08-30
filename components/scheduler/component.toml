@@ -1,0 +1,12 @@
+schema = 1
+
+[component]
+id = "ohrats:scheduler"
+version = "0.1.0"
+world = "ohrats:rc-plugin/scheduler@0.1.0"
+wit = ["diagnostics", "node-worlds", "plugin", "process", "scheduler", "storage"]
+
+[build]
+kind = "rust"
+package = "rc-scheduler"
+artifact = "scheduler"

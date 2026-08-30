@@ -15,13 +15,16 @@ struct Process;
 impl ProcessPolicy for Process {
     fn authorize_start(&self, request: ProcessStartRequest) -> Result<ProcessStartPlan, String> {
         Ok(ProcessStartPlan {
-            command: request.command,
+            mode: request.mode,
             cwd: request.cwd,
+            environment: request.environment,
             terminal: request.terminal,
             scrollback_bytes: 4 << 20,
             stdin_chunk_bytes: 1 << 20,
             authorization_timeout_ms: 15_000,
             terminate_grace_ms: 350,
+            reattach_grace_ms: 60_000,
+            max_runtime_ms: request.max_runtime_ms,
         })
     }
     fn authorize_access(&self, _: ProcessAccessRequest) -> Result<(), String> {
@@ -33,7 +36,10 @@ impl ProcessPolicy for Process {
             rows: value.rows,
         })
     }
-    fn normalize_signal(&self, value: ProcessSignalRequest) -> Result<String, String> {
+    fn authorize_signal(
+        &self,
+        value: ProcessSignalRequest,
+    ) -> Result<rc_node::ProcessSignal, String> {
         Ok(value.signal)
     }
 }

@@ -1,5 +1,6 @@
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rc_node::{NodeState, ServerTransport};
-use rc_protocol::{McpGrantPayload, ServerToNode};
+use rc_protocol::{McpExecutionChunk, McpGrantPayload, NodeToServer, ServerToNode};
 use rc_server::{
     AppState, Config, MCP_PROTOCOL_VERSION, NewDevice, TurnProvider, app, hash, now_ms,
 };
@@ -109,6 +110,81 @@ pub async fn rpc_call(
     Ok(value)
 }
 
+pub async fn respond_status(
+    node: &mut ServerTransport,
+    expected_process: &str,
+    status: &str,
+    chunks: Vec<(&str, Vec<u8>)>,
+    exit_code: Option<i32>,
+    signal: &str,
+) -> anyhow::Result<()> {
+    let ServerToNode::McpExecutionStatus {
+        request_id,
+        process_id,
+        cursor,
+        ..
+    } = recv(node).await?
+    else {
+        anyhow::bail!("expected MCP execution status request");
+    };
+    anyhow::ensure!(
+        process_id == expected_process,
+        "unexpected process status ID"
+    );
+    let mut next = cursor;
+    let chunks = chunks
+        .into_iter()
+        .map(|(stream, bytes)| {
+            let chunk = McpExecutionChunk {
+                stream: stream.into(),
+                cursor: next,
+                data: URL_SAFE_NO_PAD.encode(&bytes),
+            };
+            next = next.saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
+            chunk
+        })
+        .collect();
+    node.send(&NodeToServer::McpExecutionStatusResult {
+        request_id,
+        process_id,
+        status: status.into(),
+        chunks,
+        next_cursor: next,
+        truncated_before_cursor: 0,
+        output_pending: false,
+        exit_code,
+        signal: signal.into(),
+        error: String::new(),
+    })
+    .await?;
+    Ok(())
+}
+
+pub async fn accept_operation(node: &mut ServerTransport) -> anyhow::Result<ServerToNode> {
+    let message = recv(node).await?;
+    let (request_id, process_id) = match &message {
+        ServerToNode::McpExecutionInput {
+            request_id,
+            process_id,
+            ..
+        }
+        | ServerToNode::McpExecutionSignal {
+            request_id,
+            process_id,
+            ..
+        } => (request_id.clone(), process_id.clone()),
+        other => anyhow::bail!("expected MCP process operation, got {other:?}"),
+    };
+    node.send(&NodeToServer::McpExecutionOperationResult {
+        request_id,
+        process_id,
+        accepted: true,
+        error: String::new(),
+    })
+    .await?;
+    Ok(message)
+}
+
 fn seed(
     state: &AppState,
     db_path: &std::path::Path,
@@ -142,7 +218,7 @@ fn seed(
         identity_public_key: node.identity_public_key()?,
         transport_public_key: node.transport_public_key()?,
         version: "0.18.0-test".into(),
-        capabilities: vec!["process".into(), "webrtc".into()],
+        capabilities: vec!["process".into(), "execution-v2".into(), "webrtc".into()],
     })?;
     Ok(())
 }

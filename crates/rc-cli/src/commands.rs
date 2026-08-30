@@ -1,6 +1,7 @@
 mod node;
 pub(crate) mod node_runtime;
 mod remote;
+mod schedule;
 mod ssh;
 mod terminal;
 mod update;
@@ -36,21 +37,29 @@ pub async fn run(command: Option<Command>) -> Result<()> {
             url,
             token,
             state_dir,
+            shell_source,
             command,
         }) => {
             if let Some(device) = device {
-                if command.is_empty() {
+                if let Some(script) = shell_source {
+                    if !command.is_empty() {
+                        bail!("--shell cannot be combined with exact argv after --");
+                    }
+                    remote::run_shell(device, script, url, token).await
+                } else if command.is_empty() {
                     bail!("usage: rc run DEVICE -- COMMAND [ARG...]");
+                } else {
+                    remote::run(device, command, url, token).await
                 }
-                remote::run(device, command, url, token).await
             } else {
-                if !command.is_empty() {
+                if !command.is_empty() || shell_source.is_some() {
                     bail!("remote command requires a DEVICE");
                 }
                 node_runtime::run(url, state_dir)
             }
         }
         Some(Command::Shell { device, url, token }) => remote::shell(device, url, token).await,
+        Some(Command::Schedule { command }) => schedule::run(command).await,
         Some(Command::SshKey { command }) => ssh::key(command).await,
         Some(Command::SshConfig { url, token }) => ssh::config(url, token).await,
         Some(Command::SshProxy { url }) => ssh::proxy(url).await,

@@ -1,7 +1,7 @@
 use super::{fixture::Harness, support};
 use rc_node::{NodeRuntime, ServerTransport};
 use rc_protocol::{NodeToServer, ServerToNode};
-use std::{path::PathBuf, time::Duration};
+use std::{sync::Arc, time::Duration};
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -67,11 +67,11 @@ pub(super) async fn exercise(
     let runtime_node = harness.node.clone();
     let runtime_task = tokio::spawn(async move {
         let (process_policy, transport_policy) = crate::policies::pair();
-        let mut runtime = NodeRuntime::new(
-            PathBuf::from("/unused-process-runner"),
+        let mut runtime = NodeRuntime::with_execution_manager(
             std::env::temp_dir().join(format!("rc-runtime-state-{}", Uuid::new_v4())),
             process_policy,
             transport_policy,
+            |sink| Arc::new(crate::mock_execution::MockExecutionManager::new(sink)),
         );
         runtime
             .connect_once(&runtime_base, &runtime_node, "runtime-test")

@@ -24,6 +24,7 @@ rand.workspace = true
 rc-crypto = { path = "../rc-crypto" }
 rc-context = { path = "../rc-context" }
 rc-mesh = { path = "../rc-mesh" }
+rc-platform.workspace = true
 rc-protocol = { path = "../rc-protocol" }
 reqwest.workspace = true
 rusqlite.workspace = true

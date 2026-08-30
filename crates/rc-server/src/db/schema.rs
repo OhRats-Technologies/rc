@@ -17,6 +17,7 @@ CREATE TABLE ssh_keys(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users
 CREATE TABLE mcp_clients(id TEXT PRIMARY KEY,name TEXT NOT NULL,redirect_uris TEXT NOT NULL,created_at INTEGER NOT NULL);
 CREATE TABLE mcp_requests(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,client_id TEXT NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,redirect_uri TEXT NOT NULL,state TEXT NOT NULL,scope TEXT NOT NULL,code_challenge TEXT NOT NULL,resource TEXT NOT NULL,prepared_grant TEXT,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL);
 CREATE TABLE mcp_grants(id TEXT PRIMARY KEY,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,client_id TEXT NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,name TEXT NOT NULL,grant TEXT NOT NULL,grant_signature TEXT NOT NULL,client_control_id TEXT NOT NULL,credential_id TEXT NOT NULL,control_grant TEXT NOT NULL,control_assertion TEXT NOT NULL,created_at INTEGER NOT NULL,expires_at INTEGER NOT NULL,last_used INTEGER,revoked_at INTEGER);
+CREATE TABLE schedule_grants(schedule_id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,spec_hash TEXT NOT NULL,max_runtime_ms INTEGER NOT NULL,expires_at INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
 CREATE TABLE oauth_codes(code_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,redirect_uri TEXT NOT NULL,code_challenge TEXT NOT NULL,resource TEXT NOT NULL,expires_at INTEGER NOT NULL);
 CREATE TABLE oauth_tokens(token_hash TEXT PRIMARY KEY,grant_id TEXT NOT NULL REFERENCES mcp_grants(id) ON DELETE CASCADE,kind TEXT NOT NULL CHECK(kind IN ('access','refresh')),expires_at INTEGER NOT NULL);
 CREATE TABLE request_nonces(principal TEXT NOT NULL,nonce_hash TEXT NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(principal,nonce_hash));
@@ -28,7 +29,8 @@ CREATE INDEX idx_devices_workspace ON devices(workspace_id);
 CREATE INDEX idx_processes_device ON processes(device_id,created_at DESC);
 CREATE INDEX idx_events_workspace ON events(workspace_id,created_at DESC);
 CREATE INDEX idx_nonces_expiry ON request_nonces(expires_at);
-PRAGMA user_version=2;
+CREATE INDEX idx_schedule_grants_workspace ON schedule_grants(workspace_id,schedule_id);
+PRAGMA user_version=3;
 COMMIT;
 "#;
 
@@ -37,5 +39,13 @@ BEGIN IMMEDIATE;
 CREATE TABLE runtime_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
 INSERT INTO runtime_settings(key,value) VALUES('execution_history','none');
 PRAGMA user_version=2;
+COMMIT;
+"#;
+
+pub(super) const MIGRATE_2_TO_3: &str = r#"
+BEGIN IMMEDIATE;
+CREATE TABLE schedule_grants(schedule_id TEXT PRIMARY KEY,workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,spec_hash TEXT NOT NULL,max_runtime_ms INTEGER NOT NULL,expires_at INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL);
+CREATE INDEX idx_schedule_grants_workspace ON schedule_grants(workspace_id,schedule_id);
+PRAGMA user_version=3;
 COMMIT;
 "#;

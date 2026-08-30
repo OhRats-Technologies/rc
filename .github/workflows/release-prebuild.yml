@@ -9,6 +9,7 @@ on:
       - Cargo.lock
       - crates/**
       - public/install.sh
+      - public/install.ps1
       - scripts/check-version.sh
       - .github/workflows/release-prebuild.yml
 
@@ -41,6 +42,10 @@ jobs:
             target: x86_64-apple-darwin
             os: darwin
             arch: amd64
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            os: windows
+            arch: amd64
     runs-on: ${{ matrix.runner }}
     env:
       CARGO_INCREMENTAL: "0"
@@ -53,6 +58,7 @@ jobs:
           toolchain: "1.98.0"
           targets: ${{ matrix.target }}
       - name: Verify Rust target
+        shell: bash
         env:
           TARGET: ${{ matrix.target }}
         run: rustup target list --installed | grep -Fx "$TARGET"
@@ -89,16 +95,24 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
         run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
+      - name: Build RC on Windows
+        if: runner.os == 'Windows'
+        env:
+          RUSTFLAGS: -D warnings
+        run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
       - name: Package RC
+        shell: bash
         env:
           TARGET: ${{ matrix.target }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p dist/package
-          cp "target/$TARGET/release/rc" dist/package/rc
-          chmod 0755 dist/package/rc
-          tar -C dist/package -czf "dist/rc-$OS-$ARCH.tar.gz" rc
+          suffix=""
+          test "$OS" != windows || suffix=.exe
+          cp "target/$TARGET/release/rc$suffix" "dist/package/rc$suffix"
+          test "$OS" = windows || chmod 0755 dist/package/rc
+          tar -C dist/package -czf "dist/rc-$OS-$ARCH.tar.gz" "rc$suffix"
       - uses: actions/upload-artifact@v7
         with:
           name: rc-${{ matrix.os }}-${{ matrix.arch }}

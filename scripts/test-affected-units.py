@@ -50,6 +50,8 @@ class AffectedUnitsTests(unittest.TestCase):
                 "diagnostics-reporter",
                 "diagnostics-store",
                 "diagnostics-ui",
+                "execution-runtime",
+                "scheduler",
             ],
         )
 
@@ -68,7 +70,9 @@ class AffectedUnitsTests(unittest.TestCase):
                 "authority-store",
                 "device-store",
                 "events-store",
+                "execution-runtime",
                 "identity-store",
+                "scheduler",
                 "ssh-policy-store",
                 "storage-fixture",
                 "workspace-store",
@@ -78,7 +82,9 @@ class AffectedUnitsTests(unittest.TestCase):
     def test_process_wit_change_rebuilds_kernel_and_policy(self) -> None:
         value = self.resolve("wit/deps/process/process.wit")
         self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["process-policy"])
+        self.assertEqual(
+            value["components"], ["execution-runtime", "process-policy", "scheduler"]
+        )
 
     def test_mesh_wit_change_rebuilds_mesh_policy_units(self) -> None:
         value = self.resolve("wit/deps/mesh/mesh.wit")
@@ -122,6 +128,11 @@ class AffectedUnitsTests(unittest.TestCase):
             value["components"],
             ["transport-test", "transport-webrtc"],
         )
+
+    def test_node_smoke_change_selects_its_complete_runtime(self) -> None:
+        value = self.resolve("scripts/smoke-node-components.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["diagnostics-store", "execution-runtime", "process-policy", "scheduler", "shell", "transport-test", "transport-webrtc"])
 
     def test_identity_wit_change_rebuilds_identity_units(self) -> None:
         value = self.resolve("wit/deps/identity/identity.wit")

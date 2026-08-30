@@ -7,7 +7,6 @@ on:
       - wit/**
       - components/artifact-cache-local/**
       - components/package-manager/**
-      - components/artifact-cache-local/**
       - components/local-source/**
       - components/http-source/**
       - components/oci-source/**
@@ -16,12 +15,17 @@ on:
       - components/diagnostics-reporter/**
       - components/diagnostics-cli/**
       - components/process-policy/**
+      - components/execution-runtime/**
+      - components/scheduler/**
+      - components/shell/**
       - components/transport-webrtc/**
       - components/updater/**
       - packaging/build-core-bundle.sh
       - packaging/build-legacy-core-bundle.sh
       - scripts/build-component.sh
       - scripts/check-component.sh
+      - scripts/profile-components.py
+      - profiles/core.toml
       - .github/workflows/core-components.yml
 
 permissions:
@@ -57,6 +61,9 @@ jobs:
             components/diagnostics-reporter -> target
             components/diagnostics-cli -> target
             components/process-policy -> target
+            components/execution-runtime -> target
+            components/scheduler -> target
+            components/shell -> target
             components/transport-webrtc -> target
             components/updater -> target
           shared-key: rc-core-components
@@ -67,7 +74,7 @@ jobs:
             artifact-cache-local \
             package-manager local-source http-source oci-source github-source \
             diagnostics-store diagnostics-reporter diagnostics-cli \
-            process-policy transport-webrtc updater
+            process-policy execution-runtime scheduler shell transport-webrtc updater
           do
             scripts/check-component.sh "$component"
           done
@@ -75,7 +82,8 @@ jobs:
         run: |
           packaging/build-core-bundle.sh
           packaging/build-legacy-core-bundle.sh
-          test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '\.wasm$')" -eq 12
+          expected=$(python3 scripts/profile-components.py core | wc -l)
+          test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '\.wasm$')" -eq "$expected"
           test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '^profile.lock$')" -eq 1
           tar -xOf dist/rc-core-profile.tar.gz profile.lock | grep -Fx 'profile ohrats:core'
           test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 10

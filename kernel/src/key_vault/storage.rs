@@ -16,7 +16,10 @@ pub(super) fn load(
 ) -> Result<Option<[u8; KEY_BYTES]>, String> {
     let path = key_path(state, slot, algorithm)?;
     match fs::symlink_metadata(&path) {
-        Ok(metadata) => validate_metadata(&metadata)?,
+        Ok(metadata) => {
+            validate_metadata(&metadata)?;
+            rc_platform::validate_private_path(&path, false).map_err(display)?;
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(error) => return Err(error.to_string()),
     }
@@ -114,13 +117,6 @@ fn validate_metadata(metadata: &fs::Metadata) -> Result<(), String> {
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err("protected key path is not a regular file".into());
     }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        if metadata.permissions().mode() & 0o077 != 0 {
-            return Err("protected key file permissions are too broad".into());
-        }
-    }
     Ok(())
 }
 
@@ -133,6 +129,7 @@ fn write_private(path: &Path, bytes: &[u8]) -> Result<(), String> {
         options.mode(0o600);
     }
     let mut file = options.open(path).map_err(display)?;
+    rc_platform::protect_private_path(path, false).map_err(display)?;
     file.write_all(bytes).map_err(display)?;
     file.sync_all().map_err(display)
 }

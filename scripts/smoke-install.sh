@@ -36,8 +36,8 @@ chmod 0755 "$fixture/rc" "$fixture/rc-kernel"
 tar -C "$fixture" -czf "$fixture/rc-linux-amd64.tar.gz" rc
 tar -C "$fixture" -czf "$fixture/rc-kernel-linux-amd64.tar.gz" rc-kernel
 
-for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store github-source \
-  http-source local-source oci-source package-manager process-policy transport-webrtc updater; do
+for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store execution-runtime github-source \
+  http-source local-source oci-source package-manager process-policy scheduler shell transport-webrtc updater; do
   printf 'fixture:%s\n' "$name" > "$fixture/components/$name.wasm"
 done
 "$root/packaging/build-core-bundle.sh" "$fixture/rc-core-profile.tar.gz" \
@@ -107,8 +107,8 @@ echo 'RC 0.9.0'
 EOF
 chmod 0755 "$old_rc"
 cp "$fixture/rc-kernel" "$fixture/home/.local/bin/rc-kernel"
-for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store github-source \
-  http-source local-source oci-source package-manager process-policy transport-webrtc updater; do
+for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store execution-runtime github-source \
+  http-source local-source oci-source package-manager process-policy scheduler shell transport-webrtc updater; do
   printf 'old:%s\n' "$name" > "$fixture/home/.local/share/rc/components/$name.wasm"
   printf 'sha256:%s\n' "$(hash_file "$fixture/home/.local/share/rc/components/$name.wasm")" \
     > "$fixture/home/.local/share/rc/components/$name.core"
@@ -133,6 +133,8 @@ test -f "$fixture/home/.local/share/rc/components/package-manager.core"
 test ! -e "$fixture/home/.local/share/rc/components/package-manager.managed"
 test -f "$fixture/home/.local/share/rc/components/artifact-cache-local.wasm"
 test -f "$fixture/home/.local/share/rc/components/updater.wasm"
+test -f "$fixture/home/.local/share/rc/components/scheduler.wasm"
+test -f "$fixture/home/.local/share/rc/components/shell.wasm"
 
 mkdir -p "$fixture/legacy-home/.local/bin" "$fixture/legacy-data/components"
 PATH="$fixture/bin:$PATH" HOME="$fixture/legacy-home" RC_INSTALL_FIXTURE="$fixture" \

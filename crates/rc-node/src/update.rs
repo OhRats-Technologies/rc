@@ -89,11 +89,15 @@ pub fn exec_current() -> io::Result<()> {
     }
     #[cfg(not(unix))]
     {
-        let _ = executable;
-        Err(io::Error::new(
-            io::ErrorKind::Unsupported,
-            "in-place restart is unsupported",
-        ))
+        let replacement = rc_platform::active_runtime_dir()
+            .map(|directory| directory.join(rc_platform::executable_name("rc-kernel")))
+            .filter(|path| path.is_file())
+            .unwrap_or(executable);
+        Command::new(replacement)
+            .args(std::env::args_os().skip(1))
+            .envs(std::env::vars_os())
+            .spawn()?;
+        std::process::exit(0)
     }
 }
 

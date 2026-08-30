@@ -1,3 +1,7 @@
+#![cfg(unix)]
+
+#[path = "support/mock_execution.rs"]
+mod mock_execution;
 mod policies;
 #[path = "control_authority/support.rs"]
 mod support;
@@ -6,11 +10,11 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rand::{RngCore, rngs::OsRng};
 use rc_crypto::sign_ed25519_seed;
 use rc_node::{
-    ControlManager, LockError, NodeState, ProcessManager, bootstrap_lock, load_lock, snapshot_hash,
-    sync_lock, verify_control_proof,
+    ControlManager, ExecutionManager, LockError, NodeState, bootstrap_lock, load_lock,
+    snapshot_hash, sync_lock, verify_control_proof,
 };
 use rc_protocol::{AuthorityApiKey, NodeToServer, ServerToNode};
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 use support::{fixture, recv_hosted, temp_dir};
 use tokio::sync::mpsc;
 
@@ -123,10 +127,7 @@ async fn live_passkey_session_is_revoked_by_owner_lock_transition() -> anyhow::R
     let initial = serde_json::to_string(&fixture.snapshot)?;
     bootstrap_lock(&dir, &initial, "https://rc.ohrats.party")?;
     let node = NodeState::generate("device".into());
-    let processes = Arc::new(ProcessManager::new(
-        PathBuf::from(env!("CARGO_BIN_EXE_rc-process-runner")),
-        |_| {},
-    ));
+    let processes = Arc::new(mock_execution::MockExecutionManager::new(Arc::new(|_| {})));
     let (outbound, mut hosted) = mpsc::unbounded_channel();
     let (process_policy, transport_policy) = policies::pair();
     let control = ControlManager::new(
@@ -137,6 +138,7 @@ async fn live_passkey_session_is_revoked_by_owner_lock_transition() -> anyhow::R
         "test",
         process_policy,
         transport_policy,
+        rc_node::unavailable_schedule_manager(),
     );
 
     control

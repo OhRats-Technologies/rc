@@ -1,6 +1,6 @@
 use crate::{config, node, runtime::Runtime, server, watch};
 use clap::{Parser, Subcommand};
-use std::{net::SocketAddr, path::PathBuf};
+use std::{io::Write as _, net::SocketAddr, path::PathBuf};
 
 #[derive(Parser)]
 #[command(
@@ -50,8 +50,6 @@ enum KernelCommand {
         #[arg(long)]
         server: Option<String>,
         #[arg(long)]
-        runner: Option<PathBuf>,
-        #[arg(long)]
         agent_version: Option<String>,
     },
     #[command(hide = true)]
@@ -62,12 +60,31 @@ enum KernelCommand {
     CryptoCheck,
     #[command(hide = true)]
     CryptoProbe,
+    #[command(hide = true)]
+    ArgvFixture {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        values: Vec<String>,
+    },
+    #[command(hide = true)]
+    TextFixture { value: String },
 }
 
 pub fn run() -> anyhow::Result<()> {
     let arguments = Arguments::parse();
     if arguments.version {
         println!("RC kernel {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+    if let Some(KernelCommand::ArgvFixture { values }) = &arguments.command {
+        let mut output = std::io::stdout().lock();
+        for value in values {
+            output.write_all(&(value.len() as u64).to_le_bytes())?;
+            output.write_all(value.as_bytes())?;
+        }
+        return Ok(());
+    }
+    if let Some(KernelCommand::TextFixture { value }) = &arguments.command {
+        print!("{value}");
         return Ok(());
     }
     let directory = arguments
@@ -99,14 +116,12 @@ pub fn run() -> anyhow::Result<()> {
         Some(KernelCommand::Node {
             state_dir,
             server,
-            runner,
             agent_version,
         }) => node::run(
             runtime,
             node::Options {
                 state_dir,
                 server,
-                runner,
                 agent_version,
             },
         ),
@@ -114,6 +129,8 @@ pub fn run() -> anyhow::Result<()> {
         Some(KernelCommand::PolicyProbe) => node::probe(runtime),
         Some(KernelCommand::CryptoCheck) => node::crypto_check(&runtime),
         Some(KernelCommand::CryptoProbe) => node::crypto_probe(runtime),
+        Some(KernelCommand::ArgvFixture { .. }) => unreachable!("handled before runtime startup"),
+        Some(KernelCommand::TextFixture { .. }) => unreachable!("handled before runtime startup"),
         None => dispatch_plugin(&mut runtime, arguments.plugin_args),
     }
 }

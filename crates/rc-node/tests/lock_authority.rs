@@ -1,5 +1,7 @@
-use rc_node::{LockError, api_control_authority, bootstrap_lock, load_lock, lock_metadata};
-use rc_protocol::{AuthorityApiKey, AuthorityMember, AuthoritySnapshot};
+use rc_node::{
+    LockError, api_control_authority, bootstrap_lock, load_lock, lock_metadata, schedule_authority,
+};
+use rc_protocol::{AuthorityApiKey, AuthorityMember, AuthorityScheduleGrant, AuthoritySnapshot};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn snapshot(expires_at: i64) -> String {
@@ -20,6 +22,7 @@ fn snapshot(expires_at: i64) -> String {
             expires_at,
         }],
         mcp_grants: Vec::new(),
+        schedule_grants: Vec::new(),
     })
     .unwrap()
 }
@@ -44,6 +47,7 @@ fn lock_bootstrap_is_tofu_and_reports_metadata() -> anyhow::Result<()> {
         members: Vec::new(),
         api_keys: Vec::new(),
         mcp_grants: Vec::new(),
+        schedule_grants: Vec::new(),
     })?;
     bootstrap_lock(&dir, &second, "https://evil.invalid")?;
     assert_eq!(load_lock(&dir)?.snapshot, first);
@@ -87,6 +91,33 @@ fn api_control_authority_rejects_expired_keys() -> anyhow::Result<()> {
     assert_eq!(authority.role, "owner");
     assert!(authority.can_execute);
     assert!(authority.can_manage_devices);
+    let _ = std::fs::remove_dir_all(dir);
+    Ok(())
+}
+
+#[test]
+fn schedule_authority_binds_device_owner_and_spec_hash() -> anyhow::Result<()> {
+    let dir = temp_dir("schedule");
+    let mut value: AuthoritySnapshot = serde_json::from_str(&snapshot(0))?;
+    value.schedule_grants.push(AuthorityScheduleGrant {
+        schedule_id: "schedule-1".into(),
+        device_id: "device-1".into(),
+        user_id: "user".into(),
+        spec_hash: "sha256:fixture".into(),
+        max_runtime_ms: 60_000,
+        expires_at: 0,
+    });
+    bootstrap_lock(
+        &dir,
+        &serde_json::to_string(&value)?,
+        "https://rc.example.test",
+    )?;
+    let grant = schedule_authority(&dir, "schedule-1", "device-1", "sha256:fixture")?;
+    assert_eq!(grant.max_runtime_ms, 60_000);
+    assert!(matches!(
+        schedule_authority(&dir, "schedule-1", "device-1", "sha256:wrong"),
+        Err(LockError::ScheduleGrant)
+    ));
     let _ = std::fs::remove_dir_all(dir);
     Ok(())
 }

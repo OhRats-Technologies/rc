@@ -1,12 +1,13 @@
 # Installation
 
-The public installer is POSIX `sh`. It downloads the platform `rc` archive,
+The public installers are POSIX `install.sh` and Windows PowerShell
+`install.ps1`. They download the platform `rc` archive,
 matching kernel archive, and the core component asset from the immutable GitHub
 release returned by the release API. GitHub SHA-256 digests are required and
 verified before any archive is read or activated.
 
 Current releases publish `rc-core-profile.tar.gz`. It contains exactly
-`profile.lock` plus the twelve files under `components/` in the core profile.
+`profile.lock` plus the exact files declared by the core profile.
 The lock is line-oriented:
 
 ```text
@@ -29,6 +30,34 @@ in `~/.local/share/rc/components`. `RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`,
 `RC_COMPONENT_DIR`, and `RC_STATE_DIR` provide explicit test or packaging
 locations.
 
+On Windows, run the signed release copy of `install.ps1` as the enrolled user.
+Defaults live under `%LOCALAPPDATA%\OhRats\RC`. The installer stages the native
+pair under `data\runtime\versions\VERSION`, validates it with the staged core
+profile, and atomically changes `data\runtime\active`. The controller remains
+at `bin\rc.exe`; service registration resolves the versioned active kernel.
+Installer-owned runtime, component, state, rollback, binary, and staging
+directories receive protected DACLs for the enrolled user, SYSTEM, and local
+Administrators before artifacts are written.
+The previous activation pointer, stable controller, and managed core component
+set are retained for interruption recovery. Activation writes a durable
+journal only after that rollback snapshot is complete; a later installer or
+`rc upgrade` restores it before new work if interruption left the journal.
+If the running stable Windows controller itself must be rolled back, RC stages
+a post-exit helper, exits with a rerun instruction, and leaves the journal until
+that helper commits the replacement.
+When `rc upgrade` is itself running from `bin\rc.exe`, a staged external
+PowerShell helper waits for that process to exit before replacing the stable
+controller image; RC never renames over its running Windows executable.
+The active and previous runtime generations remain available for rollback;
+after activation commits, RC removes only older semantic-version directories.
+CLI and independently versioned kernel downgrades are rejected separately.
+
+The normal Windows Node is a per-user interactive Task Scheduler task. It
+starts at that user's logon and runs only while an interactive user session is
+available; it is not an unattended machine service and never runs as
+LocalSystem. A future unattended service mode requires a separately reviewed
+identity and filesystem-authority model.
+
 Activation uses same-filesystem temporary files and retains the previous native
 pair and installer-owned core component files under
 `~/.local/share/rc/rollback/previous`. `.core` markers are distinct from package
@@ -40,6 +69,9 @@ Run the deterministic installer smoke with:
 ```sh
 sh scripts/smoke-install.sh
 ```
+
+PowerShell syntax and native Windows runtime integration are gated in
+`windows-latest` CI.
 
 Build release core assets with:
 

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Deserialize)]
 pub struct Device {
     pub id: String,
+    #[serde(default)]
+    pub workspace_id: String,
     pub name: String,
     #[serde(default, rename = "workspace_name")]
     pub workspace: String,

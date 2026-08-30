@@ -3,9 +3,11 @@ mod commands;
 mod component_cli;
 mod control_client;
 mod help;
+mod schedule_cli;
 mod service;
 
 use clap::{CommandFactory, Parser, Subcommand};
+use schedule_cli::ScheduleCommand;
 
 #[derive(Parser)]
 #[command(
@@ -93,6 +95,9 @@ enum Command {
         /// Override the local RC state directory when running the local Node.
         #[arg(long = "state-dir")]
         state_dir: Option<String>,
+        /// Execute portable RC Shell source instead of exact argv.
+        #[arg(long = "shell", value_name = "SCRIPT")]
+        shell_source: Option<String>,
         /// Command and arguments to execute remotely.
         #[arg(last = true)]
         command: Vec<String>,
@@ -107,6 +112,11 @@ enum Command {
         /// Explicit proof-of-possession API credential.
         #[arg(long)]
         token: Option<String>,
+    },
+    /// Manage durable schedules on a remote device.
+    Schedule {
+        #[command(subcommand)]
+        command: ScheduleCommand,
     },
     /// Register and manage OpenSSH public keys for RC SSH compatibility.
     #[command(name = "ssh-key")]
@@ -229,9 +239,6 @@ enum ServiceCommand {
 
 #[tokio::main]
 async fn main() {
-    if std::env::args().nth(1).as_deref() == Some("__process-runner") {
-        std::process::exit(rc_node::run_process_runner());
-    }
     let args = std::env::args_os().collect::<Vec<_>>();
     if help::top_level_requested(&args) {
         help::print(&Cli::command());

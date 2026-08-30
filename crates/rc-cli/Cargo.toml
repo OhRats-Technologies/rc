@@ -24,6 +24,7 @@ rc-api-client = { path = "../rc-api-client" }
 rc-crypto = { path = "../rc-crypto" }
 rc-mesh = { path = "../rc-mesh" }
 rc-node = { path = "../rc-node" }
+rc-platform.workspace = true
 rc-protocol = { path = "../rc-protocol" }
 reqwest.workspace = true
 serde.workspace = true
@@ -32,3 +33,11 @@ tokio.workspace = true
 tokio-tungstenite.workspace = true
 url.workspace = true
 webrtc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_System_Console",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }

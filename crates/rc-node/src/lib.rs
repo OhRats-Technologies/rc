@@ -7,6 +7,7 @@ mod policy;
 mod process;
 mod run_lock;
 mod runtime;
+mod schedule;
 mod state;
 mod transport;
 mod update;
@@ -20,9 +21,18 @@ pub use policy::*;
 pub use process::*;
 pub use run_lock::*;
 pub use runtime::*;
+pub use schedule::*;
 pub use state::*;
 pub use transport::*;
 pub use update::*;
 
 pub const DEFAULT_SERVER: &str = "https://rc.ohrats.party";
-pub const NODE_CAPABILITIES: &[&str] = &["process", "update", "lock", "e2e", "webrtc"];
+pub const NODE_CAPABILITIES: &[&str] = &[
+    "process",
+    "execution-v2",
+    "scheduler",
+    "update",
+    "lock",
+    "e2e",
+    "webrtc",
+];

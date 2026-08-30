@@ -104,13 +104,12 @@ validate_bundle_archive() {
   tar -tvzf "$archive" | awk '$1 !~ /^[-d]/ { exit 1 }' ||
     { echo "core bundle contains a non-file member" >&2; exit 1; }
   awk -v mode="$mode" '
-    function allowed_component(name) {
-      if (name == "diagnostics-cli" || name == "diagnostics-reporter" ||
+    function legacy(name) {
+      return name == "diagnostics-cli" || name == "diagnostics-reporter" ||
         name == "diagnostics-store" || name == "github-source" ||
         name == "http-source" || name == "local-source" ||
         name == "oci-source" || name == "package-manager" ||
-        name == "process-policy" || name == "transport-webrtc") return 1
-      return mode == "profile" && (name == "artifact-cache-local" || name == "updater")
+        name == "process-policy" || name == "transport-webrtc"
     }
     {
       if (seen[$0]++) exit 1
@@ -118,15 +117,15 @@ validate_bundle_archive() {
       if ($0 == "profile.lock") { if (mode != "profile") exit 1; locks++; next }
       if (index($0, "components/") == 1 && $0 ~ /\.wasm$/) {
         name = substr($0, 12); sub(/\.wasm$/, "", name)
-        if (!allowed_component(name)) exit 1
+        if (name !~ /^[a-z0-9-]+$/ || (mode == "legacy" && !legacy(name))) exit 1
         components++
         next
       }
       exit 1
     }
     END {
-      expected = mode == "profile" ? 12 : 10; expected_locks = mode == "profile" ? 1 : 0
-      if (locks != expected_locks || components != expected) exit 1
+      expected_locks = mode == "profile" ? 1 : 0
+      if (locks != expected_locks || components < 1 || (mode == "legacy" && components != 10)) exit 1
     }
   ' "$listing" || { echo "invalid core bundle members" >&2; exit 1; }
 }
@@ -144,10 +143,17 @@ validate_lock() {
       next
     }
     { exit 1 }
-    END { if (count != 12) exit 1 }
+    END { if (count < 1) exit 1 }
   ' "$lock" || { echo "invalid core profile lock" >&2; exit 1; }
 }
-PROFILE_CORE_COMPONENTS="artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc updater"
+validate_profile_members() {
+  lock=$1 components=$2
+  awk '$1 == "component" { print $2 }' "$lock" | LC_ALL=C sort > "$TMPDIR_PATH/lock-components"
+  find "$components" -mindepth 1 -maxdepth 1 -type f -name '*.wasm' -print |
+    sed 's!.*/!!; s/\.wasm$//' | LC_ALL=C sort > "$TMPDIR_PATH/archive-components"
+  cmp -s "$TMPDIR_PATH/lock-components" "$TMPDIR_PATH/archive-components" ||
+    { echo "core bundle members do not match profile.lock" >&2; exit 1; }
+}
 LEGACY_CORE_COMPONENTS="diagnostics-cli diagnostics-reporter diagnostics-store github-source http-source local-source oci-source package-manager process-policy transport-webrtc"
 component_digest() {
   awk -v wanted="$1" '$1 == "component" && $2 == wanted { print $3; exit }' "$TMPDIR_PATH/profile.lock"
@@ -159,7 +165,7 @@ case "$VERSION" in
   *) echo "release has an invalid semantic version" >&2; exit 1 ;;
 esac
 PLATFORM="${OS}-${ARCH}"
-CORE_ASSET=rc-core-profile.tar.gz CORE_MODE=profile CORE_COMPONENTS=$PROFILE_CORE_COMPONENTS
+CORE_ASSET=rc-core-profile.tar.gz CORE_MODE=profile CORE_COMPONENTS=
 if [ -z "$(asset_field "$CORE_ASSET" browser_download_url)" ]; then
   CORE_ASSET=rc-core-components.tar.gz
   CORE_MODE=legacy
@@ -178,6 +184,8 @@ tar -xzf "$TMPDIR_PATH/$CORE_ASSET" -C "$TMPDIR_PATH/new"
 if [ "$CORE_MODE" = profile ]; then
   mv "$TMPDIR_PATH/new/profile.lock" "$TMPDIR_PATH/profile.lock"
   validate_lock "$TMPDIR_PATH/profile.lock"
+  validate_profile_members "$TMPDIR_PATH/profile.lock" "$TMPDIR_PATH/new/components"
+  CORE_COMPONENTS=$(awk '$1 == "component" { print $2 }' "$TMPDIR_PATH/profile.lock")
 fi
 for name in $CORE_COMPONENTS; do
   file="$TMPDIR_PATH/new/components/$name.wasm"

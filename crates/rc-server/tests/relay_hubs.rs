@@ -77,145 +77,90 @@ async fn ssh_hub_marks_live_sessions_disconnected() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn mcp_hub_preserves_stream_order_and_incremental_cursors() -> anyhow::Result<()> {
+async fn mcp_hub_correlates_status_without_owning_output() -> anyhow::Result<()> {
     let hub = McpHub::default();
-    hub.register("process", "grant", "user", "device")?;
+    let (request_id, receiver) = hub.status_request("device")?;
+    let response = NodeToServer::McpExecutionStatusResult {
+        request_id,
+        process_id: "process".into(),
+        status: "running".into(),
+        chunks: vec![rc_protocol::McpExecutionChunk {
+            stream: "stdout".into(),
+            cursor: 0,
+            data: URL_SAFE_NO_PAD.encode(b"transit only"),
+        }],
+        next_cursor: 12,
+        truncated_before_cursor: 0,
+        output_pending: false,
+        exit_code: None,
+        signal: String::new(),
+        error: String::new(),
+    };
+    hub.handle("device", &response);
+    assert_eq!(receiver.await?, response);
+    Ok(())
+}
 
-    hub.handle(
-        "other-device",
-        &NodeToServer::McpStdout {
-            process_id: "process".into(),
-            data: URL_SAFE_NO_PAD.encode(b"wrong"),
-        },
-    );
-    let empty = hub.result("process", "grant", "user", 0, 0).await?;
-    assert!(empty.chunks.is_empty());
+#[test]
+fn mcp_hub_owns_no_process_state_across_disconnect() {
+    let hub = McpHub::default();
+    assert!(hub.release_device("device").is_empty());
+}
 
-    hub.handle(
-        "device",
-        &NodeToServer::McpStdout {
-            process_id: "process".into(),
-            data: URL_SAFE_NO_PAD.encode(b"out"),
-        },
-    );
-    hub.handle(
-        "device",
-        &NodeToServer::McpStderr {
-            process_id: "process".into(),
-            data: URL_SAFE_NO_PAD.encode(b"err"),
-        },
-    );
-    let output = hub.result("process", "grant", "user", 0, 0).await?;
-    assert_eq!(output.chunks.len(), 2);
-    assert_eq!(output.chunks[0].stream, "stdout");
-    assert_eq!(output.chunks[0].text, "out");
-    assert_eq!(output.chunks[1].stream, "stderr");
-    assert_eq!(output.chunks[1].text, "err");
-    assert_eq!(output.next_cursor, 6);
-    assert_eq!(output.status, "running");
-    assert!(!output.output_pending);
+#[tokio::test]
+async fn mcp_status_recorrelates_after_hosted_hub_restart() -> anyhow::Result<()> {
+    let original = McpHub::default();
+    let (_abandoned_id, abandoned) = original.status_request("device")?;
+    drop(original);
+    assert!(abandoned.await.is_err());
 
-    let incremental = hub.result("process", "grant", "user", 3, 0).await?;
-    assert_eq!(incremental.chunks.len(), 1);
-    assert_eq!(incremental.chunks[0].stream, "stderr");
-    assert_eq!(incremental.chunks[0].text, "err");
-    assert_eq!(incremental.next_cursor, 6);
+    let restarted = McpHub::default();
+    let (request_id, receiver) = restarted.status_request("device")?;
+    let response = NodeToServer::McpExecutionStatusResult {
+        request_id,
+        process_id: "node-owned-process".into(),
+        status: "running".into(),
+        chunks: Vec::new(),
+        next_cursor: 41,
+        truncated_before_cursor: 9,
+        output_pending: false,
+        exit_code: None,
+        signal: String::new(),
+        error: String::new(),
+    };
+    restarted.handle("device", &response);
+    assert_eq!(receiver.await?, response);
+    Ok(())
+}
 
-    assert!(
-        hub.result("process", "other-grant", "user", 0, 0)
-            .await
-            .is_err()
-    );
-    assert!(
-        hub.result("process", "grant", "other-user", 0, 0)
-            .await
-            .is_err()
-    );
-
+#[test]
+fn mcp_exit_is_forwarded_without_a_server_process_registry() {
+    let hub = McpHub::default();
     assert_eq!(
         hub.handle(
             "device",
             &NodeToServer::McpExit {
                 process_id: "process".into(),
-                exit_code: 3,
+                exit_code: 0,
                 signal: String::new(),
             },
         ),
-        Some(("process".into(), 3, String::new()))
+        Some(("process".into(), 0, String::new()))
     );
-    let exited = hub.result("process", "grant", "user", 6, 0).await?;
-    assert_eq!(exited.status, "exited");
-    assert_eq!(exited.exit_code, Some(3));
-    assert_eq!(exited.signal, None);
-    Ok(())
-}
-
-#[tokio::test]
-async fn mcp_hub_rolls_output_forward_instead_of_freezing() -> anyhow::Result<()> {
-    let hub = McpHub::default();
-    hub.register("process", "grant", "user", "device")?;
-    let chunk = vec![b'x'; 16 * 1024];
-    for _ in 0..20 {
-        hub.handle(
-            "device",
-            &NodeToServer::McpStdout {
-                process_id: "process".into(),
-                data: URL_SAFE_NO_PAD.encode(&chunk),
-            },
-        );
-    }
-    let total = 20 * 16 * 1024;
-    let earliest = total - 256 * 1024;
-    let first = hub.result("process", "grant", "user", 0, 0).await?;
-    assert_eq!(first.truncated_before_cursor, earliest);
-    assert_eq!(first.next_cursor, earliest + 64 * 1024);
-    assert!(first.output_pending);
-
-    let newest = hub
-        .result("process", "grant", "user", total - 16 * 1024, 0)
-        .await?;
-    assert_eq!(newest.chunks.len(), 1);
-    assert_eq!(newest.chunks[0].text.len(), 16 * 1024);
-    assert_eq!(newest.next_cursor, total);
-    assert!(!newest.output_pending);
-    Ok(())
-}
-
-#[tokio::test]
-async fn mcp_hub_marks_running_processes_lost_on_disconnect() -> anyhow::Result<()> {
-    let hub = McpHub::default();
-    hub.register("process", "grant", "user", "device")?;
-    assert_eq!(hub.release_device("device"), vec!["process"]);
-    let result = hub.result("process", "grant", "user", 0, 0).await?;
-    assert_eq!(result.status, "lost");
-    assert_eq!(result.error.as_deref(), Some("RC Node disconnected"));
-    Ok(())
 }
 
 #[test]
-fn mcp_cancel_target_is_bound_to_the_originating_grant_and_user() -> anyhow::Result<()> {
+fn mcp_correlation_capacity_rejects_new_work_without_evicting_pending_requests() {
     let hub = McpHub::default();
-    hub.register("process", "grant", "user", "device")?;
-
-    assert_eq!(hub.running_device("process", "grant", "user")?, "device");
-    assert!(
-        hub.running_device("process", "other-grant", "user")
-            .is_err()
-    );
-    assert!(
-        hub.running_device("process", "grant", "other-user")
-            .is_err()
-    );
-    Ok(())
-}
-
-#[test]
-fn mcp_hub_never_evicts_a_live_process_to_make_room() -> anyhow::Result<()> {
-    let hub = McpHub::default();
-    for index in 0..128 {
-        hub.register(&format!("process-{index}"), "grant", "user", "device")?;
+    let mut first = None;
+    for index in 0..4_096 {
+        let (request_id, receiver) = hub.status_request("device").unwrap();
+        if index == 0 {
+            first = Some(request_id);
+        }
+        drop(receiver);
     }
-    assert!(hub.register("overflow", "grant", "user", "device").is_err());
-    assert_eq!(hub.running_device("process-0", "grant", "user")?, "device");
-    Ok(())
+    assert!(hub.status_request("device").is_err());
+    hub.cancel_status_request(first.as_deref().unwrap());
+    assert!(hub.status_request("device").is_ok());
 }

@@ -2,7 +2,38 @@ package ohrats:rc-plugin@0.1.0;
 
 world process-policy {
     include plugin;
-    export ohrats:rc-process/policy@0.2.0;
+    export ohrats:rc-process/policy@0.3.0;
+}
+
+world shell {
+    include plugin;
+    import ohrats:rc-process/process-host@0.3.0;
+    import ohrats:rc-process/environment-host@0.3.0;
+    import ohrats:rc-process/filesystem-host@0.3.0;
+    export ohrats:rc-shell/compiler@0.1.0;
+    export ohrats:rc-shell/executor@0.1.0;
+}
+
+world execution-runtime {
+    include plugin;
+    import ohrats:rc-diagnostics/reporting@0.1.0;
+    import ohrats:rc-process/policy@0.3.0;
+    import ohrats:rc-process/process-host@0.3.0;
+    import ohrats:rc-process/environment-host@0.3.0;
+    import ohrats:rc-process/clock-host@0.3.0;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    import ohrats:rc-shell/executor@0.1.0;
+    export ohrats:rc-process/runtime@0.3.0;
+}
+
+world scheduler {
+    include plugin;
+    import ohrats:rc-diagnostics/reporting@0.1.0;
+    import ohrats:rc-storage/durable-store@0.1.0;
+    import ohrats:rc-process/clock-host@0.3.0;
+    export ohrats:rc-scheduler/evaluator@0.1.0;
+    export ohrats:rc-scheduler/management@0.1.0;
+    export ohrats:rc-scheduler/driver@0.1.0;
 }
 
 world transport-webrtc {

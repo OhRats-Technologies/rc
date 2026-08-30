@@ -1,3 +1,5 @@
+#![cfg(unix)]
+
 #[path = "node_webrtc/bootstrap.rs"]
 mod bootstrap;
 #[path = "node_webrtc/control.rs"]
@@ -6,6 +8,8 @@ mod control;
 mod fixture;
 #[path = "node_webrtc/lifecycle.rs"]
 mod lifecycle;
+#[path = "../../rc-node/tests/support/mock_execution.rs"]
+mod mock_execution;
 #[path = "node_webrtc/policies.rs"]
 mod policies;
 #[path = "node_webrtc/reconnect.rs"]

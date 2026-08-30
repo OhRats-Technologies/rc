@@ -200,16 +200,16 @@ pub fn process(
     let label = format::process_label(process);
     let terminal_body = if interactive {
         format!(
-            "<pre id=\"process-transcript\" class=\"terminal-transcript\">Terminal scrollback is retained in RC Node memory while this process is live.</pre><div id=\"terminal-host\" class=\"terminal-host\" hidden></div><div class=\"mobile-terminal-keys\" aria-label=\"Terminal keys\">{}</div>",
+            "<pre id=\"process-transcript\" class=\"terminal-transcript\" hidden></pre><div id=\"terminal-host\" class=\"terminal-host\" hidden></div><div class=\"mobile-terminal-keys\" aria-label=\"Terminal keys\">{}</div>",
             mobile_keys()
         )
     } else {
         format!(
             "<pre class=\"terminal-transcript\">{}</pre>",
             if terminal {
-                "Terminal content is retained only in RC Node memory while the process is live."
+                "Live terminal content is not available from this page."
             } else {
-                "Process content is not retained by RC."
+                "Live process output is not available from this page."
             }
         )
     };

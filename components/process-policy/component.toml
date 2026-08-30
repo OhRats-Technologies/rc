@@ -2,7 +2,7 @@ schema = 1
 
 [component]
 id = "ohrats:process-policy"
-version = "0.2.0"
+version = "0.3.0"
 world = "ohrats:rc-plugin/process-policy@0.1.0"
 wit = ["node-worlds", "plugin", "process"]
 

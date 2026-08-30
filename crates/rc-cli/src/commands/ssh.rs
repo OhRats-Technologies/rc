@@ -171,9 +171,8 @@ pub(super) async fn proxy(url: Option<String>) -> Result<()> {
 }
 
 fn default_public_key_path() -> std::path::PathBuf {
-    std::env::var_os("HOME")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("."))
+    rc_platform::user_home()
+        .unwrap_or_else(|_| std::path::PathBuf::from("."))
         .join(".ssh/id_ed25519.pub")
 }
 fn server_only(explicit: Option<&str>) -> String {

@@ -64,7 +64,7 @@ wait_code() {
 wait_code /healthz 200 "$directory/health"
 grep -Fx ok "$directory/health" >/dev/null
 wait_code / 200 "$directory/home.html"
-grep -F 'Remote Control<br/><span class="hero-muted">for your machines.</span>' "$directory/home.html" >/dev/null
+grep -F 'Control your machines.<br/><span class="hero-muted">Keep the core small.</span>' "$directory/home.html" >/dev/null
 wait_code /login 404 "$directory/login.html"
 wait_code /setup 404 "$directory/setup.html"
 wait_code /docs 200 "$directory/docs.html"

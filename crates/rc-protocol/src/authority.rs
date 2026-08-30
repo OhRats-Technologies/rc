@@ -38,6 +38,18 @@ pub struct AuthorityMcpGrant {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AuthorityScheduleGrant {
+    pub schedule_id: String,
+    pub device_id: String,
+    pub user_id: String,
+    pub spec_hash: String,
+    pub max_runtime_ms: u64,
+    #[serde(default, skip_serializing_if = "is_zero_i64")]
+    pub expires_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthorityDevice {
     pub id: String,
     pub identity_public_key: String,
@@ -73,6 +85,12 @@ pub struct AuthoritySnapshot {
     pub api_keys: Vec<AuthorityApiKey>,
     #[serde(default, rename = "mcpGrants", skip_serializing_if = "Vec::is_empty")]
     pub mcp_grants: Vec<AuthorityMcpGrant>,
+    #[serde(
+        default,
+        rename = "scheduleGrants",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub schedule_grants: Vec<AuthorityScheduleGrant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

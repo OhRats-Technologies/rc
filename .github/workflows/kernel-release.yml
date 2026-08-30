@@ -13,6 +13,7 @@ on:
       - crates/rc-crypto/**
       - crates/rc-mesh/**
       - crates/rc-node/**
+      - crates/rc-platform/**
       - crates/rc-protocol/**
       - .github/workflows/kernel-release.yml
 
@@ -44,6 +45,10 @@ jobs:
           - runner: macos-15
             target: x86_64-apple-darwin
             os: darwin
+            arch: amd64
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            os: windows
             arch: amd64
     runs-on: ${{ matrix.runner }}
     env:
@@ -94,16 +99,26 @@ jobs:
         run: >-
           cargo build --manifest-path kernel/Cargo.toml --locked --release
           --target ${{ matrix.target }}
+      - name: Build Windows kernel
+        if: runner.os == 'Windows'
+        env:
+          RUSTFLAGS: -D warnings
+        run: >-
+          cargo build --manifest-path kernel/Cargo.toml --locked --release
+          --target ${{ matrix.target }}
       - name: Package kernel
+        shell: bash
         env:
           TARGET: ${{ matrix.target }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
         run: |
           mkdir -p dist/package
-          cp "kernel/target/$TARGET/release/rc-kernel" dist/package/rc-kernel
-          chmod 0755 dist/package/rc-kernel
-          tar -C dist/package -czf "dist/rc-kernel-$OS-$ARCH.tar.gz" rc-kernel
+          suffix=""
+          test "$OS" != windows || suffix=.exe
+          cp "kernel/target/$TARGET/release/rc-kernel$suffix" "dist/package/rc-kernel$suffix"
+          test "$OS" = windows || chmod 0755 dist/package/rc-kernel
+          tar -C dist/package -czf "dist/rc-kernel-$OS-$ARCH.tar.gz" "rc-kernel$suffix"
       - uses: actions/upload-artifact@v7
         with:
           name: rc-kernel-${{ matrix.os }}-${{ matrix.arch }}

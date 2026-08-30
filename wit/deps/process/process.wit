@@ -1,19 +1,12 @@
-package ohrats:rc-process@0.2.0;
+package ohrats:rc-process@0.3.0;
 
 interface types {
-    enum channel {
-        control,
-        ssh,
-        mcp,
-    }
-
-    enum action {
-        attach,
-        input,
-        close-input,
-        resize,
-        signal,
-    }
+    enum channel { control, ssh, mcp, schedule }
+    enum lifetime { attached, managed, scheduled }
+    enum environment-base { inherit, clean }
+    enum signal { interrupt, terminate, kill }
+    enum action { observe, attach, input, close-input, resize, signal }
+    enum stream-kind { stdout, stderr }
 
     record principal {
         user-id: string,
@@ -21,130 +14,152 @@ interface types {
         can-execute: bool,
         can-manage-devices: bool,
     }
-
-    record terminal {
-        cols: u16,
-        rows: u16,
-        term: string,
+    record terminal { cols: u16, rows: u16, term: string }
+    variant execution-mode {
+        argv(tuple<string, list<string>>),
+        rc-shell(string),
+        system-shell(string),
+        system-login-shell,
     }
-
+    record environment-change { name: string, value: option<string> }
+    record environment {
+        base: environment-base,
+        changes: list<environment-change>,
+    }
     record start-request {
-        process-id: string,
-        command: string,
-        cwd: string,
+        execution-id: string,
+        mode: execution-mode,
+        cwd: option<string>,
+        environment: environment,
         terminal: option<terminal>,
         channel: channel,
+        lifetime: lifetime,
         principal: principal,
+        max-runtime-ms: option<u64>,
     }
-
     record start-plan {
-        command: string,
-        cwd: string,
+        mode: execution-mode,
+        cwd: option<string>,
+        environment: environment,
         terminal: option<terminal>,
         scrollback-bytes: u32,
         stdin-chunk-bytes: u32,
         authorization-timeout-ms: u32,
         terminate-grace-ms: u32,
+        reattach-grace-ms: u32,
+        max-runtime-ms: option<u64>,
     }
-
     record access-request {
-        process-id: string,
+        execution-id: string,
         owner-user-id: string,
         action: action,
         principal: principal,
     }
-
-    record resize-request {
-        access: access-request,
-        cols: u16,
-        rows: u16,
-    }
-
-    record terminal-size {
-        cols: u16,
-        rows: u16,
-    }
-
-    record signal-request {
-        access: access-request,
-        signal: string,
-    }
+    record resize-request { access: access-request, cols: u16, rows: u16 }
+    record terminal-size { cols: u16, rows: u16 }
+    record signal-request { access: access-request, signal: signal }
 }
 
 interface policy {
-    use types.{
-        access-request,
-        resize-request,
-        signal-request,
-        start-plan,
-        start-request,
-        terminal-size,
-    };
-
+    use types.{access-request, resize-request, signal, signal-request,
+        start-plan, start-request, terminal-size};
     authorize-start: func(request: start-request) -> result<start-plan, string>;
     authorize-access: func(request: access-request) -> result<_, string>;
     normalize-resize: func(request: resize-request) -> result<terminal-size, string>;
-    normalize-signal: func(request: signal-request) -> result<string, string>;
+    authorize-signal: func(request: signal-request) -> result<signal, string>;
 }
 
-/// Kernel-owned byte-stream resource used by component process managers.
-/// Components never receive ambient file descriptors or arbitrary filesystem access.
-interface stream-host {
-    variant read-result {
-        data(list<u8>),
-        would-block,
-        eof,
-    }
-
-    variant write-result {
-        accepted(u32),
-        would-block,
-    }
-
-    resource byte-stream {
-        read: func(max-bytes: u32) -> result<read-result, string>;
-        write: func(bytes: list<u8>) -> result<write-result, string>;
-        close-write: func() -> result<_, string>;
-        close: func(reason: string);
-    }
-}
-
-/// Kernel-owned process handle. Product authorization and lifecycle policy stay in
-/// components; this adapter performs only the already-approved OS operations.
 interface process-host {
-    use types.{terminal};
-    use stream-host.{byte-stream};
-
-    enum state {
-        starting,
-        running,
-        exited,
-        lost,
-    }
-
+    use types.{environment, signal, terminal};
+    enum state { starting, running, exited, lost }
+    variant read-result { data(list<u8>), would-block, eof }
+    variant write-result { accepted(u32), would-block }
+    record native-exit { code: option<u32>, signal: option<signal> }
     record spawn-request {
-        process-id: string,
-        command: string,
+        program: string,
         args: list<string>,
-        cwd: string,
+        cwd: option<string>,
+        environment: environment,
         terminal: option<terminal>,
     }
-
     record spawned {
-        process: own<process>,
+        child: own<child>,
         stdin: option<own<byte-stream>>,
         stdout: own<byte-stream>,
         stderr: option<own<byte-stream>>,
     }
-
-    resource process {
-        id: func() -> string;
-        state: func() -> state;
-        resize: func(cols: u16, rows: u16) -> result<_, string>;
-        signal: func(signal: string) -> result<_, string>;
-        terminate: func() -> result<_, string>;
+    resource byte-stream {
+        read: func(max-bytes: u32) -> result<read-result, string>;
+        write: func(bytes: list<u8>) -> result<write-result, string>;
+        close-write: func() -> result<_, string>;
         close: func();
     }
+    resource execution-group {
+        spawn: func(request: spawn-request) -> result<spawned, string>;
+        signal: func(signal: signal) -> result<_, string>;
+        resize: func(cols: u16, rows: u16) -> result<_, string>;
+        close: func();
+    }
+    resource child {
+        state: func() -> state;
+        poll-exit: func() -> result<option<native-exit>, string>;
+    }
+    create-group: func(execution-id: string) -> result<execution-group, string>;
+}
 
-    spawn: func(request: spawn-request) -> result<spawned, string>;
+interface environment-host {
+    enum platform-kind { unix, windows }
+    host-platform: func() -> platform-kind;
+    snapshot: func() -> result<list<tuple<string, string>>, string>;
+    find-executable: func(program: string, environment: list<tuple<string, string>>)
+        -> result<option<string>, string>;
+}
+
+interface clock-host {
+    now-unix-ms: func() -> u64;
+    resource timer {
+        wait: func() -> result<_, string>;
+        cancel: func();
+    }
+    arm: func(deadline-unix-ms: u64) -> result<timer, string>;
+}
+
+interface filesystem-host {
+    enum entry-kind { file, directory, symlink, other }
+    record entry { name: string, kind: entry-kind }
+    read: func(path: string, max-bytes: u64) -> result<list<u8>, string>;
+    write: func(path: string, bytes: list<u8>, append: bool) -> result<_, string>;
+    list-directory: func(path: string, max-entries: u32) -> result<list<entry>, string>;
+    create-directory: func(path: string, recursive: bool) -> result<_, string>;
+    remove: func(path: string, recursive: bool) -> result<_, string>;
+    rename: func(source: string, destination: string) -> result<_, string>;
+    current-directory: func() -> result<string, string>;
+}
+
+interface runtime {
+    use types.{signal, start-request, stream-kind, terminal-size};
+    enum execution-state { allocated, starting, running, exited, lost }
+    record output-chunk { kind: stream-kind, cursor: u64, bytes: list<u8> }
+    record exit-result { code: option<u32>, signal: option<signal> }
+    record read-result {
+        state: execution-state,
+        chunks: list<output-chunk>,
+        next-cursor: u64,
+        truncated-before: u64,
+        more: bool,
+        exit: option<exit-result>,
+    }
+    resource execution {
+        id: func() -> string;
+        state: func() -> execution-state;
+        read: func(cursor: u64, max-bytes: u32) -> result<read-result, string>;
+        input: func(bytes: list<u8>) -> result<u32, string>;
+        close-input: func() -> result<_, string>;
+        attach: func(controller-id: string) -> result<_, string>;
+        detach: func(controller-id: string) -> result<_, string>;
+        resize: func(size: terminal-size) -> result<_, string>;
+        signal: func(signal: signal) -> result<_, string>;
+        close: func();
+    }
+    start: func(request: start-request) -> result<execution, string>;
 }

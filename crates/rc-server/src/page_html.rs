@@ -8,14 +8,16 @@ mod landing;
 mod misc;
 mod public_snapshots;
 mod sidebar;
+mod status;
 
 pub use account::{account, api_keys};
 pub use auth::{AuthPage, auth};
 pub use devices::{device, devices, process};
 pub use docs::docs;
-pub use document::{authenticated_document, public_document};
+pub use document::{authenticated_document, authenticated_status_document, public_document};
 pub use landing::landing;
 pub use misc::{activity, cli_login, enroll, error, mcp_page, workspace_access};
+pub use status::{authenticated_not_found, public_not_found};
 
 use crate::UserIdentity;
 

@@ -32,6 +32,7 @@ try {
 let status = page.dataset.processStatus || "", frame = 0;
 let control: ControlSession | null = null, controlGeneration = 0;
 let controlConnecting = false;
+let connectedOnce = false;
 let ctrlNext = false, altNext = false;
 let transportMessage = "", reconnectTimer = 0;
 const clientAlert = qs<HTMLElement>("#process-client-alert"), clientError = qs<HTMLElement>("#process-client-error");
@@ -84,6 +85,27 @@ function stateText(process: RemoteProcess) {
   if (process.status === "starting") return "STARTING"; if (process.status === "running") return "RUNNING";
   if (process.status === "lost") return "LOST"; return process.signal || `EXIT ${process.exit_code ?? "?"}`;
 }
+function showConnectionState(value: "CONNECTING" | "RECONNECTING" | "RUNNING") {
+  if (status !== "running" && value !== "CONNECTING") return;
+  const state = qs<HTMLElement>("#process-state");
+  state.textContent = value;
+  state.classList.toggle("online", value === "RUNNING");
+  terminal.options.cursorBlink = interactive && value === "RUNNING";
+}
+function terminalStart(raw: string) {
+  const value = JSON.parse(raw) as Record<string, unknown>;
+  const mode = value.mode as Record<string, unknown> | undefined;
+  const terminal = value.terminal as Record<string, unknown> | undefined;
+  const cols = terminal?.cols, rows = terminal?.rows;
+  if (mode?.kind !== "systemLoginShell" || typeof cols !== "number" || typeof rows !== "number"
+    || !Number.isInteger(cols) || !Number.isInteger(rows)
+    || cols < 2 || cols > 500 || rows < 2 || rows > 500) {
+    throw new Error("Invalid terminal start intent");
+  }
+  return { mode: { kind: "systemLoginShell" as const }, terminal: {
+    cols, rows, term: "xterm-256color",
+  } };
+}
 async function resync() {
   const { process } = await api<{ process: RemoteProcess }>(`/api/v1/processes/${processId}`);
   status = process.status;
@@ -132,6 +154,7 @@ async function connectControl() {
   if (!interactive || !["starting", "running"].includes(status)) return;
   if (controlConnecting) return;
   controlConnecting = true;
+  showConnectionState(connectedOnce ? "RECONNECTING" : "CONNECTING");
   const generation = ++controlGeneration; control?.close(); control = null;
   try {
     const next = await openControlSession(page.dataset.deviceId || "", showTransport);
@@ -154,15 +177,24 @@ async function connectControl() {
     });
     const key = `rc_process_start_${processId}`, raw = sessionStorage.getItem(key);
     if (raw) {
-      sessionStorage.removeItem(key); const start = JSON.parse(raw) as {
-        command: string; cwd: string; terminal: { cols: number; rows: number; term?: string };
-      };
-      await next.send({ type: "process.start", id: processId, command: start.command, cwd: start.cwd, terminal: start.terminal });
+      sessionStorage.removeItem(key); const start = terminalStart(raw);
+      await next.send({
+        type: "process.start",
+        id: processId,
+        mode: start.mode,
+        environment: { base: "inherit" },
+        terminal: start.terminal,
+      });
     } else {
       terminal.reset();
       await next.send({ type: "process.attach", id: processId });
     }
-  } catch (error) { reportClientError(error); }
+    connectedOnce = true;
+    if (status === "running") showConnectionState("RUNNING");
+  } catch (error) {
+    reportClientError(error);
+    if (status === "running") showConnectionState("RECONNECTING");
+  }
   finally { if (generation === controlGeneration) controlConnecting = false; }
 }
 

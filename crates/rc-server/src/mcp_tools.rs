@@ -2,6 +2,7 @@ mod cancel;
 mod descriptors;
 mod image;
 mod input;
+mod operation;
 mod process;
 
 use crate::{AppState, McpGrantRecord};
@@ -148,16 +149,13 @@ pub(super) fn running_owned_device(
     state: &AppState,
     context: &McpContext,
     process_id: &str,
+    device_id: &str,
 ) -> anyhow::Result<String> {
     if process_id.is_empty() {
         anyhow::bail!("invalid process ID");
     }
-    let device =
-        state
-            .mcp
-            .running_device(process_id, &context.payload.id, &context.payload.user_id)?;
-    require_owned_device(state, context, &device)?;
-    Ok(device)
+    require_owned_device(state, context, device_id)?;
+    Ok(device_id.to_owned())
 }
 
 pub(super) fn complete(

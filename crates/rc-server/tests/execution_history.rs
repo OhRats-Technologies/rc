@@ -105,6 +105,7 @@ fn schema_one_migrates_and_reconciles_interrupted_processes() -> anyhow::Result<
     seed_active_process(&path, "interrupted")?;
     with_connection(&path, |connection| {
         connection.execute("DROP TABLE runtime_settings", [])?;
+        connection.execute("DROP TABLE schedule_grants", [])?;
         connection.execute("PRAGMA user_version=1", [])?;
         Ok(())
     })?;
@@ -116,7 +117,7 @@ fn schema_one_migrates_and_reconciles_interrupted_processes() -> anyhow::Result<
     let version = with_connection(&path, |connection| {
         connection.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
     })?;
-    assert_eq!(version, 2);
+    assert_eq!(version, 3);
     drop(migrated);
     std::fs::remove_dir_all(root)?;
     Ok(())

@@ -18,7 +18,7 @@ Browser / rc CLI
 
 Browser / rc CLI ══ encrypted WebRTC DataChannel ══ Node
 OpenSSH ── hosted SSH gateway ── Node process
-MCP ── OAuth + JSON-RPC/HTTP ── hosted process relay
+MCP ── OAuth + JSON-RPC/HTTP ── hosted execution adapter ── Node registry
 ```
 
 Migration is incomplete while native product code remains on a production
@@ -34,11 +34,12 @@ path. [`ROADMAP.md`](../ROADMAP.md) is the authoritative checklist.
 | Browser/CLI process traffic | WebRTC DataChannel | Node-verified authority | End-to-end encrypted |
 | Node bootstrap/status | HTTPS | Ed25519 Node proof | Control metadata |
 | SSH | WebSocket + OpenSSH | Registered SSH key | Hosted byte relay |
-| MCP | OAuth + JSON-RPC/HTTP | Scoped grant | Hosted bounded relay |
+| MCP | OAuth + JSON-RPC/HTTP | Scoped grant | Hosted transit; Node-owned state/journal |
 
 The server is trusted for identity and authorization. It does not need normal
 browser/CLI terminal plaintext after WebRTC connects. SSH and MCP are explicit
-hosted-relay exceptions.
+hosted-transit exceptions. MCP request correlation is bounded and ephemeral;
+the Node owns execution state and output journals.
 
 The Node owns its long-term identity, transport secret, process runtime, and RC
 Lock. It validates local authority and execution permits before starting a
@@ -106,7 +107,8 @@ Completed execution history is disabled by default.
 commands, cwd, stdin, stdout, stderr, and terminal transcripts remain
 non-persistent.
 
-Node state defaults to `~/.config/rc`:
+Node state defaults to `~/.config/rc` on Unix and
+`%LOCALAPPDATA%\OhRats\RC\state` on Windows:
 
 | File | Contents |
 | --- | --- |
@@ -114,7 +116,7 @@ Node state defaults to `~/.config/rc`:
 | `config.json` | Server URL and optional device name |
 | `account.json` | CLI client identity and signing key |
 | `lock.json` | RC Lock authority |
-| `node.log` | Node service log on macOS |
+| `node.log` | Node service log where the per-user service adapter uses a file |
 
 ## Source ownership during migration
 

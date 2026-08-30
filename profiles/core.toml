@@ -1,0 +1,21 @@
+schema = 1
+
+[profile]
+id = "ohrats:core"
+components = [
+  "artifact-cache-local",
+  "diagnostics-cli",
+  "diagnostics-reporter",
+  "diagnostics-store",
+  "execution-runtime",
+  "github-source",
+  "http-source",
+  "local-source",
+  "oci-source",
+  "package-manager",
+  "process-policy",
+  "scheduler",
+  "shell",
+  "transport-webrtc",
+  "updater",
+]

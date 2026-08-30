@@ -77,6 +77,14 @@ jobs:
           shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
             public/install.sh scripts/*.sh
           actionlint -shellcheck shellcheck .github/workflows/*.yml
+      - name: Parse PowerShell installer
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'public/install.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
       - run: git diff --check
 
   kernel:
@@ -617,6 +625,190 @@ jobs:
           EOF
       - run: cargo test --workspace --all-targets --locked
       - run: sccache --show-stats
+
+  macos-runtime:
+    needs: changes
+    if: >-
+      needs.changes.outputs.legacy-rust == 'true' ||
+      needs.changes.outputs.kernel == 'true' ||
+      contains(needs.changes.outputs.components, 'execution-runtime') ||
+      contains(needs.changes.outputs.components, 'process-policy') ||
+      contains(needs.changes.outputs.components, 'scheduler') ||
+      contains(needs.changes.outputs.components, 'shell') ||
+      contains(needs.changes.outputs.components, 'transport-webrtc')
+    runs-on: macos-15
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          components: clippy
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            kernel -> target
+            components/diagnostics-store -> target
+            components/process-policy -> target
+            components/shell -> target
+            components/execution-runtime -> target
+            components/scheduler -> target
+            components/transport-webrtc -> target
+          shared-key: macos-runtime
+          add-job-id-key: false
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --all-targets --locked
+      - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+      - name: Build portable runtime components
+        run: |
+          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
+            scripts/build-component.sh "components/$component"
+          done
+      - name: Run component-backed runtime conformance natively
+        run: |
+          cargo build --manifest-path kernel/Cargo.toml --locked
+          component_dir="$RUNNER_TEMP/rc-runtime-root/components"
+          mkdir -p "$component_dir"
+          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
+            cp "dist/components/$component.wasm" "$component_dir/"
+          done
+          kernel/target/debug/rc-kernel --component-dir "$component_dir" policy-check
+
+  windows-runtime:
+    needs: changes
+    if: >-
+      needs.changes.outputs.legacy-rust == 'true' ||
+      needs.changes.outputs.kernel == 'true' ||
+      needs.changes.outputs.image == 'true' ||
+      contains(needs.changes.outputs.components, 'execution-runtime') ||
+      contains(needs.changes.outputs.components, 'process-policy') ||
+      contains(needs.changes.outputs.components, 'scheduler') ||
+      contains(needs.changes.outputs.components, 'shell') ||
+      contains(needs.changes.outputs.components, 'transport-webrtc')
+    runs-on: windows-latest
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.98.0"
+          components: rustfmt,clippy
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-runtime
+          add-job-id-key: false
+      - run: cargo fmt --all --check
+      - name: Build Windows execution guard fixture
+        run: >-
+          cargo build --manifest-path kernel/Cargo.toml --locked
+          --features windows-test-fixture --bin rc-windows-execution-guard-fixture
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --all-targets --locked
+      - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
+      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+      - name: Build portable runtime components
+        shell: bash
+        run: |
+          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
+            scripts/build-component.sh "components/$component"
+          done
+      - name: Run component-backed runtime conformance natively
+        shell: pwsh
+        run: |
+          cargo build --manifest-path kernel/Cargo.toml --locked
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $componentDir = Join-Path $env:RUNNER_TEMP 'rc-runtime-root\components'
+          New-Item -ItemType Directory -Force $componentDir | Out-Null
+          'diagnostics-store','process-policy','shell','execution-runtime','scheduler','transport-webrtc' | ForEach-Object {
+            Copy-Item "dist/components/$_.wasm" $componentDir
+          }
+          & 'kernel/target/debug/rc-kernel.exe' --component-dir $componentDir policy-check
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Parse Windows installer natively
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'public/install.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+      - name: Exercise Windows installer archive validation
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'rc-installer-shape'
+          New-Item -ItemType Directory -Force $fixture | Out-Null
+          $env:RC_INSTALL_BIN_DIR = Join-Path $fixture 'bin'
+          $env:RC_DATA_DIR = Join-Path $fixture 'data'
+          $env:RC_COMPONENT_DIR = Join-Path $fixture 'data\components'
+          $env:RC_STATE_DIR = Join-Path $fixture 'state'
+          . ./public/install.ps1 -ValidateFunctionsOnly
+          $private = Join-Path $fixture 'private'
+          Protect-PrivateDirectories @($private)
+          $privateAcl = Get-Acl -LiteralPath $private
+          if (!$privateAcl.AreAccessRulesProtected) { throw 'installer private DACL still inherits' }
+          if ($privateAcl.Access | Where-Object { $_.IdentityReference.Value -in 'Everyone','BUILTIN\Users','NT AUTHORITY\Authenticated Users' }) {
+            throw 'installer private DACL grants a broad principal'
+          }
+          if ((Parse-Kernel-Version 'RC kernel 2.3.0') -ne [version]'2.3.0') {
+            throw 'installer kernel version parser failed'
+          }
+          $pointer = Join-Path $fixture 'atomic-pointer'
+          Atomic-Text $pointer 'old'; Atomic-Text $pointer 'new'
+          if ((Get-Content -Raw $pointer).Trim() -ne 'new' -or (Test-Path "$pointer.new-$PID")) {
+            throw 'installer atomic pointer replacement failed'
+          }
+          $badRelease = [pscustomobject]@{tag_name='v2.3.0';assets=@([pscustomobject]@{
+            name='rc-windows-amd64.tar.gz';browser_download_url='https://github.com/OhRats-Technologies/rc/releases/download/v2.2.0/rc-windows-amd64.tar.gz';digest=('sha256:' + ('0' * 64))
+          })}
+          try { Asset $badRelease 'rc-windows-amd64.tar.gz'; throw 'cross-release asset accepted' }
+          catch { if ($_.Exception.Message -eq 'cross-release asset accepted') { throw } }
+          try { Require-Kernel-NotDowngrade ([version]'2.2.9') ([version]'2.3.0'); throw 'downgrade accepted' }
+          catch { if ($_.Exception.Message -eq 'downgrade accepted') { throw } }
+          $old = Join-Path $Versions '1.0.0'; $current = Join-Path $Versions '2.0.0'
+          $stale = Join-Path $Versions '0.9.0'; $unknown = Join-Path $Versions 'local'
+          New-Item -ItemType Directory -Force $old,$current,$stale,$unknown | Out-Null
+          Remove-StaleVersions $current $old
+          if (!(Test-Path $old) -or !(Test-Path $current) -or (Test-Path $stale) -or !(Test-Path $unknown)) {
+            throw 'installer version cleanup violated retention policy'
+          }
+          Set-Content -NoNewline (Join-Path $fixture 'rc.exe') 'fixture'
+          Push-Location $fixture
+          tar.exe -czf valid.tar.gz rc.exe
+          Require-Single (Join-Path $fixture 'valid.tar.gz') 'rc.exe'
+          Set-Content -NoNewline extra 'extra'
+          tar.exe -czf invalid.tar.gz rc.exe extra
+          $rejected = $false
+          try { Require-Single (Join-Path $fixture 'invalid.tar.gz') 'rc.exe' }
+          catch { $rejected = $true }
+          Pop-Location
+          if (!$rejected) { throw 'installer accepted an extra archive member' }
+          New-Item -ItemType Directory -Force $Bin,$Components,$Runtime,(Join-Path $Backup 'components') | Out-Null
+          Set-Content -NoNewline (Join-Path $Bin 'rc.exe') 'new-cli'
+          Set-Content -NoNewline (Join-Path $Backup 'rc.exe') 'old-cli'
+          Set-Content -NoNewline (Join-Path $Components 'shell.wasm') 'new-shell'
+          Set-Content -NoNewline (Join-Path $Backup 'components\shell.wasm') 'old-shell'
+          Set-Content -NoNewline (Join-Path $Runtime 'installed-version') '2.0.0'
+          Set-Content -NoNewline (Join-Path $Backup 'installed-version') '1.0.0'
+          Atomic-Text $Active 'C:\runtime\new'
+          Atomic-Text $Journal (@{previous='C:\runtime\old';names=@('shell')} | ConvertTo-Json -Compress)
+          Recover-InterruptedActivation
+          if ((Get-Content -Raw (Join-Path $Bin 'rc.exe')) -ne 'old-cli') { throw 'CLI rollback failed' }
+          if ((Get-Content -Raw (Join-Path $Components 'shell.wasm')) -ne 'old-shell') { throw 'component rollback failed' }
+          if ((Get-Content -Raw $Active).Trim() -ne 'C:\runtime\old') { throw 'active runtime rollback failed' }
+          if (Test-Path $Journal) { throw 'activation journal was not cleared after recovery' }
 
   web:
     needs: changes

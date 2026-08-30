@@ -1,7 +1,9 @@
 use sha2::{Digest, Sha256};
+#[cfg(not(windows))]
+use std::{fs::File, io::Write};
 use std::{
-    fs::{self, File},
-    io::{Read, Write},
+    fs,
+    io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
@@ -12,6 +14,7 @@ const JOURNAL: &str = ".rc-kernel-replacement.journal";
 const HEALTH_LIMIT: u64 = 4097;
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
 
+#[cfg(not(windows))]
 pub(super) fn commit(stage: &Path, target: &Path, expected: &str) -> Result<(), String> {
     let parent = target
         .parent()
@@ -64,6 +67,7 @@ pub(super) fn recover(parent: &Path, target: &Path) -> Result<(), String> {
     sync_parent(parent)
 }
 
+#[cfg(not(windows))]
 pub(super) fn write_executable(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let mut file = File::create(path).map_err(|error| format!("stage kernel: {error}"))?;
     file.write_all(bytes)
@@ -79,6 +83,7 @@ pub(super) fn write_executable(path: &Path, bytes: &[u8]) -> Result<(), String> 
     Ok(())
 }
 
+#[cfg(not(windows))]
 fn write_journal(journal: &Path, stage: &Path, backup: &Path, digest: &str) -> Result<(), String> {
     let temporary = journal.with_extension(format!("tmp-{}", std::process::id()));
     write_executable(
@@ -135,6 +140,7 @@ pub(super) fn verify_kernel(path: &Path) -> Result<String, String> {
     Ok(version.into())
 }
 
+#[cfg(not(windows))]
 pub(super) fn validate_digest(value: &str) -> Result<(), String> {
     if value.len() != 71
         || !value.starts_with("sha256:")
@@ -166,6 +172,7 @@ pub(super) fn digest_file(path: &Path) -> Result<String, String> {
         .map_err(|error| format!("read kernel: {error}"))
 }
 
+#[cfg(not(windows))]
 fn sync_file(path: &Path) -> Result<(), String> {
     File::open(path)
         .map_err(|error| format!("open replacement: {error}"))?
@@ -173,9 +180,9 @@ fn sync_file(path: &Path) -> Result<(), String> {
         .map_err(|error| format!("sync replacement: {error}"))
 }
 
-fn sync_parent(path: &Path) -> Result<(), String> {
+fn sync_parent(_path: &Path) -> Result<(), String> {
     #[cfg(unix)]
-    File::open(path)
+    File::open(_path)
         .map_err(|error| format!("open replacement directory: {error}"))?
         .sync_all()
         .map_err(|error| format!("sync replacement directory: {error}"))?;
@@ -184,9 +191,12 @@ fn sync_parent(path: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{digest, recover, verify_kernel};
-    use std::{fs, os::unix::fs::PermissionsExt, path::Path};
+    use super::{digest, recover};
+    #[cfg(unix)]
+    use super::verify_kernel;
+    use std::{fs, path::Path};
 
+    #[cfg(unix)]
     #[test]
     fn rejects_invalid_executable() -> anyhow::Result<()> {
         let directory = tempfile::tempdir()?;
@@ -196,8 +206,10 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(unix)]
     #[test]
     fn accepts_candidate_reported_version() -> anyhow::Result<()> {
+        use std::os::unix::fs::PermissionsExt as _;
         let directory = tempfile::tempdir()?;
         let path = directory.path().join("candidate");
         fs::write(&path, b"#!/bin/sh\nprintf 'RC kernel 0.1.1\\n'\n")?;

@@ -8,13 +8,11 @@ use exports::ohrats::rc_process::policy::Guest as PolicyGuest;
 use ohrats::{
     rc_plugin::types::Service,
     rc_process::types::{
-        AccessRequest, ResizeRequest, SignalRequest, StartPlan, StartRequest, Terminal,
-        TerminalSize,
+        AccessRequest, Channel, EnvironmentBase, ExecutionMode, Lifetime, ResizeRequest, Signal,
+        SignalRequest, StartPlan, StartRequest, Terminal, TerminalSize,
     },
 };
 
-const MAX_COMMAND: usize = 131_072;
-const MAX_CWD: usize = 4_096;
 const MAX_TERM: usize = 128;
 
 struct ProcessPolicy;
@@ -24,14 +22,14 @@ impl Guest for ProcessPolicy {
         Descriptor {
             id: "ohrats:process-policy".into(),
             version: if cfg!(feature = "fixture") {
-                "0.2.1"
+                "0.3.1"
             } else {
-                "0.2.0"
+                "0.3.0"
             }
             .into(),
             provides: vec![Service {
                 name: "ohrats:rc-process/policy".into(),
-                version: "0.2.0".into(),
+                version: "0.3.0".into(),
                 priority: 100,
                 keys: Vec::new(),
             }],
@@ -56,18 +54,18 @@ impl PolicyGuest for ProcessPolicy {
         if !request.principal.can_execute {
             return Err("execute scope required".into());
         }
-        validate_token(&request.process_id, 128, "process id")?;
-        let command = request.command.trim().to_owned();
-        if command.is_empty() || command.len() > MAX_COMMAND {
-            return Err("invalid process command".into());
-        }
-        if request.cwd.len() > MAX_CWD || request.cwd.contains('\0') {
+        validate_token(&request.execution_id, 128, "execution id")?;
+        validate_channel(&request)?;
+        validate_mode(&request.mode)?;
+        if request.cwd.as_deref().is_some_and(|cwd| cwd.contains('\0')) {
             return Err("invalid process working directory".into());
         }
+        validate_environment(&request.environment)?;
         let terminal = request.terminal.map(normalize_terminal).transpose()?;
         Ok(StartPlan {
-            command,
+            mode: request.mode,
             cwd: request.cwd,
+            environment: request.environment,
             terminal,
             scrollback_bytes: 4 << 20,
             stdin_chunk_bytes: if cfg!(feature = "fixture") {
@@ -77,6 +75,8 @@ impl PolicyGuest for ProcessPolicy {
             },
             authorization_timeout_ms: 15_000,
             terminate_grace_ms: 350,
+            reattach_grace_ms: 60_000,
+            max_runtime_ms: request.max_runtime_ms,
         })
     }
 
@@ -84,7 +84,7 @@ impl PolicyGuest for ProcessPolicy {
         if !request.principal.can_execute {
             return Err("execute scope required".into());
         }
-        validate_token(&request.process_id, 128, "process id")?;
+        validate_token(&request.execution_id, 128, "execution id")?;
         if request.principal.role != "owner" && request.owner_user_id != request.principal.user_id {
             return Err("process access denied".into());
         }
@@ -102,13 +102,63 @@ impl PolicyGuest for ProcessPolicy {
         })
     }
 
-    fn normalize_signal(request: SignalRequest) -> Result<String, String> {
+    fn authorize_signal(request: SignalRequest) -> Result<Signal, String> {
         Self::authorize_access(request.access)?;
-        let signal = request.signal.trim().to_ascii_uppercase();
-        match signal.as_str() {
-            "INT" | "TERM" | "KILL" => Ok(signal),
-            _ => Err("unsupported process signal".into()),
+        Ok(request.signal)
+    }
+}
+
+fn validate_channel(request: &StartRequest) -> Result<(), String> {
+    let valid = matches!(
+        (request.channel, request.lifetime),
+        (Channel::Control, Lifetime::Attached | Lifetime::Managed)
+            | (Channel::Ssh | Channel::Mcp, Lifetime::Managed)
+            | (Channel::Schedule, Lifetime::Scheduled)
+    );
+    if !valid {
+        return Err("execution channel and lifetime are incompatible".into());
+    }
+    if request.terminal.is_some() && matches!(request.channel, Channel::Mcp | Channel::Schedule) {
+        return Err("execution channel does not support a terminal".into());
+    }
+    Ok(())
+}
+
+fn validate_mode(mode: &ExecutionMode) -> Result<(), String> {
+    let valid = match mode {
+        ExecutionMode::Argv((program, args)) => {
+            !program.is_empty()
+                && !program.contains('\0')
+                && args.iter().all(|arg| !arg.contains('\0'))
         }
+        ExecutionMode::RcShell(script) | ExecutionMode::SystemShell(script) => {
+            !script.trim().is_empty() && !script.contains('\0')
+        }
+        ExecutionMode::SystemLoginShell => true,
+    };
+    valid
+        .then_some(())
+        .ok_or_else(|| "invalid execution mode".into())
+}
+
+fn validate_environment(
+    environment: &ohrats::rc_process::types::Environment,
+) -> Result<(), String> {
+    let mut names = std::collections::BTreeSet::new();
+    for change in &environment.changes {
+        if change.name.is_empty()
+            || change.name.contains(['=', '\0'])
+            || change
+                .value
+                .as_deref()
+                .is_some_and(|value| value.contains('\0'))
+            || !names.insert(change.name.clone())
+        {
+            return Err("invalid or conflicting environment change".into());
+        }
+    }
+    match environment.base {
+        EnvironmentBase::Inherit | EnvironmentBase::Clean => Ok(()),
     }
 }
 
@@ -147,60 +197,4 @@ fn validate_token(value: &str, maximum: usize, label: &str) -> Result<(), String
 export!(ProcessPolicy);
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use ohrats::rc_process::types::{Action, Channel, Principal};
-
-    fn principal(role: &str, execute: bool) -> Principal {
-        Principal {
-            user_id: "user-1".into(),
-            role: role.into(),
-            can_execute: execute,
-            can_manage_devices: role == "owner",
-        }
-    }
-
-    #[test]
-    fn owner_can_access_another_users_process() {
-        let request = AccessRequest {
-            process_id: "process-1".into(),
-            owner_user_id: "user-2".into(),
-            action: Action::Signal,
-            principal: principal("owner", true),
-        };
-        assert!(ProcessPolicy::authorize_access(request).is_ok());
-    }
-
-    #[test]
-    fn operator_cannot_access_another_users_process() {
-        let request = AccessRequest {
-            process_id: "process-1".into(),
-            owner_user_id: "user-2".into(),
-            action: Action::Attach,
-            principal: principal("operator", true),
-        };
-        assert_eq!(
-            ProcessPolicy::authorize_access(request),
-            Err("process access denied".into())
-        );
-    }
-
-    #[test]
-    fn start_normalizes_terminal_name() {
-        let request = StartRequest {
-            process_id: "process-1".into(),
-            command: " printf ok ".into(),
-            cwd: String::new(),
-            terminal: Some(Terminal {
-                cols: 80,
-                rows: 24,
-                term: " ".into(),
-            }),
-            channel: Channel::Control,
-            principal: principal("operator", true),
-        };
-        let plan = ProcessPolicy::authorize_start(request).unwrap();
-        assert_eq!(plan.command, "printf ok");
-        assert_eq!(plan.terminal.unwrap().term, "xterm-256color");
-    }
-}
+mod tests;

@@ -5,7 +5,7 @@ use rc_crypto::{
     derive_client_key, ready_payload, session_payload, sign_ed25519_seed, verify_ed25519,
     x25519_public,
 };
-use rc_node::{ControlManager, NodeState, ProcessEvent, ProcessManager, bootstrap_lock};
+use rc_node::{ControlManager, ExecutionManager, NodeState, ProcessEvent, bootstrap_lock};
 use rc_protocol::{
     AuthorityApiKey, AuthorityMember, AuthoritySnapshot, NodeToServer, ServerToNode,
 };
@@ -16,7 +16,7 @@ pub(super) struct Harness {
     pub(super) state_dir: PathBuf,
     pub(super) node: NodeState,
     pub(super) control: ControlManager,
-    pub(super) processes: Arc<ProcessManager>,
+    pub(super) processes: Arc<crate::mock_execution::MockExecutionManager>,
     pub(super) hosted: mpsc::UnboundedReceiver<NodeToServer>,
     signing_seed: String,
 }
@@ -49,28 +49,30 @@ pub(super) fn setup() -> anyhow::Result<Harness> {
             expires_at: 0,
         }],
         mcp_grants: Vec::new(),
+        schedule_grants: Vec::new(),
     })?;
     bootstrap_lock(&state_dir, &snapshot, "https://rc.example.test")?;
 
     let (outbound, hosted) = mpsc::unbounded_channel();
     let event_outbound = outbound.clone();
-    let runner = PathBuf::from(env!("CARGO_BIN_EXE_rc-process-runner"));
-    let processes = Arc::new(ProcessManager::new(runner, move |event| {
-        let message = match event {
-            ProcessEvent::Started { id } => NodeToServer::ProcessStarted { id },
-            ProcessEvent::Exit {
-                id,
-                exit_code,
-                signal,
-            } => NodeToServer::ProcessExit {
-                id,
-                exit_code,
-                signal,
-            },
-            ProcessEvent::Stdout { .. } | ProcessEvent::Stderr { .. } => return,
-        };
-        let _ = event_outbound.send(message);
-    }));
+    let processes = Arc::new(crate::mock_execution::MockExecutionManager::new(Arc::new(
+        move |event| {
+            let message = match event {
+                ProcessEvent::Started { id } => NodeToServer::ProcessStarted { id },
+                ProcessEvent::Exit {
+                    id,
+                    exit_code,
+                    signal,
+                } => NodeToServer::ProcessExit {
+                    id,
+                    exit_code,
+                    signal,
+                },
+                ProcessEvent::Stdout { .. } | ProcessEvent::Stderr { .. } => return,
+            };
+            let _ = event_outbound.send(message);
+        },
+    )));
     let (process_policy, transport_policy) = crate::policies::pair();
     let control = ControlManager::new(
         node.clone(),
@@ -80,11 +82,12 @@ pub(super) fn setup() -> anyhow::Result<Harness> {
         "test",
         process_policy,
         transport_policy,
+        rc_node::unavailable_schedule_manager(),
     );
     let secure_control = control.clone();
-    processes.set_secure_sink(move |session_id, event| {
+    processes.set_secure_sink(Arc::new(move |session_id, event| {
         secure_control.send_process_event(session_id, event)
-    });
+    }));
 
     Ok(Harness {
         state_dir,
