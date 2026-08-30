@@ -129,11 +129,9 @@ mod tests {
     #[test]
     fn renders_the_canonical_landing_and_documentation_layout() {
         let landing = render("/", true, "https://rc.ohrats.party").unwrap().body;
-        assert!(
-            landing.contains(
-                "Remote Control<br/><span class=\"hero-muted\">for your machines.</span>"
-            )
-        );
+        assert!(landing.contains(
+            "Control your machines.<br/><span class=\"hero-muted\">Keep the core small.</span>"
+        ));
         assert!(landing.contains("<link rel=\"canonical\" href=\"https://rc.ohrats.party/\"/>"));
         let docs = render("/docs", false, "https://rc.example").unwrap().body;
         for marker in [

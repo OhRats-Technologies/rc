@@ -1,8 +1,14 @@
 # RC component migration roadmap
 
 This file is the implementation checklist for turning RC into a small native
-kernel plus independently built WebAssembly components. It is updated in the
-same commits that complete its tasks.
+kernel plus independently built WebAssembly components. The migration is
+roughly halfway through production cutover and is updated in the same commits
+that complete its tasks.
+
+The component boundary is the plugin ABI: a component may be implemented in
+any language that can target the WebAssembly Component Model. Components are
+loaded, replaced, and drained independently, so normal component updates do not
+restart the RC kernel.
 
 ## End state
 
