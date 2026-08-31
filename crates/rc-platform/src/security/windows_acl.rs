@@ -54,6 +54,8 @@ pub fn protect_private_path(path: &Path, directory: bool) -> io::Result<()> {
     check(unsafe { SetEntriesInAclW(Some(&[entry]), None, &mut acl) })?;
     let allocation = LocalAllocation(HLOCAL(acl.cast()));
     let mut path_wide = wide(path.as_os_str());
+    // Restore WRITE_DAC access before requesting WRITE_OWNER: an empty DACL
+    // can otherwise prevent its owner from completing the repair atomically.
     check(unsafe {
         SetNamedSecurityInfoW(
             PWSTR(path_wide.as_mut_ptr()),
