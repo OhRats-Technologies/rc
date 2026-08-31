@@ -125,7 +125,10 @@ impl Database {
             check_connection(&backup).context("check SQLite backup")?;
             drop(backup);
             secure_database(&temporary).context("protect SQLite backup")?;
-            std::fs::File::open(&temporary)
+            std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&temporary)
                 .context("open protected SQLite backup")?
                 .sync_all()
                 .context("sync SQLite backup")?;

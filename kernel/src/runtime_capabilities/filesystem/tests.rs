@@ -27,7 +27,7 @@ fn windows_directory_reparse_link_is_not_traversed() -> anyhow::Result<()> {
     let link = root.path().join("link");
     fs::create_dir(&target)?;
     fs::write(target.join("kept"), b"value")?;
-    let source = format!("mklink /J \"{}\" \"{}\"", link.display(), target.display());
+    let source = format!("mklink /J {} {}", link.display(), target.display());
     anyhow::ensure!(
         std::process::Command::new("cmd.exe")
             .args(["/D", "/C", &source])

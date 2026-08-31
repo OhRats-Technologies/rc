@@ -45,6 +45,7 @@ pub struct Group {
     terminal: Option<Box<dyn MasterPty + Send>>,
     terminal_input: Option<SharedWriter>,
     process_groups: Vec<u32>,
+    launch_gates: Vec<guard::LaunchGate>,
 }
 
 // SAFETY: `Group` exclusively owns its Win32 Job Object handle. Win32 kernel
@@ -82,6 +83,7 @@ impl Group {
             terminal: None,
             terminal_input: None,
             process_groups: Vec::new(),
+            launch_gates: Vec::new(),
         })
     }
 
@@ -117,13 +119,7 @@ impl Group {
                     Ok(())
                 }
             }
-            Signal::Terminate => {
-                if !self.process_groups.is_empty() {
-                    self.console_event()
-                } else {
-                    self.terminate(143)
-                }
-            }
+            Signal::Terminate => self.terminate(143),
             Signal::Kill => self.terminate(137),
         }
     }
@@ -160,6 +156,7 @@ impl Group {
         self.terminal = None;
         self.terminal_input = None;
         self.process_groups.clear();
+        self.launch_gates.clear();
     }
 
     fn terminate(&self, code: u32) -> Result<(), String> {
@@ -235,11 +232,6 @@ fn spawn_terminal(
         let _ = child.wait();
         return Err(error);
     }
-    if let Err(error) = gate.wait_until_open() {
-        let _ = child.kill();
-        let _ = child.wait();
-        return Err(error);
-    }
     if let Err(error) = gate.release() {
         let _ = child.kill();
         let _ = child.wait();
@@ -250,6 +242,7 @@ fn spawn_terminal(
         pair.master.take_writer().map_err(display)?,
     )));
     group.process_groups.push(native_child);
+    group.launch_gates.push(gate);
     group.terminal_input = Some(input.clone());
     group.terminal = Some(pair.master);
     group
