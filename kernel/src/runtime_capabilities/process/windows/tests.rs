@@ -62,6 +62,13 @@ fn wait_terminal(group: &mut Group, child: u32, stdout: StreamValue) -> (NativeE
     panic!("Windows terminal child did not exit; output={output:?}")
 }
 
+fn answer_conpty_probe(stdin: &mut Option<StreamValue>) {
+    let Some(StreamValue::Writer(stdin)) = stdin else {
+        panic!("terminal input is not writable")
+    };
+    stdin.write_all(b"\x1b[1;1R").unwrap();
+}
+
 #[test]
 fn piped_process_receives_environment_and_separate_streams() {
     let mut group = Group::new().unwrap();
@@ -202,7 +209,7 @@ fn unicode_cwd_and_clean_set_unset_environment_reach_the_child() {
 #[test]
 fn conpty_merges_output_resizes_and_stops_with_job() {
     let mut group = Group::new().unwrap();
-    let spawned = spawn(
+    let mut spawned = spawn(
         &mut group,
         request(
             &["/D", "/C", "echo terminal"],
@@ -214,6 +221,7 @@ fn conpty_merges_output_resizes_and_stops_with_job() {
         ),
     )
     .unwrap();
+    answer_conpty_probe(&mut spawned.stdin);
     group.resize(100, 40).unwrap();
     assert!(spawned.stderr.is_none());
     let (exit, output) = wait_terminal(&mut group, spawned.native_child, spawned.stdout);
