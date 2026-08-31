@@ -108,10 +108,7 @@ jobs:
           add-job-id-key: false
       - run: cargo fmt --manifest-path kernel/Cargo.toml --all -- --check
       - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
-      - name: Run Windows kernel tests serially
-        env:
-          RUST_TEST_THREADS: "1"
-        run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
 
   components:
     needs: changes
@@ -721,7 +718,10 @@ jobs:
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --all-targets --locked
       - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
-      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+      - name: Run Windows kernel tests serially
+        env:
+          RUST_TEST_THREADS: "1"
+        run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
       - name: Build portable runtime components
         shell: bash
         run: |
