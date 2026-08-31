@@ -729,18 +729,42 @@ jobs:
           for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
             scripts/build-component.sh "components/$component"
           done
-      - name: Run component-backed runtime conformance natively
+      - name: Build component-backed Windows kernel
         shell: pwsh
         run: |
           cargo build --manifest-path kernel/Cargo.toml --locked
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run component-backed runtime conformance natively
+        shell: pwsh
+        run: |
           $componentDir = Join-Path $env:RUNNER_TEMP 'rc-runtime-root\components'
           New-Item -ItemType Directory -Force $componentDir | Out-Null
           'diagnostics-store','process-policy','shell','execution-runtime','scheduler','transport-webrtc' | ForEach-Object {
             Copy-Item "dist/components/$_.wasm" $componentDir
           }
-          & 'kernel/target/debug/rc-kernel.exe' --component-dir $componentDir policy-check
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $start = [Diagnostics.ProcessStartInfo]::new()
+          $start.FileName = 'kernel/target/debug/rc-kernel.exe'
+          $start.ArgumentList.Add('--component-dir')
+          $start.ArgumentList.Add($componentDir)
+          $start.ArgumentList.Add('policy-check')
+          $start.UseShellExecute = $false
+          $start.RedirectStandardOutput = $true
+          $start.RedirectStandardError = $true
+          $process = [Diagnostics.Process]::new()
+          $process.StartInfo = $start
+          if (-not $process.Start()) { throw 'failed to start runtime conformance' }
+          $stdout = $process.StandardOutput.ReadToEndAsync()
+          $stderr = $process.StandardError.ReadToEndAsync()
+          if (-not $process.WaitForExit(120000)) {
+            $process.Kill($true)
+            $process.WaitForExit()
+            Write-Output $stdout.Result
+            Write-Error $stderr.Result
+            throw 'runtime conformance exceeded 120 seconds'
+          }
+          Write-Output $stdout.Result
+          [Console]::Error.Write($stderr.Result)
+          if ($process.ExitCode) { exit $process.ExitCode }
       - name: Parse Windows installer natively
         shell: pwsh
         run: |

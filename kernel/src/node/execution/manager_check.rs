@@ -15,9 +15,12 @@ mod shell_argv;
 mod shell_status;
 
 pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
-    check_exact_argv(runtime.clone())?;
-    check_system_login_shell(runtime.clone())?;
-    check_portable_shell(runtime)
+    eprintln!("runtime check: exact argv"); check_exact_argv(runtime.clone())?;
+    eprintln!("runtime check: system login shell"); check_system_login_shell(runtime.clone())?;
+    eprintln!("runtime check: portable shell");
+    check_portable_shell(runtime)?;
+    eprintln!("runtime check: complete");
+    Ok(())
 }
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
