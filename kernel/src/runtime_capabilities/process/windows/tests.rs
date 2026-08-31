@@ -29,6 +29,27 @@ fn wait(group: &mut Group, child: u32) -> NativeExit {
     panic!("Windows child did not exit")
 }
 
+fn wait_terminal(group: &mut Group, child: u32, stdout: StreamValue) -> (NativeExit, String) {
+    let StreamValue::Reader(mut stdout) = stdout else {
+        panic!("terminal output is not readable")
+    };
+    let reader = std::thread::spawn(move || {
+        let mut output = String::new();
+        stdout.read_to_string(&mut output).unwrap();
+        output
+    });
+    for _ in 0..500 {
+        if let Some(exit) = group.poll(child).unwrap() {
+            group.close();
+            return (exit, reader.join().unwrap());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    group.close();
+    let output = reader.join().unwrap();
+    panic!("Windows terminal child did not exit; output={output:?}")
+}
+
 #[test]
 fn piped_process_receives_environment_and_separate_streams() {
     let mut group = Group::new().unwrap();
@@ -182,13 +203,9 @@ fn conpty_merges_output_resizes_and_stops_with_job() {
     )
     .unwrap();
     group.resize(100, 40).unwrap();
-    assert_eq!(wait(&mut group, spawned.native_child).code, Some(0));
     assert!(spawned.stderr.is_none());
-    let StreamValue::Reader(mut stdout) = spawned.stdout else {
-        panic!("terminal output is not readable")
-    };
-    let mut output = String::new();
-    stdout.read_to_string(&mut output).unwrap();
+    let (exit, output) = wait_terminal(&mut group, spawned.native_child, spawned.stdout);
+    assert_eq!(exit.code, Some(0), "output={output:?}");
     assert!(output.contains("terminal"));
 }
 

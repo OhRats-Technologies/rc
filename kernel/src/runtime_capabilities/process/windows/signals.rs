@@ -24,5 +24,6 @@ fn conpty_interrupt_delivers_ctrl_c_to_the_terminal_process() {
     let spawned = spawn(&mut group, long_running(Some(terminal))).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(250));
     group.signal(Signal::Interrupt).unwrap();
-    assert!(wait(&mut group, spawned.native_child).code.is_some());
+    let (exit, _) = wait_terminal(&mut group, spawned.native_child, spawned.stdout);
+    assert!(exit.code.is_some());
 }

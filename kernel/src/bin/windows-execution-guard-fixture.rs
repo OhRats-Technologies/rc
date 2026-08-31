@@ -35,6 +35,7 @@ fn main() -> anyhow::Result<()> {
         .next()
         .context("execution guard ready event is missing")?;
     let program = args.next().context("execution guard program is missing")?;
+    eprintln!("RC_GUARD_STAGE parsed target={program:?}");
     let wide: Vec<u16> = event.encode_wide().chain(Some(0)).collect();
     let handle = unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(wide.as_ptr())) }
         .context("open execution launch gate")?;
@@ -47,11 +48,13 @@ fn main() -> anyhow::Result<()> {
     let waited = unsafe { WaitForSingleObject(handle, INFINITE) };
     unsafe { CloseHandle(handle) }?;
     anyhow::ensure!(waited == WAIT_OBJECT_0, "execution guard wait failed");
+    eprintln!("RC_GUARD_STAGE released");
     unsafe { SetConsoleCtrlHandler(Some(guard_control_event), true) }
         .context("install execution control handler")?;
     let status = Command::new(program)
         .args(args.collect::<Vec<OsString>>())
         .status()?;
+    eprintln!("RC_GUARD_STAGE target-exit={status}");
     std::process::exit(status.code().unwrap_or(1));
 }
 
