@@ -6,8 +6,8 @@ use windows::{
         System::{
             Console::SetConsoleCtrlHandler,
             Threading::{
-                CreateEventW, INFINITE, OpenEventW, SYNCHRONIZATION_SYNCHRONIZE, SetEvent,
-                WaitForSingleObject,
+                CreateEventW, EVENT_MODIFY_STATE, INFINITE, OpenEventW,
+                SYNCHRONIZATION_SYNCHRONIZE, SetEvent, WaitForSingleObject,
             },
         },
     },
@@ -18,7 +18,9 @@ pub const MARKER: &str = "--rc-windows-execution-guard";
 
 pub struct LaunchGate {
     handle: HANDLE,
+    ready: HANDLE,
     pub name: String,
+    pub ready_name: String,
 }
 
 impl LaunchGate {
@@ -34,7 +36,26 @@ impl LaunchGate {
         let wide = wide(&name);
         let handle = unsafe { CreateEventW(None, true, false, PCWSTR(wide.as_ptr())) }
             .map_err(|error| error.to_string())?;
-        Ok(Self { handle, name })
+        let ready_name = format!("{name}.Ready");
+        let ready_wide = wide(&ready_name);
+        let ready = unsafe { CreateEventW(None, true, false, PCWSTR(ready_wide.as_ptr())) }
+            .map_err(|error| {
+                unsafe { CloseHandle(handle) }.ok();
+                error.to_string()
+            })?;
+        Ok(Self {
+            handle,
+            ready,
+            name,
+            ready_name,
+        })
+    }
+
+    pub fn wait_until_open(&self) -> Result<(), String> {
+        let waited = unsafe { WaitForSingleObject(self.ready, INFINITE) };
+        (waited == WAIT_OBJECT_0)
+            .then_some(())
+            .ok_or_else(|| "execution guard handshake failed".to_owned())
     }
 
     pub fn release(&self) -> Result<(), String> {
@@ -45,6 +66,7 @@ impl LaunchGate {
 impl Drop for LaunchGate {
     fn drop(&mut self) {
         unsafe { CloseHandle(self.handle) }.ok();
+        unsafe { CloseHandle(self.ready) }.ok();
     }
 }
 
@@ -62,12 +84,20 @@ fn run(args: Vec<OsString>) -> anyhow::Result<()> {
     let event = args
         .next()
         .ok_or_else(|| anyhow::anyhow!("execution guard event is missing"))?;
+    let ready = args
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("execution guard ready event is missing"))?;
     let program = args
         .next()
         .ok_or_else(|| anyhow::anyhow!("execution guard program is missing"))?;
     let event = wide(&event);
     let handle = unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(event.as_ptr())) }
         .context("open execution launch gate")?;
+    let ready = wide(&ready);
+    let ready_handle = unsafe { OpenEventW(EVENT_MODIFY_STATE, false, PCWSTR(ready.as_ptr())) }
+        .context("open execution ready event")?;
+    unsafe { SetEvent(ready_handle) }.context("signal execution guard readiness")?;
+    unsafe { CloseHandle(ready_handle) }?;
     let waited = unsafe { WaitForSingleObject(handle, INFINITE) };
     unsafe { CloseHandle(handle) }?;
     anyhow::ensure!(waited == WAIT_OBJECT_0, "execution guard wait failed");

@@ -12,6 +12,8 @@ All notable RC changes are recorded here. Published tags are immutable.
   preventing a release from passing while browser and CLI terminals exit 127.
 - Repair empty Windows DACLs by restoring protected user access before
   normalizing ownership.
+- Handshake Windows execution launch gates before assignment release so a
+  helper cannot miss a named event under load.
 
 ## [0.19.6] - 2026-08-30
 

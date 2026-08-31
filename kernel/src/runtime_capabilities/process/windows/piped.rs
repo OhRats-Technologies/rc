@@ -17,6 +17,7 @@ pub(super) fn spawn(group: &mut Group, request: SpawnRequest) -> Result<Spawned,
     command
         .arg(guard::MARKER)
         .arg(&gate.name)
+        .arg(&gate.ready_name)
         .arg(request.program)
         .args(request.args)
         .stdin(Stdio::piped())
@@ -29,6 +30,11 @@ pub(super) fn spawn(group: &mut Group, request: SpawnRequest) -> Result<Spawned,
     }
     let mut child = command.spawn().map_err(display)?;
     if let Err(error) = assign(group.job, HANDLE(child.as_raw_handle())) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error);
+    }
+    if let Err(error) = gate.wait_until_open() {
         let _ = child.kill();
         let _ = child.wait();
         return Err(error);
