@@ -38,9 +38,11 @@ cp dist/components/execution-runtime.wasm "$component_directory/"
 cp dist/components/scheduler.wasm "$component_directory/"
 cp dist/components/transport-webrtc.wasm "$component_directory/"
 
-"$kernel" --component-dir "$component_directory" policy-check \
+RC_EXECUTION_REPLAY_PROBE_ID=manager-restart-check \
+  "$kernel" --component-dir "$component_directory" policy-check \
   | grep -F 'node component policies: ok' >/dev/null
-if "$kernel" --component-dir "$component_directory" policy-check >"$directory/replay.out" 2>&1; then
+if RC_EXECUTION_REPLAY_PROBE_ID=manager-restart-check \
+  "$kernel" --component-dir "$component_directory" policy-check >"$directory/replay.out" 2>&1; then
   echo 'execution replay ledger did not survive kernel restart' >&2
   exit 1
 fi
