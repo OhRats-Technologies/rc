@@ -33,8 +33,8 @@ impl LaunchGate {
                 .unwrap_or_default()
                 .as_nanos()
         );
-        let wide = wide(&name);
-        let handle = unsafe { CreateEventW(None, true, false, PCWSTR(wide.as_ptr())) }
+        let name_wide = wide(&name);
+        let handle = unsafe { CreateEventW(None, true, false, PCWSTR(name_wide.as_ptr())) }
             .map_err(|error| error.to_string())?;
         let ready_name = format!("{name}.Ready");
         let ready_wide = wide(&ready_name);
