@@ -8,7 +8,8 @@ fn main() -> anyhow::Result<()> {
             System::{
                 Console::SetConsoleCtrlHandler,
                 Threading::{
-                    INFINITE, OpenEventW, SYNCHRONIZATION_SYNCHRONIZE, WaitForSingleObject,
+                    EVENT_MODIFY_STATE, INFINITE, OpenEventW, SYNCHRONIZATION_SYNCHRONIZE,
+                    SetEvent, WaitForSingleObject,
                 },
             },
         },
@@ -22,10 +23,19 @@ fn main() -> anyhow::Result<()> {
         "fixture is only an execution-guard test target"
     );
     let event = args.next().context("execution guard event is missing")?;
+    let ready = args
+        .next()
+        .context("execution guard ready event is missing")?;
     let program = args.next().context("execution guard program is missing")?;
     let wide: Vec<u16> = event.encode_wide().chain(Some(0)).collect();
     let handle = unsafe { OpenEventW(SYNCHRONIZATION_SYNCHRONIZE, false, PCWSTR(wide.as_ptr())) }
         .context("open execution launch gate")?;
+    let ready_wide: Vec<u16> = ready.encode_wide().chain(Some(0)).collect();
+    let ready_handle =
+        unsafe { OpenEventW(EVENT_MODIFY_STATE, false, PCWSTR(ready_wide.as_ptr())) }
+            .context("open execution ready event")?;
+    unsafe { SetEvent(ready_handle) }.context("signal execution guard readiness")?;
+    unsafe { CloseHandle(ready_handle) }?;
     let waited = unsafe { WaitForSingleObject(handle, INFINITE) };
     unsafe { CloseHandle(handle) }?;
     anyhow::ensure!(waited == WAIT_OBJECT_0, "execution guard wait failed");
