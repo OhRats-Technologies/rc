@@ -33,20 +33,32 @@ fn wait_terminal(group: &mut Group, child: u32, stdout: StreamValue) -> (NativeE
     let StreamValue::Reader(mut stdout) = stdout else {
         panic!("terminal output is not readable")
     };
-    let reader = std::thread::spawn(move || {
-        let mut output = String::new();
-        stdout.read_to_string(&mut output).unwrap();
-        output
+    let output = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+    let captured = output.clone();
+    std::thread::spawn(move || {
+        let mut buffer = [0_u8; 256];
+        while let Ok(count) = stdout.read(&mut buffer) {
+            if count == 0 {
+                break;
+            }
+            captured
+                .lock()
+                .unwrap()
+                .push_str(&String::from_utf8_lossy(&buffer[..count]));
+        }
     });
     for _ in 0..500 {
         if let Some(exit) = group.poll(child).unwrap() {
             group.close();
-            return (exit, reader.join().unwrap());
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            let output = output.lock().unwrap().clone();
+            return (exit, output);
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     group.close();
-    let output = reader.join().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let output = output.lock().unwrap().clone();
     panic!("Windows terminal child did not exit; output={output:?}")
 }
 
