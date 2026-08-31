@@ -715,13 +715,13 @@ jobs:
         run: >-
           cargo build --manifest-path kernel/Cargo.toml --locked
           --features windows-test-fixture --bin rc-windows-execution-guard-fixture
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --all-targets --locked
-      - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
       - name: Run Windows kernel tests serially
         env:
           RUST_TEST_THREADS: "1"
         run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --all-targets --locked
+      - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
       - name: Build portable runtime components
         shell: bash
         run: |
