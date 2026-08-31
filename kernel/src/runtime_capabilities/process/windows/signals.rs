@@ -1,7 +1,7 @@
 use super::*;
 
 fn long_running(terminal: Option<Terminal>) -> SpawnRequest {
-    request(&["/D", "/S", "/C", "ping -t 127.0.0.1 >nul"], terminal)
+    request(&["/D", "/C", "ping -t 127.0.0.1 >nul"], terminal)
 }
 
 #[test]

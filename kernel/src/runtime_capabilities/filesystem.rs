@@ -94,7 +94,7 @@ impl Host for HostState {
 fn remove_path(path: &Path, recursive: bool) -> Result<(), String> {
     let metadata = fs::symlink_metadata(path).map_err(display)?;
     if link_like(&metadata) {
-        if metadata.is_dir() {
+        if directory_like(&metadata) {
             fs::remove_dir(path).map_err(display)
         } else {
             fs::remove_file(path).map_err(display)
@@ -108,6 +108,18 @@ fn remove_path(path: &Path, recursive: bool) -> Result<(), String> {
     } else {
         fs::remove_file(path).map_err(display)
     }
+}
+
+#[cfg(windows)]
+fn directory_like(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt as _;
+    const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+    metadata.file_attributes() & FILE_ATTRIBUTE_DIRECTORY != 0
+}
+
+#[cfg(not(windows))]
+fn directory_like(metadata: &fs::Metadata) -> bool {
+    metadata.is_dir()
 }
 
 fn valid_path(value: &str) -> Result<&Path, String> {

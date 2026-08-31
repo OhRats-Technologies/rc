@@ -172,7 +172,7 @@ fn conpty_merges_output_resizes_and_stops_with_job() {
     let spawned = spawn(
         &mut group,
         request(
-            &["/D", "/S", "/C", "echo terminal"],
+            &["/D", "/C", "echo terminal"],
             Some(Terminal {
                 cols: 80,
                 rows: 24,
