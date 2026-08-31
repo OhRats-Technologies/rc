@@ -10,6 +10,8 @@ All notable RC changes are recorded here. Published tags are immutable.
   startup failures through encrypted terminal control and lifecycle metadata.
 - Make `rc doctor` exercise a real login-shell PTY with replay-safe probe IDs,
   preventing a release from passing while browser and CLI terminals exit 127.
+- Repair empty Windows DACLs by restoring protected user access before
+  normalizing ownership.
 
 ## [0.19.6] - 2026-08-30
 

@@ -58,12 +58,21 @@ pub fn protect_private_path(path: &Path, directory: bool) -> io::Result<()> {
         SetNamedSecurityInfoW(
             PWSTR(path_wide.as_mut_ptr()),
             SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION
-                | OWNER_SECURITY_INFORMATION
-                | PROTECTED_DACL_SECURITY_INFORMATION,
-            Some(sid.value),
+            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
+            None,
             None,
             Some(acl),
+            None,
+        )
+    })?;
+    check(unsafe {
+        SetNamedSecurityInfoW(
+            PWSTR(path_wide.as_mut_ptr()),
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            Some(sid.value),
+            None,
+            None,
             None,
         )
     })?;
