@@ -120,7 +120,8 @@ PATH="$fixture/bin:$PATH" HOME="$fixture/home" RC_INSTALL_FIXTURE="$fixture" \
   RC_RELEASE_API=https://api.github.com/repos/OhRats-Technologies/rc/releases/latest \
   RC_STATE_DIR="$fixture/custom-state" \
   RC_INSTALL_BIN_DIR="$fixture/home/.local/bin" \
-  RC_DATA_DIR="$fixture/home/.local/share/rc" sh "$root/public/install.sh" enroll_existing https://rc.example
+  RC_DATA_DIR="$fixture/home/.local/share/rc" sh "$root/public/install.sh" enroll_existing https://rc.example \
+  > "$fixture/reinstall-output"
 
 test "$(HOME="$fixture/home" "$fixture/home/.local/bin/rc" version)" = 'RC 1.0.0'
 test -x "$fixture/home/.local/bin/rc-kernel"
@@ -130,6 +131,10 @@ grep -F 'old:package-manager' \
   "$fixture/home/.local/share/rc/rollback/previous/components/package-manager.wasm" >/dev/null
 test -f "$fixture/service-called"
 test ! -e "$fixture/enroll-called"
+grep -F 'enrollment: unchanged (this OS user already has a device identity)' \
+  "$fixture/reinstall-output" >/dev/null
+grep -F "token:      not consumed; use the separate 'rc enroll' command on an unenrolled machine" \
+  "$fixture/reinstall-output" >/dev/null
 test -f "$fixture/home/.local/share/rc/components/package-manager.core"
 test ! -e "$fixture/home/.local/share/rc/components/package-manager.managed"
 test -f "$fixture/home/.local/share/rc/components/artifact-cache-local.wasm"
