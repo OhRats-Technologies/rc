@@ -66,14 +66,11 @@ fn canonical_core_bundle_requires_matching_profile_lock() -> anyhow::Result<()> 
 
 #[test]
 fn kernel_host_updates_sibling_platform_binary() -> anyhow::Result<()> {
-    assert_eq!(
-        platform_target(std::path::Path::new("/opt/rc/rc-kernel"))?,
-        std::path::Path::new("/opt/rc/rc")
-    );
-    assert_eq!(
-        platform_target(std::path::Path::new("/opt/rc/rc"))?,
-        std::path::Path::new("/opt/rc/rc")
-    );
+    let directory = std::path::Path::new("opt").join("rc");
+    let kernel = directory.join(rc_platform::executable_name("rc-kernel"));
+    let controller = directory.join(rc_platform::executable_name("rc"));
+    assert_eq!(platform_target(&kernel)?, controller);
+    assert_eq!(platform_target(&controller)?, controller);
     Ok(())
 }
 
