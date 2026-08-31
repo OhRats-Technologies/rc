@@ -17,6 +17,7 @@ impl ControlManager {
                 id,
                 exit_code: Some(exit_code),
                 signal,
+                error: String::new(),
             },
         };
         self.send_frame(session_id, &message)

@@ -67,7 +67,7 @@ fn metadata_policy_retains_completed_rows_while_none_finalizes_them() -> anyhow:
     seed_active_process(&metadata.path, "metadata-process")?;
     metadata
         .db
-        .mark_process_exit("device", "metadata-process", 0, "")?;
+        .mark_process_exit("device", "metadata-process", 0, "", "")?;
     ExecutionPolicy::new(ExecutionHistory::Metadata, 168)
         .finalize(&metadata.db, "metadata-process")?;
     assert_eq!(
@@ -79,7 +79,7 @@ fn metadata_policy_retains_completed_rows_while_none_finalizes_them() -> anyhow:
     seed_active_process(&private.path, "private-process")?;
     private
         .db
-        .mark_process_exit("device", "private-process", 0, "")?;
+        .mark_process_exit("device", "private-process", 0, "", "")?;
     let policy = ExecutionPolicy::default();
     policy.finalize(&private.db, "private-process")?;
     assert_eq!(

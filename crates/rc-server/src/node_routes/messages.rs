@@ -62,7 +62,8 @@ pub(super) fn apply(state: &AppState, device_id: &str, message: &NodeToServer) {
                 id,
                 exit_code,
                 signal,
-            } => apply_exit(state, device_id, id, *exit_code, signal)?,
+                error,
+            } => apply_exit(state, device_id, id, *exit_code, signal, error)?,
             NodeToServer::UpdateResult { ok, version, error } => {
                 apply_update(state, device_id, *ok, version, error)?;
             }
@@ -131,10 +132,12 @@ fn apply_exit(
     id: &str,
     exit_code: i32,
     signal: &str,
+    error: &str,
 ) -> anyhow::Result<()> {
-    if let Some(process) = state
-        .db
-        .mark_process_exit(device_id, id, exit_code, signal)?
+    if let Some(process) =
+        state
+            .db
+            .mark_process_exit(device_id, id, exit_code, signal, &bounded_error(error))?
     {
         emit_process(
             state,
@@ -144,12 +147,17 @@ fn apply_exit(
             serde_json::json!({
                 "processId":process.id,
                 "exitCode":exit_code,
-                "signal":signal
+                "signal":signal,
+                "error":bounded_error(error)
             }),
         )?;
         state.execution.finalize(&state.db, &process.id)?;
     }
     Ok(())
+}
+
+fn bounded_error(value: &str) -> String {
+    value.chars().take(240).collect()
 }
 
 fn apply_update(

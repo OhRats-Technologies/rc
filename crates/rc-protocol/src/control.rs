@@ -177,6 +177,8 @@ pub enum ControlMessage {
         exit_code: Option<i32>,
         #[serde(default, skip_serializing_if = "String::is_empty")]
         signal: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        error: String,
     },
     #[serde(rename = "node.update")]
     NodeUpdate {

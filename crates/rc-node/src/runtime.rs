@@ -44,6 +44,7 @@ impl NodeRuntime {
                     id,
                     exit_code,
                     signal,
+                    error: String::new(),
                 },
                 ProcessEvent::Stdout { .. } | ProcessEvent::Stderr { .. } => return,
             };

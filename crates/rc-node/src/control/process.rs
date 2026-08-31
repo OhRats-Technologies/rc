@@ -71,11 +71,13 @@ impl ControlManager {
             principal: pending.principal,
             max_runtime_ms: pending.max_runtime_ms,
         };
-        if self.0.processes.start(spec).is_err() {
+        if let Err(error) = self.0.processes.start(spec) {
+            let error = start_error(&error);
             self.emit(NodeToServer::ProcessExit {
                 id: id.to_owned(),
                 exit_code: 127,
                 signal: String::new(),
+                error: error.clone(),
             });
             let _ = self.send_frame(
                 &pending.session_id,
@@ -83,6 +85,7 @@ impl ControlManager {
                     id: id.to_owned(),
                     exit_code: Some(127),
                     signal: String::new(),
+                    error,
                 },
             );
         }
@@ -118,6 +121,18 @@ impl ControlManager {
             action,
             principal,
         })
+    }
+}
+
+fn start_error(error: &std::io::Error) -> String {
+    match error.kind() {
+        std::io::ErrorKind::NotFound => {
+            "The Node could not find the configured system shell".into()
+        }
+        std::io::ErrorKind::PermissionDenied => {
+            "The Node is not allowed to start the configured system shell".into()
+        }
+        _ => "The Node execution runtime could not start this process".into(),
     }
 }
 

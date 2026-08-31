@@ -67,6 +67,7 @@ pub(super) fn setup() -> anyhow::Result<Harness> {
                     id,
                     exit_code,
                     signal,
+                    error: String::new(),
                 },
                 ProcessEvent::Stdout { .. } | ProcessEvent::Stderr { .. } => return,
             };

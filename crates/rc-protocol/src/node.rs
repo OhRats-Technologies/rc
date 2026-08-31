@@ -25,6 +25,8 @@ pub enum NodeToServer {
         exit_code: i32,
         #[serde(default)]
         signal: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        error: String,
     },
     ControlChallenge {
         request_id: String,

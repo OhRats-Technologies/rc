@@ -16,6 +16,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Publish and build a resource-backed execution-runtime service over policy and process-host.
 - [x] Emit bounded diagnostics for runtime platform/process/terminal backends, lifetime-specific active counts, and scheduler timezone/overlap policy without execution plaintext.
 - [x] Probe exact argv end-to-end through execution-runtime, process-host, and the native OS backend.
+- [x] Probe a typed native login-shell PTY in `rc doctor`, grant its narrow environment capability, and surface bounded startup failures instead of an unexplained exit 127.
 - [x] Route portable RC Shell jobs through the production execution manager and shell component service.
 - [x] Inject the component-backed execution manager into the production kernel Node path.
 - [x] Delete the production and test-only `rc-process-runner` handoff and transitional native `ProcessManager` after process-host parity passed.

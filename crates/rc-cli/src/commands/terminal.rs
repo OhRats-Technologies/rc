@@ -40,8 +40,9 @@ pub(super) async fn wait_remote_process(
                 id,
                 exit_code,
                 signal,
+                error,
             } if id == process_id => {
-                return process_exit(exit_code, &signal);
+                return process_exit(exit_code, &signal, &error);
             }
             _ => {}
         }
@@ -68,18 +69,22 @@ pub(super) async fn read_shell_output(
                 id,
                 exit_code,
                 signal,
+                error,
             } if id == process_id => {
-                return process_exit(exit_code, &signal);
+                return process_exit(exit_code, &signal, &error);
             }
             _ => {}
         }
     }
 }
 
-fn process_exit(exit_code: Option<i32>, signal: &str) -> Result<()> {
+fn process_exit(exit_code: Option<i32>, signal: &str, error: &str) -> Result<()> {
     let code = exit_code.unwrap_or(-1);
     if code == 0 {
         return Ok(());
+    }
+    if !error.is_empty() {
+        bail!("{error} (process exited {code})");
     }
     if signal.is_empty() {
         bail!("process exited {code}");

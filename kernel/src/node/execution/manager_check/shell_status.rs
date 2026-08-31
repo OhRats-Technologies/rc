@@ -1,4 +1,4 @@
-use super::{ComponentExecutionManager, ComponentExecutionRuntime};
+use super::{ComponentExecutionManager, ComponentExecutionRuntime, probe_id};
 use rc_node::{
     ExecutionManager, ProcessChannel, ProcessEvent, ProcessEventSink, ProcessExecutionMode,
     ProcessLifetime, ProcessPrincipal, ProcessSpec,
@@ -15,7 +15,8 @@ pub(super) fn check_exit(runtime: ComponentExecutionRuntime) -> anyhow::Result<(
     });
     let manager = ComponentExecutionManager::new(runtime, sink);
     let script = "exit 7 ; echo must-not-run";
-    let mut spec = ProcessSpec::command("manager-shell-exit-check", script);
+    let id = probe_id("manager-shell-exit-check");
+    let mut spec = ProcessSpec::command(&id, script);
     spec.mode = ProcessExecutionMode::RcShell {
         script: script.into(),
     };

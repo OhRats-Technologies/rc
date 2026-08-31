@@ -87,17 +87,22 @@ impl HostTimer for HostState {
 
 impl HostState {
     pub(crate) fn require_runtime_capability(&self, capability: &str) -> Result<(), String> {
-        let allowed = match capability {
-            "filesystem" | "environment" => matches!(self.plugin_id(), "ohrats:shell"),
-            "clock" => matches!(
-                self.plugin_id(),
-                "ohrats:shell" | "ohrats:execution-runtime" | "ohrats:scheduler"
-            ),
-            _ => false,
-        };
+        let allowed = runtime_capability_allowed(self.plugin_id(), capability);
         allowed
             .then_some(())
             .ok_or_else(|| format!("component is not granted {capability}-host"))
+    }
+}
+
+fn runtime_capability_allowed(plugin_id: &str, capability: &str) -> bool {
+    match capability {
+        "filesystem" => matches!(plugin_id, "ohrats:shell"),
+        "environment" => matches!(plugin_id, "ohrats:shell" | "ohrats:execution-runtime"),
+        "clock" => matches!(
+            plugin_id,
+            "ohrats:shell" | "ohrats:execution-runtime" | "ohrats:scheduler"
+        ),
+        _ => false,
     }
 }
 
@@ -113,10 +118,22 @@ fn now_ms() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::now_ms;
+    use super::{now_ms, runtime_capability_allowed};
 
     #[test]
     fn clock_is_unix_milliseconds() {
         assert!(now_ms() > 1_700_000_000_000);
+    }
+
+    #[test]
+    fn execution_runtime_can_resolve_environment_but_not_read_files() {
+        assert!(runtime_capability_allowed(
+            "ohrats:execution-runtime",
+            "environment"
+        ));
+        assert!(!runtime_capability_allowed(
+            "ohrats:execution-runtime",
+            "filesystem"
+        ));
     }
 }

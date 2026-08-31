@@ -1,4 +1,4 @@
-use super::{ComponentExecutionManager, ComponentExecutionRuntime};
+use super::{ComponentExecutionManager, ComponentExecutionRuntime, probe_id};
 use rc_node::{
     ExecutionManager, ProcessChannel, ProcessEvent, ProcessEventSink, ProcessExecutionMode,
     ProcessLifetime, ProcessPrincipal, ProcessSpec,
@@ -15,7 +15,8 @@ pub(super) fn check_pipeline_cancel(runtime: ComponentExecutionRuntime) -> anyho
     });
     let manager = ComponentExecutionManager::new(runtime, sink);
     let script = "yes portable | cat";
-    let mut spec = ProcessSpec::command("manager-shell-cancel-check", script);
+    let id = probe_id("manager-shell-cancel-check");
+    let mut spec = ProcessSpec::command(&id, script);
     spec.mode = ProcessExecutionMode::RcShell {
         script: script.into(),
     };
@@ -30,7 +31,7 @@ pub(super) fn check_pipeline_cancel(runtime: ComponentExecutionRuntime) -> anyho
     spec.user_id = "runtime-check".into();
     anyhow::ensure!(manager.start(spec)?);
     wait_for_output(&rx)?;
-    manager.signal("manager-shell-cancel-check", "KILL")?;
+    manager.signal(&id, "KILL")?;
     wait_for_exit(&rx)
 }
 

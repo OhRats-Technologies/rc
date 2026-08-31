@@ -55,6 +55,19 @@ fn login_shell_intent_contains_no_unix_command() {
 }
 
 #[test]
+fn startup_error_round_trips_on_process_exit() {
+    let message = ControlMessage::ProcessExit {
+        id: "process-1".into(),
+        exit_code: Some(127),
+        signal: String::new(),
+        error: "The Node could not find the configured system shell".into(),
+    };
+    let decoded: ControlMessage =
+        serde_json::from_slice(&serde_json::to_vec(&message).unwrap()).unwrap();
+    assert_eq!(decoded, message);
+}
+
+#[test]
 fn schedule_hash_binds_execution_but_not_mutable_display_state() {
     let mut schedule = ScheduleDefinition {
         id: "schedule-1".into(),

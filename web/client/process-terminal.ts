@@ -125,7 +125,8 @@ function applyProcessEvent(event: { kind: string; detail?: Record<string, unknow
   if (event.kind === "process.exited") {
     status = "exited"; state.classList.remove("online"); terminal.options.cursorBlink = false;
     const signal = String(event.detail?.signal || ""), exitCode = event.detail?.exitCode;
-    state.textContent = signal || `EXIT ${exitCode ?? "?"}`; if (actions) actions.hidden = true; return;
+    state.textContent = signal || `EXIT ${exitCode ?? "?"}`; if (actions) actions.hidden = true;
+    qs<HTMLElement>("#process-message").textContent = String(event.detail?.error || ""); return;
   }
   if (event.kind === "process.lost") {
     status = "lost"; state.textContent = "LOST"; state.classList.remove("online"); terminal.options.cursorBlink = false;
@@ -169,6 +170,7 @@ async function connectControl() {
         if (message.type === "process.exit") {
           status = "exited"; const signal = String(message.signal || ""), exitCode = Number(message.exitCode ?? -1);
           qs<HTMLElement>("#process-state").textContent = signal || `EXIT ${exitCode}`;
+          qs<HTMLElement>("#process-message").textContent = String(message.error || "");
           const actions = document.querySelector<HTMLElement>("#terminal-actions"); if (actions) actions.hidden = true;
         }
       } catch (error) {

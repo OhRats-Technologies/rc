@@ -78,12 +78,13 @@ impl Database {
         id: &str,
         exit_code: i32,
         signal: &str,
+        error: &str,
     ) -> rusqlite::Result<Option<ProcessLifecycle>> {
         self.transition_process(
             device_id,
             id,
-            "UPDATE processes SET status='exited',exit_code=?,signal=?,completed_at=? WHERE id=? AND device_id=? AND status IN ('starting','running')",
-            params![exit_code, signal, now_ms(), id, device_id],
+            "UPDATE processes SET status='exited',exit_code=?,signal=?,error=NULLIF(?,''),completed_at=? WHERE id=? AND device_id=? AND status IN ('starting','running')",
+            params![exit_code, signal, error, now_ms(), id, device_id],
         )
     }
 

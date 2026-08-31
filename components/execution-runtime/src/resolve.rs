@@ -26,9 +26,13 @@ fn system_command(source: String, login: bool) -> Result<(String, Vec<String>), 
         .iter()
         .find(|(name, value)| name.eq_ignore_ascii_case("RC_SHELL") && !value.trim().is_empty())
         .map(|(_, value)| value.clone());
-    let shell = override_shell
-        .or_else(|| resolve_default(&environment, windows))
-        .ok_or_else(|| "no system shell is available".to_owned())?;
+    let shell = if let Some(shell) = override_shell {
+        environment_host::find_executable(&shell, &environment)?
+            .ok_or_else(|| "RC_SHELL does not resolve to an executable".to_owned())?
+    } else {
+        resolve_default(&environment, windows)?
+            .ok_or_else(|| "no system shell is available".to_owned())?
+    };
     shell_invocation(shell, source, login, windows)
 }
 
@@ -72,20 +76,28 @@ fn shell_invocation(
     ))
 }
 
-fn resolve_default(environment: &[(String, String)], windows: bool) -> Option<String> {
+fn resolve_default(
+    environment: &[(String, String)],
+    windows: bool,
+) -> Result<Option<String>, String> {
     if windows {
         for candidate in ["pwsh.exe", "powershell.exe", "cmd.exe"] {
             if let Ok(Some(path)) = environment_host::find_executable(candidate, environment) {
-                return Some(path);
+                return Ok(Some(path));
             }
         }
-        return None;
+        return Ok(None);
     }
-    environment
+    let configured = environment
         .iter()
         .find(|(name, value)| name == "SHELL" && !value.trim().is_empty())
-        .map(|(_, value)| value.clone())
-        .or_else(|| Some("/bin/sh".into()))
+        .map(|(_, value)| value.clone());
+    if let Some(shell) = configured
+        && let Some(path) = environment_host::find_executable(&shell, environment)?
+    {
+        return Ok(Some(path));
+    }
+    environment_host::find_executable("/bin/sh", environment)
 }
 
 #[cfg(test)]

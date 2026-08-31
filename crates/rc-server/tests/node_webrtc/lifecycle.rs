@@ -65,6 +65,7 @@ pub(super) async fn exercise(
             id: lifecycle_id.clone(),
             exit_code: 17,
             signal: String::new(),
+            error: "System shell startup failed".into(),
         })
         .await?;
     let exited =
@@ -72,11 +73,13 @@ pub(super) async fn exercise(
     assert_eq!(exited.process_id.as_deref(), Some(lifecycle_id.as_str()));
     assert!(!exited.audit);
     assert_eq!(exited.detail["exitCode"], 17);
+    assert_eq!(exited.detail["error"], "System shell startup failed");
     transport
         .send(&NodeToServer::ProcessExit {
             id: lifecycle_id,
             exit_code: 17,
             signal: String::new(),
+            error: String::new(),
         })
         .await?;
     support::assert_no_event(&mut lifecycle).await?;

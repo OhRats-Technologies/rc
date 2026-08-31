@@ -5,8 +5,9 @@ use rc_node::{
 };
 use std::{
     sync::{Arc, mpsc},
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+use std::sync::atomic::{AtomicU64, Ordering};
 mod cancellation;
 mod glob_check;
 mod redirect;
@@ -15,7 +16,22 @@ mod shell_status;
 
 pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     check_exact_argv(runtime.clone())?;
+    check_system_login_shell(runtime.clone())?;
     check_portable_shell(runtime)
+}
+
+static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+pub(super) fn probe_id(prefix: &str) -> String {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    format!(
+        "{prefix}-{timestamp}-{}-{}",
+        std::process::id(),
+        PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 fn check_exact_argv(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
@@ -25,7 +41,8 @@ fn check_exact_argv(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     });
     let manager = ComponentExecutionManager::new(runtime, sink);
     let executable = std::env::current_exe()?.to_string_lossy().into_owned();
-    let mut spec = ProcessSpec::command("manager-check", "unused");
+    let execution_id = probe_id("manager-check");
+    let mut spec = ProcessSpec::command(&execution_id, "unused");
     spec.mode = ProcessExecutionMode::Argv {
         program: executable,
         args: vec!["--version".into()],
@@ -47,7 +64,7 @@ fn check_exact_argv(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
         "manager rejected a fresh execution id"
     );
     anyhow::ensure!(
-        manager.execution_authority("manager-check")
+        manager.execution_authority(&execution_id)
             == Some((ProcessChannel::Control, "grant-a".into())),
         "execution did not retain its authorization linkage"
     );
@@ -80,6 +97,43 @@ fn check_exact_argv(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
         "component execution manager probe failed"
     );
     Ok(())
+}
+
+fn check_system_login_shell(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
+    let (tx, rx) = mpsc::channel();
+    let sink: ProcessEventSink = Arc::new(move |event| {
+        let _ = tx.send(event);
+    });
+    let manager = ComponentExecutionManager::new(runtime, sink);
+    let id = probe_id("manager-login-shell-check");
+    let mut spec = ProcessSpec::command(&id, "unused");
+    spec.mode = ProcessExecutionMode::SystemLoginShell;
+    spec.terminal = Some(rc_protocol::TerminalSpec {
+        cols: 80,
+        rows: 24,
+        term: "xterm-256color".into(),
+    });
+    spec.channel = ProcessChannel::Control;
+    spec.lifetime = ProcessLifetime::Managed;
+    spec.principal = ProcessPrincipal {
+        user_id: "runtime-check".into(),
+        role: "owner".into(),
+        can_execute: true,
+        can_manage_devices: true,
+    };
+    spec.user_id = "runtime-check".into();
+    spec.scrollback_bytes = 64 * 1024;
+    anyhow::ensure!(manager.start(spec)?, "system login shell did not start");
+    manager.signal(&id, "KILL")?;
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while Instant::now() < deadline {
+        match rx.recv_timeout(Duration::from_millis(100)) {
+            Ok(ProcessEvent::Exit { .. }) => return Ok(()),
+            Ok(_) | Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    anyhow::bail!("system login shell probe timed out")
 }
 
 fn check_portable_shell(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
@@ -197,6 +251,7 @@ fn run_and_collect(
     runtime: ComponentExecutionRuntime,
     mut spec: ProcessSpec,
 ) -> anyhow::Result<Vec<u8>> {
+    spec.id = probe_id(&spec.id);
     let execution_id = spec.id.clone();
     let (tx, rx) = mpsc::channel();
     let sink: ProcessEventSink = Arc::new(move |event| {

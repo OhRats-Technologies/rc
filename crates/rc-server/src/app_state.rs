@@ -88,7 +88,7 @@ impl AppState {
     ) {
         let lifecycle = match self
             .db
-            .mark_process_exit(device_id, process_id, exit_code, signal)
+            .mark_process_exit(device_id, process_id, exit_code, signal, "")
         {
             Ok(value) => value,
             Err(error) => {

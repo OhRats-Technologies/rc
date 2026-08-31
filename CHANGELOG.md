@@ -2,6 +2,15 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.7] - 2026-08-30
+
+- Grant the execution runtime its declared environment capability so typed
+  native login-shell requests can resolve and start the configured shell.
+- Validate configured shell executables and report bounded, non-sensitive
+  startup failures through encrypted terminal control and lifecycle metadata.
+- Make `rc doctor` exercise a real login-shell PTY with replay-safe probe IDs,
+  preventing a release from passing while browser and CLI terminals exit 127.
+
 ## [0.19.6] - 2026-08-30
 
 - Make reinstall-with-token safe and idempotent when a default enrollment already exists.
