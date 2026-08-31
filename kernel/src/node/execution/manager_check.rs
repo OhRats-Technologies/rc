@@ -3,11 +3,11 @@ use rc_node::{
     ExecutionManager, ProcessChannel, ProcessEvent, ProcessEventSink, ProcessExecutionMode,
     ProcessLifetime, ProcessPrincipal, ProcessSpec,
 };
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{
     sync::{Arc, mpsc},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
-use std::sync::atomic::{AtomicU64, Ordering};
 mod cancellation;
 mod glob_check;
 mod redirect;
@@ -41,8 +41,8 @@ fn check_exact_argv(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     });
     let manager = ComponentExecutionManager::new(runtime, sink);
     let executable = std::env::current_exe()?.to_string_lossy().into_owned();
-    let execution_id = std::env::var("RC_EXECUTION_REPLAY_PROBE_ID")
-        .unwrap_or_else(|_| probe_id("manager-check"));
+    let execution_id =
+        std::env::var("RC_EXECUTION_REPLAY_PROBE_ID").unwrap_or_else(|_| probe_id("manager-check"));
     let mut spec = ProcessSpec::command(&execution_id, "unused");
     spec.mode = ProcessExecutionMode::Argv {
         program: executable,
