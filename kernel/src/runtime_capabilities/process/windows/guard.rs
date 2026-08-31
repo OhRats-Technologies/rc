@@ -52,10 +52,10 @@ impl LaunchGate {
     }
 
     pub fn wait_until_open(&self) -> Result<(), String> {
-        let waited = unsafe { WaitForSingleObject(self.ready, INFINITE) };
+        let waited = unsafe { WaitForSingleObject(self.ready, 5_000) };
         (waited == WAIT_OBJECT_0)
             .then_some(())
-            .ok_or_else(|| "execution guard handshake failed".to_owned())
+            .ok_or_else(|| "execution guard did not become ready within 5 seconds".to_owned())
     }
 
     pub fn release(&self) -> Result<(), String> {
