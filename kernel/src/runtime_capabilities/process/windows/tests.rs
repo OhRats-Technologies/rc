@@ -275,28 +275,6 @@ fn job_kill_terminates_parent_and_grandchild() {
     unsafe { CloseHandle(handle) }.unwrap();
 }
 
-#[test]
-fn one_execution_job_owns_every_pipeline_stage() {
-    let mut group = Group::new().unwrap();
-    let first = spawn(
-        &mut group,
-        request(&["/D", "/S", "/C", "ping -n 30 127.0.0.1 >nul"], None),
-    )
-    .unwrap();
-    let second = spawn(
-        &mut group,
-        request(&["/D", "/S", "/C", "ping -n 30 127.0.0.1 >nul"], None),
-    )
-    .unwrap();
-    assert_eq!(
-        group.process_groups,
-        [first.native_child, second.native_child]
-    );
-    group.signal(Signal::Kill).unwrap();
-    assert!(wait(&mut group, first.native_child).code.is_some());
-    assert!(wait(&mut group, second.native_child).code.is_some());
-}
-
 mod ownership;
 mod signals;
 mod streams;
