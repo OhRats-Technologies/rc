@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use rusqlite::{Connection, MAIN_DB};
 use std::{
     path::Path,
@@ -117,14 +118,19 @@ impl Database {
         let temporary = parent.join(format!(".{name}.{}.tmp", std::process::id()));
         let _ = std::fs::remove_file(&temporary);
         let result = (|| -> anyhow::Result<()> {
-            self.lock()?.backup(MAIN_DB, &temporary, None)?;
-            let backup = Connection::open(&temporary)?;
-            check_connection(&backup)?;
+            self.lock()?
+                .backup(MAIN_DB, &temporary, None)
+                .context("write SQLite backup")?;
+            let backup = Connection::open(&temporary).context("open SQLite backup")?;
+            check_connection(&backup).context("check SQLite backup")?;
             drop(backup);
-            secure_database(&temporary)?;
-            std::fs::File::open(&temporary)?.sync_all()?;
-            std::fs::rename(&temporary, &destination)?;
-            sync_directory(&canonical_parent)?;
+            secure_database(&temporary).context("protect SQLite backup")?;
+            std::fs::File::open(&temporary)
+                .context("open protected SQLite backup")?
+                .sync_all()
+                .context("sync SQLite backup")?;
+            std::fs::rename(&temporary, &destination).context("activate SQLite backup")?;
+            sync_directory(&canonical_parent).context("sync SQLite backup directory")?;
             Ok(())
         })();
         if result.is_err() {

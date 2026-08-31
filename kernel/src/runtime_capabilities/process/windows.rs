@@ -219,6 +219,7 @@ fn spawn_terminal(
     command.args(
         std::iter::once(guard::MARKER.to_owned())
             .chain(std::iter::once(gate.name.clone()))
+            .chain(std::iter::once(gate.ready_name.clone()))
             .chain(std::iter::once(request.program))
             .chain(request.args),
     );
@@ -230,6 +231,11 @@ fn spawn_terminal(
         .as_raw_handle()
         .ok_or_else(|| "ConPTY child has no handle".to_owned())?;
     if let Err(error) = assign(group.job, HANDLE(handle)) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error);
+    }
+    if let Err(error) = gate.wait_until_open() {
         let _ = child.kill();
         let _ = child.wait();
         return Err(error);

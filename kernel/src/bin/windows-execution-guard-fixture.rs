@@ -17,9 +17,17 @@ fn main() -> anyhow::Result<()> {
     };
 
     let mut args = std::env::args_os();
+    anyhow::ensure!(args.next().is_some(), "fixture executable is missing");
+    let mode = args.next();
+    if mode.as_deref() == Some(std::ffi::OsStr::new("--echo-argv")) {
+        let values = args
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        println!("{}", serde_json::to_string(&values)?);
+        return Ok(());
+    }
     anyhow::ensure!(
-        args.next().is_some()
-            && args.next().as_deref() == Some(std::ffi::OsStr::new("--rc-windows-execution-guard")),
+        mode.as_deref() == Some(std::ffi::OsStr::new("--rc-windows-execution-guard")),
         "fixture is only an execution-guard test target"
     );
     let event = args.next().context("execution guard event is missing")?;

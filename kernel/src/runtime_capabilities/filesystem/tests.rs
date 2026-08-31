@@ -30,7 +30,7 @@ fn windows_directory_reparse_link_is_not_traversed() -> anyhow::Result<()> {
     let source = format!("mklink /J \"{}\" \"{}\"", link.display(), target.display());
     anyhow::ensure!(
         std::process::Command::new("cmd.exe")
-            .args(["/D", "/S", "/C", &source])
+            .args(["/D", "/C", &source])
             .status()?
             .success(),
         "could not create Windows directory junction"

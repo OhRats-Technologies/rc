@@ -69,19 +69,13 @@ fn unicode_exact_argv_boundaries_reach_the_child() {
         "雪🐀".to_owned(),
         "-leading".to_owned(),
     ];
-    let mut args = vec![
-        "-NoLogo".to_owned(),
-        "-NoProfile".to_owned(),
-        "-NonInteractive".to_owned(),
-        "-Command".to_owned(),
-        "[Console]::OutputEncoding=[Text.UTF8Encoding]::new();[Console]::Out.Write(($args|ConvertTo-Json -Compress))".to_owned(),
-    ];
+    let mut args = vec!["--echo-argv".to_owned()];
     args.extend(expected.clone());
     let mut group = Group::new().unwrap();
     let spawned = spawn(
         &mut group,
         SpawnRequest {
-            program: "powershell.exe".into(),
+            program: guard::executable().unwrap().to_string_lossy().into_owned(),
             args,
             cwd: None,
             environment: Environment {
