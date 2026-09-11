@@ -67,16 +67,27 @@ pub(super) fn poll(
             }
             let value = substitution_text(&job.captured)?;
             replace(
-                job.script.as_mut().unwrap(),
-                job.slot.take().unwrap(),
+                job.script
+                    .as_mut()
+                    .ok_or("shell preparation is already consumed")?,
+                job.slot
+                    .take()
+                    .ok_or("command substitution slot is missing")?,
                 value,
             );
             job.nested = None;
             job.captured.clear();
             continue;
         }
-        let Some((slot, source)) = take_next(job.script.as_mut().unwrap()) else {
-            let script = job.script.take().unwrap();
+        let Some((slot, source)) = take_next(
+            job.script
+                .as_mut()
+                .ok_or("shell preparation is already consumed")?,
+        ) else {
+            let script = job
+                .script
+                .take()
+                .ok_or("shell preparation is already consumed")?;
             return Ok(Outcome::Ready(build_script(
                 script,
                 job.context.clone(),

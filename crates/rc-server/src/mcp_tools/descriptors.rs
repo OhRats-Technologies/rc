@@ -255,6 +255,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn status_requires_explicit_device_and_process_identity() {
+        let schema = status_descriptor()["inputSchema"].clone();
+        assert_eq!(
+            schema["required"],
+            serde_json::json!(["deviceId", "processId"])
+        );
+        assert_eq!(schema["properties"]["deviceId"]["type"], "string");
+    }
+
+    #[test]
     fn structured_tools_publish_exact_unbounded_string_schemas() {
         let descriptors = [
             machines_descriptor(),

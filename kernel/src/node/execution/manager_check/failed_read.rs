@@ -5,7 +5,17 @@ use rc_node::{
 };
 
 pub(super) fn check(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
-    let script = "rc-nonexistent-executable-regression".to_owned();
+    for script in [
+        "rc-nonexistent-executable-regression",
+        "echo $(rc-nonexistent-executable-regression)",
+        "echo $(echo $(rc-nonexistent-executable-regression))",
+    ] {
+        check_script(runtime.clone(), script.to_owned())?;
+    }
+    Ok(())
+}
+
+fn check_script(runtime: ComponentExecutionRuntime, script: String) -> anyhow::Result<()> {
     let execution = runtime
         .start(ProcessStartRequest {
             execution_id: probe_id("mcp-failed-read"),
