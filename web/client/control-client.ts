@@ -1,6 +1,7 @@
 import { api } from "./http";
 import { passkeyAssertion } from "./webauthn";
 import type { Me } from "../types";
+import { authorityProgress, type AuthorityStatus } from "./authority-status";
 
 type ControlIdentity = { id: string; publicKey: string; privateKey: CryptoKey };
 type DevicePin = { identityKey: string; transportKey: string };
@@ -81,9 +82,10 @@ export async function signControl(payload: string) {
   return { clientId: identity.id, signature: bytesToB64url(signature) };
 }
 
-export async function syncWorkspaceAuthority(workspaceId: string) {
-  const state = await api<{ hash: string; devices: number; synced: number; parents: Array<{ hash: string; generation: number }> }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
-  if (!state.devices || state.synced === state.devices) return state;
+export async function syncWorkspaceAuthority(workspaceId: string, selected?: string[]) {
+  const state = await api<AuthorityStatus & { parents: Array<{ hash: string; generation: number }> }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
+  const initial = authorityProgress(state, selected);
+  if (!initial.devices || initial.synced === initial.devices) return state;
   const identity = await ensureControlAuthorized();
   const transitions = await Promise.all(state.parents.map(async parent => ({
     fromHash: parent.hash, generation: parent.generation,
@@ -94,10 +96,11 @@ export async function syncWorkspaceAuthority(workspaceId: string) {
   await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
   for (let attempt = 0; attempt < 15; attempt++) {
     await new Promise(resolve => window.setTimeout(resolve, 200));
-    const next = await api<{ hash: string; devices: number; synced: number }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
-    if (!next.devices || next.synced === next.devices) return next;
+    const next = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
+    const progress = authorityProgress(next, selected);
+    if (!progress.devices || progress.synced === progress.devices) return next;
   }
-  const final = await api<{ hash: string; devices: number; synced: number }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
+  const final = authorityProgress(await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`), selected);
   throw new Error(`RC Lock sync was rejected or timed out (${final.synced}/${final.devices} Nodes accepted it).`);
 }
 
@@ -113,4 +116,3 @@ export async function pinDevice(deviceId: string, identityKey: string, transport
   }
   if (!current) await save(key, { identityKey, transportKey });
 }
-

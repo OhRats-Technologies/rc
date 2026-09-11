@@ -24,6 +24,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Unify browser reattach and MCP cursor reads on the Node output journal.
 - [x] Preserve Unix process groups across sequential external commands, report shell completion only after the whole script drains, and verify completed MCP output remains readable.
 - [x] Revalidate MCP grant, device, process ownership, and action policy at the Node.
+- [x] Scope MCP consent lock-sync acknowledgement to selected devices and distinguish selected offline devices; retain workspace-wide checks for authority administration.
 - [x] Remove hosted MCP process routing state; route every operation with device ID and bind Node executions to the originating grant ID across hosted restarts.
 - [x] Prove a fresh hosted MCP correlation hub can query an existing Node-owned execution after the previous hub is dropped.
 - [x] Terminate active MCP/scheduled executions when durable RC Lock authority is revoked and bound MCP runtime to grant expiry.

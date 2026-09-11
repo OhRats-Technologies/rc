@@ -34,13 +34,26 @@ async fn status(
     let hash = authority_hash(&snapshot);
     let devices = state.db.with_connection(|db| {
         let mut s =
-            db.prepare("SELECT lock_hash,lock_generation FROM devices WHERE workspace_id=?")?;
-        s.query_map([id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
-            .collect::<Result<Vec<_>, _>>()
+            db.prepare("SELECT lock_hash,lock_generation,id FROM devices WHERE workspace_id=?")?;
+        s.query_map([id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()
     })?;
-    let synced = devices.iter().filter(|(h, _)| h == &hash).count();
+    let synced = devices.iter().filter(|(h, _, _)| h == &hash).count();
+    let mut device_states = Vec::new();
+    for (device_hash, _, device_id) in &devices {
+        device_states.push(serde_json::json!({
+            "id": device_id, "synced": device_hash == &hash,
+            "online": state.nodes.online(device_id).await,
+        }));
+    }
     let mut parents = BTreeMap::new();
-    for (h, g) in &devices {
+    for (h, g, _) in &devices {
         let h = h.to_lowercase();
         if h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()) && h != hash {
             parents.insert(
@@ -50,7 +63,7 @@ async fn status(
         }
     }
     Ok(Json(
-        serde_json::json!({"hash":hash,"devices":devices.len(),"synced":synced,"parents":parents.into_values().collect::<Vec<_>>()}),
+        serde_json::json!({"hash":hash,"devices":devices.len(),"synced":synced,"deviceStates":device_states,"parents":parents.into_values().collect::<Vec<_>>()}),
     ))
 }
 

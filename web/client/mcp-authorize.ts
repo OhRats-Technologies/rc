@@ -35,7 +35,7 @@ form.addEventListener("submit", async event => {
     const result = await api<{ redirect: string; grantId: string; workspaceIds: string[]; requiresSync: boolean }>("/oauth/authorize/approve", {
       method: "POST", body: JSON.stringify({ requestId: root.dataset.mcpRequest, controlClientId: signed.clientId, signature: signed.signature }),
     });
-    if (result.requiresSync) try { for (const workspaceId of result.workspaceIds) await syncWorkspaceAuthority(workspaceId); }
+    if (result.requiresSync) try { for (const workspaceId of result.workspaceIds) await syncWorkspaceAuthority(workspaceId, deviceIds); }
     catch (cause) {
       const revoked = await api<{ workspaceIds: string[] }>(`/oauth/grants/${encodeURIComponent(result.grantId)}`, { method: "DELETE" });
       try { for (const workspaceId of revoked.workspaceIds) await syncWorkspaceAuthority(workspaceId); } catch {}
