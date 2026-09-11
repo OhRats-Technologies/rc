@@ -13,6 +13,8 @@ mod failed_read;
 mod glob_check;
 mod login_shell;
 mod mcp_read;
+#[cfg(unix)]
+mod reaped;
 mod redirect;
 mod shell_argv;
 mod shell_status;
@@ -24,6 +26,8 @@ pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     login_shell::check(runtime.clone())?;
     eprintln!("runtime check: MCP completed output");
     mcp_read::check(runtime.clone())?;
+    #[cfg(unix)]
+    reaped::check(runtime.clone())?;
     eprintln!("runtime check: repeated failed shell reads");
     failed_read::check(runtime.clone())?;
     eprintln!("runtime check: portable shell");

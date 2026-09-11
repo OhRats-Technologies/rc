@@ -233,6 +233,9 @@ fn authorize_access(
 }
 
 fn drain(state: &mut State, budget: u32) -> Result<(), String> {
+    if state.exit.is_some() {
+        return Ok(());
+    }
     let (output, exit) = state.native.poll(budget)?;
     for (kind, bytes) in output {
         state.journal.push(kind, bytes);
@@ -264,12 +267,14 @@ fn finish_registration(state: &mut State) {
         return;
     }
     state.registered = false;
+    state.native.close();
     let counts = REGISTRY.with(|registry| registry.borrow_mut().finished(state.lease_kind));
     crate::diagnostics::counts(counts);
 }
 
 impl Drop for RuntimeExecution {
     fn drop(&mut self) {
+        self.0.get_mut().native.close();
         finish_registration(self.0.get_mut());
     }
 }
