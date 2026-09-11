@@ -56,14 +56,26 @@ impl ServerTransport {
                 let _ = tx.send(true);
             })
         }));
+        let weak_peer = Arc::downgrade(&peer);
         peer.on_peer_connection_state_change(Box::new(move |state| {
             let tx = closed_tx.clone();
+            let peer = weak_peer.clone();
             Box::pin(async move {
+                if state == RTCPeerConnectionState::Disconnected {
+                    // A transient ICE disconnect is recoverable on the same transport.
+                    tokio::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+                        if peer.upgrade().is_some_and(|peer| {
+                            peer.connection_state() == RTCPeerConnectionState::Disconnected
+                        }) {
+                            let _ = tx.send(true);
+                        }
+                    });
+                    return;
+                }
                 if matches!(
                     state,
-                    RTCPeerConnectionState::Failed
-                        | RTCPeerConnectionState::Closed
-                        | RTCPeerConnectionState::Disconnected
+                    RTCPeerConnectionState::Failed | RTCPeerConnectionState::Closed
                 ) {
                     let _ = tx.send(true);
                 }
@@ -117,8 +129,9 @@ struct IceResponse {
 async fn fetch_ice(server: &str, state: &NodeState) -> anyhow::Result<Vec<IceServer>> {
     let path = "/api/v1/node/ice";
     let auth = sign_node_request(state, "GET", path, &[])?;
-    let mut request =
-        reqwest::Client::new().get(format!("{}{}", server.trim_end_matches('/'), path));
+    let mut request = reqwest::Client::new()
+        .get(format!("{}{}", server.trim_end_matches('/'), path))
+        .timeout(std::time::Duration::from_secs(20));
     for (name, value) in auth.headers() {
         request = request.header(name, value);
     }
@@ -143,6 +156,7 @@ async fn post_offer(server: &str, state: &NodeState, sdp: &str) -> anyhow::Resul
     let auth = sign_node_request(state, "POST", path, &body)?;
     let mut request = reqwest::Client::new()
         .post(format!("{}{}", server.trim_end_matches('/'), path))
+        .timeout(std::time::Duration::from_secs(40))
         .header("content-type", "application/json")
         .body(body);
     for (name, value) in auth.headers() {

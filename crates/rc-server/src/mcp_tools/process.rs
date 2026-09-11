@@ -36,6 +36,7 @@ pub(super) async fn run(
         .get("maxRuntimeSeconds")
         .and_then(serde_json::Value::as_u64);
     let process_id = Uuid::new_v4().to_string();
+    state.nodes.wait_ready(device).await?;
     insert_process(state, context, device, &process_id)?;
     let message = ServerToNode::McpStart {
         process_id: process_id.clone(),
@@ -55,7 +56,11 @@ pub(super) async fn run(
         state.lose_hosted_process(device, &process_id, &reason);
         return complete_result(lost_result(process_id, reason));
     }
-    let result = query_node_status(state, context, device, &process_id, 0, wait).await?;
+    let result = query_node_status(state, context, device, &process_id, 0, wait)
+        .await
+        .unwrap_or_else(|error| lost_result(process_id, format!(
+            "Execution outcome is unknown: {error}. Query process_status; do not replay the command."
+        )));
     complete_result(result)
 }
 

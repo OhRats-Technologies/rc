@@ -104,6 +104,18 @@ impl NodeHub {
         peer.channel.read().await.is_some()
     }
 
+    // Wait only before sending. Never replay a possibly delivered start.
+    pub async fn wait_ready(&self, device_id: &str) -> anyhow::Result<()> {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(10);
+        while !self.online(device_id).await {
+            if tokio::time::Instant::now() >= deadline {
+                anyhow::bail!("Node is offline or still connecting; command was not sent");
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        Ok(())
+    }
+
     pub fn subscribe(&self) -> broadcast::Receiver<NodeInbound> {
         self.events.subscribe()
     }
@@ -112,12 +124,9 @@ impl NodeHub {
     }
 
     pub async fn remove_if(&self, device_id: &str, connection_id: &str) -> bool {
-        let matches = self
-            .peers
-            .get(device_id)
-            .map(|peer| connection_id.is_empty() || peer.connection_id == connection_id)
-            .unwrap_or(false);
-        if matches && let Some((_, peer)) = self.peers.remove(device_id) {
+        if let Some((_, peer)) = self.peers.remove_if(device_id, |_, peer| {
+            connection_id.is_empty() || peer.connection_id == connection_id
+        }) {
             let _ = peer.peer.close().await;
             return true;
         }
