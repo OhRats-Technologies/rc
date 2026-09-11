@@ -4,7 +4,7 @@ use crate::component::ohrats::rc_process::{filesystem_host, process_host, types:
 pub(super) fn poll(job: &mut NativeJob, max: u32) -> Result<PollResult, String> {
     let mut output = Vec::new();
     pump_input(job)?;
-    pump_links(job, max)?;
+    pump_links(job, max, &mut output)?;
     if let Some(last) = job.stages.last_mut() {
         match read_stage(last, max)? {
             process_host::ReadResult::Data(bytes) => {
@@ -95,7 +95,11 @@ pub(super) fn close_input(job: &mut NativeJob) -> Result<(), String> {
     close_stage_input(first)
 }
 
-pub(super) fn pump_links(job: &mut NativeJob, max: u32) -> Result<(), String> {
+pub(super) fn pump_links(
+    job: &mut NativeJob,
+    max: u32,
+    output: &mut Vec<Output>,
+) -> Result<(), String> {
     for index in 0..job.links.len() {
         let (left, right) = job.stages.split_at_mut(index + 1);
         let upstream = &mut left[index];
@@ -106,8 +110,10 @@ pub(super) fn pump_links(job: &mut NativeJob, max: u32) -> Result<(), String> {
             link.offset = 0;
             match read_stage(upstream, max)? {
                 process_host::ReadResult::Data(bytes) => {
-                    if upstream.stdout_target.is_some() {
-                        emit(upstream, StreamKind::Stdout, bytes, &mut Vec::new())?;
+                    if upstream.stdout_target.is_some()
+                        || matches!(upstream.stdout_kind, Some(StreamKind::Stderr))
+                    {
+                        emit(upstream, StreamKind::Stdout, bytes, output)?;
                     } else {
                         link.pending = bytes;
                     }
@@ -148,6 +154,10 @@ fn emit(
         StreamKind::Stderr => &mut stage.stderr_target,
     };
     let Some(target) = target else {
+        let kind = match kind {
+            StreamKind::Stdout => stage.stdout_kind.unwrap_or(kind),
+            StreamKind::Stderr => stage.stderr_kind.unwrap_or(kind),
+        };
         output.push(Output { kind, bytes });
         return Ok(());
     };

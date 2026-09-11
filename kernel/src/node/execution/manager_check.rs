@@ -18,6 +18,7 @@ mod reaped;
 mod redirect;
 mod shell_argv;
 mod shell_status;
+mod stderr;
 
 pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     eprintln!("runtime check: exact argv");
@@ -26,6 +27,7 @@ pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     login_shell::check(runtime.clone())?;
     eprintln!("runtime check: MCP completed output");
     mcp_read::check(runtime.clone())?;
+    stderr::check(runtime.clone())?;
     #[cfg(unix)]
     reaped::check(runtime.clone())?;
     eprintln!("runtime check: repeated failed shell reads");

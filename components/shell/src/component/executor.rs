@@ -2,6 +2,7 @@ mod builder;
 mod builtins;
 mod expansion;
 mod pipeline;
+mod redirects;
 mod sequence;
 mod substitution;
 
@@ -47,6 +48,8 @@ struct Target {
 }
 
 struct Stage {
+    stdout_kind: Option<StreamKind>,
+    stderr_kind: Option<StreamKind>,
     child: Option<Child>,
     stdin: Option<ByteStream>,
     stdout: Option<ByteStream>,
@@ -76,6 +79,7 @@ struct Link {
 }
 
 struct VirtualJob {
+    output_kind: Option<StreamKind>,
     output: Option<Vec<u8>>,
     code: u32,
     shell_exit: bool,

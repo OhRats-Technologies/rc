@@ -258,7 +258,7 @@ pub(super) fn output(job: &mut VirtualJob) -> Result<Vec<Output>, String> {
         Ok(Vec::new())
     } else {
         Ok(vec![Output {
-            kind: StreamKind::Stdout,
+            kind: job.output_kind.unwrap_or(StreamKind::Stdout),
             bytes,
         }])
     }

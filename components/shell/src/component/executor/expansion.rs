@@ -2,7 +2,7 @@ use crate::component::ohrats::rc_process::{
     environment_host, filesystem_host,
     types::{Environment, EnvironmentBase, EnvironmentChange},
 };
-use crate::{Assignment, Command, ExpansionHost, RedirectMode, RedirectStream, expand_word};
+use crate::{Assignment, Command, ExpansionHost, expand_word};
 use std::collections::BTreeMap;
 
 pub(super) type EnvironmentValues = Vec<(String, String)>;
@@ -75,49 +75,7 @@ pub(super) fn expand_command(
     Ok((argv, changes))
 }
 
-#[derive(Default)]
-pub(super) struct Redirects {
-    pub stdin: Option<Vec<u8>>,
-    pub stdout: Option<(String, bool)>,
-    pub stderr: Option<(String, bool)>,
-}
-
-pub(super) fn redirects(
-    command: &Command,
-    environment: &[(String, String)],
-    cwd: Option<&str>,
-    case_insensitive: bool,
-) -> Result<Redirects, String> {
-    let mut host = Host {
-        environment: environment_map(environment, case_insensitive),
-        cwd: cwd.unwrap_or("."),
-        case_insensitive,
-    };
-    let mut result = Redirects::default();
-    for redirect in &command.redirects {
-        let target = expand_word(&redirect.target, &mut host)
-            .map_err(expansion_error)?
-            .into_iter()
-            .next()
-            .ok_or("redirect target is empty")?;
-        let path = join_path(cwd, &target);
-        if matches!(redirect.mode, RedirectMode::Read) {
-            result.stdin = Some(filesystem_host::read(&path, 64 * 1024 * 1024)?);
-            continue;
-        }
-        let value = (path, matches!(redirect.mode, RedirectMode::Append));
-        match redirect.stream {
-            RedirectStream::Stdout => result.stdout = Some(value),
-            RedirectStream::Stderr => result.stderr = Some(value),
-            RedirectStream::StdoutAndStderr => {
-                result.stdout = Some(value.clone());
-                result.stderr = Some(value);
-            }
-            RedirectStream::Stdin => return Err("stdin redirect must use read mode".into()),
-        }
-    }
-    Ok(result)
-}
+pub(super) use super::redirects::redirects;
 
 pub(super) fn resolve_program(
     program: &str,
@@ -143,10 +101,10 @@ pub(super) fn host_environment(values: Vec<(String, String)>) -> Environment {
     }
 }
 
-struct Host<'a> {
-    environment: BTreeMap<String, String>,
-    cwd: &'a str,
-    case_insensitive: bool,
+pub(super) struct Host<'a> {
+    pub(super) environment: BTreeMap<String, String>,
+    pub(super) cwd: &'a str,
+    pub(super) case_insensitive: bool,
 }
 
 impl ExpansionHost for Host<'_> {
@@ -223,7 +181,7 @@ fn join(directory: &str, name: &str) -> String {
         format!("{directory}/{name}")
     }
 }
-fn join_path(cwd: Option<&str>, path: &str) -> String {
+pub(super) fn join_path(cwd: Option<&str>, path: &str) -> String {
     if path.starts_with('/') || path.starts_with('\\') || path.as_bytes().get(1) == Some(&b':') {
         path.into()
     } else {
@@ -240,7 +198,7 @@ pub(super) fn apply_changes(
         values.push((name, value));
     }
 }
-fn environment_map(
+pub(super) fn environment_map(
     values: &[(String, String)],
     case_insensitive: bool,
 ) -> BTreeMap<String, String> {
@@ -263,6 +221,6 @@ fn same_name(left: &str, right: &str, case_insensitive: bool) -> bool {
         left == right
     }
 }
-fn expansion_error(error: crate::ExpandError) -> String {
+pub(super) fn expansion_error(error: crate::ExpandError) -> String {
     format!("shell expansion failed: {error:?}")
 }

@@ -85,6 +85,7 @@ fn single_builtin(
     )?;
     if argv.is_empty() && !command.assignments.is_empty() {
         return Ok(Some(JobState::Virtual(VirtualJob {
+            output_kind: None,
             output: None,
             code: 0,
             shell_exit: false,
@@ -99,6 +100,7 @@ fn single_builtin(
     };
     let (output, code) = result?;
     Ok(Some(JobState::Virtual(VirtualJob {
+        output_kind: redirect.stdout_kind,
         output,
         code,
         shell_exit: argv.first().is_some_and(|value| value == "exit"),
@@ -140,13 +142,10 @@ fn add_stage(
     let stderr_target = redirect.stderr.map(pipeline::target);
     if let Some(result) = builtins::run(&argv, context) {
         let (output, code) = result?;
-        job.stages.push(virtual_stage(
-            &argv,
-            output,
-            code,
-            stdout_target,
-            stderr_target,
-        ));
+        let mut stage = virtual_stage(&argv, output, code, stdout_target, stderr_target);
+        stage.stdout_kind = redirect.stdout_kind;
+        stage.stderr_kind = redirect.stderr_kind;
+        job.stages.push(stage);
         return Ok(());
     }
     let (program, args) = argv.split_first().ok_or("shell command is empty")?;
@@ -158,6 +157,8 @@ fn add_stage(
         terminal: context.terminal.clone(),
     })?;
     job.stages.push(Stage {
+        stdout_kind: redirect.stdout_kind,
+        stderr_kind: redirect.stderr_kind,
         child: Some(spawned.child),
         stdin: spawned.stdin,
         stdout: Some(spawned.stdout),
@@ -181,6 +182,8 @@ fn virtual_stage(
 ) -> Stage {
     let passthrough = argv.first().is_some_and(|value| value == "cat") && argv.len() == 1;
     Stage {
+        stdout_kind: None,
+        stderr_kind: None,
         child: None,
         stdin: None,
         stdout: None,

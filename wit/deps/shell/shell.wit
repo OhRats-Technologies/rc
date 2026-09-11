@@ -4,7 +4,7 @@ interface types {
     enum connector { always, and, or }
     enum word-part-kind { literal, variable, command-substitution, glob }
     enum redirect-stream { stdin, stdout, stderr, stdout-and-stderr }
-    enum redirect-mode { read, write, append }
+    enum redirect-mode { read, write, append, duplicate }
     record word-part { kind: word-part-kind, value: string }
     record word { parts: list<word-part> }
     record assignment { name: string, value: word }

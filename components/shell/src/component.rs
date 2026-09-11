@@ -127,6 +127,7 @@ fn convert_redirect(value: ast::Redirect) -> Redirect {
         ast::RedirectMode::Read => RedirectMode::Read,
         ast::RedirectMode::Write => RedirectMode::Write,
         ast::RedirectMode::Append => RedirectMode::Append,
+        ast::RedirectMode::Duplicate => RedirectMode::Duplicate,
     };
     Redirect {
         target_stream: stream,

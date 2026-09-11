@@ -75,4 +75,5 @@ pub enum RedirectMode {
     Read,
     Write,
     Append,
+    Duplicate,
 }

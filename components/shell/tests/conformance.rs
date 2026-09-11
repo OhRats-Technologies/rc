@@ -72,3 +72,12 @@ fn command_substitution_balancing_ignores_quoted_parentheses() {
         )]
     );
 }
+
+#[test]
+fn output_descriptor_duplication_is_not_a_filename() {
+    for source in ["printf err >&2", "echo err 1>&2", "echo err 2>&1"] {
+        let script = rc_shell::parse(source).unwrap();
+        let redirect = &script.chains[0].pipeline.commands[0].redirects[0];
+        assert_eq!(redirect.mode, rc_shell::RedirectMode::Duplicate);
+    }
+}
