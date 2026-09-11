@@ -95,7 +95,7 @@ pub async fn assert_node_transport_limit(
     node: &mut ServerTransport,
 ) -> anyhow::Result<()> {
     let command = "x".repeat(rc_protocol::NODE_CONTROL_MESSAGE_LIMIT + 1024);
-    let result = rpc_call(
+    let result = super::support::rpc_result(
         client,
         harness,
         "process_run",
@@ -109,6 +109,7 @@ pub async fn assert_node_transport_limit(
     .await?;
     let state = &result["result"]["structuredContent"];
     assert_eq!(state["status"], "lost");
+    assert_eq!(result["result"]["isError"], true);
     assert!(
         state["error"]
             .as_str()

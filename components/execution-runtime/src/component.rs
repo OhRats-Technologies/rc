@@ -101,7 +101,7 @@ impl RuntimeGuest for ExecutionRuntime {
             plan.terminate_grace_ms,
             plan.max_runtime_ms,
         );
-        let native = Native::start(&id, plan)?;
+        let native = Native::start(&id, plan).unwrap_or_else(Native::Failed);
         let counts = REGISTRY.with(|registry| registry.borrow_mut().started(lease_kind));
         crate::diagnostics::counts(counts);
         Ok(Execution::new(RuntimeExecution(RefCell::new(State {
@@ -232,56 +232,5 @@ fn authorize_access(
     policy::authorize_access(&access_request(state, action))
 }
 
-fn drain(state: &mut State, budget: u32) -> Result<(), String> {
-    if state.exit.is_some() {
-        return Ok(());
-    }
-    let (output, exit) = state.native.poll(budget)?;
-    for (kind, bytes) in output {
-        state.journal.push(kind, bytes);
-    }
-    if state.exit.is_none() && exit.is_some() {
-        state.exit = exit;
-        finish_registration(state);
-    }
-    Ok(())
-}
-
-fn poll_exit(state: &mut State) {
-    if state.exit.is_some() {
-        return;
-    }
-    if let Ok((output, exit)) = state.native.poll(1) {
-        for (kind, bytes) in output {
-            state.journal.push(kind, bytes);
-        }
-        if exit.is_some() {
-            state.exit = exit;
-            finish_registration(state);
-        }
-    }
-}
-
-fn finish_registration(state: &mut State) {
-    if !state.registered {
-        return;
-    }
-    state.registered = false;
-    state.native.close();
-    let counts = REGISTRY.with(|registry| registry.borrow_mut().finished(state.lease_kind));
-    crate::diagnostics::counts(counts);
-}
-
-impl Drop for RuntimeExecution {
-    fn drop(&mut self) {
-        self.0.get_mut().native.close();
-        finish_registration(self.0.get_mut());
-    }
-}
-
-fn enforce_leases(state: &mut State) {
-    let now = clock_host::now_unix_ms();
-    if state.leases.expired(now) {
-        let _ = state.native.signal(Signal::Kill);
-    }
-}
+mod lifecycle;
+use lifecycle::{drain, enforce_leases, poll_exit};

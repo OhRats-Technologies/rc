@@ -86,6 +86,21 @@ pub async fn rpc_call(
     arguments: serde_json::Value,
     id: u64,
 ) -> anyhow::Result<serde_json::Value> {
+    let value = rpc_result(client, harness, name, arguments, id).await?;
+    anyhow::ensure!(
+        value["result"]["isError"] != true,
+        "MCP tool error: {value}"
+    );
+    Ok(value)
+}
+
+pub async fn rpc_result(
+    client: &reqwest::Client,
+    harness: &Harness,
+    name: &str,
+    arguments: serde_json::Value,
+    id: u64,
+) -> anyhow::Result<serde_json::Value> {
     let response = client
         .post(format!("{}/mcp", harness.base))
         .bearer_auth(&harness.access_token)
@@ -103,10 +118,6 @@ pub async fn rpc_call(
     anyhow::ensure!(response.status().is_success(), "MCP call failed");
     let value: serde_json::Value = response.json().await?;
     anyhow::ensure!(value.get("error").is_none(), "MCP RPC error: {value}");
-    anyhow::ensure!(
-        value["result"]["isError"] != true,
-        "MCP tool error: {value}"
-    );
     Ok(value)
 }
 

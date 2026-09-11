@@ -24,23 +24,23 @@ pub(super) fn check(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
             max_runtime_ms: None,
         })
         .map_err(anyhow::Error::msg)?;
-    let mut first_error = None;
+    let mut first_output = None;
     for _ in 0..3 {
-        let error = execution
-            .read(0, 64 * 1024)
-            .err()
-            .ok_or_else(|| anyhow::anyhow!("missing executable unexpectedly succeeded"))?;
+        let read = execution.read(0, 64 * 1024).map_err(anyhow::Error::msg)?;
         anyhow::ensure!(
-            !error.contains("wasm trap"),
-            "failed shell trapped on repeated read"
+            read.status == "exited" && read.exit_code == Some(1),
+            "shell error was not a completed execution failure"
         );
-        if let Some(first) = &first_error {
-            anyhow::ensure!(
-                first == &error,
-                "failed shell error changed on repeated read"
-            );
+        let bytes: Vec<_> = read
+            .chunks
+            .into_iter()
+            .flat_map(|chunk| chunk.bytes)
+            .collect();
+        anyhow::ensure!(String::from_utf8_lossy(&bytes).contains("command not found"));
+        if let Some(first) = &first_output {
+            anyhow::ensure!(first == &bytes, "failure output changed on repeated read");
         } else {
-            first_error = Some(error);
+            first_output = Some(bytes);
         }
     }
     Ok(())

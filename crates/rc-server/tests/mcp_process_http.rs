@@ -220,7 +220,7 @@ async fn exercise_cancel(
         signal: "TERM".into(),
     })
     .await?;
-    let status_call = rpc_call(
+    let status_call = support::rpc_result(
         client,
         harness,
         "process_status",
@@ -231,6 +231,7 @@ async fn exercise_cancel(
     let (status, ()) = tokio::try_join!(status_call, status_response)?;
     assert_eq!(status["result"]["structuredContent"]["status"], "exited");
     assert_eq!(status["result"]["structuredContent"]["signal"], "TERM");
+    assert_eq!(status["result"]["isError"], true);
     Ok(())
 }
 

@@ -170,5 +170,27 @@ fn complete_result(result: McpProcessResult) -> anyhow::Result<serde_json::Value
     if result.output_pending {
         text.push_str(" More buffered output is available at nextCursor.");
     }
-    Ok(complete(serde_json::to_value(&result)?, text, false))
+    let failed = result.status == "lost"
+        || (result.status == "exited" && (result.exit_code != Some(0) || result.signal.is_some()));
+    Ok(complete(serde_json::to_value(&result)?, text, failed))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn lost_and_nonzero_exit_are_tool_errors_but_success_is_not() {
+        let mut result = lost_result("process".into(), "transport unavailable".into());
+        assert_eq!(complete_result(result.clone()).unwrap()["isError"], true);
+        result.status = "exited".into();
+        result.exit_code = Some(1);
+        result.error = None;
+        assert_eq!(complete_result(result.clone()).unwrap()["isError"], true);
+        result.exit_code = Some(0);
+        assert!(
+            !complete_result(result).unwrap()["isError"]
+                .as_bool()
+                .unwrap_or(false)
+        );
+    }
 }

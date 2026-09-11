@@ -11,6 +11,7 @@ use crate::resolve::spawn_request;
 pub(crate) enum Native {
     Process(Process),
     Shell(String),
+    Failed(String),
 }
 
 type PollOutput = (Vec<(StreamKind, Vec<u8>)>, Option<ExitResult>);
@@ -51,6 +52,7 @@ impl Native {
 
     pub(crate) fn poll(&mut self, budget: u32) -> Result<PollOutput, String> {
         match self {
+            Self::Failed(error) => Err(error.clone()),
             Self::Process(value) => value.poll(budget),
             Self::Shell(id) => {
                 let result = executor::poll(id, budget)?;
@@ -76,6 +78,7 @@ impl Native {
 
     pub(crate) fn input(&self, bytes: &[u8]) -> Result<u32, String> {
         match self {
+            Self::Failed(error) => Err(error.clone()),
             Self::Process(value) => value.input(bytes),
             Self::Shell(id) => executor::input(id, bytes),
         }
@@ -83,6 +86,7 @@ impl Native {
 
     pub(crate) fn close_input(&mut self) -> Result<(), String> {
         match self {
+            Self::Failed(error) => Err(error.clone()),
             Self::Process(value) => value.close_input(),
             Self::Shell(id) => executor::close_input(id),
         }
@@ -90,6 +94,7 @@ impl Native {
 
     pub(crate) fn resize(&self, cols: u16, rows: u16) -> Result<(), String> {
         match self {
+            Self::Failed(error) => Err(error.clone()),
             Self::Process(value) => value.group()?.resize(cols, rows),
             Self::Shell(id) => executor::resize(id, cols, rows),
         }
@@ -97,6 +102,7 @@ impl Native {
 
     pub(crate) fn signal(&self, signal: Signal) -> Result<(), String> {
         match self {
+            Self::Failed(error) => Err(error.clone()),
             Self::Process(value) => value.group()?.signal(signal),
             Self::Shell(id) => executor::request_signal(id, signal),
         }
@@ -104,6 +110,7 @@ impl Native {
 
     pub(crate) fn close(&mut self) {
         match self {
+            Self::Failed(_) => {}
             Self::Process(value) => {
                 if let Some(group) = value.group.take() {
                     group.close();
