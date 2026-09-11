@@ -54,13 +54,18 @@ impl Native {
             Self::Process(value) => value.poll(budget),
             Self::Shell(id) => {
                 let result = executor::poll(id, budget)?;
+                // An intermediate pipeline may have an exit code while the
+                // complete script still has output to drain or stages to run.
+                let exit = matches!(result.state, executor::State::Exited)
+                    .then_some(result.exit)
+                    .flatten();
                 Ok((
                     result
                         .output
                         .into_iter()
                         .map(|value| (value.kind, value.bytes))
                         .collect(),
-                    result.exit.map(|value| ExitResult {
+                    exit.map(|value| ExitResult {
                         code: value.code,
                         signal: value.signal,
                     }),

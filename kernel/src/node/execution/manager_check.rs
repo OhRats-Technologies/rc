@@ -11,6 +11,7 @@ use std::{
 mod cancellation;
 mod glob_check;
 mod login_shell;
+mod mcp_read;
 mod redirect;
 mod shell_argv;
 mod shell_status;
@@ -20,6 +21,8 @@ pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     check_exact_argv(runtime.clone())?;
     eprintln!("runtime check: system login shell");
     login_shell::check(runtime.clone())?;
+    eprintln!("runtime check: MCP completed output");
+    mcp_read::check(runtime.clone())?;
     eprintln!("runtime check: portable shell");
     check_portable_shell(runtime)?;
     eprintln!("runtime check: complete");

@@ -22,6 +22,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Delete the production and test-only `rc-process-runner` handoff and transitional native `ProcessManager` after process-host parity passed.
 - [x] Add `execution-v2` negotiation and reject unsupported execution safely.
 - [x] Unify browser reattach and MCP cursor reads on the Node output journal.
+- [x] Preserve Unix process groups across sequential external commands, report shell completion only after the whole script drains, and verify completed MCP output remains readable.
 - [x] Revalidate MCP grant, device, process ownership, and action policy at the Node.
 - [x] Remove hosted MCP process routing state; route every operation with device ID and bind Node executions to the originating grant ID across hosted restarts.
 - [x] Prove a fresh hosted MCP correlation hub can query an existing Node-owned execution after the previous hub is dropped.

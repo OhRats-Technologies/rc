@@ -21,6 +21,7 @@ use std::{
 
 #[cfg(test)]
 mod tests;
+mod wait;
 
 #[derive(Default)]
 pub struct Group {
@@ -163,17 +164,6 @@ fn spawn_terminal(
 }
 
 impl Group {
-    pub fn poll(&mut self, child: u32) -> Result<Option<NativeExit>, String> {
-        let child = self
-            .children
-            .get_mut(&child)
-            .ok_or_else(|| "unknown native child".to_owned())?;
-        child
-            .try_wait()
-            .map_err(display)
-            .map(|value| value.map(native_exit))
-    }
-
     pub fn signal(&mut self, signal: Signal) -> Result<(), String> {
         let Some(group) = self.process_group else {
             return Ok(());
@@ -216,6 +206,7 @@ impl Group {
         }
         self.children.clear();
         self.terminal = None;
+        self.process_group = None;
     }
 }
 

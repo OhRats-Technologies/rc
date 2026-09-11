@@ -92,6 +92,10 @@ files; source-size exceptions are limited to identified vendored files.
 Every Execution owns one group, including external pipeline children. Unix uses
 a session/process group. Windows uses a Job Object with kill-on-close. Node
 shutdown, crash, update, kill, or lease expiry MUST leave no descendant.
+The Unix group leader remains waitable until group close, preserving the group
+and reserving its PID between sequential external commands. Polling its exit
+must not reap it early. A portable shell execution completes only when the
+whole script has exited and drained, not when an intermediate child exits.
 
 Nonterminal execution has independent binary stdin/stdout/stderr. PTY/ConPTY
 has merged terminal output. EOF and resize are typed. interrupt maps to

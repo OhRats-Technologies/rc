@@ -5,6 +5,55 @@ use crate::bindings::ohrats::rc_process::{
 };
 use std::{io::Read, thread, time::Duration};
 
+#[test]
+fn sequential_children_keep_the_group_until_close() {
+    let mut group = Group::default();
+    let first = spawn(&mut group, request("/bin/sh", &["-c", "exit 7"])).unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Some(exit) = group.poll(first.native_child).unwrap() {
+            assert_eq!(exit.code, Some(7));
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(2));
+    }
+    assert_eq!(
+        group.poll(first.native_child).unwrap().unwrap().code,
+        Some(7)
+    );
+    let mut second = spawn(&mut group, request("/bin/sh", &["-c", "printf second"])).unwrap();
+    assert_eq!(output(&mut second.stdout), b"second");
+    assert_eq!(group.process_group, Some(first.native_child as i32));
+    let third = spawn(&mut group, request("/bin/sleep", &["30"])).unwrap();
+    group.signal(Signal::Kill).unwrap();
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if let Some(exit) = group.poll(third.native_child).unwrap() {
+            assert!(matches!(exit.signal, Some(Signal::Kill)));
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(2));
+    }
+    group.close();
+    assert!(group.process_group.is_none());
+    assert_eq!(
+        unsafe {
+            libc::waitpid(
+                first.native_child as i32,
+                std::ptr::null_mut(),
+                libc::WNOHANG,
+            )
+        },
+        -1
+    );
+    assert_eq!(
+        std::io::Error::last_os_error().raw_os_error(),
+        Some(libc::ECHILD)
+    );
+}
+
 fn environment(base: EnvironmentBase) -> Environment {
     Environment {
         base,
