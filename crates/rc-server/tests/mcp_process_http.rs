@@ -1,5 +1,7 @@
 #[path = "mcp_process_http/execution_modes.rs"]
 mod execution_modes;
+#[path = "mcp_process_http/large_output.rs"]
+mod large_output;
 #[path = "mcp_process_http/support.rs"]
 mod support;
 

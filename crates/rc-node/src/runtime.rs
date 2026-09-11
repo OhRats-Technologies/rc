@@ -127,7 +127,7 @@ impl NodeRuntime {
         state: &NodeState,
         version: &str,
     ) -> anyhow::Result<()> {
-        let transport = ServerTransport::connect(server, state).await?;
+        let mut transport = ServerTransport::connect(server, state).await?;
         let control = ControlManager::new(
             state.clone(),
             self.state_dir.clone(),
@@ -149,8 +149,9 @@ impl NodeRuntime {
         let cleanup_control = control.clone();
         effects.defer_async(move || async move { cleanup_control.shutdown().await });
         let result = self
-            .run_connected(server, state, version, transport, &control)
+            .run_connected(server, state, version, &mut transport, &control)
             .await;
+        transport.close().await;
         effects.revert().await;
         result
     }
@@ -160,7 +161,7 @@ impl NodeRuntime {
         server: &str,
         state: &NodeState,
         version: &str,
-        mut transport: ServerTransport,
+        transport: &mut ServerTransport,
         control: &ControlManager,
     ) -> anyhow::Result<()> {
         let mut closed = transport.closed();
@@ -183,7 +184,7 @@ impl NodeRuntime {
         while let Ok(message) = self.lifecycle.try_recv() {
             self.queue(message);
         }
-        self.flush(&transport).await?;
+        self.flush(transport).await?;
 
         loop {
             tokio::select! {
@@ -192,7 +193,7 @@ impl NodeRuntime {
                         return Ok(());
                     };
                     self.queue(message);
-                    self.flush(&transport).await?;
+                    self.flush(transport).await?;
                 }
                 message = transport.recv() => {
                     let Some(message) = message else {
@@ -202,7 +203,7 @@ impl NodeRuntime {
                     while let Ok(message) = self.lifecycle.try_recv() {
                         self.queue(message);
                     }
-                    self.flush(&transport).await?;
+                    self.flush(transport).await?;
                 }
                 changed = closed.changed() => {
                     if changed.is_err() || *closed.borrow() {

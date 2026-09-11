@@ -41,7 +41,7 @@ impl ControlManager {
             let deadline =
                 tokio::time::Instant::now() + std::time::Duration::from_secs(wait_seconds.min(60));
             loop {
-                let Some(read) =
+                let Some(mut read) =
                     manager
                         .0
                         .processes
@@ -50,6 +50,14 @@ impl ControlManager {
                     manager.emit_status_error(request_id, process_id, "process is unavailable");
                     return;
                 };
+                // Bound per-chunk JSON overhead as well as raw output bytes.
+                if read.chunks.len() > 256 {
+                    read.chunks.truncate(256);
+                    if let Some(last) = read.chunks.last() {
+                        read.next_cursor = last.cursor.saturating_add(last.bytes.len() as u64);
+                    }
+                    read.more = true;
+                }
                 if read.status != "running"
                     || !read.chunks.is_empty()
                     || read.truncated_before > cursor

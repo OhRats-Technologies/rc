@@ -71,7 +71,11 @@ pub(super) fn configure(
             let message_mcp = app.mcp.clone();
             let message_app = app.clone();
             let message_device = device.clone();
+            let decoder = Arc::new(tokio::sync::Mutex::new(
+                rc_protocol::node_frames::Decoder::default(),
+            ));
             channel.on_message(Box::new(move |message: DataChannelMessage| {
+                let decoder = decoder.clone();
                 let nodes = message_nodes.clone();
                 let control = message_control.clone();
                 let ssh = message_ssh.clone();
@@ -83,7 +87,10 @@ pub(super) fn configure(
                     if !message.is_string || message.data.len() > NODE_CONTROL_MESSAGE_LIMIT {
                         return;
                     }
-                    let Ok(value) = serde_json::from_slice::<NodeToServer>(&message.data) else {
+                    let Ok(Some(bytes)) = decoder.lock().await.accept(&message.data) else {
+                        return;
+                    };
+                    let Ok(value) = serde_json::from_slice::<NodeToServer>(&bytes) else {
                         return;
                     };
                     super::messages::apply(&app, &device, &value);

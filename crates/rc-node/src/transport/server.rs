@@ -25,15 +25,23 @@ impl ServerTransport {
     pub async fn connect(server: &str, state: &NodeState) -> anyhow::Result<Self> {
         let servers = fetch_ice(server, state).await?;
         let peer = peer_connection(&servers).await?;
+        let mut pending_peer = PendingPeer(Some(peer.clone()));
         let channel = peer.create_data_channel("rc-node", None).await?;
         let (incoming_tx, incoming) = mpsc::channel(256);
+        let decoder = Arc::new(tokio::sync::Mutex::new(
+            rc_protocol::node_frames::Decoder::default(),
+        ));
         channel.on_message(Box::new(move |message: DataChannelMessage| {
             let tx = incoming_tx.clone();
+            let decoder = decoder.clone();
             Box::pin(async move {
                 if !message.is_string || message.data.len() > NODE_CONTROL_MESSAGE_LIMIT {
                     return;
                 }
-                if let Ok(value) = serde_json::from_slice::<ServerToNode>(&message.data) {
+                let Ok(Some(bytes)) = decoder.lock().await.accept(&message.data) else {
+                    return;
+                };
+                if let Ok(value) = serde_json::from_slice::<ServerToNode>(&bytes) {
                     let _ = tx.send(value).await;
                 }
             })
@@ -90,6 +98,7 @@ impl ServerTransport {
         tokio::time::timeout(std::time::Duration::from_secs(15), opened_rx)
             .await
             .map_err(|_| anyhow::anyhow!("Node WebRTC DataChannel timed out"))??;
+        pending_peer.0 = None;
         Ok(Self {
             peer,
             channel,
@@ -105,7 +114,9 @@ impl ServerTransport {
                 "Node control message exceeds the {NODE_CONTROL_MESSAGE_LIMIT}-byte transport frame"
             );
         }
-        self.channel.send_text(encoded).await?;
+        for frame in rc_protocol::node_frames::encode(&encoded).map_err(anyhow::Error::msg)? {
+            self.channel.send_text(frame).await?;
+        }
         Ok(())
     }
 
@@ -171,4 +182,17 @@ async fn post_offer(server: &str, state: &NodeState, sdp: &str) -> anyhow::Resul
         );
     }
     Ok(response.json::<Answer>().await?.sdp)
+}
+
+struct PendingPeer(Option<Arc<RTCPeerConnection>>);
+impl Drop for PendingPeer {
+    fn drop(&mut self) {
+        if let Some(peer) = self.0.take()
+            && let Ok(runtime) = tokio::runtime::Handle::try_current()
+        {
+            runtime.spawn(async move {
+                let _ = peer.close().await;
+            });
+        }
+    }
 }

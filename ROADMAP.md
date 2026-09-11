@@ -139,3 +139,13 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Delete the legacy process runner/manager, shell-string direct-argv conversion, hosted MCP process journal, and non-Unix terminal/permission fallbacks.
 - [x] Update architecture, API, install, operations, release, and public quickstart documentation for the portable runtime, Windows, and scheduler.
 - [ ] Pass the complete Linux, macOS, and Windows native OS matrices.
+
+## Reliability follow-up
+- [x] Bound readiness waits, preserve ambiguous execution IDs without replay, and test reconnect/stale-peer cleanup.
+- [x] Fragment large Node control messages below the SCTP boundary, bound reassembly, close ended peers, and test large bidirectional frames followed by another execution.
+- [x] Report known execution failures as nonzero completed executions with in-memory diagnostics; mark failed/lost MCP results as errors.
+- [x] Implement output descriptor duplication and regression-test stderr capture/replay.
+- [x] Close native groups on completion and verify child reaping before journal release.
+- [x] Remove consumed preparation unwraps and test repeated direct/nested substitution failures.
+- [x] Assert that the server's process_status schema requires deviceId and processId.
+- [ ] Verify this batch against the enrolled Node and record the external connector schema limitation.

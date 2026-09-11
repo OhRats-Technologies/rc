@@ -249,3 +249,15 @@ isolation, portable shell, fake-clock scheduler and DST, Windows ACL, run lock,
 service, and release rollback on native platforms. Linux, macOS, and Windows
 MUST use the same WIT contract before legacy deletion. Windows SSH and SFTP
 gaps are negotiated honestly and do not block browser, CLI, or MCP parity.
+
+### Node control frame delivery
+
+Node control messages retain the serialized 1 MiB capacity boundary. Messages above
+48 KiB use ordered JSON text fragments (`rcFragment`, `last`) of at most 8 KiB of
+source text per fragment; receivers bound reassembly to the message capacity.
+Fragments of separate messages cannot interleave. A new DataChannel starts with
+an empty reassembly buffer. This accommodates the native DataChannel's 64 KiB
+message limit without truncating process output or replaying process starts.
+A failed observation preserves its execution ID; clients query status rather
+than repeat a possibly delivered command. Native execution groups close at
+completion while their bounded output journals remain available for reads.

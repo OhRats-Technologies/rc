@@ -27,6 +27,7 @@ impl Default for NodeHub {
 }
 
 pub struct NodePeer {
+    send_lock: tokio::sync::Mutex<()>,
     connection_id: String,
     peer: Arc<RTCPeerConnection>,
     channel: RwLock<Option<Arc<RTCDataChannel>>>,
@@ -40,6 +41,7 @@ impl NodeHub {
         peer: Arc<RTCPeerConnection>,
     ) -> bool {
         let next = Arc::new(NodePeer {
+            send_lock: tokio::sync::Mutex::new(()),
             connection_id,
             peer,
             channel: RwLock::new(None),
@@ -81,6 +83,7 @@ impl NodeHub {
             .get(device_id)
             .map(|value| value.clone())
             .ok_or_else(|| anyhow::anyhow!("Node is offline"))?;
+        let _sending = peer.send_lock.lock().await;
         let channel = peer
             .channel
             .read()
@@ -93,7 +96,9 @@ impl NodeHub {
                 "Node control message exceeds the {NODE_CONTROL_MESSAGE_LIMIT}-byte transport frame"
             );
         }
-        channel.send_text(encoded).await?;
+        for frame in rc_protocol::node_frames::encode(&encoded).map_err(anyhow::Error::msg)? {
+            channel.send_text(frame).await?;
+        }
         Ok(())
     }
 
