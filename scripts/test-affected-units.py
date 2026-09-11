@@ -20,10 +20,11 @@ class AffectedUnitsTests(unittest.TestCase):
         return MODULE.resolve(list(paths))
 
     def test_kernel_change_is_native_only(self) -> None:
-        value = self.resolve("kernel/src/runtime.rs")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], [])
-        self.assertFalse(value["legacy_rust"])
+        for path in ("kernel/src/runtime.rs", ".github/workflows/ci.yml", ".github/workflows/native-components.yml"):
+            value = self.resolve(path)
+            self.assertTrue(value["kernel"], path)
+            self.assertEqual(value["components"], [], path)
+            self.assertFalse(value["legacy_rust"], path)
 
     def test_component_change_is_surgical(self) -> None:
         value = self.resolve("components/fixture-provider/src/lib.rs")

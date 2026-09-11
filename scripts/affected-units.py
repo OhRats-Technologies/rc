@@ -71,7 +71,9 @@ def resolve(paths: list[str]) -> dict:
             if not parts:
                 continue
             root = parts[0]
-            if root == "kernel":
+            if raw in {".github/workflows/ci.yml", ".github/workflows/native-components.yml"}:
+                flags["kernel"] = True
+            elif root == "kernel":
                 flags["kernel"] = True
             elif root == "wit":
                 if len(parts) == 2:

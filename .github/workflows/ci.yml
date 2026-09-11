@@ -627,8 +627,21 @@ jobs:
       - run: cargo test --workspace --all-targets --locked
       - run: sccache --show-stats
 
-  macos-runtime:
+  native-runtime-components:
     needs: changes
+    if: >-
+      needs.changes.outputs.legacy-rust == 'true' ||
+      needs.changes.outputs.kernel == 'true' ||
+      needs.changes.outputs.image == 'true' ||
+      contains(needs.changes.outputs.components, 'execution-runtime') ||
+      contains(needs.changes.outputs.components, 'process-policy') ||
+      contains(needs.changes.outputs.components, 'scheduler') ||
+      contains(needs.changes.outputs.components, 'shell') ||
+      contains(needs.changes.outputs.components, 'transport-webrtc')
+    uses: ./.github/workflows/native-components.yml
+
+  macos-runtime:
+    needs: [changes, native-runtime-components]
     if: >-
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
@@ -650,28 +663,27 @@ jobs:
         with:
           toolchain: "1.98.0"
           components: clippy
-          targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
+            . -> target
             kernel -> target
-            components/diagnostics-store -> target
-            components/process-policy -> target
-            components/shell -> target
-            components/execution-runtime -> target
-            components/scheduler -> target
-            components/transport-webrtc -> target
           shared-key: macos-runtime
           add-job-id-key: false
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        if: needs.changes.outputs.legacy-rust == 'true'
       - run: cargo test --workspace --all-targets --locked
+        if: needs.changes.outputs.legacy-rust == 'true'
       - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets --locked -- -D warnings
+        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
       - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
-      - name: Build portable runtime components
-        run: |
-          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
-            scripts/build-component.sh "components/$component"
-          done
+        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
+      - name: Download portable runtime components built on Linux
+        uses: actions/download-artifact@v7
+        with:
+          pattern: rc-native-runtime-*
+          path: dist/components
+          merge-multiple: true
       - name: Run component-backed runtime conformance natively
         run: |
           cargo build --manifest-path kernel/Cargo.toml --locked
@@ -683,7 +695,7 @@ jobs:
           kernel/target/debug/rc-kernel --component-dir "$component_dir" policy-check
 
   windows-runtime:
-    needs: changes
+    needs: [changes, native-runtime-components]
     if: >-
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
@@ -706,29 +718,37 @@ jobs:
         with:
           toolchain: "1.98.0"
           components: rustfmt,clippy
-          targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: |
+            . -> target
+            kernel -> target
           shared-key: windows-runtime
           add-job-id-key: false
       - run: cargo fmt --all --check
+        if: needs.changes.outputs.legacy-rust == 'true'
       - name: Build Windows execution guard fixture
+        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
         run: >-
           cargo build --manifest-path kernel/Cargo.toml --locked
           --features windows-test-fixture --bin rc-windows-execution-guard-fixture
       - name: Run Windows kernel tests serially
+        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
         env:
           RUST_TEST_THREADS: "1"
         run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        if: needs.changes.outputs.legacy-rust == 'true'
       - run: cargo test --workspace --all-targets --locked
+        if: needs.changes.outputs.legacy-rust == 'true'
       - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
-      - name: Build portable runtime components
-        shell: bash
-        run: |
-          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
-            scripts/build-component.sh "components/$component"
-          done
+        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
+      - name: Download portable runtime components built on Linux
+        uses: actions/download-artifact@v7
+        with:
+          pattern: rc-native-runtime-*
+          path: dist/components
+          merge-multiple: true
       - name: Build component-backed Windows kernel
         shell: pwsh
         run: |

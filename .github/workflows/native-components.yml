@@ -1,0 +1,56 @@
+name: Portable components for native conformance
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [diagnostics-store, process-policy, shell, execution-runtime, scheduler, transport-webrtc]
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Restore component for its exact build inputs
+        id: wasm
+        uses: actions/cache@v5
+        with:
+          path: dist/components/${{ matrix.component }}.wasm
+          key: >-
+            native-wasm-v1-${{ matrix.component }}-${{
+              hashFiles(format('components/{0}/src/**', matrix.component),
+                format('components/{0}/Cargo.*', matrix.component),
+                format('components/{0}/component.toml', matrix.component),
+                format('components/{0}/build.rs', matrix.component),
+                'wit/**', 'rust-toolchain.toml', 'scripts/build-component.sh',
+                '.github/workflows/native-components.yml') }}
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.wasm.outputs.cache-hit != 'true'
+        with:
+          toolchain: "1.98.0"
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+        if: steps.wasm.outputs.cache-hit != 'true'
+        with:
+          workspaces: components/${{ matrix.component }} -> target
+          shared-key: rc-component-${{ matrix.component }}
+          add-job-id-key: false
+      - name: Build changed portable component
+        if: steps.wasm.outputs.cache-hit != 'true'
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: scripts/build-component.sh "components/$COMPONENT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rc-native-runtime-${{ matrix.component }}
+          path: dist/components/${{ matrix.component }}.wasm
+          if-no-files-found: error
+          retention-days: 7

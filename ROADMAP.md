@@ -87,6 +87,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Add Windows-native platform-root fixtures for `%LOCALAPPDATA%\\OhRats\\RC`, executable suffixes, missing-directory failure, and Unicode browser-target encoding.
 - [x] Reject interior NULs before passing browser authorization targets to `ShellExecuteW`.
 - [x] Make workspace and kernel all-target Clippy gates pass with warnings denied.
+- [ ] Gate native workspace/kernel checks by affected code, cache Windows kernel dependencies, and reuse source-keyed Linux-built Wasm artifacts in macOS/Windows conformance.
 - [x] Implement per-user Windows Task Scheduler install/start/stop/status/uninstall for logged-on users.
 - [x] Document that the Windows per-user task requires an interactive logged-on session and is not an unattended LocalSystem service.
 - [x] Produce and release-gate native Windows AMD64 CLI/kernel archives with canonical `.exe` members.
