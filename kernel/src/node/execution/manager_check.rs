@@ -9,6 +9,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 mod cancellation;
+mod failed_read;
 mod glob_check;
 mod login_shell;
 mod mcp_read;
@@ -23,6 +24,8 @@ pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     login_shell::check(runtime.clone())?;
     eprintln!("runtime check: MCP completed output");
     mcp_read::check(runtime.clone())?;
+    eprintln!("runtime check: repeated failed shell reads");
+    failed_read::check(runtime.clone())?;
     eprintln!("runtime check: portable shell");
     check_portable_shell(runtime)?;
     eprintln!("runtime check: complete");

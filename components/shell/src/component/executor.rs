@@ -30,6 +30,7 @@ enum JobState {
     Sequence(sequence::SequenceJob),
     Preparing(substitution::PreparationJob),
     Cancelled(Signal),
+    Failed(String),
 }
 
 struct NativeJob {
@@ -100,7 +101,17 @@ impl ExecutorGuest for Shell {
     fn poll(id: String, max_bytes: u32) -> Result<PollResult, String> {
         with_job(&id, |job| {
             let group = job.group.as_ref().ok_or("shell job is closed")?;
-            poll_state(&mut job.state, group, max_bytes)
+            if let JobState::Failed(error) = &job.state {
+                return Err(error.clone());
+            }
+            let result = poll_state(&mut job.state, group, max_bytes);
+            if let Err(error) = &result {
+                // Preparation may consume its script before a host operation fails.
+                // Never re-enter that partially consumed state on a later read.
+                job.state = JobState::Failed(error.clone());
+                group.close();
+            }
+            result
         })
     }
 
@@ -155,6 +166,7 @@ fn poll_state(
 ) -> Result<PollResult, String> {
     loop {
         let ready = match state {
+            JobState::Failed(error) => return Err(error.clone()),
             JobState::Native(job) => pipeline::poll(job, max),
             JobState::Virtual(job) => Ok(PollResult {
                 state: State::Exited,

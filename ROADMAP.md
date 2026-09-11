@@ -23,6 +23,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Add `execution-v2` negotiation and reject unsupported execution safely.
 - [x] Unify browser reattach and MCP cursor reads on the Node output journal.
 - [x] Preserve Unix process groups across sequential external commands, report shell completion only after the whole script drains, and verify completed MCP output remains readable.
+- [x] Latch shell polling failures, close their execution groups, and verify repeated reads cannot re-enter consumed preparation state or trap the component.
 - [x] Revalidate MCP grant, device, process ownership, and action policy at the Node.
 - [x] Scope MCP consent lock-sync acknowledgement to selected devices and distinguish selected offline devices; retain workspace-wide checks for authority administration.
 - [x] Remove hosted MCP process routing state; route every operation with device ID and bind Node executions to the originating grant ID across hosted restarts.
