@@ -11,6 +11,7 @@ macro_rules! link {
 
 pub fn add_base_imports(linker: &mut wasmtime::component::Linker<HostState>) -> anyhow::Result<()> {
     wasmtime_wasi::p2::add_to_linker_sync(linker)?;
+    link!(linker, crate::bindings::ohrats::rc_local_service::host);
     link!(linker, crate::bindings::ohrats::rc_plugin::host);
     link!(linker, crate::bindings::ohrats::rc_plugin::call_context);
     link!(linker, crate::bindings::ohrats::rc_plugin::component_store);

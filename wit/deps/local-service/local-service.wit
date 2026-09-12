@@ -1,0 +1,20 @@
+package ohrats:rc-local-service@0.1.0;
+
+// Local OS service inspection, distinct from shared component diagnostics.
+// Command lines are live OS state and must never be submitted to diagnostics.
+interface host {
+    record log-entry {
+        cursor: string,
+        timestamp: string,
+        message: string,
+    }
+    record process {
+        pid: u32,
+        name: string,
+        argv: list<string>,
+        truncated: bool,
+    }
+    logs: func(service: string, cursor: string, limit: u32) -> result<list<log-entry>, string>;
+    processes: func(service: string, commands: bool) -> result<list<process>, string>;
+    wait: func(milliseconds: u32);
+}

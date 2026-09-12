@@ -10,6 +10,7 @@ use ohrats::{
 };
 
 struct DiagnosticsCli;
+mod live;
 
 impl Guest for DiagnosticsCli {
     fn descriptor() -> Descriptor {
@@ -30,8 +31,13 @@ impl Guest for DiagnosticsCli {
                 },
                 Command {
                     name: "logs".into(),
-                    summary: "Show recent structured diagnostic metadata".into(),
-                    usage: "rc logs [limit]".into(),
+                    summary: "Show the local service journal; use --follow for live updates".into(),
+                    usage: "rc logs [--follow] [limit] | rc logs --components [limit]".into(),
+                },
+                Command {
+                    name: "ps".into(),
+                    summary: "Inspect live processes in the local Linux RC service".into(),
+                    usage: "rc ps [--watch] [--commands]".into(),
                 },
             ],
         }
@@ -47,6 +53,7 @@ impl Guest for DiagnosticsCli {
         match command.as_str() {
             "doctor" => doctor(&args),
             "logs" => logs(&args),
+            "ps" => live::processes(&args),
             _ => Err(format!("unsupported command {command:?}")),
         }
     }
@@ -66,12 +73,17 @@ fn doctor(args: &[String]) -> Result<u32, String> {
 }
 
 fn logs(args: &[String]) -> Result<u32, String> {
+    if args.first().map(String::as_str) != Some("--components") {
+        return live::logs(args);
+    }
+    let args = &args[1..];
+    println!("Component diagnostics from this CLI invocation (not the background Node).");
     let limit = match args {
         [] => 20,
         [value] => value
             .parse::<u32>()
             .map_err(|_| "log limit must be an integer".to_owned())?,
-        _ => return Err("usage: rc logs [limit]".into()),
+        _ => return Err("usage: rc logs --components [limit]".into()),
     };
     for event in query::recent(limit)? {
         println!(

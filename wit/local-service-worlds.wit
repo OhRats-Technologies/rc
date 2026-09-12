@@ -1,0 +1,7 @@
+package ohrats:rc-plugin@0.1.0;
+
+world diagnostics-cli {
+    include plugin;
+    import ohrats:rc-diagnostics/query@0.1.0;
+    import ohrats:rc-local-service/host@0.1.0;
+}

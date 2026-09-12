@@ -157,3 +157,24 @@ and timestamp for that investigation.
   backup.
 
 There is no password or recovery bypass for passkey authority.
+
+## Local live inspection
+
+On Linux with a systemd user service, `rc logs` reads the running Node's journal
+(last 20 entries, UTC timestamps). `rc logs --follow` or `rc logs -f` follows new
+entries until Ctrl-C; an optional number selects 1–100 initial entries. Journal
+cursors preserve ordering across batches. Journal access failures are reported
+instead of presenting a fresh CLI runtime's startup as Node activity.
+
+`rc ps` lists the Node and current descendants in its service control group.
+`rc ps --watch` refreshes every two seconds; add `--commands` to inspect current
+OS argument vectors locally. Arguments are never sent to RC or persisted by
+this command. This is a current process view, not a completed-command history;
+very short processes can disappear between refreshes. Output is bounded and
+terminal control characters are escaped.
+
+`rc logs --components [limit]` explicitly selects the older component diagnostic
+snapshot from this CLI invocation. Live service inspection currently requires
+Linux/systemd; other platforms report that limitation. Install the matching
+native kernel and diagnostics-cli component together for the local-service WIT
+interface. No TUI dependency is required.

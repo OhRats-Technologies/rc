@@ -213,11 +213,6 @@ world diagnostics-store {
     export ohrats:rc-diagnostics/query@0.1.0;
 }
 
-world diagnostics-cli {
-    include plugin;
-    import ohrats:rc-diagnostics/query@0.1.0;
-}
-
 world diagnostics-reporter {
     include plugin;
     import ohrats:rc-diagnostics/reporting@0.1.0;

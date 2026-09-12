@@ -152,4 +152,5 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Declare process_cancel deviceId and locally regress required fields on every closed descriptor object.
 - [x] Report unsupported portable-shell heredocs explicitly and locally regress UTF-8 parser byte offsets.
 - [x] Verify live process_run failures, stderr, large frames, and reaping on the enrolled Node; record results in docs/RELIABILITY-2026-09-11.md.
-- [ ] Refresh the external connector's cached process_status schema and verify live incremental reads with deviceId (server contract and HTTP harness pass).
+- [x] Refresh the external connector schema and verify live status reads and cancellation with deviceId.
+- [x] Read the actual Linux Node service journal with `rc logs --follow` and expose local current process/argv inspection with `rc ps --watch --commands`; validate ordered journal delivery across a Node restart.

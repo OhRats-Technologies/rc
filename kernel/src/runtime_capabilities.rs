@@ -1,5 +1,6 @@
 mod environment;
 mod filesystem;
+mod local_service;
 mod process;
 
 #[cfg(windows)]

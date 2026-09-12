@@ -4,7 +4,7 @@ schema = 1
 id = "ohrats:diagnostics-cli"
 version = "0.1.0"
 world = "ohrats:rc-plugin/diagnostics-cli@0.1.0"
-wit = ["diagnostics", "plugin"]
+wit = ["diagnostics", "local-service", "plugin"]
 
 [build]
 kind = "rust"
