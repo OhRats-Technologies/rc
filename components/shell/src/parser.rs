@@ -28,7 +28,7 @@ pub(super) enum Token {
 
 pub fn parse(source: &str) -> Result<Script, ParseError> {
     let tokens = Lexer::new(source).tokens()?;
-    syntax::parse_tokens(tokens)
+    syntax::parse_tokens(tokens, source.len())
 }
 
 struct Lexer<'a> {
@@ -44,14 +44,19 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn tokens(mut self) -> Result<Vec<Token>, ParseError> {
+    fn tokens(mut self) -> Result<Vec<(usize, Token)>, ParseError> {
         let mut tokens = Vec::new();
         while self.skip_space() {
-            if let Some(token) = self.operator() {
-                tokens.push(token);
-            } else {
-                tokens.push(Token::Word(self.word()?));
+            let offset = self.position;
+            if self.rest().starts_with("<<") {
+                return Err(self.error("heredocs (<<) are unsupported in portable RC Shell; use argv to explicitly select a shell that supports them (for example bash)"));
             }
+            let token = if let Some(token) = self.operator() {
+                token
+            } else {
+                Token::Word(self.word()?)
+            };
+            tokens.push((offset, token));
         }
         Ok(tokens)
     }

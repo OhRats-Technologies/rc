@@ -1,19 +1,21 @@
 use super::{ParseError, Token};
 use crate::{Assignment, Chain, Command, Connector, Pipeline, Redirect, Script, Word, WordPart};
 
-pub(super) fn parse_tokens(tokens: Vec<Token>) -> Result<Script, ParseError> {
-    Parser::new(tokens).script()
+pub(super) fn parse_tokens(tokens: Vec<(usize, Token)>, end: usize) -> Result<Script, ParseError> {
+    Parser::new(tokens, end).script()
 }
 
 struct Parser {
-    tokens: Vec<Token>,
+    tokens: Vec<(usize, Token)>,
+    end: usize,
     position: usize,
 }
 
 impl Parser {
-    fn new(tokens: Vec<Token>) -> Self {
+    fn new(tokens: Vec<(usize, Token)>, end: usize) -> Self {
         Self {
             tokens,
+            end,
             position: 0,
         }
     }
@@ -88,12 +90,15 @@ impl Parser {
     }
 
     fn peek(&self) -> Option<&Token> {
-        self.tokens.get(self.position)
+        self.tokens.get(self.position).map(|(_, token)| token)
     }
 
     fn error(&self, message: &'static str) -> ParseError {
         ParseError {
-            offset: self.position,
+            offset: self
+                .tokens
+                .get(self.position)
+                .map_or(self.end, |(offset, _)| *offset),
             message,
         }
     }

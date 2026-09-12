@@ -68,7 +68,7 @@ pub(super) fn run_descriptor() -> serde_json::Value {
     serde_json::json!({
         "name": "process_run",
         "title": "Run a command",
-        "description": "Start one managed non-PTY execution on an explicitly granted RC machine. Provide argv for exact argument-preserving execution, or command as shell source with shell=rc (portable RC Shell, the default) or shell=system (the target machine's native shell semantics). waitSeconds observes without changing lifetime; maxRuntimeSeconds bounds lifetime. MCP execution plaintext transits RC memory and is never persisted or logged.",
+        "description": "Start one managed non-PTY execution on an explicitly granted RC machine. Provide argv for exact argument-preserving execution, or command as shell source with shell=rc (portable RC Shell, the default; heredocs are unsupported) or shell=system (the target machine's native shell semantics). waitSeconds observes without changing lifetime; maxRuntimeSeconds bounds lifetime. MCP execution plaintext transits RC memory and is never persisted or logged.",
         "inputSchema": {
             "type": "object",
             "additionalProperties": false,
@@ -177,6 +177,7 @@ pub(super) fn cancel_descriptor() -> serde_json::Value {
             "type": "object",
             "additionalProperties": false,
             "properties": {
+                "deviceId": {"type": "string"},
                 "processId": {"type": "string"},
                 "signal": {
                     "type": "string",
@@ -251,43 +252,4 @@ fn annotations(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn status_requires_explicit_device_and_process_identity() {
-        let schema = status_descriptor()["inputSchema"].clone();
-        assert_eq!(
-            schema["required"],
-            serde_json::json!(["deviceId", "processId"])
-        );
-        assert_eq!(schema["properties"]["deviceId"]["type"], "string");
-    }
-
-    #[test]
-    fn structured_tools_publish_exact_unbounded_string_schemas() {
-        let descriptors = [
-            machines_descriptor(),
-            image_descriptor(),
-            run_descriptor(),
-            status_descriptor(),
-            input_descriptor(),
-            cancel_descriptor(),
-        ];
-        for descriptor in descriptors {
-            assert!(descriptor.get("outputSchema").is_some());
-            assert!(!contains_key(&descriptor, "minLength"));
-            assert!(!contains_key(&descriptor, "maxLength"));
-        }
-    }
-
-    fn contains_key(value: &serde_json::Value, key: &str) -> bool {
-        match value {
-            serde_json::Value::Object(object) => {
-                object.contains_key(key) || object.values().any(|value| contains_key(value, key))
-            }
-            serde_json::Value::Array(values) => values.iter().any(|value| contains_key(value, key)),
-            _ => false,
-        }
-    }
-}
+mod tests;

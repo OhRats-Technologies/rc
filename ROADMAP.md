@@ -149,5 +149,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Close native groups on completion and verify child reaping before journal release.
 - [x] Remove consumed preparation unwraps and test repeated direct/nested substitution failures.
 - [x] Assert that the server's process_status schema requires deviceId and processId.
+- [x] Declare process_cancel deviceId and locally regress required fields on every closed descriptor object.
+- [x] Report unsupported portable-shell heredocs explicitly and locally regress UTF-8 parser byte offsets.
 - [x] Verify live process_run failures, stderr, large frames, and reaping on the enrolled Node; record results in docs/RELIABILITY-2026-09-11.md.
 - [ ] Refresh the external connector's cached process_status schema and verify live incremental reads with deviceId (server contract and HTTP harness pass).
