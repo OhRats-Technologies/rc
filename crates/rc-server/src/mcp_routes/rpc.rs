@@ -7,12 +7,35 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use rc_protocol::McpGrantPayload;
+use tracing::Instrument as _;
 
 pub(super) async fn mcp(
     State(state): State<AppState>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
+    let reference = uuid::Uuid::new_v4().to_string();
+    let (method, tool) = super::diagnostics::labels(&body);
+    let span = tracing::info_span!("mcp_request", request_id = %reference, method, tool);
+    async {
+        let started = std::time::Instant::now();
+        tracing::info!("MCP request received");
+        let mut response = handle(state, headers, body, &reference).await;
+        tracing::info!(
+            http_status = response.status().as_u16(),
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "MCP request completed"
+        );
+        response
+            .headers_mut()
+            .insert("x-rc-request-id", reference.parse().expect("UUID header"));
+        response
+    }
+    .instrument(span)
+    .await
+}
+
+async fn handle(state: AppState, headers: HeaderMap, body: Bytes, reference: &str) -> Response {
     let parsed: serde_json::Value = match serde_json::from_slice(&body) {
         Ok(value) => value,
         Err(_) => {
@@ -67,11 +90,11 @@ pub(super) async fn mcp(
         .unwrap_or_default();
     let grant = match access_grant(&state, token) {
         Ok(Some(grant)) => grant,
-        _ => return auth_error(&state, "mcp:observe", false),
+        _ => return auth_error(&state, "mcp:observe", false, reference),
     };
     let payload: McpGrantPayload = match serde_json::from_str(&grant.grant) {
         Ok(value) => value,
-        Err(_) => return auth_error(&state, "mcp:observe", false),
+        Err(_) => return auth_error(&state, "mcp:observe", false, reference),
     };
     let context = crate::mcp_tools::McpContext {
         record: grant,
@@ -82,7 +105,7 @@ pub(super) async fn mcp(
             id,
             serde_json::json!({"resultType":"complete","tools":crate::mcp_tools::tools_for(&context),"ttlMs":30000,"cacheScope":"private"}),
         ),
-        "tools/call" => tool_call(&state, &headers, id, &parsed, &context).await,
+        "tools/call" => tool_call(&state, &headers, id, &parsed, &context, reference).await,
         _ => rpc_error(id, -32601, "Method not found", StatusCode::OK),
     }
 }
@@ -93,6 +116,7 @@ async fn tool_call(
     id: serde_json::Value,
     parsed: &serde_json::Value,
     context: &crate::mcp_tools::McpContext,
+    reference: &str,
 ) -> Response {
     let name = parsed
         .pointer("/params/name")
@@ -119,33 +143,37 @@ async fn tool_call(
         );
     };
     if !crate::mcp_tools::has_scope(&context.payload.scopes, scope) {
-        return auth_error(state, scope, true);
+        return auth_error(state, scope, true, reference);
     }
     let args = parsed
         .pointer("/params/arguments")
         .and_then(|value| value.as_object())
         .cloned()
         .unwrap_or_default();
-    match crate::mcp_tools::call_tool(state, context, name, &args).await {
-        Ok(value) => rpc(id, value),
-        Err(error) => rpc(
-            id,
-            serde_json::json!({"resultType":"complete","content":[{"type":"text","text":error.to_string()}],"isError":true}),
-        ),
-    }
+    let result = crate::mcp_tools::call_tool(state, context, name, &args).await;
+    rpc(id, super::diagnostics::tool_result(result, reference))
 }
 
 fn rpc(id: serde_json::Value, result: serde_json::Value) -> Response {
     Json(serde_json::json!({"jsonrpc":"2.0","id":id,"result":result})).into_response()
 }
 fn rpc_error(id: serde_json::Value, code: i64, message: &str, status: StatusCode) -> Response {
+    tracing::warn!(rpc_code = code, "MCP protocol request rejected");
     (
         status,
         Json(serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":message}})),
     )
         .into_response()
 }
-fn auth_error(state: &AppState, scope: &str, insufficient: bool) -> Response {
+fn auth_error(state: &AppState, scope: &str, insufficient: bool, reference: &str) -> Response {
+    tracing::warn!(
+        error_code = if insufficient {
+            "insufficient_scope"
+        } else {
+            "unauthorized"
+        },
+        "MCP authorization rejected"
+    );
     let metadata = format!(
         "{}/.well-known/oauth-protected-resource",
         state.config.public_url.trim_end_matches('/')
@@ -166,7 +194,7 @@ fn auth_error(state: &AppState, scope: &str, insufficient: bool) -> Response {
         status,
         [("www-authenticate", header)],
         Json(
-            serde_json::json!({"error":if insufficient{"insufficient_scope"}else{"unauthorized"}}),
+            serde_json::json!({"error":if insufficient{"insufficient_scope"}else{"unauthorized"},"requestId":reference}),
         ),
     )
         .into_response()

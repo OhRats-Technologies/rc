@@ -132,7 +132,12 @@ pub(super) fn require_owned_device(
     context: &McpContext,
     device_id: &str,
 ) -> anyhow::Result<()> {
-    if device_id.is_empty() || !context.payload.device_ids.iter().any(|id| id == device_id) {
+    if device_id.is_empty() {
+        anyhow::bail!(
+            "deviceId is required. Use machines_list to obtain it; refresh the connector if its tool schema omits deviceId."
+        );
+    }
+    if !context.payload.device_ids.iter().any(|id| id == device_id) {
         anyhow::bail!("device is outside this MCP grant");
     }
     let role = state

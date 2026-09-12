@@ -131,6 +131,25 @@ before enabling unattended execution.
 
 ## Incident actions
 
+MCP requests that reach RC receive an `x-rc-request-id` response header. Tool
+responses also include this reference and a fixed diagnostic code under
+`_meta["party.ohrats.rc/diagnostic"]`; failed tool responses include a readable
+reference and next step. OAuth failures include `requestId` in their JSON body.
+Search container logs for that reference to correlate receipt, tool outcome,
+HTTP status, and elapsed time. HTTP 200 alone does not mean a tool succeeded.
+
+Logs contain generated references, allowlisted method/tool labels, fixed error
+categories, protocol/status codes, and timing only. They never include tool
+arguments, caller-supplied RPC IDs, raw error messages, commands, output, or
+credentials. An older Node's `process is unavailable` remains explicitly
+ambiguous; it is not evidence of a safety-policy rejection. Delivery/status
+uncertainty must not trigger automatic replay of `process_run`.
+
+A rejection before reaching RC cannot acquire an RC request reference. Absence
+of a matching request is a limit of server visibility, not proof of which
+client, proxy, or platform rejected it. Preserve the actual client rejection
+and timestamp for that investigation.
+
 - Lost owner passkey: use another Owner or restore a known-good backup.
 - Compromised client credential: revoke it and refresh affected authority.
 - Compromised Node state: delete the device, clear local state, and re-enroll.

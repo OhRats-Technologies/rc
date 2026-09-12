@@ -1,3 +1,4 @@
+mod diagnostics;
 mod oauth;
 mod oauth_store;
 mod page;
