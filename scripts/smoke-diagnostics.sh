@@ -43,7 +43,7 @@ grep -F "ohrats:diagnostics-mesh" "$directory/without-webui.out" | grep -F Waiti
 run doctor >"$directory/doctor.out" 2>/dev/null
 grep -F "RC diagnostics" "$directory/doctor.out" >/dev/null
 grep -F "retained 1" "$directory/doctor.out" >/dev/null
-run logs 5 >"$directory/logs.out" 2>/dev/null
+run logs --components 5 >"$directory/logs.out" 2>/dev/null
 grep -F "component.active: diagnostics reporter activated" "$directory/logs.out" >/dev/null
 
 cp dist/components/webui-shell.wasm "$components/webui-shell.wasm"
