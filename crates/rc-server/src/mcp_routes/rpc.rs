@@ -9,6 +9,9 @@ use axum::{
 use rc_protocol::McpGrantPayload;
 use tracing::Instrument as _;
 
+const LEGACY_MCP_PROTOCOL_VERSION: &str = "2025-11-25";
+const LEGACY_MCP_PROTOCOL_VERSIONS: [&str; 3] = ["2025-11-25", "2025-06-18", "2025-03-26"];
+
 pub(super) async fn mcp(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -53,11 +56,26 @@ async fn handle(state: AppState, headers: HeaderMap, body: Bytes, reference: &st
         return rpc_error(id, -32600, "Invalid Request", StatusCode::BAD_REQUEST);
     }
     let method = method.unwrap_or_default();
+
+    if method == "initialize" {
+        return legacy_initialize(id, &parsed);
+    }
+
     let protocol = headers
         .get("mcp-protocol-version")
         .and_then(|value| value.to_str().ok())
         .unwrap_or("missing");
-    if protocol != MCP_PROTOCOL_VERSION {
+    let modern = protocol == MCP_PROTOCOL_VERSION;
+    let legacy = protocol == "missing" || LEGACY_MCP_PROTOCOL_VERSIONS.contains(&protocol);
+
+    if method == "notifications/initialized" && legacy {
+        return StatusCode::ACCEPTED.into_response();
+    }
+    if !modern && !legacy {
+        tracing::warn!(
+            protocol_version = protocol_label(protocol),
+            "MCP protocol version rejected"
+        );
         return rpc_error(
             id,
             -32022,
@@ -65,10 +83,11 @@ async fn handle(state: AppState, headers: HeaderMap, body: Bytes, reference: &st
             StatusCode::BAD_REQUEST,
         );
     }
-    if headers
-        .get("mcp-method")
-        .and_then(|value| value.to_str().ok())
-        != Some(method)
+    if modern
+        && headers
+            .get("mcp-method")
+            .and_then(|value| value.to_str().ok())
+            != Some(method)
     {
         return rpc_error(
             id,
@@ -78,11 +97,15 @@ async fn handle(state: AppState, headers: HeaderMap, body: Bytes, reference: &st
         );
     }
     if method == "server/discover" {
+        if !modern {
+            return rpc_error(id, -32601, "Method not found", StatusCode::OK);
+        }
         return rpc(
             id,
-            serde_json::json!({"resultType":"complete","supportedVersions":[MCP_PROTOCOL_VERSION],"capabilities":{"tools":{}},"instructions":"Use only the machines and capabilities explicitly granted by the user.","ttlMs":300000,"cacheScope":"public","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"RC","version":env!("CARGO_PKG_VERSION"),"websiteUrl":state.config.public_url.as_str()}}}),
+            serde_json::json!({"resultType":"complete","supportedVersions":[MCP_PROTOCOL_VERSION],"capabilities":{"tools":{}} ,"instructions":"Use only the machines and capabilities explicitly granted by the user.","ttlMs":300000,"cacheScope":"public","_meta":{"io.modelcontextprotocol/serverInfo":{"name":"RC","version":env!("CARGO_PKG_VERSION"),"websiteUrl":state.config.public_url.as_str()}}}),
         );
     }
+
     let token = headers
         .get("authorization")
         .and_then(|value| value.to_str().ok())
@@ -101,12 +124,49 @@ async fn handle(state: AppState, headers: HeaderMap, body: Bytes, reference: &st
         payload,
     };
     match method {
-        "tools/list" => rpc(
-            id,
-            serde_json::json!({"resultType":"complete","tools":crate::mcp_tools::tools_for(&context),"ttlMs":30000,"cacheScope":"private"}),
-        ),
-        "tools/call" => tool_call(&state, &headers, id, &parsed, &context, reference).await,
+        "tools/list" => rpc(id, tools_result(&context, modern)),
+        "tools/call" => tool_call(&state, &headers, id, &parsed, &context, reference, modern).await,
         _ => rpc_error(id, -32601, "Method not found", StatusCode::OK),
+    }
+}
+
+fn legacy_initialize(id: serde_json::Value, parsed: &serde_json::Value) -> Response {
+    let Some(requested) = parsed
+        .pointer("/params/protocolVersion")
+        .and_then(serde_json::Value::as_str)
+    else {
+        return rpc_error(id, -32602, "Invalid params", StatusCode::OK);
+    };
+    let protocol = if LEGACY_MCP_PROTOCOL_VERSIONS.contains(&requested) {
+        requested
+    } else {
+        LEGACY_MCP_PROTOCOL_VERSION
+    };
+    rpc(
+        id,
+        serde_json::json!({
+            "protocolVersion": protocol,
+            "capabilities": {"tools": {}},
+            "serverInfo": {
+                "name": "RC",
+                "version": env!("CARGO_PKG_VERSION")
+            },
+            "instructions": "Use only the machines and capabilities explicitly granted by the user."
+        }),
+    )
+}
+
+fn tools_result(context: &crate::mcp_tools::McpContext, modern: bool) -> serde_json::Value {
+    let tools = crate::mcp_tools::tools_for(context);
+    if modern {
+        serde_json::json!({
+            "resultType": "complete",
+            "tools": tools,
+            "ttlMs": 30000,
+            "cacheScope": "private"
+        })
+    } else {
+        serde_json::json!({"tools": tools})
     }
 }
 
@@ -117,15 +177,17 @@ async fn tool_call(
     parsed: &serde_json::Value,
     context: &crate::mcp_tools::McpContext,
     reference: &str,
+    modern: bool,
 ) -> Response {
     let name = parsed
         .pointer("/params/name")
         .and_then(|value| value.as_str())
         .unwrap_or_default();
-    if headers
-        .get("mcp-name")
-        .and_then(|value| value.to_str().ok())
-        != Some(name)
+    if modern
+        && headers
+            .get("mcp-name")
+            .and_then(|value| value.to_str().ok())
+            != Some(name)
     {
         return rpc_error(
             id,
@@ -151,12 +213,31 @@ async fn tool_call(
         .cloned()
         .unwrap_or_default();
     let result = crate::mcp_tools::call_tool(state, context, name, &args).await;
-    rpc(id, super::diagnostics::tool_result(result, reference))
+    let mut result = super::diagnostics::tool_result(result, reference);
+    if !modern {
+        result
+            .as_object_mut()
+            .map(|value| value.remove("resultType"));
+    }
+    rpc(id, result)
+}
+
+fn protocol_label(protocol: &str) -> &'static str {
+    match protocol {
+        "2026-07-28" => "2026-07-28",
+        "2025-11-25" => "2025-11-25",
+        "2025-06-18" => "2025-06-18",
+        "2025-03-26" => "2025-03-26",
+        "2024-11-05" => "2024-11-05",
+        "missing" => "missing",
+        _ => "other",
+    }
 }
 
 fn rpc(id: serde_json::Value, result: serde_json::Value) -> Response {
     Json(serde_json::json!({"jsonrpc":"2.0","id":id,"result":result})).into_response()
 }
+
 fn rpc_error(id: serde_json::Value, code: i64, message: &str, status: StatusCode) -> Response {
     tracing::warn!(rpc_code = code, "MCP protocol request rejected");
     (
@@ -165,6 +246,7 @@ fn rpc_error(id: serde_json::Value, code: i64, message: &str, status: StatusCode
     )
         .into_response()
 }
+
 fn auth_error(state: &AppState, scope: &str, insufficient: bool, reference: &str) -> Response {
     tracing::warn!(
         error_code = if insufficient {

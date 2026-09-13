@@ -6,6 +6,8 @@ pub(super) fn labels(body: &[u8]) -> (&'static str, &'static str) {
     let value: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
     let method = match value["method"].as_str() {
         Some("server/discover") => "server/discover",
+        Some("initialize") => "initialize",
+        Some("notifications/initialized") => "notifications/initialized",
         Some("tools/list") => "tools/list",
         Some("tools/call") => "tools/call",
         _ => "unknown",
