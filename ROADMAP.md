@@ -154,3 +154,4 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Verify live process_run failures, stderr, large frames, and reaping on the enrolled Node; record results in docs/RELIABILITY-2026-09-11.md.
 - [x] Refresh the external connector schema and verify live status reads and cancellation with deviceId.
 - [x] Read the actual Linux Node service journal with `rc logs --follow` and expose local current process/argv inspection with `rc ps --watch --commands`; validate ordered journal delivery across a Node restart.
+- [x] Temporarily gate Windows runtime CI behind `RC_WINDOWS_RUNTIME_ENABLED`, preserving release artifact builds and documenting reactivation.

@@ -2,7 +2,11 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
-## [0.19.7] - 2026-08-30
+## [0.19.7] - 2026-09-13
+
+- Correct MCP cancellation schemas and improve execution error references and shell parser diagnostics.
+- Add Linux service log following and live local process inspection.
+- Temporarily make Windows runtime CI opt-in while retaining Windows release binaries.
 
 - Grant the execution runtime its declared environment capability so typed
   native login-shell requests can resolve and start the configured shell.

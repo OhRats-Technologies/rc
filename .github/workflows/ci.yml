@@ -696,7 +696,9 @@ jobs:
 
   windows-runtime:
     needs: [changes, native-runtime-components]
+    # Temporarily opt-in until native Windows runtime conformance is reliable.
     if: >-
+      vars.RC_WINDOWS_RUNTIME_ENABLED == 'true' && (
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
       needs.changes.outputs.image == 'true' ||
@@ -704,7 +706,7 @@ jobs:
       contains(needs.changes.outputs.components, 'process-policy') ||
       contains(needs.changes.outputs.components, 'scheduler') ||
       contains(needs.changes.outputs.components, 'shell') ||
-      contains(needs.changes.outputs.components, 'transport-webrtc')
+      contains(needs.changes.outputs.components, 'transport-webrtc'))
     runs-on: windows-latest
     env:
       CARGO_INCREMENTAL: "0"

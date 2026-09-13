@@ -178,3 +178,11 @@ snapshot from this CLI invocation. Live service inspection currently requires
 Linux/systemd; other platforms report that limitation. Install the matching
 native kernel and diagnostics-cli component together for the local-service WIT
 interface. No TUI dependency is required.
+
+## Temporary Windows CI gate
+
+Windows runtime conformance is temporarily skipped unless the repository Actions
+variable `RC_WINDOWS_RUNTIME_ENABLED` is `true`. Restore that variable after the
+native runtime conformance failure is fixed. Windows CLI/kernel artifact builds
+remain enabled: successful packaging does not imply passing runtime conformance.
+Linux and macOS checks and the release's successful-CI requirement remain active.

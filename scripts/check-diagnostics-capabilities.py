@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep diagnostics components on metadata-only WIT capabilities."""
+"""Constrain diagnostics imports; local CLI inspection is a separate capability."""
 
 from __future__ import annotations
 
@@ -15,7 +15,11 @@ WIT = "\n".join(
 )
 ALLOWED = {
     "diagnostics-store": set(),
-    "diagnostics-cli": {"ohrats:rc-diagnostics/query@0.1.0"},
+    # Local inspection has no reporting/network imports; shared diagnostics remain metadata-only.
+    "diagnostics-cli": {
+        "ohrats:rc-diagnostics/query@0.1.0",
+        "ohrats:rc-local-service/host@0.1.0",
+    },
     "diagnostics-reporter": {"ohrats:rc-diagnostics/reporting@0.1.0"},
     "diagnostics-ui": {
         "ohrats:rc-diagnostics/query@0.1.0",
@@ -70,7 +74,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
-    print("diagnostics capabilities: metadata-only")
+    print("diagnostics capabilities: metadata-only reporting; local CLI inspection isolated")
     return 0
 
 
