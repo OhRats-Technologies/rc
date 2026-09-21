@@ -130,7 +130,7 @@ mod tests {
     fn renders_the_canonical_landing_and_documentation_layout() {
         let landing = render("/", true, "https://rc.ohrats.party").unwrap().body;
         assert!(landing.contains(
-            "Control your machines.<br/><span class=\"hero-muted\">Keep the core small.</span>"
+            "Give your agents access<br/><span class=\"hero-muted\">to your machines.</span>"
         ));
         assert!(landing.contains("<link rel=\"canonical\" href=\"https://rc.ohrats.party/\"/>"));
         let docs = render("/docs", false, "https://rc.example").unwrap().body;

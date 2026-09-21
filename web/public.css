@@ -81,6 +81,8 @@
 @media (min-width: 768px) { .public-site .section-title-container h2 { font-size: 3rem; margin-bottom: 0; } }
 .public-site .section-title-container .muted { color: var(--or-text-muted); }
 
+.public-hero-copy { max-width: 42rem; margin: 0 auto var(--or-space-xl); color: var(--or-text-muted); font-size: 1.125rem; line-height: 1.6; }
+
 .public-hero-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: var(--or-space-lg); }
 .public-safety-list { display: grid; gap: var(--or-space-lg); max-width: 42rem; }
 .public-safety-item { display: grid; gap: var(--or-space-xs); }

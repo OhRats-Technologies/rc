@@ -22,7 +22,7 @@ async fn exact_landing_and_documentation_surfaces_are_preserved() -> anyhow::Res
     for (path, required) in [
         (
             "/",
-            "Remote Control<br/><span class=\"hero-muted\">for your machines.</span>",
+            "Give your agents access<br/><span class=\"hero-muted\">to your machines.</span>",
         ),
         ("/login", "SIGN IN WITH PASSKEY"),
         ("/signup", "cf-turnstile"),
@@ -53,8 +53,9 @@ async fn exact_landing_and_documentation_surfaces_are_preserved() -> anyhow::Res
         "<meta name=\"robots\" content=\"index,follow\"/>",
         "<span class=\"logo-text\">RC</span>",
         "href=\"/signup\" class=\"or-button\"",
-        "01 Security",
-        "<h2>Documentation</h2>",
+        "01 MCP for agents",
+        "ChatGPT, Perplexity, Gemini Spark",
+        "href=\"/docs/mcp\"",
         "https://ohrats.party/blog",
         "https://assets.ohrats.party/assets/menu.a8b9a29f9ccc.js",
     ] {
@@ -66,7 +67,7 @@ async fn exact_landing_and_documentation_surfaces_are_preserved() -> anyhow::Res
     assert!(!landing.body.contains("OhRats RC</span>"));
     assert!(!landing.body.contains("01 / SAFETY"));
     assert!(landing.body.contains(&format!(
-        "styles.css?v={}-browser3",
+        "styles.css?v={}-browser4",
         env!("CARGO_PKG_VERSION")
     )));
 

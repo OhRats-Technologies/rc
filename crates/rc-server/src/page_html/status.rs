@@ -20,14 +20,29 @@ pub fn public_not_found(public_url: &str, public_signup: bool) -> String {
     replace_between(&mut html, "<title>", "</title>", "Page not found | RC");
     remove_tag(&mut html, "<link rel=\"canonical\"");
     remove_tag(&mut html, "<meta property=\"og:url\"");
-    for (from, to) in [
-        ("Remote Control | RC", "Page not found | RC"),
+    for (prefix, value) in [
         (
-            "Private remote control for your machines without exposing SSH.",
+            "<meta property=\"og:title\" content=\"",
+            "Page not found | RC",
+        ),
+        (
+            "<meta name=\"twitter:title\" content=\"",
+            "Page not found | RC",
+        ),
+        (
+            "<meta name=\"description\" content=\"",
+            "The page you requested does not exist.",
+        ),
+        (
+            "<meta property=\"og:description\" content=\"",
+            "The page you requested does not exist.",
+        ),
+        (
+            "<meta name=\"twitter:description\" content=\"",
             "The page you requested does not exist.",
         ),
     ] {
-        html = html.replace(from, to);
+        replace_between(&mut html, prefix, "\"", value);
     }
     if let Some(head) = html.find("</head>") {
         html.insert_str(
