@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ inputs.windows_only && 'windows' || 'all' }}
   cancel-in-progress: true
 
 jobs:
