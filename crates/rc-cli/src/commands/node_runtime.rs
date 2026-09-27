@@ -40,6 +40,8 @@ pub(crate) fn arguments(state_dir: &std::path::Path) -> Result<(PathBuf, Vec<Str
     Ok((
         kernel,
         vec![
+            "--component-dir".into(),
+            rc_platform::component_dir()?.to_string_lossy().into_owned(),
             "node".into(),
             "--state-dir".into(),
             state_dir.to_string_lossy().into_owned(),

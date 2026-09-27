@@ -7,6 +7,10 @@ on:
         description: Run only native Windows runtime and installer checks
         type: boolean
         default: false
+      windows_browser:
+        description: Include Windows service enrollment and browser control in a focused run
+        type: boolean
+        default: false
   push:
     branches: [main]
   pull_request:
@@ -880,11 +884,11 @@ jobs:
           if (Test-Path $Journal) { throw 'activation journal was not cleared after recovery' }
 
       - uses: oven-sh/setup-bun@v2
-        if: ${{ !inputs.windows_only }}
+        if: ${{ !inputs.windows_only || inputs.windows_browser }}
         with:
           bun-version: "1.4.0"
       - name: Build native Windows browser conformance inputs
-        if: ${{ !inputs.windows_only }}
+        if: ${{ !inputs.windows_only || inputs.windows_browser }}
         shell: pwsh
         run: |
           bun install --frozen-lockfile
@@ -894,7 +898,7 @@ jobs:
           cargo build --locked -p rc-server --bin rc-server -p rc-cli --bin rc
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Exercise enrollment and encrypted WebRTC terminal on Windows
-        if: ${{ !inputs.windows_only }}
+        if: ${{ !inputs.windows_only || inputs.windows_browser }}
         shell: pwsh
         run: ./scripts/windows-browser-e2e.ps1
 

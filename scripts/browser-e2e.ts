@@ -1,3 +1,4 @@
+import { startWindowsNodeService } from "./browser-e2e-service";
 import { chmod, copyFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -90,6 +91,7 @@ const server = Bun.spawn([serverBinary], {
   stderr: "inherit",
 });
 let node: ReturnType<typeof Bun.spawn> | null = null;
+let service: Awaited<ReturnType<typeof startWindowsNodeService>> | null = null;
 let target: { id: string; webSocketDebuggerUrl: string } | null = null;
 let socket: WebSocket | null = null;
 
@@ -215,11 +217,18 @@ try {
   });
   const [code, output, error] = await Promise.all([enroll.exited, readStream(enroll.stdout), readStream(enroll.stderr)]);
   if (code !== 0) throw new Error(`node enrollment failed (${code}): ${output}\n${error}`);
-  node = Bun.spawn([binary, "run", "--state-dir", nodeState], {
+  if (windows) service = await startWindowsNodeService(binary, nodeState, components, kernelBinary);
+  else node = Bun.spawn([binary, "run", "--state-dir", nodeState], {
     env: { ...Bun.env, RC_KERNEL: kernelBinary, RC_COMPONENT_DIR: components, RC_SHELL: loginShell },
     stdout: "inherit", stderr: "inherit",
   });
   const device = await waitFor(`(async()=>{const r=await fetch('/api/v1/devices');if(!r.ok)return false;const j=await r.json();return j.devices.find(d=>d.name==='Browser E2E Node'&&d.online)||false})()`, 30_000, "Node online") as { id: string };
+  if (service) {
+    await service.stop();
+    await waitFor(`(async()=>{const j=await (await fetch('/api/v1/devices')).json();return j.devices.some(d=>d.id===${JSON.stringify(device.id)}&&!d.online)})()`, 30_000, "service stopped");
+    await service.start();
+    await waitFor(`(async()=>{const j=await (await fetch('/api/v1/devices')).json();return j.devices.some(d=>d.id===${JSON.stringify(device.id)}&&d.online)})()`, 30_000, "service restarted");
+  }
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/workspaces/${workspace.id}/authority`)});if(!r.ok)return false;const j=await r.json();return j.devices>0&&j.synced===j.devices})()`, 30_000, "RC Lock bootstrap");
   const process = await browserFetch<{ processId: string }>(`/api/v1/devices/${device.id}/processes`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({terminal:true})
@@ -242,9 +251,11 @@ try {
   if (windows) {
     await waitFor(`String(window.__rcE2EOutput || '').includes('>')`, 20_000, "Windows shell prompt");
     await evaluate(`document.querySelector('.xterm-helper-textarea').focus()`);
-    await call("Input.insertText", { text: "echo RC_BROWSER_E2E_OK & exit 0" });
-    await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
-    await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    for (const text of ["echo RC_BROWSER_E2E_OK", "exit 0"]) {
+      await call("Input.insertText", { text });
+      await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+      await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+    }
   }
   await waitFor(`String(window.__rcE2EOutput || '').includes('RC_BROWSER_E2E_OK')`, 35_000, "terminal output");
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${process.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
@@ -267,6 +278,7 @@ try {
   }
   console.log("passkey setup, Node enrollment, encrypted browser control, logout, landing, and docs passed");
 } finally {
+  if (service) await service.dispose();
   for (const child of [node, server]) {
     if (!child) continue;
     if (windows) await Bun.spawn(["taskkill.exe", "/PID", String(child.pid), "/T", "/F"], { stdout: "ignore", stderr: "ignore" }).exited;
