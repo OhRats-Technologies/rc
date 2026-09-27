@@ -52,7 +52,7 @@ if (!await Bun.file(join(assets, "auth.js")).exists()) {
   throw new Error("run bun run build:client before running browser E2E");
 }
 
-const directory = await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
+const directory = process.env.RC_E2E_DIRECTORY || await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
 const data = join(directory, "data"), nodeState = join(directory, "node"), components = join(directory, "components");
 await mkdir(data); await mkdir(nodeState); await mkdir(components);
 const loginShell = windows ? (process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe") : join(directory, "login-shell");
