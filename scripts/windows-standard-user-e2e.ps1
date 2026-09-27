@@ -34,7 +34,9 @@ Write-Output 'Running installer ACL and service/browser checks as a standard Win
 Set-Location $Repository
 $env:RUNNER_TEMP = $Fixture
 $env:TEMP = $Fixture; $env:TMP = $Fixture
-$env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData')
+# A newly created account has not had Explorer create its special folders yet.
+$env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData', 'Create')
+if (!$env:LOCALAPPDATA) { throw 'standard-user local application data could not be created' }
 $env:PATH = "$Fixture;$env:PATH"
 . ./public/install.ps1 -ValidateFunctionsOnly
 Protect-PrivateDirectories @($Root, $Bin, $Data, $Components, $State)
