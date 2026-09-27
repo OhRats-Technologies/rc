@@ -200,3 +200,58 @@ jobs:
             --generate-notes \
             dist/rc-*.tar.gz dist/rc-upgrade.json dist/install.sh dist/install.ps1
           gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+
+  install-smoke:
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, macos-15, windows-latest]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      RC_RELEASE_API: https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set isolated installation paths
+        shell: bash
+        run: |
+          {
+            echo "RC_INSTALL_BIN_DIR=$RUNNER_TEMP/rc-installed/bin"
+            echo "RC_DATA_DIR=$RUNNER_TEMP/rc-installed/data"
+            echo "RC_COMPONENT_DIR=$RUNNER_TEMP/rc-installed/data/components"
+            echo "RC_STATE_DIR=$RUNNER_TEMP/rc-installed/state"
+          } >> "$GITHUB_ENV"
+      - name: Install and exercise published Unix release
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          sh public/install.sh
+          "$RC_INSTALL_BIN_DIR/rc" --version | grep -F "${GITHUB_REF_NAME#v}"
+          "$RC_INSTALL_BIN_DIR/rc" repair
+          "$RC_INSTALL_BIN_DIR/rc" doctor
+          sh public/install.sh
+          "$RC_INSTALL_BIN_DIR/rc" repair
+      - name: Install and exercise published Windows release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & ./public/install.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $rc = Join-Path $env:RC_INSTALL_BIN_DIR 'rc.exe'
+          $version = & $rc --version
+          if ($LASTEXITCODE -or !$version.EndsWith($env:GITHUB_REF_NAME.TrimStart('v'))) {
+            throw 'installed CLI version does not match the release'
+          }
+          & $rc repair
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $rc doctor
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & ./public/install.ps1
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & $rc repair
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
