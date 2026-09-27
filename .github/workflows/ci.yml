@@ -879,6 +879,25 @@ jobs:
           if ((Get-Content -Raw $Active).Trim() -ne 'C:\runtime\old') { throw 'active runtime rollback failed' }
           if (Test-Path $Journal) { throw 'activation journal was not cleared after recovery' }
 
+      - uses: oven-sh/setup-bun@v2
+        if: ${{ !inputs.windows_only }}
+        with:
+          bun-version: "1.4.0"
+      - name: Build native Windows browser conformance inputs
+        if: ${{ !inputs.windows_only }}
+        shell: pwsh
+        run: |
+          bun install --frozen-lockfile
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          bun run build:client
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cargo build --locked -p rc-server --bin rc-server -p rc-cli --bin rc
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Exercise enrollment and encrypted WebRTC terminal on Windows
+        if: ${{ !inputs.windows_only }}
+        shell: pwsh
+        run: ./scripts/windows-browser-e2e.ps1
+
   web:
     needs: changes
     if: ${{ !inputs.windows_only && (needs.changes.outputs.web == 'true') }}

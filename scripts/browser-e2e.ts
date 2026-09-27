@@ -6,9 +6,10 @@ import type { AddressInfo } from "node:net";
 
 const root = resolve(import.meta.dir, "..");
 const cdp = process.env.RC_CDP_URL || "http://127.0.0.1:9223";
-const binary = process.env.RC_E2E_BINARY || join(root, "target/debug/rc");
-const serverBinary = process.env.RC_E2E_SERVER || join(root, "target/debug/rc-server");
-const kernelBinary = process.env.RC_E2E_KERNEL || join(root, "kernel/target/debug/rc-kernel");
+const windows = process.platform === "win32", suffix = windows ? ".exe" : "";
+const binary = process.env.RC_E2E_BINARY || join(root, `target/debug/rc${suffix}`);
+const serverBinary = process.env.RC_E2E_SERVER || join(root, `target/debug/rc-server${suffix}`);
+const kernelBinary = process.env.RC_E2E_KERNEL || join(root, `kernel/target/debug/rc-kernel${suffix}`);
 const assets = process.env.RC_E2E_ASSETS || join(root, "dist/assets");
 const keep = process.env.RC_E2E_KEEP === "1";
 
@@ -53,9 +54,11 @@ if (!await Bun.file(join(assets, "auth.js")).exists()) {
 const directory = await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
 const data = join(directory, "data"), nodeState = join(directory, "node"), components = join(directory, "components");
 await mkdir(data); await mkdir(nodeState); await mkdir(components);
-const loginShell = join(directory, "login-shell");
-await writeFile(loginShell, "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n", { mode: 0o700 });
-await chmod(loginShell, 0o700);
+const loginShell = windows ? (process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe") : join(directory, "login-shell");
+if (!windows) {
+  await writeFile(loginShell, "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n", { mode: 0o700 });
+  await chmod(loginShell, 0o700);
+}
 for (const name of [
   "diagnostics-store", "process-policy", "shell",
   "execution-runtime", "scheduler", "transport-webrtc",
@@ -236,6 +239,13 @@ try {
         .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
     throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
   }
+  if (windows) {
+    await waitFor(`String(window.__rcE2EOutput || '').includes('>')`, 20_000, "Windows shell prompt");
+    await evaluate(`document.querySelector('.xterm-helper-textarea').focus()`);
+    await call("Input.insertText", { text: "echo RC_BROWSER_E2E_OK & exit 0" });
+    await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+    await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  }
   await waitFor(`String(window.__rcE2EOutput || '').includes('RC_BROWSER_E2E_OK')`, 35_000, "terminal output");
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${process.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
@@ -257,8 +267,12 @@ try {
   }
   console.log("passkey setup, Node enrollment, encrypted browser control, logout, landing, and docs passed");
 } finally {
-  if (node) { node.kill("SIGTERM"); await Promise.race([node.exited, sleep(3000)]).catch(() => {}); }
-  server.kill("SIGTERM"); await Promise.race([server.exited, sleep(3000)]).catch(() => {});
+  for (const child of [node, server]) {
+    if (!child) continue;
+    if (windows) await Bun.spawn(["taskkill.exe", "/PID", String(child.pid), "/T", "/F"], { stdout: "ignore", stderr: "ignore" }).exited;
+    else child.kill("SIGTERM");
+    await Promise.race([child.exited, sleep(3000)]).catch(() => {});
+  }
   socket?.close();
   if (target) await fetch(`${cdp}/json/close/${target.id}`).catch(() => {});
   if (!keep) await rm(directory, { recursive: true, force: true });
