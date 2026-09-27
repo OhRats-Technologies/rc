@@ -35,10 +35,18 @@ Write-Output 'Running installer ACL and service/browser checks as a standard Win
 Set-Location $Repository
 $env:RUNNER_TEMP = $Fixture
 $env:TEMP = $Fixture; $env:TMP = $Fixture
-# The noninteractive CI account has no Explorer-initialized special folders.
-# Keep its application data inside the fixture owned by this real standard user.
-$env:LOCALAPPDATA = Join-Path $Fixture 'LocalAppData'
-New-Item -ItemType Directory -Force $env:LOCALAPPDATA | Out-Null
+# Start-Process inherits the runner environment despite loading the new profile.
+# Resolve the actual account profile before Windows expands known-folder paths.
+$profileKey = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\' + $identity.User.Value
+$accountProfile = (Get-ItemProperty -LiteralPath $profileKey).ProfileImagePath
+if (!$accountProfile) { throw 'standard-user profile was not loaded' }
+$env:USERPROFILE = $accountProfile
+$env:HOMEDRIVE = [IO.Path]::GetPathRoot($accountProfile).TrimEnd('\')
+$env:HOMEPATH = $accountProfile.Substring($env:HOMEDRIVE.Length)
+$env:USERNAME = $identity.Name.Split('\')[-1]
+$env:APPDATA = Join-Path $accountProfile 'AppData\Roaming'
+$env:LOCALAPPDATA = Join-Path $accountProfile 'AppData\Local'
+New-Item -ItemType Directory -Force $env:APPDATA,$env:LOCALAPPDATA | Out-Null
 $env:PATH = "$Fixture;$env:PATH"
 . ./public/install.ps1 -ValidateFunctionsOnly
 Protect-PrivateDirectories @($Root, $Bin, $Data, $Components, $State)
