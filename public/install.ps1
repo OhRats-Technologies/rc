@@ -43,11 +43,12 @@ function Download-Limited([string]$Url, [string]$Path, [long]$Limit) {
   $handler.AllowAutoRedirect = $true
   $handler.MaxAutomaticRedirections = 5
   $client = [Net.Http.HttpClient]::new($handler)
+  $client.DefaultRequestHeaders.UserAgent.ParseAdd('RC-installer')
   $response = $null; $input = $null; $output = $null
   try {
     $response = $client.GetAsync($Url, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).
       GetAwaiter().GetResult()
-    $response.EnsureSuccessStatusCode()
+    [void]$response.EnsureSuccessStatusCode()
     if ($response.RequestMessage.RequestUri.Scheme -ne 'https') { throw "download redirected away from HTTPS: $Url" }
     if ($response.Content.Headers.ContentLength -gt $Limit) { throw "download exceeds limit: $Url" }
     $input = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()

@@ -756,6 +756,15 @@ jobs:
           $env:RC_COMPONENT_DIR = Join-Path $fixture 'data\components'
           $env:RC_STATE_DIR = Join-Path $fixture 'state'
           . ./public/install.ps1 -ValidateFunctionsOnly
+          $metadata = Join-Path $fixture 'release.json'
+          $downloadOutput = Download-Limited 'https://api.github.com/repos/OhRats-Technologies/rc/releases/latest' $metadata (4MB)
+          if ($null -ne $downloadOutput) { throw 'download leaked pipeline output' }
+          $release = Get-Content -Raw $metadata | ConvertFrom-Json
+          New-Item -ItemType Directory -Force $Temp | Out-Null
+          try {
+            $verified = Asset $release 'rc-upgrade.json'
+            if ($verified -isnot [string] -or !(Test-Path $verified)) { throw 'verified asset path is invalid' }
+          } finally { Remove-Item -Recurse -Force $Temp }
           $private = Join-Path $fixture 'private'
           Protect-PrivateDirectories @($private)
           $privateAcl = Get-Acl -LiteralPath $private
@@ -786,14 +795,17 @@ jobs:
             throw 'installer version cleanup violated retention policy'
           }
           Set-Content -NoNewline (Join-Path $fixture 'rc.exe') 'fixture'
-          Get-Command tar.exe | Select-Object Source
-          tar.exe --version
-          tar.exe -C $fixture -czf (Join-Path $fixture 'valid.tar.gz') rc.exe
-          if ($LASTEXITCODE) { throw 'could not create valid installer archive fixture' }
-          Require-Single (Join-Path $fixture 'valid.tar.gz') 'rc.exe'
           Set-Content -NoNewline (Join-Path $fixture 'extra') 'extra'
-          tar.exe -C $fixture -czf (Join-Path $fixture 'invalid.tar.gz') rc.exe extra
-          if ($LASTEXITCODE) { throw 'could not create invalid installer archive fixture' }
+          @'
+          import pathlib, sys, tarfile
+          root = pathlib.Path(sys.argv[1])
+          for name, members in [('valid', ['rc.exe']), ('invalid', ['rc.exe', 'extra'])]:
+              with tarfile.open(root / (name + '.tar.gz'), 'w:gz', format=tarfile.GNU_FORMAT) as archive:
+                  for member in members:
+                      archive.add(root / member, arcname=member)
+          '@ | python - $fixture
+          if ($LASTEXITCODE) { throw 'could not create installer archive fixtures' }
+          Require-Single (Join-Path $fixture 'valid.tar.gz') 'rc.exe'
           $rejected = $false
           try { Require-Single (Join-Path $fixture 'invalid.tar.gz') 'rc.exe' }
           catch { $rejected = $true }
