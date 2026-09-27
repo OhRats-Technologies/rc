@@ -34,7 +34,8 @@ function Protect-PrivateDirectories([string[]]$Paths) {
       $identity = if ($sid -is [Security.Principal.SecurityIdentifier]) { $sid } else { [Security.Principal.SecurityIdentifier]::new($sid) }
       $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($identity,[Security.AccessControl.FileSystemRights]::FullControl,$inherit,[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow))
     }
-    Set-Acl -LiteralPath $path -AclObject $acl
+    if ($PSVersionTable.PSEdition -eq 'Desktop') { [IO.Directory]::SetAccessControl($path, $acl) }
+    else { [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($path), $acl) }
   }
 }
 function Download-Limited([string]$Url, [string]$Path, [long]$Limit) {
