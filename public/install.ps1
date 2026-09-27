@@ -119,7 +119,7 @@ function Require-Kernel-NotDowngrade([version]$Candidate, [version]$Installed) {
 function Atomic-Text([string]$Path, [string]$Value) {
   $temporary = "$Path.new-$PID"
   [IO.File]::WriteAllText($temporary, $Value + "`n", [Text.UTF8Encoding]::new($false))
-  if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary, $Path, $null) }
+  if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary, $Path, [NullString]::Value) }
   else { [IO.File]::Move($temporary, $Path) }
 }
 function Install-Components([string]$Stage, [string[]]$Names) {
