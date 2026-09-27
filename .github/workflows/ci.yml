@@ -2,6 +2,11 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      windows_only:
+        description: Run only native Windows runtime and installer checks
+        type: boolean
+        default: false
   push:
     branches: [main]
   pull_request:
@@ -43,6 +48,7 @@ jobs:
           fi
 
   static:
+    if: ${{ !inputs.windows_only }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -90,7 +96,7 @@ jobs:
 
   kernel:
     needs: changes
-    if: needs.changes.outputs.kernel == 'true'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.kernel == 'true') }}
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -113,7 +119,7 @@ jobs:
 
   components:
     needs: changes
-    if: needs.changes.outputs.components != '[]'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.components != '[]') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.component-matrix) }}
@@ -145,7 +151,7 @@ jobs:
 
   component-runtime:
     needs: [changes, components]
-    if: always() && needs.changes.outputs.kernel == 'true'
+    if: ${{ !inputs.windows_only && (always() && needs.changes.outputs.kernel == 'true') }}
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -188,9 +194,10 @@ jobs:
   updater-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'updater'))
+       contains(needs.changes.outputs.components, 'updater')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -226,12 +233,13 @@ jobs:
   package-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'package-manager') ||
        contains(needs.changes.outputs.components, 'local-source') ||
        contains(needs.changes.outputs.components, 'http-source') ||
-       contains(needs.changes.outputs.components, 'oci-source'))
+       contains(needs.changes.outputs.components, 'oci-source')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -260,12 +268,13 @@ jobs:
   node-policy-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        needs.changes.outputs.legacy-rust == 'true' ||
        contains(needs.changes.outputs.components, 'process-policy') ||
        contains(needs.changes.outputs.components, 'transport-test') ||
-       contains(needs.changes.outputs.components, 'transport-webrtc'))
+       contains(needs.changes.outputs.components, 'transport-webrtc')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -291,10 +300,11 @@ jobs:
   mesh-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'mesh-policy') ||
-       contains(needs.changes.outputs.components, 'mesh-policy-fixture'))
+       contains(needs.changes.outputs.components, 'mesh-policy-fixture')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -319,11 +329,12 @@ jobs:
   authority-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'authority-fixture') ||
        contains(needs.changes.outputs.components, 'authority-store') ||
-       contains(needs.changes.outputs.components, 'crypto-ed25519'))
+       contains(needs.changes.outputs.components, 'crypto-ed25519')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -349,11 +360,12 @@ jobs:
   keys-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'crypto-ed25519') ||
        contains(needs.changes.outputs.components, 'key-custody-fixture') ||
-       contains(needs.changes.outputs.components, 'key-custody-local'))
+       contains(needs.changes.outputs.components, 'key-custody-local')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -379,9 +391,10 @@ jobs:
   control-crypto-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'crypto-control'))
+       contains(needs.changes.outputs.components, 'crypto-control')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -405,10 +418,11 @@ jobs:
   diagnostics-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'diagnostics-') ||
-       contains(needs.changes.outputs.components, 'webui-shell'))
+       contains(needs.changes.outputs.components, 'webui-shell')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -438,10 +452,11 @@ jobs:
   identity-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'identity-store') ||
-       contains(needs.changes.outputs.components, 'identity-fixture'))
+       contains(needs.changes.outputs.components, 'identity-fixture')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -466,9 +481,10 @@ jobs:
   storage-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'storage-fixture'))
+       contains(needs.changes.outputs.components, 'storage-fixture')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -492,10 +508,11 @@ jobs:
   webauthn-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'webauthn-es256') ||
-       contains(needs.changes.outputs.components, 'webauthn-fixture'))
+       contains(needs.changes.outputs.components, 'webauthn-fixture')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -520,11 +537,12 @@ jobs:
   web-runtime:
     needs: [changes, components]
     if: >-
+      inputs.windows_only != true && (
       always() &&
       (needs.changes.outputs.kernel == 'true' ||
        contains(needs.changes.outputs.components, 'webui-shell') ||
        contains(needs.changes.outputs.components, 'diagnostics-ui') ||
-       contains(needs.changes.outputs.components, 'diagnostics-store'))
+       contains(needs.changes.outputs.components, 'diagnostics-store')))
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -549,7 +567,7 @@ jobs:
 
   profiles:
     needs: changes
-    if: needs.changes.outputs.profiles != '[]'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.profiles != '[]') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.profile-matrix) }}
@@ -570,7 +588,7 @@ jobs:
 
   legacy-rust-lint:
     needs: changes
-    if: needs.changes.outputs.legacy-rust == 'true'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.legacy-rust == 'true') }}
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -595,7 +613,7 @@ jobs:
 
   legacy-rust-test:
     needs: changes
-    if: needs.changes.outputs.legacy-rust == 'true'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.legacy-rust == 'true') }}
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -643,13 +661,14 @@ jobs:
   macos-runtime:
     needs: [changes, native-runtime-components]
     if: >-
+      inputs.windows_only != true && (
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
       contains(needs.changes.outputs.components, 'execution-runtime') ||
       contains(needs.changes.outputs.components, 'process-policy') ||
       contains(needs.changes.outputs.components, 'scheduler') ||
       contains(needs.changes.outputs.components, 'shell') ||
-      contains(needs.changes.outputs.components, 'transport-webrtc')
+      contains(needs.changes.outputs.components, 'transport-webrtc'))
     runs-on: macos-15
     env:
       CARGO_INCREMENTAL: "0"
@@ -696,9 +715,8 @@ jobs:
 
   windows-runtime:
     needs: [changes, native-runtime-components]
-    # Temporarily opt-in until native Windows runtime conformance is reliable.
     if: >-
-      vars.RC_WINDOWS_RUNTIME_ENABLED == 'true' && (
+      (
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
       needs.changes.outputs.image == 'true' ||
@@ -862,7 +880,7 @@ jobs:
 
   web:
     needs: changes
-    if: needs.changes.outputs.web == 'true'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.web == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -879,9 +897,10 @@ jobs:
   browser-e2e:
     needs: changes
     if: >-
+      inputs.windows_only != true && (
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.web == 'true' ||
-      needs.changes.outputs.image == 'true'
+      needs.changes.outputs.image == 'true')
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: "0"
@@ -953,7 +972,7 @@ jobs:
 
   dependency-security:
     needs: changes
-    if: needs.changes.outputs.legacy-security == 'true' || needs.changes.outputs.kernel == 'true' || needs.changes.outputs.components != '[]'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.legacy-security == 'true' || needs.changes.outputs.kernel == 'true' || needs.changes.outputs.components != '[]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -993,7 +1012,7 @@ jobs:
 
   image:
     needs: changes
-    if: needs.changes.outputs.image == 'true'
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.image == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
