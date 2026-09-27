@@ -16,6 +16,14 @@ $seed = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'
 $device = @{v=1;deviceId='registration-fixture';identitySeed=$seed;transportSecret=$seed}
 [IO.File]::WriteAllText((Join-Path $State 'device.json'), ($device | ConvertTo-Json))
 [IO.File]::WriteAllText((Join-Path $State 'config.json'), '{"server":"http://127.0.0.1:1"}')
+$owner = [Security.Principal.WindowsIdentity]::GetCurrent().User
+foreach ($name in 'device.json','config.json') {
+  $acl = [Security.AccessControl.FileSecurity]::new()
+  $acl.SetOwner($owner)
+  $acl.SetAccessRuleProtection($true, $false)
+  $acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($owner, 'FullControl', 'Allow'))
+  [IO.File]::SetAccessControl((Join-Path $State $name), $acl)
+}
 try {
   foreach ($action in 'install','status','stop','start') {
     & $binary service $action
