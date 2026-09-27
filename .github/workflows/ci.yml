@@ -744,6 +744,7 @@ jobs:
             . -> target
             kernel -> target
           shared-key: windows-runtime
+          cache-on-failure: true
           add-job-id-key: false
       - run: cargo fmt --all --check
         if: needs.changes.outputs.legacy-rust == 'true'
@@ -758,9 +759,9 @@ jobs:
           RUST_TEST_THREADS: "1"
         run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-        if: needs.changes.outputs.legacy-rust == 'true'
+        if: ${{ !inputs.windows_only && needs.changes.outputs.legacy-rust == 'true' }}
       - run: cargo test --workspace --all-targets --locked
-        if: needs.changes.outputs.legacy-rust == 'true'
+        if: ${{ !inputs.windows_only && needs.changes.outputs.legacy-rust == 'true' }}
       - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
         if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
       - name: Download portable runtime components built on Linux
