@@ -2,6 +2,21 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.9] - 2026-09-27
+
+- Register the Windows background service with an explicit current-user logon
+  trigger and limited interactive token, without administrator privileges.
+- Keep the per-user service running on battery power and remove the default
+  three-day Task Scheduler execution limit.
+- Apply Windows installer directory permissions without requesting audit ACL
+  privileges, including in Windows PowerShell 5.1.
+- Fail installation when enrollment or service registration fails instead of
+  printing a misleading success message; retain a newly enrolled identity.
+- Run Windows installer ACL checks and service/browser conformance under an
+  actual non-administrator account.
+- Add platform-specific enrollment commands, the public PowerShell installer
+  endpoint, and Windows setup instructions to the website.
+
 ## [0.19.8] - 2026-09-27
 
 - Update Rustls to 0.23.45 to fix RUSTSEC-2026-0285.

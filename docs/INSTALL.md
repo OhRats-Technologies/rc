@@ -42,7 +42,8 @@ in `~/.local/share/rc/components`. `RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`,
 `RC_COMPONENT_DIR`, and `RC_STATE_DIR` provide explicit test or packaging
 locations.
 
-On Windows, run `install.ps1` in PowerShell as the enrolled user. The script is
+On Windows, run `install.ps1` in normal PowerShell as the enrolled user;
+administrator elevation is not required. The script is
 published with the release; downloaded artifacts are verified against GitHub
 release digests. It is not an Authenticode-signed script.
 Defaults live under `%LOCALAPPDATA%\OhRats\RC`. The installer stages the native
@@ -71,6 +72,10 @@ starts at that user's logon and runs only while an interactive user session is
 available; it is not an unattended machine service and never runs as
 LocalSystem. A future unattended service mode requires a separately reviewed
 identity and filesystem-authority model.
+The task uses the current user's SID for its principal and logon trigger,
+with limited privileges. It permits battery operation and has no execution
+time limit. A failed registration fails installation and preserves enrollment;
+rerun the installer after correcting the error without obtaining a new token.
 
 Activation uses same-filesystem temporary files and retains the previous native
 pair and installer-owned core component files under
@@ -85,7 +90,9 @@ sh scripts/smoke-install.sh
 ```
 
 PowerShell syntax and native Windows runtime integration are gated in
-`windows-latest` CI.
+`windows-latest` CI. Installer directory permissions and the service/browser
+lifecycle also run under an actual non-administrator Windows account using
+Windows PowerShell 5.1.
 
 Build release core assets with:
 
