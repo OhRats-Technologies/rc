@@ -2,6 +2,19 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.19.8] - 2026-09-27
+
+- Keep Windows process pipes responsive with bounded background I/O, preserving
+  separate binary streams, stdin EOF, and backpressure.
+- Complete the ConPTY startup handshake without requiring an attached terminal
+  and close terminal handles without blocking the execution runtime.
+- Drain native process output before reporting exit and let output polling
+  proceed while process input is backpressured.
+- Restore native Windows runtime CI and add a focused Windows validation mode.
+- Exercise binary streaming and interactive terminals through the component
+  runtime, and smoke test published installers on Linux, macOS, and Windows.
+- Update the browser landing-page assertion to match the current MCP messaging.
+
 ## [0.19.7] - 2026-09-13
 
 - Correct MCP cancellation schemas and improve execution error references and shell parser diagnostics.
