@@ -287,6 +287,6 @@ try {
   }
   socket?.close();
   if (target) await fetch(`${cdp}/json/close/${target.id}`).catch(() => {});
-  if (!keep) await rm(directory, { recursive: true, force: true });
+  if (!keep) await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   else console.log(`kept E2E state at ${directory}`);
 }

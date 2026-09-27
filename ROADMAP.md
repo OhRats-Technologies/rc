@@ -95,8 +95,8 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Document that the Windows per-user task requires an interactive logged-on session and is not an unattended LocalSystem service.
 - [x] Produce and release-gate native Windows AMD64 CLI/kernel archives with canonical `.exe` members.
 - [x] Make Windows release target verification shell-independent and trigger kernel artifacts when shared platform code changes.
-- [ ] Pass native Windows Job Object, pipes, ConPTY, Unicode spawn/environment, resize, signal, and whole-tree termination tests.
-- [ ] Pass native Windows platform-directory, executable-lookup, run-lock, console, and browser-opening tests.
+- [x] Pass native Windows Job Object, pipes, ConPTY, Unicode spawn/environment, resize, signal, and whole-tree termination tests.
+- [x] Pass native Windows platform-directory, executable-lookup, run-lock, console, and browser-opening tests.
 - [x] Implement and validate restrictive ACLs for sensitive state.
 - [x] Protect trusted component placement plus kernel state/cache/catalog roots with private Unix permissions or Windows DACLs before reconciliation.
 - [x] Classify Windows reparse points as link-like and prove recursive filesystem operations do not traverse directory links.
