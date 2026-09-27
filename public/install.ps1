@@ -243,7 +243,6 @@ try {
   }
   & (Join-Path $stage 'rc-kernel.exe') --component-dir (Join-Path $stage 'components') policy-check | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'kernel rejected the core profile' }
-
   $versionDir = Join-Path $Versions $version
   $newDir = "$versionDir.new-$PID"
   if (Test-Path $newDir) { Remove-Item -Recurse -Force $newDir }
@@ -277,16 +276,18 @@ try {
   Atomic-Text (Join-Path $Runtime 'installed-version') $version
   if ($Token) {
     if (Test-Path (Join-Path $State 'device.json')) {
-      Write-Host 'enrollment: unchanged (this OS user already has a device identity)'
-      Write-Host "token:      not consumed; use the separate 'rc enroll' command on an unenrolled machine"
-    } elseif ($Server) { & (Join-Path $Bin 'rc.exe') enroll $Token --url $Server }
-    else { & (Join-Path $Bin 'rc.exe') enroll $Token }
+      Write-Host 'enrollment: unchanged; token not consumed (this OS user already has a device identity)'
+    } else {
+      $enrollArgs = @('enroll', $Token); if ($Server) { $enrollArgs += @('--url', $Server) }; & (Join-Path $Bin 'rc.exe') @enrollArgs
+      if ($LASTEXITCODE) { throw 'RC enrollment failed' }
+    }
   }
-  if (Test-Path (Join-Path $State 'device.json')) { & (Join-Path $Bin 'rc.exe') service install }
-  Remove-Item -Force $Journal
-  Remove-StaleVersions $versionDir $previous
-  $activating = $false
-  Write-Host "installed RC $version in $Bin"
+  if (Test-Path (Join-Path $State 'device.json')) {
+    & (Join-Path $Bin 'rc.exe') service install
+    if ($LASTEXITCODE) { throw 'RC background service registration failed; enrollment is preserved' }
+  }
+  Remove-Item -Force $Journal; Remove-StaleVersions $versionDir $previous
+  $activating = $false; Write-Host "installed RC $version in $Bin"
 } catch {
   if ($activating -and (Test-Path $PreviousFile)) {
     $previous = (Get-Content -Raw $PreviousFile).Trim()

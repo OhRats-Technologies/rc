@@ -1,18 +1,51 @@
 use anyhow::{Context as _, Result, bail};
-use std::{path::Path, process::Command};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use std::{
+    io::Write as _,
+    path::Path,
+    process::{Command, Stdio},
+};
 
 const TASK: &str = "OhRats RC Node";
 
 pub fn install(executable: &Path, arguments: &[String]) -> Result<()> {
-    let command = std::iter::once(executable.to_string_lossy().into_owned())
-        .chain(arguments.iter().cloned())
-        .map(|value| quote(&value))
+    let arguments = arguments
+        .iter()
+        .map(|value| quote(value))
         .collect::<Vec<_>>()
         .join(" ");
-    run(&[
-        "/Create", "/F", "/SC", "ONLOGON", "/RL", "LIMITED", "/IT", "/TN", TASK, "/TR", &command,
-    ])?;
-    run(&["/Run", "/TN", TASK])
+    let specification = serde_json::to_vec(&serde_json::json!({
+        "executable": executable.to_string_lossy(), "arguments": arguments,
+    }))?;
+    let script = include_str!("windows-install.ps1");
+    let encoded = STANDARD.encode(
+        script
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect::<Vec<_>>(),
+    );
+    let mut child = Command::new("powershell.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-EncodedCommand",
+            &encoded,
+        ])
+        .stdin(Stdio::piped())
+        .spawn()
+        .context("could not register the per-user RC scheduled task")?;
+    let input_result = child
+        .stdin
+        .take()
+        .context("service registration stdin unavailable")?
+        .write_all(&specification);
+    let status = child.wait()?;
+    input_result?;
+    if !status.success() {
+        bail!("per-user RC service registration failed with {status}");
+    }
+    Ok(())
 }
 
 pub fn stop() -> Result<()> {

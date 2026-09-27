@@ -15,7 +15,7 @@ foreach ($argument in @(
   '--disable-features=WebRtcHideLocalIpsWithMdns', '--remote-allow-origins=*',
   '--remote-debugging-address=127.0.0.1', '--remote-debugging-port=9223',
   "--user-data-dir=$profile", 'about:blank'
-)) { $start.ArgumentList.Add($argument) }
+)) { $start.Arguments += ' "' + $argument.Replace('"', '\"') + '"' }
 $state = Join-Path $env:RUNNER_TEMP ('rc-browser-e2e-' + [guid]::NewGuid())
 New-Item -ItemType Directory $state | Out-Null
 $env:RC_E2E_DIRECTORY = $state
@@ -35,7 +35,7 @@ try {
   bun run smoke:browser-e2e
   if ($LASTEXITCODE) { throw 'native Windows browser conformance failed' }
 } finally {
-  if (!$browser.HasExited) { $browser.Kill($true); $browser.WaitForExit() }
+  if (!$browser.HasExited) { & taskkill.exe /PID $browser.Id /T /F | Out-Null; $browser.WaitForExit() }
   $browser.Dispose()
   # Bun can retain directory handles until exit; cleanup belongs to the parent.
   for ($attempt = 0; $attempt -lt 20; $attempt++) {
