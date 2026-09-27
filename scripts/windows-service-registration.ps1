@@ -31,8 +31,12 @@ try {
   }
   $definition = $folder.GetTask('OhRats RC Node').Definition
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  if ($definition.Principal.UserId -ne $sid -or $definition.Triggers.Item(1).UserId -ne $sid) {
-    throw 'service principal and logon trigger must both belong to the current user'
+  foreach ($userId in $definition.Principal.UserId,$definition.Triggers.Item(1).UserId) {
+    if (!$userId) { throw 'service principal and logon trigger require an explicit user' }
+    $resolved = if ($userId.StartsWith('S-1-')) { $userId } else {
+      [Security.Principal.NTAccount]::new($userId).Translate([Security.Principal.SecurityIdentifier]).Value
+    }
+    if ($resolved -ne $sid) { throw 'service principal and logon trigger must both belong to the current user' }
   }
   if ($definition.Principal.RunLevel -ne 0 -or $definition.Principal.LogonType -ne 3) {
     throw 'service must use a limited interactive token'
