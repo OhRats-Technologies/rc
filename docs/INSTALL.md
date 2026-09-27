@@ -37,12 +37,14 @@ it only when a release does not provide the current profile asset. This keeps
 old immutable releases installable without weakening validation of current
 releases.
 
-By default, `rc` and `rc-kernel` are installed in `~/.local/bin`; components go
+On Linux and macOS, by default, `rc` and `rc-kernel` are installed in `~/.local/bin`; components go
 in `~/.local/share/rc/components`. `RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`,
 `RC_COMPONENT_DIR`, and `RC_STATE_DIR` provide explicit test or packaging
 locations.
 
-On Windows, run the signed release copy of `install.ps1` as the enrolled user.
+On Windows, run `install.ps1` in PowerShell as the enrolled user. The script is
+published with the release; downloaded artifacts are verified against GitHub
+release digests. It is not an Authenticode-signed script.
 Defaults live under `%LOCALAPPDATA%\OhRats\RC`. The installer stages the native
 pair under `data\runtime\versions\VERSION`, validates it with the staged core
 profile, and atomically changes `data\runtime\active`. The controller remains
@@ -91,3 +93,27 @@ Build release core assets with:
 packaging/build-core-bundle.sh
 packaging/build-legacy-core-bundle.sh
 ```
+
+## Public setup commands
+
+The enrollment page offers **Linux / macOS** and **Windows (PowerShell)**.
+Both command variants use the same one-time token and originating RC server.
+Switching platform does not create a new token. New-install commands install,
+enroll, and start the per-user service; already-installed commands start the
+service only after successful enrollment.
+
+Without enrollment, install using:
+
+```sh
+curl -fsSL https://rc.ohrats.party/install.sh | sh
+```
+
+On Windows AMD64, run in PowerShell:
+
+```powershell
+& ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://rc.ohrats.party/install.ps1')))
+```
+
+Windows installs to `%LOCALAPPDATA%\OhRats\RC`. Add its `bin` directory to
+your user PATH and reopen PowerShell, or invoke `rc.exe` by its full path.
+The per-user Task Scheduler service runs only while that user is logged in.

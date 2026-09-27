@@ -41,6 +41,7 @@ pub fn routes() -> Router<AppState> {
         .route("/docs", get(docs::index))
         .route("/docs/{topic}", get(docs::topic))
         .route("/install.sh", get(docs::install_script))
+        .route("/install.ps1", get(docs::windows_install_script))
         .route("/robots.txt", get(docs::robots))
         .merge(actions::routes())
 }

@@ -48,7 +48,9 @@ pub(super) async fn enrollment(
         Json(serde_json::json!({
             "token":token,"expiresAt":expires,
             "install":install_command(&state.config.public_url, &token),
-            "enroll":enroll_command(&state.config.public_url, &token)
+            "enroll":enroll_command(&state.config.public_url, &token),
+            "installWindows":windows_install_command(&state.config.public_url, &token),
+            "enrollWindows":windows_enroll_command(&state.config.public_url, &token)
         })),
     ))
 }
@@ -56,7 +58,7 @@ pub(super) async fn enrollment(
 fn enroll_command(public_url: &str, token: &str) -> String {
     let server = public_url.trim_end_matches('/');
     format!(
-        "rc enroll {} --url {}",
+        "rc enroll {} --url {} && rc service install",
         shell_quote(token),
         shell_quote(server)
     )
@@ -75,6 +77,28 @@ fn install_command(public_url: &str, token: &str) -> String {
 
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn powershell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
+}
+
+fn windows_install_command(public_url: &str, token: &str) -> String {
+    let server = public_url.trim_end_matches('/');
+    format!(
+        "& ([scriptblock]::Create((Invoke-RestMethod -Uri {}))) -Token {} -Server {}",
+        powershell_quote(&format!("{server}/install.ps1")),
+        powershell_quote(token),
+        powershell_quote(server)
+    )
+}
+
+fn windows_enroll_command(public_url: &str, token: &str) -> String {
+    format!(
+        r"$rc = Join-Path $env:LOCALAPPDATA 'OhRats\RC\bin\rc.exe'; & $rc enroll {} --url {}; if ($LASTEXITCODE -eq 0) {{ & $rc service install }}",
+        powershell_quote(token),
+        powershell_quote(public_url.trim_end_matches('/'))
+    )
 }
 
 #[cfg(test)]
@@ -101,7 +125,7 @@ mod tests {
     fn installed_node_gets_a_separate_enroll_command() {
         assert_eq!(
             enroll_command("https://rc.example/", "enroll_test"),
-            "rc enroll 'enroll_test' --url 'https://rc.example'"
+            "rc enroll 'enroll_test' --url 'https://rc.example' && rc service install"
         );
     }
 }

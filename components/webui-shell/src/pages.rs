@@ -74,7 +74,15 @@ fn render_public(page: PublicPage, public_signup: bool, public_url: &str) -> Str
         (PublicPage::Api, true) => include_str!("../assets/public_snapshots/api-open.html"),
         (PublicPage::Api, false) => include_str!("../assets/public_snapshots/api-closed.html"),
     };
+    let windows_install = format!(
+        "& ([scriptblock]::Create((Invoke-RestMethod -Uri '{}/install.ps1')))",
+        public_url.trim_end_matches('/').replace('\'', "''")
+    );
     let rendered = template
+        .replace(
+            "__WINDOWS_INSTALL_COMMAND__",
+            &document::escape(&windows_install),
+        )
         .replace(
             "__PUBLIC_URL__",
             &document::escape(public_url.trim_end_matches('/')),

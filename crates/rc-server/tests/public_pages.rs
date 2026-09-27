@@ -67,7 +67,7 @@ async fn exact_landing_and_documentation_surfaces_are_preserved() -> anyhow::Res
     assert!(!landing.body.contains("OhRats RC</span>"));
     assert!(!landing.body.contains("01 / SAFETY"));
     assert!(landing.body.contains(&format!(
-        "styles.css?v={}-browser4",
+        "styles.css?v={}-browser5",
         env!("CARGO_PKG_VERSION")
     )));
 

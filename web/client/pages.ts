@@ -17,24 +17,57 @@ document.querySelectorAll<HTMLFormElement>("[data-json-form]").forEach(form => f
   }
 }));
 
-document.querySelectorAll<HTMLFormElement>("[data-enrollment-form]").forEach(form => form.addEventListener("submit", async event => {
-  event.preventDefault();
-  const workspaceId = String(new FormData(form).get("workspaceId") || "");
+type EnrollmentCommands = { install: string; enroll: string; installWindows: string; enrollWindows: string; expiresAt: number };
+
+document.querySelectorAll<HTMLFormElement>("[data-enrollment-form]").forEach(form => {
+  const platform = form.querySelector<HTMLSelectElement>('[name="platform"]');
   const outputs = document.querySelectorAll<HTMLElement>("[data-enrollment-result]");
   const fields = document.querySelectorAll<HTMLElement>("[data-enrollment-copy-field]");
-  const error = document.querySelector<HTMLElement>("[data-enrollment-error]");
-  const button = form.querySelector<HTMLButtonElement>("button"); if (button) button.disabled = true;
-  if (error) error.textContent = "";
-  try {
-    const result = await api<{ install: string; enroll: string; expiresAt: number }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/enrollments`, { method: "POST", body: "{}" });
-    outputs.forEach(output => { output.textContent = output.dataset.enrollmentResult === "enroll" ? result.enroll : result.install; });
+  const errorOutput = document.querySelector<HTMLElement>("[data-enrollment-error]");
+  let result: EnrollmentCommands | null = null;
+  if (platform && /Windows/i.test(navigator.userAgent)) platform.value = "windows";
+  const render = () => {
+    const windows = platform?.value === "windows";
+    const help = form.querySelector<HTMLElement>("[data-enrollment-platform-help]");
+    if (help) help.textContent = windows
+      ? "Run in PowerShell on the Windows PC. The background service runs while this Windows user is logged in."
+      : "Run in a terminal on the Linux or macOS machine you want to enroll.";
+    if (!result) return;
+    outputs.forEach(output => {
+      const enroll = output.dataset.enrollmentResult === "enroll";
+      output.textContent = windows ? (enroll ? result!.enrollWindows : result!.installWindows) : (enroll ? result!.enroll : result!.install);
+    });
     fields.forEach(field => { field.hidden = false; });
-  } catch (error) {
+  };
+  platform?.addEventListener("change", render);
+  render();
+  form.querySelector('[name="workspaceId"]')?.addEventListener("change", () => {
+    result = null;
+    outputs.forEach(output => { output.textContent = ""; });
     fields.forEach(field => { field.hidden = true; });
-    const message = error instanceof Error ? error.message : String(error);
-    const errorOutput = document.querySelector<HTMLElement>("[data-enrollment-error]"); if (errorOutput) errorOutput.textContent = message;
-  } finally { if (button) button.disabled = false; }
-}));
+  });
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    const workspace = form.querySelector<HTMLSelectElement>('[name="workspaceId"]');
+    const workspaceId = workspace?.value || "";
+    const button = form.querySelector<HTMLButtonElement>("button");
+    if (button) button.disabled = true;
+    if (workspace) workspace.disabled = true;
+    if (errorOutput) errorOutput.textContent = "";
+    try {
+      result = await api<EnrollmentCommands>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/enrollments`, { method: "POST", body: "{}" });
+      render();
+    } catch (error) {
+      result = null;
+      outputs.forEach(output => { output.textContent = ""; });
+      fields.forEach(field => { field.hidden = true; });
+      if (errorOutput) errorOutput.textContent = error instanceof Error ? error.message : String(error);
+    } finally {
+      if (button) button.disabled = false;
+      if (workspace) workspace.disabled = false;
+    }
+  });
+});
 
 document.querySelectorAll<HTMLButtonElement>("[data-enrollment-copy]").forEach(button => button.addEventListener("click", () => {
   const value = button.closest("[data-enrollment-copy-field]")?.querySelector<HTMLElement>("[data-enrollment-result]")?.textContent || "";

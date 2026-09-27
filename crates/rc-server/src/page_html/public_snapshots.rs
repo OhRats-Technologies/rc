@@ -38,14 +38,19 @@ pub fn render(page: PublicPage, public_signup: bool, public_url: &str) -> String
         (PublicPage::Api, true) => include_str!("public_snapshots/api-open.html"),
         (PublicPage::Api, false) => include_str!("public_snapshots/api-closed.html"),
     };
+    let windows_install = format!(
+        "& ([scriptblock]::Create((Invoke-RestMethod -Uri '{}/install.ps1')))",
+        public_url.trim_end_matches('/').replace('\'', "''")
+    );
     let rendered = template
+        .replace("__WINDOWS_INSTALL_COMMAND__", &esc(&windows_install))
         .replace("__PUBLIC_URL__", &esc(public_url.trim_end_matches('/')))
         .replace("__ASSET_VERSION__", asset_revision());
     currentize(page, rendered)
 }
 
 pub fn asset_revision() -> &'static str {
-    concat!(env!("CARGO_PKG_VERSION"), "-browser4")
+    concat!(env!("CARGO_PKG_VERSION"), "-browser5")
 }
 
 fn currentize(page: PublicPage, html: String) -> String {

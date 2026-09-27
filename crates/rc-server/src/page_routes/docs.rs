@@ -45,6 +45,17 @@ pub(super) async fn install_script() -> Response {
         .into_response()
 }
 
+pub(super) async fn windows_install_script() -> Response {
+    (
+        [
+            ("content-type", "text/plain; charset=utf-8"),
+            ("cache-control", "no-cache"),
+        ],
+        include_str!("../../../../public/install.ps1"),
+    )
+        .into_response()
+}
+
 pub(super) async fn robots() -> &'static str {
     "User-agent: *\nAllow: /\nDisallow: /devices\nDisallow: /account\nDisallow: /api/v1/auth/\nDisallow: /oauth/\nDisallow: /mcp\n"
 }
