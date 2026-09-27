@@ -738,6 +738,81 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Parse Windows installer natively
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'public/install.ps1'), [ref]$tokens, [ref]$errors)
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
+      - name: Exercise Windows installer archive validation
+        shell: pwsh
+        run: |
+          $fixture = Join-Path $env:RUNNER_TEMP 'rc-installer-shape'
+          New-Item -ItemType Directory -Force $fixture | Out-Null
+          $env:RC_INSTALL_BIN_DIR = Join-Path $fixture 'bin'
+          $env:RC_DATA_DIR = Join-Path $fixture 'data'
+          $env:RC_COMPONENT_DIR = Join-Path $fixture 'data\components'
+          $env:RC_STATE_DIR = Join-Path $fixture 'state'
+          . ./public/install.ps1 -ValidateFunctionsOnly
+          $private = Join-Path $fixture 'private'
+          Protect-PrivateDirectories @($private)
+          $privateAcl = Get-Acl -LiteralPath $private
+          if (!$privateAcl.AreAccessRulesProtected) { throw 'installer private DACL still inherits' }
+          if ($privateAcl.Access | Where-Object { $_.IdentityReference.Value -in 'Everyone','BUILTIN\Users','NT AUTHORITY\Authenticated Users' }) {
+            throw 'installer private DACL grants a broad principal'
+          }
+          if ((Parse-Kernel-Version 'RC kernel 2.3.0') -ne [version]'2.3.0') {
+            throw 'installer kernel version parser failed'
+          }
+          $pointer = Join-Path $fixture 'atomic-pointer'
+          Atomic-Text $pointer 'old'; Atomic-Text $pointer 'new'
+          if ((Get-Content -Raw $pointer).Trim() -ne 'new' -or (Test-Path "$pointer.new-$PID")) {
+            throw 'installer atomic pointer replacement failed'
+          }
+          $badRelease = [pscustomobject]@{tag_name='v2.3.0';assets=@([pscustomobject]@{
+            name='rc-windows-amd64.tar.gz';browser_download_url='https://github.com/OhRats-Technologies/rc/releases/download/v2.2.0/rc-windows-amd64.tar.gz';digest=('sha256:' + ('0' * 64))
+          })}
+          try { Asset $badRelease 'rc-windows-amd64.tar.gz'; throw 'cross-release asset accepted' }
+          catch { if ($_.Exception.Message -eq 'cross-release asset accepted') { throw } }
+          try { Require-Kernel-NotDowngrade ([version]'2.2.9') ([version]'2.3.0'); throw 'downgrade accepted' }
+          catch { if ($_.Exception.Message -eq 'downgrade accepted') { throw } }
+          $old = Join-Path $Versions '1.0.0'; $current = Join-Path $Versions '2.0.0'
+          $stale = Join-Path $Versions '0.9.0'; $unknown = Join-Path $Versions 'local'
+          New-Item -ItemType Directory -Force $old,$current,$stale,$unknown | Out-Null
+          Remove-StaleVersions $current $old
+          if (!(Test-Path $old) -or !(Test-Path $current) -or (Test-Path $stale) -or !(Test-Path $unknown)) {
+            throw 'installer version cleanup violated retention policy'
+          }
+          Set-Content -NoNewline (Join-Path $fixture 'rc.exe') 'fixture'
+          Get-Command tar.exe | Select-Object Source
+          tar.exe --version
+          tar.exe -C $fixture -czf (Join-Path $fixture 'valid.tar.gz') rc.exe
+          if ($LASTEXITCODE) { throw 'could not create valid installer archive fixture' }
+          Require-Single (Join-Path $fixture 'valid.tar.gz') 'rc.exe'
+          Set-Content -NoNewline (Join-Path $fixture 'extra') 'extra'
+          tar.exe -C $fixture -czf (Join-Path $fixture 'invalid.tar.gz') rc.exe extra
+          if ($LASTEXITCODE) { throw 'could not create invalid installer archive fixture' }
+          $rejected = $false
+          try { Require-Single (Join-Path $fixture 'invalid.tar.gz') 'rc.exe' }
+          catch { $rejected = $true }
+          if (!$rejected) { throw 'installer accepted an extra archive member' }
+          New-Item -ItemType Directory -Force $Bin,$Components,$Runtime,(Join-Path $Backup 'components') | Out-Null
+          Set-Content -NoNewline (Join-Path $Bin 'rc.exe') 'new-cli'
+          Set-Content -NoNewline (Join-Path $Backup 'rc.exe') 'old-cli'
+          Set-Content -NoNewline (Join-Path $Components 'shell.wasm') 'new-shell'
+          Set-Content -NoNewline (Join-Path $Backup 'components\shell.wasm') 'old-shell'
+          Set-Content -NoNewline (Join-Path $Runtime 'installed-version') '2.0.0'
+          Set-Content -NoNewline (Join-Path $Backup 'installed-version') '1.0.0'
+          Atomic-Text $Active 'C:\runtime\new'
+          Atomic-Text $Journal (@{previous='C:\runtime\old';names=@('shell')} | ConvertTo-Json -Compress)
+          Recover-InterruptedActivation
+          if ((Get-Content -Raw (Join-Path $Bin 'rc.exe')) -ne 'old-cli') { throw 'CLI rollback failed' }
+          if ((Get-Content -Raw (Join-Path $Components 'shell.wasm')) -ne 'old-shell') { throw 'component rollback failed' }
+          if ((Get-Content -Raw $Active).Trim() -ne 'C:\runtime\old') { throw 'active runtime rollback failed' }
+          if (Test-Path $Journal) { throw 'activation journal was not cleared after recovery' }
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.98.0"
@@ -810,79 +885,6 @@ jobs:
           Write-Output $stdout.Result
           [Console]::Error.Write($stderr.Result)
           if ($process.ExitCode) { exit $process.ExitCode }
-      - name: Parse Windows installer natively
-        shell: pwsh
-        run: |
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path 'public/install.ps1'), [ref]$tokens, [ref]$errors)
-          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
-      - name: Exercise Windows installer archive validation
-        shell: pwsh
-        run: |
-          $fixture = Join-Path $env:RUNNER_TEMP 'rc-installer-shape'
-          New-Item -ItemType Directory -Force $fixture | Out-Null
-          $env:RC_INSTALL_BIN_DIR = Join-Path $fixture 'bin'
-          $env:RC_DATA_DIR = Join-Path $fixture 'data'
-          $env:RC_COMPONENT_DIR = Join-Path $fixture 'data\components'
-          $env:RC_STATE_DIR = Join-Path $fixture 'state'
-          . ./public/install.ps1 -ValidateFunctionsOnly
-          $private = Join-Path $fixture 'private'
-          Protect-PrivateDirectories @($private)
-          $privateAcl = Get-Acl -LiteralPath $private
-          if (!$privateAcl.AreAccessRulesProtected) { throw 'installer private DACL still inherits' }
-          if ($privateAcl.Access | Where-Object { $_.IdentityReference.Value -in 'Everyone','BUILTIN\Users','NT AUTHORITY\Authenticated Users' }) {
-            throw 'installer private DACL grants a broad principal'
-          }
-          if ((Parse-Kernel-Version 'RC kernel 2.3.0') -ne [version]'2.3.0') {
-            throw 'installer kernel version parser failed'
-          }
-          $pointer = Join-Path $fixture 'atomic-pointer'
-          Atomic-Text $pointer 'old'; Atomic-Text $pointer 'new'
-          if ((Get-Content -Raw $pointer).Trim() -ne 'new' -or (Test-Path "$pointer.new-$PID")) {
-            throw 'installer atomic pointer replacement failed'
-          }
-          $badRelease = [pscustomobject]@{tag_name='v2.3.0';assets=@([pscustomobject]@{
-            name='rc-windows-amd64.tar.gz';browser_download_url='https://github.com/OhRats-Technologies/rc/releases/download/v2.2.0/rc-windows-amd64.tar.gz';digest=('sha256:' + ('0' * 64))
-          })}
-          try { Asset $badRelease 'rc-windows-amd64.tar.gz'; throw 'cross-release asset accepted' }
-          catch { if ($_.Exception.Message -eq 'cross-release asset accepted') { throw } }
-          try { Require-Kernel-NotDowngrade ([version]'2.2.9') ([version]'2.3.0'); throw 'downgrade accepted' }
-          catch { if ($_.Exception.Message -eq 'downgrade accepted') { throw } }
-          $old = Join-Path $Versions '1.0.0'; $current = Join-Path $Versions '2.0.0'
-          $stale = Join-Path $Versions '0.9.0'; $unknown = Join-Path $Versions 'local'
-          New-Item -ItemType Directory -Force $old,$current,$stale,$unknown | Out-Null
-          Remove-StaleVersions $current $old
-          if (!(Test-Path $old) -or !(Test-Path $current) -or (Test-Path $stale) -or !(Test-Path $unknown)) {
-            throw 'installer version cleanup violated retention policy'
-          }
-          Set-Content -NoNewline (Join-Path $fixture 'rc.exe') 'fixture'
-          Push-Location $fixture
-          tar.exe -czf valid.tar.gz rc.exe
-          Require-Single (Join-Path $fixture 'valid.tar.gz') 'rc.exe'
-          Set-Content -NoNewline extra 'extra'
-          tar.exe -czf invalid.tar.gz rc.exe extra
-          $rejected = $false
-          try { Require-Single (Join-Path $fixture 'invalid.tar.gz') 'rc.exe' }
-          catch { $rejected = $true }
-          Pop-Location
-          if (!$rejected) { throw 'installer accepted an extra archive member' }
-          New-Item -ItemType Directory -Force $Bin,$Components,$Runtime,(Join-Path $Backup 'components') | Out-Null
-          Set-Content -NoNewline (Join-Path $Bin 'rc.exe') 'new-cli'
-          Set-Content -NoNewline (Join-Path $Backup 'rc.exe') 'old-cli'
-          Set-Content -NoNewline (Join-Path $Components 'shell.wasm') 'new-shell'
-          Set-Content -NoNewline (Join-Path $Backup 'components\shell.wasm') 'old-shell'
-          Set-Content -NoNewline (Join-Path $Runtime 'installed-version') '2.0.0'
-          Set-Content -NoNewline (Join-Path $Backup 'installed-version') '1.0.0'
-          Atomic-Text $Active 'C:\runtime\new'
-          Atomic-Text $Journal (@{previous='C:\runtime\old';names=@('shell')} | ConvertTo-Json -Compress)
-          Recover-InterruptedActivation
-          if ((Get-Content -Raw (Join-Path $Bin 'rc.exe')) -ne 'old-cli') { throw 'CLI rollback failed' }
-          if ((Get-Content -Raw (Join-Path $Components 'shell.wasm')) -ne 'old-shell') { throw 'component rollback failed' }
-          if ((Get-Content -Raw $Active).Trim() -ne 'C:\runtime\old') { throw 'active runtime rollback failed' }
-          if (Test-Path $Journal) { throw 'activation journal was not cleared after recovery' }
-
       - uses: oven-sh/setup-bun@v2
         if: ${{ !inputs.windows_only || inputs.windows_browser }}
         with:
