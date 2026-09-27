@@ -248,10 +248,8 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
     assert_eq!(old_session.location.as_deref(), Some("/login"));
     let landing = get(&application, "/", None).await?;
     assert_eq!(landing.status, StatusCode::OK);
-    assert!(
-        landing
-            .body
-            .contains("Give your agents access<br/><span class=\"hero-muted\">to your machines.</span>")
-    );
+    assert!(landing.body.contains(
+        "Give your agents access<br/><span class=\"hero-muted\">to your machines.</span>"
+    ));
     Ok(())
 }

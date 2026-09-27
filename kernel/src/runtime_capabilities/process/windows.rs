@@ -153,7 +153,11 @@ impl Group {
             }
         }
         self.children.clear();
-        self.terminal = None;
+        if let Some(terminal) = self.terminal.take() {
+            // ClosePseudoConsole can wait for the output pipe to drain. Keep it
+            // outside the runtime lock so stream consumers can finish or close.
+            std::thread::spawn(move || drop(terminal));
+        }
         self.terminal_input = None;
         self.process_groups.clear();
         self.launch_gates.clear();
@@ -241,6 +245,10 @@ fn spawn_terminal(
     let input = SharedWriter(std::sync::Arc::new(std::sync::Mutex::new(
         pair.master.take_writer().map_err(display)?,
     )));
+    // portable-pty asks ConPTY to inherit the cursor. RC owns a fresh terminal
+    // and must answer the startup query even without an attached UI.
+    let mut input = input;
+    input.write_all(b"\x1b[1;1R").map_err(display)?;
     group.process_groups.push(native_child);
     group.launch_gates.push(gate);
     group.terminal_input = Some(input.clone());
