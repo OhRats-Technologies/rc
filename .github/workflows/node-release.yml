@@ -189,6 +189,18 @@ jobs:
           test "$(tar -tzf dist/rc-core-profile.tar.gz | grep -c '^profile.lock$')" -eq 1
           python3 -m json.tool dist/rc-upgrade.json >/dev/null
           cp public/install.sh public/install.ps1 dist/
+      - name: Verify Windows binaries do not require a Visual C++ runtime installation
+        shell: bash
+        run: |
+          for name in rc rc-kernel; do
+            tar -xOf "dist/$name-windows-amd64.tar.gz" "$name.exe" > "$RUNNER_TEMP/$name.exe"
+            objdump -p "$RUNNER_TEMP/$name.exe" > "$RUNNER_TEMP/$name-imports"
+            grep 'DLL Name:' "$RUNNER_TEMP/$name-imports"
+            if grep -Eqi 'DLL Name: (VCRUNTIME|MSVCP|CONCRT)[0-9]' "$RUNNER_TEMP/$name-imports"; then
+              echo "$name requires a separately installed Visual C++ runtime" >&2
+              exit 1
+            fi
+          done
       - name: Publish immutable GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

@@ -103,7 +103,7 @@ jobs:
       - name: Build Windows kernel
         if: runner.os == 'Windows'
         env:
-          RUSTFLAGS: -D warnings
+          RUSTFLAGS: -D warnings -C target-feature=+crt-static
         run: >-
           cargo build --manifest-path kernel/Cargo.toml --locked --release
           --target ${{ matrix.target }}

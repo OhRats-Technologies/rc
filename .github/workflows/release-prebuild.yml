@@ -98,7 +98,7 @@ jobs:
       - name: Build RC on Windows
         if: runner.os == 'Windows'
         env:
-          RUSTFLAGS: -D warnings
+          RUSTFLAGS: -D warnings -C target-feature=+crt-static
         run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
       - name: Package RC
         shell: bash

@@ -10,6 +10,11 @@ All notable RC changes are recorded here. Published tags are immutable.
   and close terminal handles without blocking the execution runtime.
 - Drain native process output before reporting exit and let output polling
   proceed while process input is backpressured.
+- Fix PowerShell installer GitHub requests, verified asset paths, and atomic
+  activation replacement.
+- Package Windows binaries with a static C runtime so a separate Visual C++
+  runtime installation is unnecessary.
+- Preserve the component directory when installing a per-user background service.
 - Restore native Windows runtime CI and add a focused Windows validation mode.
 - Exercise binary streaming and interactive terminals through the component
   runtime, and smoke test published installers on Linux, macOS, and Windows.
