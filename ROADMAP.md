@@ -101,7 +101,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Protect trusted component placement plus kernel state/cache/catalog roots with private Unix permissions or Windows DACLs before reconciliation.
 - [x] Classify Windows reparse points as link-like and prove recursive filesystem operations do not traverse directory links.
 - [x] Implement per-user Task Scheduler service management.
-- [ ] Pass native Windows PowerShell install, side-by-side activation/rollback, release-asset, and CI acceptance gates.
+- [x] Pass native Windows PowerShell install, side-by-side activation/rollback, release-asset, and CI acceptance gates.
 - [x] Add digest-pinned PowerShell install with bounded archive validation, profile verification, no-downgrade, rollback, and release publication.
 - [x] Bind every PowerShell installer asset URL to the selected immutable release tag/name and reject HTTPS-to-HTTP redirects.
 - [x] Replace existing Windows activation pointers with `File.Replace` and native-CI-check replacement and temporary-file cleanup.

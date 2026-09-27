@@ -21,6 +21,12 @@ All notable RC changes are recorded here. Published tags are immutable.
   runtime, and smoke test published installers on Linux, macOS, and Windows.
 - Update the browser landing-page assertion to match the current MCP messaging.
 
+### Validation
+
+- [Full Linux, macOS, and Windows CI](https://github.com/OhRats-Technologies/rc/actions/runs/36293667602) passed.
+- [Published release installer checks](https://github.com/OhRats-Technologies/rc/actions/runs/36294229706) passed installation, reinstallation, repair, and doctor on all three operating systems.
+- Native Windows coverage includes per-user service enrollment and restart, passkey authorization, and encrypted browser terminal execution.
+
 ## [0.19.7] - 2026-09-13
 
 - Correct MCP cancellation schemas and improve execution error references and shell parser diagnostics.
