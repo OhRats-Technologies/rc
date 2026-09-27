@@ -12,8 +12,8 @@ All notable RC changes are recorded here. Published tags are immutable.
   privileges, including in Windows PowerShell 5.1.
 - Fail installation when enrollment or service registration fails instead of
   printing a misleading success message; retain a newly enrolled identity.
-- Run Windows installer ACL checks and service/browser conformance under an
-  actual non-administrator account.
+- Run Windows installer ACL and service registration checks under an actual
+  non-administrator account, plus service/browser conformance in a logged-in session.
 - Add platform-specific enrollment commands, the public PowerShell installer
   endpoint, and Windows setup instructions to the website.
 

@@ -19,8 +19,6 @@ try {
       'ContainerInherit,ObjectInherit', 'None', 'Allow'))
   }
   [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($fixture), $acl)
-  # Bun is installed in the runner's private profile; give the test user its own copy.
-  Copy-Item (Get-Command bun.exe).Source (Join-Path $fixture 'bun.exe')
   $worker = Join-Path $fixture 'worker.ps1'
   @'
 param([string]$Repository, [string]$Fixture)
@@ -31,7 +29,7 @@ $principal = [Security.Principal.WindowsPrincipal]::new($identity)
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'standard-user coverage must not run with administrator privileges'
 }
-Write-Output 'Running installer ACL and service/browser checks as a standard Windows user.'
+Write-Output 'Running installer ACL and service registration checks as a standard Windows user.'
 Set-Location $Repository
 $env:RUNNER_TEMP = $Fixture
 $env:TEMP = $Fixture; $env:TMP = $Fixture
@@ -55,7 +53,7 @@ if (!$privateAcl.AreAccessRulesProtected) { throw 'private directory still inher
 if ($privateAcl.Access | Where-Object { $_.IdentityReference.Value -in 'Everyone','BUILTIN\Users','NT AUTHORITY\Authenticated Users' }) {
   throw 'private directory grants broad access'
 }
-& ./scripts/windows-browser-e2e.ps1
+& ./scripts/windows-service-registration.ps1
 if ($LASTEXITCODE) { exit $LASTEXITCODE }
 '@ | Set-Content -LiteralPath $worker -Encoding UTF8
   $credential = [Management.Automation.PSCredential]::new("$env:COMPUTERNAME\$name", $secure)
@@ -64,9 +62,10 @@ if ($LASTEXITCODE) { exit $LASTEXITCODE }
     -Credential $credential -LoadUserProfile -WorkingDirectory $fixture -PassThru `
     -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',"`"$worker`"",'-Repository',"`"$repository`"",'-Fixture',"`"$fixture`"") `
     -RedirectStandardOutput $stdout -RedirectStandardError $stderr
-  if (!$child.WaitForExit(300000)) { throw 'standard-user browser checks exceeded five minutes' }
+  $finished = $child.WaitForExit(300000)
   Get-Content -LiteralPath $stdout
   Get-Content -LiteralPath $stderr
+  if (!$finished) { throw 'standard-user registration checks exceeded five minutes' }
   if ($child.ExitCode -ne 0) { throw "standard-user checks failed ($($child.ExitCode))" }
 } finally {
   if ($child -and !$child.HasExited) { & taskkill.exe /PID $child.Id /T /F | Out-Null }

@@ -90,9 +90,11 @@ sh scripts/smoke-install.sh
 ```
 
 PowerShell syntax and native Windows runtime integration are gated in
-`windows-latest` CI. Installer directory permissions and the service/browser
-lifecycle also run under an actual non-administrator Windows account using
-Windows PowerShell 5.1.
+`windows-latest` CI. Installer directory permissions and service registration,
+replacement, status, stop and removal run under an actual non-administrator
+account using Windows PowerShell 5.1. Service execution and browser conformance
+run separately in the runner's logged-in session; a temporary account created
+with alternate process credentials has no desktop login session for interactive tasks.
 
 Build release core assets with:
 
