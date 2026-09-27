@@ -4,6 +4,7 @@ All notable RC changes are recorded here. Published tags are immutable.
 
 ## [0.19.8] - 2026-09-27
 
+- Update Rustls to 0.23.45 to fix RUSTSEC-2026-0285.
 - Keep Windows process pipes responsive with bounded background I/O, preserving
   separate binary streams, stdin EOF, and backpressure.
 - Complete the ConPTY startup handshake without requiring an attached terminal
