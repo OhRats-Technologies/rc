@@ -19,6 +19,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
+mod reader;
 #[cfg(test)]
 mod tests;
 mod wait;
@@ -158,7 +159,7 @@ fn spawn_terminal(
     Ok(Spawned {
         native_child,
         stdin: Some(StreamValue::Duplex(master)),
-        stdout: StreamValue::Reader(Box::new(reader)),
+        stdout: StreamValue::Reader(Box::new(reader::PtyReader(reader))),
         stderr: None,
     })
 }

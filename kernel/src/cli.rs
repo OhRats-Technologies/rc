@@ -67,6 +67,8 @@ enum KernelCommand {
     },
     #[command(hide = true)]
     TextFixture { value: String },
+    #[command(hide = true)]
+    StreamFixture,
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -85,6 +87,11 @@ pub fn run() -> anyhow::Result<()> {
     }
     if let Some(KernelCommand::TextFixture { value }) = &arguments.command {
         print!("{value}");
+        return Ok(());
+    }
+    if matches!(arguments.command, Some(KernelCommand::StreamFixture)) {
+        std::io::stderr().write_all(b"ready")?;
+        std::io::copy(&mut std::io::stdin().lock(), &mut std::io::stdout().lock())?;
         return Ok(());
     }
     let directory = arguments
@@ -130,7 +137,9 @@ pub fn run() -> anyhow::Result<()> {
         Some(KernelCommand::CryptoCheck) => node::crypto_check(&runtime),
         Some(KernelCommand::CryptoProbe) => node::crypto_probe(runtime),
         Some(KernelCommand::ArgvFixture { .. }) => unreachable!("handled before runtime startup"),
-        Some(KernelCommand::TextFixture { .. }) => unreachable!("handled before runtime startup"),
+        Some(KernelCommand::TextFixture { .. } | KernelCommand::StreamFixture) => {
+            unreachable!("handled before runtime startup")
+        }
         None => dispatch_plugin(&mut runtime, arguments.plugin_args),
     }
 }

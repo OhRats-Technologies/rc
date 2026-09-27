@@ -4,6 +4,15 @@ use std::{
     sync::mpsc::{self, Receiver, SyncSender, TryRecvError, TrySendError},
 };
 
+#[cfg(windows)]
+pub(super) fn adapt(value: super::StreamValue) -> super::StreamValue {
+    use super::StreamValue;
+    match value {
+        StreamValue::Reader(reader) => StreamValue::Reader(Box::new(Reader::new(reader))),
+        StreamValue::Writer(writer) => StreamValue::Writer(Box::new(Writer::new(writer))),
+    }
+}
+
 const CHUNK: usize = 16 * 1024;
 const QUEUE: usize = 4;
 

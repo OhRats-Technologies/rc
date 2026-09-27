@@ -22,6 +22,9 @@ pub(crate) struct Process {
     stdin: Option<ByteStream>,
     stdout: ByteStream,
     stderr: Option<ByteStream>,
+    stdout_eof: bool,
+    stderr_eof: bool,
+    exit: Option<ExitResult>,
 }
 
 impl Native {
@@ -46,7 +49,10 @@ impl Native {
             child: spawned.child,
             stdin: spawned.stdin,
             stdout: spawned.stdout,
+            stderr_eof: spawned.stderr.is_none(),
             stderr: spawned.stderr,
+            stdout_eof: false,
+            exit: None,
         }))
     }
 
@@ -124,14 +130,32 @@ impl Native {
 impl Process {
     fn poll(&mut self, budget: u32) -> Result<PollOutput, String> {
         let mut output = Vec::new();
-        read(&self.stdout, StreamKind::Stdout, budget, &mut output)?;
-        if let Some(stderr) = &self.stderr {
-            read(stderr, StreamKind::Stderr, budget, &mut output)?;
+        if !self.stdout_eof {
+            self.stdout_eof = read(&self.stdout, StreamKind::Stdout, budget, &mut output)?;
         }
-        let exit = self.child.poll_exit()?.map(|value| ExitResult {
-            code: value.code,
-            signal: value.signal,
-        });
+        if !self.stderr_eof
+            && let Some(stderr) = &self.stderr
+        {
+            self.stderr_eof = read(stderr, StreamKind::Stderr, budget, &mut output)?;
+        }
+        if self.exit.is_none()
+            && let Some(value) = self.child.poll_exit()?
+        {
+            self.exit = Some(ExitResult {
+                code: value.code,
+                signal: value.signal,
+            });
+            // Close descendants and the terminal producer, then drain all bytes
+            // already accepted by the OS before publishing the final exit.
+            if let Some(group) = self.group.take() {
+                group.close();
+            }
+        }
+        let exit = if self.stdout_eof && self.stderr_eof {
+            self.exit
+        } else {
+            None
+        };
         Ok((output, exit))
     }
 
@@ -162,9 +186,13 @@ fn read(
     kind: StreamKind,
     budget: u32,
     output: &mut Vec<(StreamKind, Vec<u8>)>,
-) -> Result<(), String> {
-    if let process_host::ReadResult::Data(bytes) = stream.read(budget)? {
-        output.push((kind, bytes));
+) -> Result<bool, String> {
+    match stream.read(budget)? {
+        process_host::ReadResult::Data(bytes) => {
+            output.push((kind, bytes));
+            Ok(false)
+        }
+        process_host::ReadResult::WouldBlock => Ok(false),
+        process_host::ReadResult::Eof => Ok(true),
     }
-    Ok(())
 }

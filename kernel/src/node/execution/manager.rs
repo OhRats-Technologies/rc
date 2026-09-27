@@ -192,11 +192,14 @@ impl ExecutionManager for ComponentExecutionManager {
                 "process input exceeds policy limit",
             ));
         }
-        let execution = process.execution.lock();
         let mut offset = 0;
         let deadline = Instant::now() + Duration::from_secs(30);
         while offset < data.len() {
-            let count = execution.input(&data[offset..]).map_err(io::Error::other)? as usize;
+            let count = process
+                .execution
+                .lock()
+                .input(&data[offset..])
+                .map_err(io::Error::other)? as usize;
             if count == 0 {
                 if Instant::now() >= deadline || process.status.lock().name != "running" {
                     return Err(io::Error::new(

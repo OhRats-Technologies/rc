@@ -21,8 +21,7 @@ fn conpty_interrupt_delivers_ctrl_c_to_the_terminal_process() {
         rows: 24,
         term: "xterm-256color".into(),
     };
-    let mut spawned = spawn(&mut group, long_running(Some(terminal))).unwrap();
-    answer_conpty_probe(&mut spawned.stdin);
+    let spawned = spawn(&mut group, long_running(Some(terminal))).unwrap();
     std::thread::sleep(std::time::Duration::from_millis(250));
     group.signal(Signal::Interrupt).unwrap();
     let (exit, _) = wait_terminal(&mut group, spawned.native_child, spawned.stdout);

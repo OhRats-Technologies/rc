@@ -75,14 +75,7 @@ impl ProcessHandles {
 
     fn insert_stream(&mut self, value: StreamValue) -> Result<Resource<ByteStream>, String> {
         #[cfg(windows)]
-        let value = match value {
-            StreamValue::Reader(reader) => {
-                StreamValue::Reader(Box::new(buffered::Reader::new(reader)))
-            }
-            StreamValue::Writer(writer) => {
-                StreamValue::Writer(Box::new(buffered::Writer::new(writer)))
-            }
-        };
+        let value = buffered::adapt(value);
         let rep = self.next()?;
         self.streams.insert(rep, value);
         Ok(Resource::new_own(rep))

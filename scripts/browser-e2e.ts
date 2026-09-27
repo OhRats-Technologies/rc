@@ -247,7 +247,7 @@ try {
   await evaluate(`(()=>{document.querySelector('form[action="/account/logout"]').requestSubmit();return true})()`);
   await waitFor(`location.pathname === "/" && document.querySelector('.public-site') !== null`, 15_000, "logout landing");
   const landing = await evaluate<string>("document.documentElement.outerHTML");
-  if (!landing.includes('Remote Control<br><span class="hero-muted">for your machines.</span>')) throw new Error("restored landing missing after logout");
+  if (!landing.includes('Give your agents access<br><span class="hero-muted">to your machines.</span>')) throw new Error("restored landing missing after logout");
   await navigate(`${base}/devices`);
   await waitFor(`location.pathname === "/login"`, 15_000, "logged-out redirect");
   await navigate(`${base}/docs`);
