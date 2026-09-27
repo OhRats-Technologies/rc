@@ -794,8 +794,8 @@ jobs:
           if (!(Test-Path $old) -or !(Test-Path $current) -or (Test-Path $stale) -or !(Test-Path $unknown)) {
             throw 'installer version cleanup violated retention policy'
           }
-          Set-Content -NoNewline (Join-Path $fixture 'rc.exe') 'fixture'
-          Set-Content -NoNewline (Join-Path $fixture 'extra') 'extra'
+          Set-Content -LiteralPath (Join-Path $fixture 'rc.exe') -Value 'fixture' -NoNewline
+          Set-Content -LiteralPath (Join-Path $fixture 'extra') -Value 'extra' -NoNewline
           @'
           import pathlib, sys, tarfile
           root = pathlib.Path(sys.argv[1])
@@ -811,12 +811,12 @@ jobs:
           catch { $rejected = $true }
           if (!$rejected) { throw 'installer accepted an extra archive member' }
           New-Item -ItemType Directory -Force $Bin,$Components,$Runtime,(Join-Path $Backup 'components') | Out-Null
-          Set-Content -NoNewline (Join-Path $Bin 'rc.exe') 'new-cli'
-          Set-Content -NoNewline (Join-Path $Backup 'rc.exe') 'old-cli'
-          Set-Content -NoNewline (Join-Path $Components 'shell.wasm') 'new-shell'
-          Set-Content -NoNewline (Join-Path $Backup 'components\shell.wasm') 'old-shell'
-          Set-Content -NoNewline (Join-Path $Runtime 'installed-version') '2.0.0'
-          Set-Content -NoNewline (Join-Path $Backup 'installed-version') '1.0.0'
+          Set-Content -LiteralPath (Join-Path $Bin 'rc.exe') -Value 'new-cli' -NoNewline
+          Set-Content -LiteralPath (Join-Path $Backup 'rc.exe') -Value 'old-cli' -NoNewline
+          Set-Content -LiteralPath (Join-Path $Components 'shell.wasm') -Value 'new-shell' -NoNewline
+          Set-Content -LiteralPath (Join-Path $Backup 'components\shell.wasm') -Value 'old-shell' -NoNewline
+          Set-Content -LiteralPath (Join-Path $Runtime 'installed-version') -Value '2.0.0' -NoNewline
+          Set-Content -LiteralPath (Join-Path $Backup 'installed-version') -Value '1.0.0' -NoNewline
           Atomic-Text $Active 'C:\runtime\new'
           Atomic-Text $Journal (@{previous='C:\runtime\old';names=@('shell')} | ConvertTo-Json -Compress)
           Recover-InterruptedActivation
