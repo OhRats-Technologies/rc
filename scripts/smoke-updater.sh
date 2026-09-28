@@ -18,17 +18,20 @@ mkdir -p "$components"
 cp dist/components/updater.wasm "$components/updater.wasm"
 target="$directory/rc-kernel"
 cp kernel/target/debug/rc-kernel "$target"
-digest=$(shasum -a 256 fixtures/updater-artifact.sh | awk '{print "sha256:" $1}')
 kernel=kernel/target/debug/rc-kernel
+next_version=$("$kernel" --version | awk '{split($NF, v, "."); printf "%d.%d.%d", v[1], v[2], v[3]+1}')
+artifact="$directory/updater-artifact.sh"
+sed "s/RC kernel [0-9.]*/RC kernel $next_version/" fixtures/updater-artifact.sh >"$artifact"
+digest=$(shasum -a 256 "$artifact" | awk '{print "sha256:" $1}')
 
-RC_UPDATER_ARTIFACT_PATH="$root/fixtures/updater-artifact.sh" RC_NATIVE_TARGET="$target" "$kernel" --component-dir "$components" upgrade "$digest" >"$directory/upgrade.out"
-grep -F 'upgraded kernel to 0.1.1' "$directory/upgrade.out" >/dev/null
-grep -F 'RC kernel 0.1.1' "$target" >/dev/null
+RC_UPDATER_ARTIFACT_PATH="$artifact" RC_NATIVE_TARGET="$target" "$kernel" --component-dir "$components" upgrade "$digest" >"$directory/upgrade.out"
+grep -F "upgraded kernel to $next_version" "$directory/upgrade.out" >/dev/null
+grep -F "RC kernel $next_version" "$target" >/dev/null
 test -f "$directory/.rc-kernel-replacement.journal"
 test "$(find "$directory" -maxdepth 1 -name '.rc-kernel-backup-*' | wc -l | tr -d ' ')" -eq 1
 
-RC_UPDATER_ARTIFACT_PATH="$root/fixtures/updater-artifact.sh" RC_NATIVE_TARGET="$target" "$kernel" --component-dir "$components" upgrade "$digest" >"$directory/noop.out"
-grep -F 'kernel already at 0.1.1' "$directory/noop.out" >/dev/null
+RC_UPDATER_ARTIFACT_PATH="$artifact" RC_NATIVE_TARGET="$target" "$kernel" --component-dir "$components" upgrade "$digest" >"$directory/noop.out"
+grep -F "kernel already at $next_version" "$directory/noop.out" >/dev/null
 test ! -e "$directory/.rc-kernel-replacement.journal"
 
 echo 'updater smoke: ok'
