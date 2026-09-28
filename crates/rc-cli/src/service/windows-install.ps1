@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = [Text.UTF8Encoding]::new($false)
 $spec = [Console]::In.ReadToEnd() | ConvertFrom-Json
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
@@ -20,6 +21,18 @@ $task.Settings.ExecutionTimeLimit = 'PT0S'
 $task.Settings.DisallowStartIfOnBatteries = $false
 $task.Settings.StopIfGoingOnBatteries = $false
 $task.Settings.MultipleInstances = 2 # TASK_INSTANCES_IGNORE_NEW.
-$registered = $scheduler.GetFolder('\').RegisterTaskDefinition('OhRats RC Node', $task, 6, $sid, $null, 3)
+# Explicit ownership also makes a task installed from an elevated shell
+# maintainable from the same user's normal, limited shell.
+$security = "O:${sid}D:P(A;;FA;;;${sid})(A;;FA;;;SY)(A;;FA;;;BA)"
+try {
+  $registered = $scheduler.GetFolder('\').RegisterTaskDefinition('OhRats RC Node', $task, 6, $sid, $null, 3, $security)
+} catch {
+  $cause = $_.Exception
+  while ($cause.InnerException) { $cause = $cause.InnerException }
+  if ($cause.HResult -eq -2147024891) {
+    throw 'RC task access denied. An older administrator-owned task may need a one-time repair: run scripts/repair-windows-service.ps1 from an elevated PowerShell as the enrolled user, then rerun the installer in normal PowerShell. Enrollment is preserved.'
+  }
+  throw
+}
 [void]$registered.Run($null)
 Write-Output 'RC background service registered for the current Windows user.'

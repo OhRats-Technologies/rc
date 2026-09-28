@@ -14,6 +14,35 @@ bun install --frozen-lockfile
 cargo fetch --locked
 ```
 
+### Windows
+
+Install Git, Rust 1.98 (MSVC), Bun 1.4, Python 3, Strawberry Perl, and Visual Studio 2022
+Build Tools with the **Desktop development with C++** workload and Windows SDK.
+Rust uses the native MSVC linker; installing VS Code alone is insufficient.
+Strawberry Perl must be on PATH to build the server's bundled OpenSSL.
+The repository's `rust-toolchain.toml` selects Rust, rustfmt, and clippy.
+Open a new PowerShell after installing tools so it inherits their updated PATH.
+
+```powershell
+bun install --frozen-lockfile
+cargo fetch --locked
+bun run build:client
+cargo build --locked -p rc-cli -p rc-server
+cargo run --locked -p rc-server
+```
+
+Run the release installer separately to install the normal background Node:
+
+```powershell
+& ./public/install.ps1
+rc status
+```
+
+This preserves an existing enrollment and adds `rc` to PATH. See
+[installation](INSTALL.md) for enrolling a new machine and repairing legacy
+Task Scheduler permissions. Development server state is separate from the
+installed Node's state. Docker Desktop is only needed for container validation.
+
 ## Current local server
 
 The component migration is not yet the production server path. Run the current

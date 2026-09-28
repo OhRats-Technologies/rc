@@ -76,6 +76,11 @@ The task uses the current user's SID for its principal and logon trigger,
 with limited privileges. It permits battery operation and has no execution
 time limit. A failed registration fails installation and preserves enrollment;
 rerun the installer after correcting the error without obtaining a new token.
+The task explicitly grants its Windows user full control even when registered
+from an elevated shell. An older administrator-owned task can deny updates
+from normal PowerShell. In that case, run `scripts/repair-windows-service.ps1`
+once from an elevated PowerShell using the enrolled Windows account, then
+rerun the installer normally. The repair refuses tasks assigned to another user.
 
 Activation uses same-filesystem temporary files and retains the previous native
 pair and installer-owned core component files under
@@ -123,6 +128,7 @@ On Windows AMD64, run in PowerShell:
 & ([scriptblock]::Create((Invoke-RestMethod -Uri 'https://rc.ohrats.party/install.ps1')))
 ```
 
-Windows installs to `%LOCALAPPDATA%\OhRats\RC`. Add its `bin` directory to
-your user PATH and reopen PowerShell, or invoke `rc.exe` by its full path.
+Windows installs to `%LOCALAPPDATA%\OhRats\RC`. The installer adds its `bin`
+directory to the user PATH and current PowerShell process without duplicates.
+Other already-open terminals must refresh their PATH or be reopened.
 The per-user Task Scheduler service runs only while that user is logged in.

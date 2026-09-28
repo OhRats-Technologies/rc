@@ -6,9 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 Add-Type -AssemblyName System.Net.Http
-$Api = if ($env:RC_RELEASE_API) { $env:RC_RELEASE_API } else {
-  'https://api.github.com/repos/OhRats-Technologies/rc/releases/latest'
-}
+$Api = if ($env:RC_RELEASE_API) { $env:RC_RELEASE_API } else { 'https://api.github.com/repos/OhRats-Technologies/rc/releases/latest' }
 $Root = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'OhRats\RC' } else {
   throw 'LOCALAPPDATA is required'
 }
@@ -16,14 +14,21 @@ $Bin = if ($env:RC_INSTALL_BIN_DIR) { $env:RC_INSTALL_BIN_DIR } else { Join-Path
 $Data = if ($env:RC_DATA_DIR) { $env:RC_DATA_DIR } else { Join-Path $Root 'data' }
 $Components = if ($env:RC_COMPONENT_DIR) { $env:RC_COMPONENT_DIR } else { Join-Path $Data 'components' }
 $State = if ($env:RC_STATE_DIR) { $env:RC_STATE_DIR } else { Join-Path $Root 'state' }
-$Runtime = Join-Path $Data 'runtime'
-$Versions = Join-Path $Runtime 'versions'
-$Active = Join-Path $Runtime 'active'
-$PreviousFile = Join-Path $Runtime 'previous'
-$Backup = Join-Path $Runtime 'rollback'
-$Journal = Join-Path $Runtime 'activation-journal.json'
+$Runtime = Join-Path $Data 'runtime'; $Versions = Join-Path $Runtime 'versions'
+$Active = Join-Path $Runtime 'active'; $PreviousFile = Join-Path $Runtime 'previous'
+$Backup = Join-Path $Runtime 'rollback'; $Journal = Join-Path $Runtime 'activation-journal.json'
 $Temp = Join-Path ([IO.Path]::GetTempPath()) ("rc-install-" + [guid]::NewGuid())
 $activating = $false; $names = @()
+function Add-BinToPath {
+  foreach ($scope in 'User','Process') {
+    $value = [string][Environment]::GetEnvironmentVariable('Path', $scope)
+    $entries = @($value -split ';' | ForEach-Object { [Environment]::ExpandEnvironmentVariables($_.Trim().Trim('"')).TrimEnd('\') })
+    if ($entries -notcontains $Bin.TrimEnd('\')) {
+      $updated = @($value.TrimEnd(';'), $Bin) | Where-Object { $_ }
+      [Environment]::SetEnvironmentVariable('Path', ($updated -join ';'), $scope)
+    }
+  }
+}
 function Protect-PrivateDirectories([string[]]$Paths) {
   $owner = [Security.Principal.WindowsIdentity]::GetCurrent().User; $inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit'
   foreach ($path in $Paths) {
@@ -110,17 +115,14 @@ function Require-RegularBounded([string]$Path, [long]$Limit) {
       $item.Length -gt $Limit) { throw "invalid or oversized extracted file: $Path" }
 }
 function Parse-Kernel-Version([string]$Output) {
-  if ($Output -notmatch '^RC kernel ([0-9]+\.[0-9]+\.[0-9]+)$') {
-    throw 'RC kernel version is invalid'
-  }
+  if ($Output -notmatch '^RC kernel ([0-9]+\.[0-9]+\.[0-9]+)$') { throw 'RC kernel version is invalid' }
   [version]$Matches[1]
 }
 function Require-Kernel-NotDowngrade([version]$Candidate, [version]$Installed) {
   if ($Candidate -lt $Installed) { throw 'refusing to downgrade RC kernel' }
 }
 function Atomic-Text([string]$Path, [string]$Value) {
-  $temporary = "$Path.new-$PID"
-  [IO.File]::WriteAllText($temporary, $Value + "`n", [Text.UTF8Encoding]::new($false))
+  $temporary = "$Path.new-$PID"; [IO.File]::WriteAllText($temporary, $Value + "`n", [Text.UTF8Encoding]::new($false))
   if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary, $Path, [NullString]::Value) }
   else { [IO.File]::Move($temporary, $Path) }
 }
@@ -138,9 +140,7 @@ function Install-Components([string]$Stage, [string[]]$Names) {
 function Restore-Previous([string]$Previous, [string[]]$Names) {
   if ($Previous) { Atomic-Text $Active $Previous }
   elseif (Test-Path $Active) { Remove-Item -Force $Active }
-  if (Test-Path (Join-Path $Backup 'rc.exe')) {
-    Copy-Item -Force (Join-Path $Backup 'rc.exe') (Join-Path $Bin 'rc.exe')
-  }
+  if (Test-Path (Join-Path $Backup 'rc.exe')) { Copy-Item -Force (Join-Path $Backup 'rc.exe') (Join-Path $Bin 'rc.exe') }
   foreach ($name in $Names) {
     foreach ($suffix in 'wasm','core') {
       $saved = Join-Path $Backup "components\$name.$suffix"
@@ -162,9 +162,7 @@ function Restore-Previous([string]$Previous, [string[]]$Names) {
 function Recover-InterruptedActivation {
   if (!(Test-Path $Journal)) { return }
   $record = Get-Content -Raw $Journal | ConvertFrom-Json
-  if ($null -eq $record.previous -or $null -eq $record.names) {
-    throw 'invalid Windows activation recovery journal'
-  }
+  if ($null -eq $record.previous -or $null -eq $record.names) { throw 'invalid Windows activation recovery journal' }
   Restore-Previous ([string]$record.previous) @($record.names)
   Remove-Item -Force $Journal
 }
@@ -271,6 +269,7 @@ try {
   try { & (Join-Path $Bin 'rc.exe') service stop 2>$null } catch {}
   Copy-Item -Force (Join-Path $versionDir 'rc.exe') (Join-Path $Bin "rc.exe.new-$PID")
   Move-Item -Force (Join-Path $Bin "rc.exe.new-$PID") (Join-Path $Bin 'rc.exe')
+  Add-BinToPath
   Atomic-Text $Active $versionDir
   Install-Components $stage $names
   Atomic-Text (Join-Path $Runtime 'installed-version') $version
@@ -287,7 +286,7 @@ try {
     if ($LASTEXITCODE) { throw 'RC background service registration failed; enrollment is preserved' }
   }
   Remove-Item -Force $Journal; Remove-StaleVersions $versionDir $previous
-  $activating = $false; Write-Host "installed RC $version in $Bin"
+  $activating = $false; Write-Host "installed RC $version in $Bin (added to user and current-session PATH)"
 } catch {
   if ($activating -and (Test-Path $PreviousFile)) {
     $previous = (Get-Content -Raw $PreviousFile).Trim()

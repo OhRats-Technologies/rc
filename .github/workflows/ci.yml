@@ -749,6 +749,7 @@ jobs:
       - name: Exercise Windows installer archive validation
         shell: pwsh
         run: |
+          & ./scripts/test-windows-installer-path.ps1
           $fixture = Join-Path $env:RUNNER_TEMP 'rc-installer-shape'
           New-Item -ItemType Directory -Force $fixture | Out-Null
           $env:RC_INSTALL_BIN_DIR = Join-Path $fixture 'bin'

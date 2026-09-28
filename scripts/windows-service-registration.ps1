@@ -31,6 +31,12 @@ try {
   }
   $definition = $folder.GetTask('OhRats RC Node').Definition
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+  $security = [Security.AccessControl.RawSecurityDescriptor]::new($folder.GetTask('OhRats RC Node').GetSecurityDescriptor(5))
+  if ($security.Owner.Value -ne $sid) { throw 'service task must be owned by the current user' }
+  $userFullControl = @($security.DiscretionaryAcl | Where-Object {
+    $_.SecurityIdentifier.Value -eq $sid -and $_.AceType -eq 'AccessAllowed' -and ($_.AccessMask -band 0x1f01ff) -eq 0x1f01ff
+  })
+  if (!$userFullControl.Count) { throw 'service task must grant its user full control explicitly' }
   foreach ($userId in $definition.Principal.UserId,$definition.Triggers.Item(1).UserId) {
     if (!$userId) { throw 'service principal and logon trigger require an explicit user' }
     $resolved = if ($userId.StartsWith('S-1-')) { $userId } else {
