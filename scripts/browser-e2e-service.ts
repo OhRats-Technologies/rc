@@ -2,6 +2,15 @@
 export async function startWindowsNodeService(binary: string, state: string, components: string, kernel: string) {
   const existing = Bun.spawn(["schtasks.exe", "/Query", "/TN", "OhRats RC Node"], { stdout: "ignore", stderr: "ignore" });
   if (await existing.exited === 0) throw new Error("refusing to replace an existing RC scheduled task during E2E");
+  // Prepare the same Wasm cache an installer prepares, outside the timed
+  // service-start assertion. Also fail early if this fixture lacks rc logs.
+  const prepare = Bun.spawn([kernel, "--component-dir", components, "commands"], {
+    stdout: "pipe", stderr: "inherit",
+  });
+  const catalog = await new Response(prepare.stdout).text();
+  if (await prepare.exited !== 0 || !/^  logs\s+.*\(ohrats:diagnostics-cli\)\r?$/m.test(catalog)) {
+    throw new Error("Windows service fixture requires diagnostics-cli");
+  }
   async function command(action: string) {
     const child = Bun.spawn([binary, "service", action], {
       env: { ...Bun.env, RC_STATE_DIR: state, RC_KERNEL: kernel, RC_COMPONENT_DIR: components },
@@ -30,6 +39,10 @@ export async function startWindowsNodeService(binary: string, state: string, com
       }
     },
     start: () => command("start"),
-    dispose: () => command("uninstall"),
+    dispose: async () => {
+      await command("uninstall");
+      const journal = Bun.file(`${state}/service.log`);
+      if (await journal.exists()) console.log((await journal.text()).split("\n").slice(-80).join("\n"));
+    },
   };
 }

@@ -32,6 +32,7 @@ jobs:
       legacy-rust: ${{ steps.affected.outputs.legacy_rust }}
       legacy-security: ${{ steps.affected.outputs.legacy_security }}
       web: ${{ steps.affected.outputs.web }}
+      browser: ${{ steps.affected.outputs.browser }}
       image: ${{ steps.affected.outputs.image }}
       profiles: ${{ steps.affected.outputs.profiles }}
       profile-matrix: ${{ steps.affected.outputs.profile_matrix }}
@@ -652,6 +653,7 @@ jobs:
   native-runtime-components:
     needs: changes
     if: >-
+      needs.changes.outputs.browser == 'true' ||
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
       needs.changes.outputs.image == 'true' ||
@@ -663,7 +665,10 @@ jobs:
     uses: ./.github/workflows/native-components.yml
 
   macos-runtime:
-    needs: [changes, native-runtime-components]
+    needs: changes
+    permissions:
+      contents: read
+      actions: read
     if: >-
       inputs.windows_only != true && (
       needs.changes.outputs.legacy-rust == 'true' ||
@@ -701,6 +706,12 @@ jobs:
         if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
       - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
         if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
+      - name: Build component-backed macOS kernel
+        run: cargo build --manifest-path kernel/Cargo.toml --locked
+      - name: Wait for portable runtime components
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/wait-native-components.py
       - name: Download portable runtime components built on Linux
         uses: actions/download-artifact@v7
         with:
@@ -709,7 +720,6 @@ jobs:
           merge-multiple: true
       - name: Run component-backed runtime conformance natively
         run: |
-          cargo build --manifest-path kernel/Cargo.toml --locked
           component_dir="$RUNNER_TEMP/rc-runtime-root/components"
           mkdir -p "$component_dir"
           for component in diagnostics-store diagnostics-cli process-policy shell execution-runtime scheduler transport-webrtc; do
@@ -718,9 +728,13 @@ jobs:
           kernel/target/debug/rc-kernel --component-dir "$component_dir" policy-check
 
   windows-runtime:
-    needs: [changes, native-runtime-components]
+    needs: changes
+    permissions:
+      contents: read
+      actions: read
     if: >-
       (
+      needs.changes.outputs.browser == 'true' ||
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.kernel == 'true' ||
       needs.changes.outputs.image == 'true' ||
@@ -856,17 +870,18 @@ jobs:
         if: ${{ !inputs.windows_only && needs.changes.outputs.legacy-rust == 'true' }}
       - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
         if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
+      - name: Build component-backed Windows kernel
+        run: cargo build --manifest-path kernel/Cargo.toml --locked
+      - name: Wait for portable runtime components
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/wait-native-components.py
       - name: Download portable runtime components built on Linux
         uses: actions/download-artifact@v7
         with:
           pattern: rc-native-runtime-*
           path: dist/components
           merge-multiple: true
-      - name: Build component-backed Windows kernel
-        shell: pwsh
-        run: |
-          cargo build --manifest-path kernel/Cargo.toml --locked
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Run component-backed runtime conformance natively
         shell: pwsh
         run: |
@@ -941,6 +956,7 @@ jobs:
     needs: changes
     if: >-
       inputs.windows_only != true && (
+      needs.changes.outputs.browser == 'true' ||
       needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.web == 'true' ||
       needs.changes.outputs.image == 'true')

@@ -59,6 +59,7 @@ def resolve(paths: list[str]) -> dict:
         "image": False,
         "docs": False,
         "legacy_security": False,
+        "browser": False,
     }
     if "<all>" in paths:
         components = all_components
@@ -71,7 +72,14 @@ def resolve(paths: list[str]) -> dict:
             if not parts:
                 continue
             root = parts[0]
-            if raw in {".github/workflows/ci.yml", ".github/workflows/native-components.yml"}:
+            if raw.startswith("scripts/browser-e2e") or raw in {
+                "scripts/windows-browser-e2e.ps1",
+                "scripts/windows-standard-user-e2e.ps1",
+                "scripts/windows-service-registration.ps1",
+            }:
+                flags["browser"] = True
+            elif raw in {".github/workflows/ci.yml", ".github/workflows/native-components.yml",
+                         "scripts/wait-native-components.py"}:
                 flags["kernel"] = True
             elif root == "kernel":
                 flags["kernel"] = True

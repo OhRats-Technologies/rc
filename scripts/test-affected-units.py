@@ -32,6 +32,15 @@ class AffectedUnitsTests(unittest.TestCase):
             self.assertEqual(value["components"], [], path)
             self.assertFalse(value["legacy_rust"], path)
 
+    def test_browser_fixture_does_not_rebuild_unrelated_rust_tests(self) -> None:
+        for path in ("scripts/browser-e2e-service.ts", "scripts/windows-browser-e2e.ps1",
+                     "scripts/windows-service-registration.ps1"):
+            value = self.resolve(path)
+            self.assertTrue(value["browser"], path)
+            self.assertFalse(value["legacy_rust"], path)
+            self.assertFalse(value["kernel"], path)
+            self.assertFalse(value["image"], path)
+
     def test_component_change_is_surgical(self) -> None:
         value = self.resolve("components/fixture-provider/src/lib.rs")
         self.assertFalse(value["kernel"])
