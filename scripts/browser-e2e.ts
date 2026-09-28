@@ -129,7 +129,7 @@ try {
     const result = await call("Runtime.evaluate", {
       expression, awaitPromise: true, returnByValue: true, userGesture: true,
     });
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || "browser evaluation failed");
+    if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text || "browser evaluation failed");
     return result.result?.value as T;
   }
   async function waitFor(expression: string, timeoutMs: number, label: string) {
@@ -234,7 +234,7 @@ try {
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({terminal:true})
   }`);
   await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${process.processId}`)},JSON.stringify({mode:{kind:"systemLoginShell"},terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${process.processId}`)};return true})()`);
-  await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${process.processId}`)}) && document.readyState === "complete"`, 20_000, "process page");
+  await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${process.processId}`)}) && document.readyState === "complete" && document.querySelector('.terminal-host .xterm') !== null`, 20_000, "process terminal mounted");
   const terminalFonts = await evaluate<string[]>(`[getComputedStyle(document.querySelector('.terminal-host')).fontFamily,getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily]`);
   if (terminalFonts.some(font => !font.includes("MesloLGS Nerd Font Mono"))) throw new Error(`terminal font did not use Nerd Font: ${terminalFonts.join(" / ")}`);
   try {
