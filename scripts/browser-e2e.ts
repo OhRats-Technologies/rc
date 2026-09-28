@@ -61,7 +61,7 @@ if (!windows) {
   await chmod(loginShell, 0o700);
 }
 for (const name of [
-  "diagnostics-store", "process-policy", "shell",
+  "diagnostics-store", "diagnostics-cli", "process-policy", "shell",
   "execution-runtime", "scheduler", "transport-webrtc",
 ]) {
   const source = join(root, "dist/components", `${name}.wasm`);

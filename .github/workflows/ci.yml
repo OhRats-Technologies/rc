@@ -712,7 +712,7 @@ jobs:
           cargo build --manifest-path kernel/Cargo.toml --locked
           component_dir="$RUNNER_TEMP/rc-runtime-root/components"
           mkdir -p "$component_dir"
-          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
+          for component in diagnostics-store diagnostics-cli process-policy shell execution-runtime scheduler transport-webrtc; do
             cp "dist/components/$component.wasm" "$component_dir/"
           done
           kernel/target/debug/rc-kernel --component-dir "$component_dir" policy-check
@@ -872,7 +872,7 @@ jobs:
         run: |
           $componentDir = Join-Path $env:RUNNER_TEMP 'rc-runtime-root\components'
           New-Item -ItemType Directory -Force $componentDir | Out-Null
-          'diagnostics-store','process-policy','shell','execution-runtime','scheduler','transport-webrtc' | ForEach-Object {
+          'diagnostics-store','diagnostics-cli','process-policy','shell','execution-runtime','scheduler','transport-webrtc' | ForEach-Object {
             Copy-Item "dist/components/$_.wasm" $componentDir
           }
           $start = [Diagnostics.ProcessStartInfo]::new()
@@ -973,7 +973,7 @@ jobs:
       - name: Build Node runtime components
         run: |
           export CARGO_TARGET_DIR="$RUNNER_TEMP/browser-components-target"
-          for component in diagnostics-store process-policy shell execution-runtime scheduler transport-webrtc; do
+          for component in diagnostics-store diagnostics-cli process-policy shell execution-runtime scheduler transport-webrtc; do
             scripts/build-component.sh "components/$component"
           done
       - name: Start persistent Chrome DevTools

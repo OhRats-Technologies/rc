@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [diagnostics-store, process-policy, shell, execution-runtime, scheduler, transport-webrtc]
+        component: [diagnostics-store, diagnostics-cli, process-policy, shell, execution-runtime, scheduler, transport-webrtc]
     env:
       CARGO_INCREMENTAL: "0"
     steps:
