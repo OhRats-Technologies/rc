@@ -170,8 +170,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/fixture-provider -> target
             components/fixture-consumer -> target
             components/fixture-broken -> target
@@ -216,8 +220,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/updater -> target
           shared-key: rc-updater-runtime
           add-job-id-key: false
@@ -258,8 +266,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/local-source -> target
             components/http-source -> target
             components/oci-source -> target
@@ -293,8 +305,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/process-policy -> target
             components/transport-test -> target
             components/transport-webrtc -> target
@@ -323,8 +339,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/mesh-policy -> target
             components/mesh-policy-fixture -> target
           shared-key: rc-mesh-runtime
@@ -353,8 +373,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/authority-fixture -> target
             components/authority-store -> target
             components/crypto-ed25519 -> target
@@ -384,8 +408,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/crypto-ed25519 -> target
             components/key-custody-fixture -> target
             components/key-custody-local -> target
@@ -413,8 +441,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/crypto-control -> target
           shared-key: rc-control-crypto-runtime
           add-job-id-key: false
@@ -441,8 +473,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/diagnostics-cli -> target
             components/diagnostics-mesh -> target
             components/diagnostics-reporter -> target
@@ -475,8 +511,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/identity-store -> target
             components/identity-fixture -> target
           shared-key: rc-identity-runtime
@@ -503,8 +543,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/storage-fixture -> target
           shared-key: rc-storage-runtime
           add-job-id-key: false
@@ -531,8 +575,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/webauthn-es256 -> target
             components/webauthn-fixture -> target
           shared-key: rc-webauthn-runtime
@@ -561,8 +609,12 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
         with:
+          workspaces: kernel -> target
+          shared-key: rc-kernel
+          add-job-id-key: false
+      - uses: Swatinem/rust-cache@v2
+        with:
           workspaces: |
-            kernel -> target
             components/diagnostics-store -> target
             components/diagnostics-ui -> target
             components/webui-shell -> target
@@ -938,7 +990,7 @@ jobs:
 
   web:
     needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.web == 'true') }}
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.web == 'true' || needs.changes.outputs.browser == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

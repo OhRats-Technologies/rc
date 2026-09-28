@@ -107,6 +107,15 @@ scripts/check-components.sh
 Runtime smokes are under `scripts/smoke-*.sh`. CI selects affected component,
 runtime, profile, browser, and image jobs through `scripts/affected-units.py`.
 
+Native compilation starts alongside portable component builds; native jobs wait
+for artifacts from the same workflow run only when they reach conformance.
+Browser fixture changes select browser/service coverage without rebuilding
+unrelated workspace tests. Rust source changes retain the native test gates.
+
+Linux smoke jobs share the `rc-kernel` dependency cache. Keep their component
+caches separate: storing a kernel dependency tree inside every smoke-job cache
+exhausts the repository cache quota and evicts the expensive Windows/macOS caches.
+
 ## Change rules
 
 - Keep maintained source files below 300 lines.
