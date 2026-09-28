@@ -19,6 +19,12 @@ class AffectedUnitsTests(unittest.TestCase):
     def resolve(self, *paths: str) -> dict:
         return MODULE.resolve(list(paths))
 
+    def test_updater_smoke_change_selects_updater_and_kernel(self) -> None:
+        value = self.resolve("scripts/smoke-updater.sh")
+        self.assertTrue(value["kernel"])
+        self.assertEqual(value["components"], ["updater"])
+        self.assertFalse(value["legacy_rust"])
+
     def test_kernel_change_is_native_only(self) -> None:
         for path in ("kernel/src/runtime.rs", ".github/workflows/ci.yml", ".github/workflows/native-components.yml"):
             value = self.resolve(path)

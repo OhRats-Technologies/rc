@@ -19,6 +19,7 @@ cp dist/components/updater.wasm "$components/updater.wasm"
 target="$directory/rc-kernel"
 cp kernel/target/debug/rc-kernel "$target"
 kernel=kernel/target/debug/rc-kernel
+# Keep the fixture newer than the running kernel across releases.
 next_version=$("$kernel" --version | awk '{split($NF, v, "."); printf "%d.%d.%d", v[1], v[2], v[3]+1}')
 artifact="$directory/updater-artifact.sh"
 sed "s/RC kernel [0-9.]*/RC kernel $next_version/" fixtures/updater-artifact.sh >"$artifact"

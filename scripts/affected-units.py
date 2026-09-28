@@ -147,6 +147,7 @@ COMPONENT_TOOLING = {
     "scripts/validate-components.py",
 }
 RUNTIME_TOOLING = {
+    "scripts/smoke-updater.sh": {"updater"},
     "scripts/smoke-artifact-cache.sh": {
         "artifact-cache-fixture-consumer",
         "artifact-cache-fixture-mesh-adapter",
