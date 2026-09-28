@@ -113,6 +113,8 @@ the enrolled user:
 rc service status
 rc service stop
 rc service start
+rc logs
+rc logs --follow
 ```
 
 The task must not be converted to LocalSystem. Private state and RC Lock files
@@ -121,6 +123,14 @@ same state directory must fail its local run lock before opening transport.
 The task is registered with the interactive-user flag and an ONLOGON trigger:
 it is available only while that enrolled user has an interactive session. RC
 does not silently substitute an unattended or machine-wide identity.
+
+The task launches a native windowless supervisor embedded in `rc.exe`; no
+PowerShell or command window remains open. Failed Nodes restart after five
+seconds, up to ten consecutive retries; five minutes of healthy runtime resets
+that counter. Task Scheduler also has ten one-minute restart attempts for a
+failed supervisor. Explicit stops and clean Node exits do not trigger recovery.
+Each attempt owns a Windows Job Object, so stopping or killing the supervisor
+also terminates its Node and descendants.
 
 Schedules and their execution definitions are stored only in protected local
 Node storage. Include the Node data directory in machine backup policy if
@@ -160,11 +170,20 @@ There is no password or recovery bypass for passkey authority.
 
 ## Local live inspection
 
-On Linux with a systemd user service, `rc logs` reads the running Node's journal
+On Linux with a systemd user service and on Windows, `rc logs` reads the Node's journal
 (last 20 entries, UTC timestamps). `rc logs --follow` or `rc logs -f` follows new
 entries until Ctrl-C; an optional number selects 1–100 initial entries. Journal
 cursors preserve ordering across batches. Journal access failures are reported
 instead of presenting a fresh CLI runtime's startup as Node activity.
+
+Windows requires native kernel 0.1.2 or newer. Its journal lives in
+`%LOCALAPPDATA%\OhRats\RC\state\service.log` (or the configured state directory),
+with one rotated `service.log.1`. Each file holds approximately 1 MiB; individual
+records are bounded. Logs contain service lifecycle and Node operational output,
+not remote process streams. Logs remain available after stopping the service;
+following continues across restarts. When a cursor is older than retained logs,
+reading resumes at the oldest retained entry. After upgrading an older Windows
+installation, run `rc service stop` then `rc service start` to replace its task.
 
 `rc ps` lists the Node and current descendants in its service control group.
 `rc ps --watch` refreshes every two seconds; add `--commands` to inspect current
@@ -174,8 +193,8 @@ very short processes can disappear between refreshes. Output is bounded and
 terminal control characters are escaped.
 
 `rc logs --components [limit]` explicitly selects the older component diagnostic
-snapshot from this CLI invocation. Live service inspection currently requires
-Linux/systemd; other platforms report that limitation. Install the matching
+snapshot from this CLI invocation. `rc ps` currently requires Linux/systemd;
+other platforms report that limitation. Install the matching
 native kernel and diagnostics-cli component together for the local-service WIT
 interface. No TUI dependency is required.
 

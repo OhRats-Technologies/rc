@@ -51,7 +51,14 @@ try {
       $definition.Settings.DisallowStartIfOnBatteries -or $definition.Settings.StopIfGoingOnBatteries) {
     throw 'service must allow unlimited runtime and battery operation'
   }
-  if ($definition.Actions.Item(1).Path -ne $env:RC_KERNEL) { throw 'wrong service executable' }
+  $hostPath = Join-Path $State 'rc-service.exe'
+  if ($definition.Actions.Item(1).Path -ne $hostPath) { throw 'wrong service executable' }
+  $image = [IO.File]::ReadAllBytes($hostPath)
+  $pe = [BitConverter]::ToInt32($image, 0x3c)
+  if ([BitConverter]::ToUInt16($image, $pe + 24 + 68) -ne 2) { throw 'service host must use the GUI subsystem' }
+  if ($definition.Settings.RestartCount -ne 10 -or $definition.Settings.RestartInterval -ne 'PT1M') {
+    throw 'service must restart after failures with a delay'
+  }
   if (!$definition.Actions.Item(1).Arguments.Contains($State)) { throw 'service lost its state directory' }
 } finally {
   & $binary service uninstall

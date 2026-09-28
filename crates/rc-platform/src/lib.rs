@@ -1,6 +1,7 @@
 use std::{ffi::OsString, path::PathBuf};
 
 mod security;
+pub mod service_log;
 pub use security::{protect_private_path, validate_private_path};
 
 #[derive(Debug, thiserror::Error)]

@@ -47,6 +47,8 @@ pub fn installed() -> bool {
 }
 
 pub fn restart() -> Result<()> {
+    #[cfg(windows)]
+    stop()?;
     let dir = rc_node::resolve_state_dir(None);
     install(&dir)
 }

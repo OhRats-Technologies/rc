@@ -92,6 +92,8 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Make workspace and kernel all-target Clippy gates pass with warnings denied.
 - [x] Gate native workspace/kernel checks by affected code, cache Windows kernel dependencies, and reuse source-keyed Linux-built Wasm artifacts in macOS/Windows conformance.
 - [x] Implement per-user Windows Task Scheduler install/start/stop/status/uninstall for logged-on users.
+- [x] Launch Windows Nodes without console windows, capture bounded rotating service logs, and support `rc logs --follow` across restarts.
+- [x] Recover crashed Windows Nodes through a native supervisor and verify stop/forced-termination process-tree cleanup with native fixtures.
 - [x] Document that the Windows per-user task requires an interactive logged-on session and is not an unattended LocalSystem service.
 - [x] Produce and release-gate native Windows AMD64 CLI/kernel archives with canonical `.exe` members.
 - [x] Make Windows release target verification shell-independent and trigger kernel artifacts when shared platform code changes.

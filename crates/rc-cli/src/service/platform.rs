@@ -26,8 +26,8 @@ pub fn install(executable: &Path, arguments: &[String], _: &Path) -> Result<()> 
 }
 
 #[cfg(windows)]
-pub fn install(executable: &Path, arguments: &[String], _: &Path) -> Result<()> {
-    windows::install(executable, arguments)
+pub fn install(executable: &Path, arguments: &[String], state_dir: &Path) -> Result<()> {
+    windows::install(executable, arguments, state_dir)
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]

@@ -19,7 +19,26 @@ impl Host for HostState {
         }
         #[cfg(target_os = "linux")]
         return linux::logs(&service, &cursor, limit);
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(windows)]
+        {
+            if service != "rc.service" {
+                return Err("unknown Windows service".into());
+            }
+            let directory = rc_platform::state_dir().map_err(|error| error.to_string())?;
+            rc_platform::service_log::recent(&directory, &cursor, limit as usize)
+                .map(|entries| {
+                    entries
+                        .into_iter()
+                        .map(|entry| LogEntry {
+                            cursor: entry.cursor,
+                            timestamp: entry.timestamp,
+                            message: entry.message,
+                        })
+                        .collect()
+                })
+                .map_err(|error| format!("read Windows service log: {error}"))
+        }
+        #[cfg(not(any(target_os = "linux", windows)))]
         Err("live service inspection currently requires Linux with systemd".into())
     }
 

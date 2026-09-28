@@ -17,7 +17,18 @@ export async function startWindowsNodeService(binary: string, state: string, com
     throw error;
   }
   return {
-    stop: () => command("stop"),
+    stop: async () => {
+      await command("stop");
+      const child = Bun.spawn([binary, "logs", "100"], {
+        env: { ...Bun.env, RC_STATE_DIR: state, RC_KERNEL: kernel, RC_COMPONENT_DIR: components },
+        stdout: "pipe", stderr: "pipe",
+      });
+      const output = await new Response(child.stdout).text();
+      const error = await new Response(child.stderr).text();
+      if (await child.exited !== 0 || !output.includes("service starting (windowless)")) {
+        throw new Error(`Windows service logs unavailable: ${output} ${error}`);
+      }
+    },
     start: () => command("start"),
     dispose: () => command("uninstall"),
   };

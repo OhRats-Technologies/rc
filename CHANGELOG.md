@@ -2,6 +2,16 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.1] - 2026-09-28
+
+- Run the Windows Node through an embedded native windowless supervisor.
+- Support `rc logs` and `rc logs --follow` on Windows with bounded, rotating
+  local service logs that remain readable across Node restarts.
+- Recover failed Windows Nodes automatically and terminate their whole process
+  tree on stop or supervisor termination; preserve clean exits without retrying.
+- Add native regression coverage for windowless execution, log capture,
+  recovery, and process-tree cleanup. Requires native kernel 0.1.2.
+
 ## [0.20.0] - 2026-09-28
 
 - Authorize MCP access to current and future account machines with an explicit

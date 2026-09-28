@@ -21,6 +21,9 @@ $task.Settings.ExecutionTimeLimit = 'PT0S'
 $task.Settings.DisallowStartIfOnBatteries = $false
 $task.Settings.StopIfGoingOnBatteries = $false
 $task.Settings.MultipleInstances = 2 # TASK_INSTANCES_IGNORE_NEW.
+$task.Settings.RestartCount = 10
+$task.Settings.RestartInterval = 'PT1M'
+$task.Settings.StartWhenAvailable = $true
 # Explicit ownership also makes a task installed from an elevated shell
 # maintainable from the same user's normal, limited shell.
 $security = "O:${sid}D:P(A;;FA;;;${sid})(A;;FA;;;SY)(A;;FA;;;BA)"
