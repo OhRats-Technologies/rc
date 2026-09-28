@@ -82,18 +82,22 @@ export async function signControl(payload: string) {
   return { clientId: identity.id, signature: bytesToB64url(signature) };
 }
 
-export async function syncWorkspaceAuthority(workspaceId: string, selected?: string[]) {
+export async function syncWorkspaceAuthority(workspaceId: string, selected?: string[], deferOffline = false) {
   const state = await api<AuthorityStatus & { parents: Array<{ hash: string; generation: number }> }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
-  const initial = authorityProgress(state, selected);
-  if (!initial.devices || initial.synced === initial.devices) return state;
+  const initial = authorityProgress(state, deferOffline ? undefined : selected);
+  if (!initial.devices || (initial.synced === initial.devices && !state.parents.length)) return state;
   const identity = await ensureControlAuthorized();
   const transitions = await Promise.all(state.parents.map(async parent => ({
     fromHash: parent.hash, generation: parent.generation,
     signature: bytesToB64url(await crypto.subtle.sign("Ed25519", identity.privateKey,
       new TextEncoder().encode(`rc-authority-v3\n${parent.generation}\n${parent.hash}\n${state.hash}`))),
   })));
-  if (!transitions.length) throw new Error("RC Lock state is unavailable for synchronization.");
+  if (!transitions.length) {
+    if (deferOffline) return state;
+    throw new Error("RC Lock state is unavailable for synchronization.");
+  }
   await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
+  if (deferOffline) return state;
   for (let attempt = 0; attempt < 15; attempt++) {
     await new Promise(resolve => window.setTimeout(resolve, 200));
     const next = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);

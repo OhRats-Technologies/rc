@@ -68,14 +68,13 @@ pub fn has_scope(scopes: &[String], required: &str) -> bool {
 
 async fn machines(state: &AppState, context: &McpContext) -> anyhow::Result<serde_json::Value> {
     let all = crate::devices_json(state, &context.payload.user_id).await?;
-    let allowed = &context.payload.device_ids;
     let machines: Vec<_> = all
         .into_iter()
         .filter(|device| {
             device
                 .get("id")
                 .and_then(serde_json::Value::as_str)
-                .is_some_and(|id| allowed.iter().any(|allowed_id| allowed_id == id))
+                .is_some_and(|id| context.payload.allows_device(id))
         })
         .map(machine_view)
         .collect();
@@ -137,7 +136,7 @@ pub(super) fn require_owned_device(
             "deviceId is required. Use machines_list to obtain it; refresh the connector if its tool schema omits deviceId."
         );
     }
-    if !context.payload.device_ids.iter().any(|id| id == device_id) {
+    if !context.payload.allows_device(device_id) {
         anyhow::bail!("device is outside this MCP grant");
     }
     let role = state

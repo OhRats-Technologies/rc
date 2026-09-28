@@ -164,9 +164,6 @@ fn authority_mcp_grants(
             .query_map([workspace_id], |row| row.get::<_, String>(0))?
             .collect::<Result<BTreeSet<_>, _>>()
     })?;
-    if devices.is_empty() {
-        return Ok(Vec::new());
-    }
     let rows = db.with_connection(|db| {
         let mut statement = db.prepare(
             "SELECT id,user_id,grant FROM mcp_grants WHERE revoked_at IS NULL AND (expires_at=0 OR expires_at>?) ORDER BY id",
@@ -183,23 +180,10 @@ fn authority_mcp_grants(
     })?;
     let mut grants = Vec::new();
     for (id, user_id, grant) in rows {
-        let value: serde_json::Value = serde_json::from_str(&grant)?;
-        let terminal = value
-            .get("scopes")
-            .and_then(|value| value.as_array())
-            .is_some_and(|scopes| {
-                scopes
-                    .iter()
-                    .any(|scope| scope.as_str() == Some("mcp:terminal"))
-            });
-        let applies = value
-            .get("deviceIds")
-            .and_then(|value| value.as_array())
-            .is_some_and(|ids| {
-                ids.iter()
-                    .filter_map(|id| id.as_str())
-                    .any(|id| devices.contains(id))
-            });
+        let payload: rc_protocol::McpGrantPayload = serde_json::from_str(&grant)?;
+        let terminal = payload.scopes.iter().any(|scope| scope == "mcp:terminal");
+        let applies = payload.valid_audience()
+            && (payload.v == 2 || devices.iter().any(|id| payload.allows_device(id)));
         let owner = db.with_connection(|db| {
             use rusqlite::OptionalExtension;
             db.query_row(

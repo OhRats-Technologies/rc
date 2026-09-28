@@ -105,6 +105,7 @@ fn seed(db_path: &std::path::Path, access: &str) -> anyhow::Result<()> {
         rusqlite::params![client, "Legacy Client", "[]", now],
     )?;
     let grant = serde_json::to_string(&McpGrantPayload {
+        audience: None,
         v: 1,
         id: grant_id.into(),
         user_id: user.into(),

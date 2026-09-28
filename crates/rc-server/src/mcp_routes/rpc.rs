@@ -123,6 +123,9 @@ async fn handle(state: AppState, headers: HeaderMap, body: Bytes, reference: &st
         record: grant,
         payload,
     };
+    if !context.payload.valid_audience() {
+        return auth_error(&state, "mcp:observe", false, reference);
+    }
     match method {
         "tools/list" => rpc(id, tools_result(&context, modern)),
         "tools/call" => tool_call(&state, &headers, id, &parsed, &context, reference, modern).await,

@@ -64,12 +64,32 @@ pub struct McpGrantPayload {
     pub user_id: String,
     pub client_id: String,
     pub client_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audience: Option<String>,
     #[serde(default)]
     pub device_ids: Vec<String>,
     #[serde(default)]
     pub scopes: Vec<String>,
     pub issued_at: i64,
     pub expires_at: i64,
+}
+
+impl McpGrantPayload {
+    pub fn valid_audience(&self) -> bool {
+        match self.v {
+            1 => self.audience.is_none(),
+            2 => self.audience.as_deref() == Some("account") && self.device_ids.is_empty(),
+            _ => false,
+        }
+    }
+
+    pub fn allows_device(&self, device_id: &str) -> bool {
+        self.valid_audience() && (self.v == 2 || self.device_ids.iter().any(|id| id == device_id))
+    }
+
+    pub fn signature_payload(&self, digest: &str) -> String {
+        format!("rc-mcp-grant-v{}\n{digest}", self.v)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

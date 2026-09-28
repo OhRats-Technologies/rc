@@ -28,7 +28,7 @@ pub fn prepare_oauth_grant(
     state: &AppState,
     user: &UserIdentity,
     request_id: &str,
-    device_ids: &[String],
+    audience: &str,
     scopes: &[String],
     lifetime: Option<&str>,
 ) -> anyhow::Result<PreparedGrant> {
@@ -38,31 +38,20 @@ pub fn prepare_oauth_grant(
     if scopes.is_empty() || scopes.iter().any(|scope| !allowed.contains(scope)) {
         anyhow::bail!("scope was not requested by this MCP client");
     }
-    let mut devices = device_ids.to_vec();
-    devices.sort();
-    devices.dedup();
-    if devices.is_empty() || devices.len() > 100 {
-        anyhow::bail!("select at least one device");
-    }
-    for device in &devices {
-        let role = state
-            .db
-            .device_role(&user.id, device)?
-            .ok_or_else(|| anyhow::anyhow!("device is not available to this account"))?;
-        if scopes.iter().any(|scope| scope != "mcp:observe") && role != "owner" {
-            anyhow::bail!("Terminal requires Owner access on every selected device");
-        }
+    if audience != "account" {
+        anyhow::bail!("explicit account-wide MCP consent is required");
     }
     let issued = now_ms();
     let life =
         auth_lifetime(lifetime, MCP_DEFAULT_LIFETIME, true, issued).map_err(anyhow::Error::msg)?;
     let payload = McpGrantPayload {
-        v: 1,
+        v: 2,
         id: Uuid::new_v4().to_string(),
         user_id: user.id.clone(),
         client_id: request.client_id.clone(),
         client_name: request.client_name.clone(),
-        device_ids: devices,
+        audience: Some("account".into()),
+        device_ids: Vec::new(),
         scopes: scopes.to_vec(),
         issued_at: issued,
         expires_at: life.expires_at,
@@ -76,7 +65,7 @@ pub fn prepare_oauth_grant(
         Ok(())
     })?;
     Ok(PreparedGrant {
-        signature_payload: mcp_signature_payload(&grant),
+        signature_payload: mcp_signature_payload(&payload, &grant),
         grant,
     })
 }
@@ -100,7 +89,7 @@ pub fn approve_oauth_grant(
         state,
         &user.id,
         control_client_id,
-        &mcp_signature_payload(&grant),
+        &mcp_signature_payload(&payload, &grant),
         signature,
     )? {
         anyhow::bail!("invalid MCP grant signature");
@@ -144,7 +133,7 @@ fn approved_redirect(
     Ok(ApprovedGrant {
         redirect: redirect.into(),
         grant_id: payload.id.clone(),
-        workspace_ids: grant_workspace_ids(state, &payload.device_ids)?,
+        workspace_ids: mcp_grant_workspace_ids(state, payload)?,
         requires_sync: payload.scopes.iter().any(|scope| scope == "mcp:terminal"),
     })
 }
@@ -155,24 +144,40 @@ fn validate_grant(payload: &McpGrantPayload, user: &str) -> anyhow::Result<()> {
         && (payload.expires_at <= now
             || payload.expires_at <= payload.issued_at
             || payload.expires_at - payload.issued_at > MAX_FINITE_AUTH_LIFETIME_MS);
-    if payload.v != 1 || payload.user_id != user || payload.issued_at > now + 60_000 || invalid {
+    if !payload.valid_audience()
+        || payload.user_id != user
+        || payload.issued_at > now + 60_000
+        || invalid
+    {
         anyhow::bail!("invalid MCP grant");
     }
     Ok(())
 }
 
-fn mcp_signature_payload(grant: &str) -> String {
+fn mcp_signature_payload(payload: &McpGrantPayload, grant: &str) -> String {
     let digest = Sha256::digest(grant.as_bytes());
-    format!(
-        "rc-mcp-grant-v1\n{}",
-        digest
+    payload.signature_payload(
+        &digest
             .iter()
             .map(|byte| format!("{byte:02x}"))
-            .collect::<String>()
+            .collect::<String>(),
     )
 }
 
-fn grant_workspace_ids(state: &AppState, devices: &[String]) -> anyhow::Result<Vec<String>> {
+pub fn mcp_grant_workspace_ids(
+    state: &AppState,
+    payload: &McpGrantPayload,
+) -> anyhow::Result<Vec<String>> {
+    if !payload.valid_audience() {
+        anyhow::bail!("invalid MCP audience");
+    }
+    if payload.v == 2 {
+        return Ok(state.db.with_connection(|db| {
+            let mut query = db.prepare("SELECT workspace_id FROM workspace_members WHERE user_id=? AND role='owner' ORDER BY workspace_id")?;
+            query.query_map([&payload.user_id], |row| row.get::<_, String>(0))?.collect()
+        })?);
+    }
+    let devices = &payload.device_ids;
     use rusqlite::OptionalExtension;
     let mut out = Vec::new();
     for device in devices {

@@ -6,7 +6,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-mcp-revoke]").forEach(button
   button.disabled = true; if (error) error.textContent = "";
   try {
     const revoked = await api<{ workspaceIds: string[] }>(`/oauth/grants/${encodeURIComponent(button.dataset.mcpRevoke || "")}`, { method: "DELETE" });
-    for (const workspaceId of revoked.workspaceIds) await syncWorkspaceAuthority(workspaceId);
+    for (const workspaceId of revoked.workspaceIds) await syncWorkspaceAuthority(workspaceId, undefined, true);
     location.reload();
   } catch (cause) {
     if (error) error.textContent = cause instanceof Error ? cause.message : String(cause);

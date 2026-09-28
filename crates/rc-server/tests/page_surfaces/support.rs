@@ -86,6 +86,7 @@ pub(super) fn seed(db_path: &std::path::Path) -> anyhow::Result<SurfaceIds> {
         [now_ms()],
     )?;
     let grant = serde_json::to_string(&McpGrantPayload {
+        audience: None,
         v: 1,
         id: "surface-mcp-grant".into(),
         user_id: user.clone(),

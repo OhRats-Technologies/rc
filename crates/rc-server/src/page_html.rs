@@ -37,6 +37,7 @@ pub struct McpPageGrant {
     pub expires_at: i64,
     pub last_used: Option<i64>,
     pub device_count: usize,
+    pub account_wide: bool,
 }
 
 pub fn esc(value: &str) -> String {

@@ -34,6 +34,13 @@ PRAGMA user_version=3;
 COMMIT;
 "#;
 
+pub(super) const MIGRATE_3_TO_4: &str = r#"
+BEGIN IMMEDIATE;
+CREATE TABLE authority_deliveries(device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,previous_hash TEXT NOT NULL,generation INTEGER NOT NULL,next_hash TEXT NOT NULL,message TEXT NOT NULL,expires_at INTEGER NOT NULL,PRIMARY KEY(device_id,previous_hash,generation));
+PRAGMA user_version=4;
+COMMIT;
+"#;
+
 pub(super) const MIGRATE_1_TO_2: &str = r#"
 BEGIN IMMEDIATE;
 CREATE TABLE runtime_settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);

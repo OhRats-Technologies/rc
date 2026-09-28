@@ -37,3 +37,6 @@ nix.workspace = true
 [dev-dependencies]
 p256 = { version = "0.13.2", features = ["ecdsa"] }
 webauthn-rs-core.workspace = true
+
+[target.'cfg(windows)'.dev-dependencies]
+openssl = { version = "0.10.81", features = ["vendored"] }

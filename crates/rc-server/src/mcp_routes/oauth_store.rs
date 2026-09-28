@@ -85,22 +85,5 @@ pub(super) fn grant_workspaces(state: &AppState, grant_id: &str) -> Result<Vec<S
     };
     let payload: McpGrantPayload =
         serde_json::from_str(&grant).map_err(|_| ApiError::bad_request("invalid MCP grant"))?;
-    let mut workspaces = Vec::new();
-    for device_id in payload.device_ids {
-        let workspace = state.db.with_connection(|db| {
-            db.query_row(
-                "SELECT workspace_id FROM devices WHERE id=?",
-                [device_id],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-        })?;
-        if let Some(workspace) = workspace
-            && !workspaces.contains(&workspace)
-        {
-            workspaces.push(workspace);
-        }
-    }
-    workspaces.sort();
-    Ok(workspaces)
+    crate::mcp_grant_workspace_ids(state, &payload).map_err(ApiError::bad_request_owned)
 }

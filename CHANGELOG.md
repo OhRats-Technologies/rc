@@ -2,6 +2,18 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.0] - 2026-09-28
+
+- Authorize MCP access to current and future account machines with an explicit
+  version-2 grant; retain the exact device scope of existing connections.
+- Complete MCP consent while devices are offline and durably deliver signed
+  RC Lock updates on reconnect, including intermediate acknowledged states.
+- Keep Terminal limited to current Owners and require the grant in each Node's
+  local lock. Older Nodes request an upgrade for account-wide grants.
+- Add the Windows installation directory to PATH and repair legacy Task Scheduler
+  ownership, preserving enrollment and limited per-user background execution.
+- Document native Windows development dependencies and permission repair.
+
 ## [0.19.9] - 2026-09-27
 
 - Register the Windows background service with an explicit current-user logon

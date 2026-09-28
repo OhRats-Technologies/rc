@@ -18,7 +18,7 @@ pub(super) async fn run(
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default();
     require_owned_device(state, context, device)?;
-    require_execution_v2(state, device)?;
+    require_execution_v2(state, device, context.payload.v == 2)?;
     let mode = execution_mode(args)?;
     let environment = environment(args)?;
     let cwd = args
@@ -64,7 +64,7 @@ pub(super) async fn run(
     complete_result(result)
 }
 
-fn require_execution_v2(state: &AppState, device: &str) -> anyhow::Result<()> {
+fn require_execution_v2(state: &AppState, device: &str, account_grant: bool) -> anyhow::Result<()> {
     let capabilities = state.db.with_connection(|db| {
         db.query_row(
             "SELECT capabilities FROM devices WHERE id=?",
@@ -75,6 +75,11 @@ fn require_execution_v2(state: &AppState, device: &str) -> anyhow::Result<()> {
     let capabilities = serde_json::from_str::<Vec<String>>(&capabilities).unwrap_or_default();
     if !capabilities.iter().any(|value| value == "execution-v2") {
         anyhow::bail!("Node upgrade required: execution-v2 is unavailable");
+    }
+    if account_grant && !capabilities.iter().any(|value| value == "mcp-account-v2") {
+        anyhow::bail!(
+            "Node upgrade required for account-wide MCP access; run rc upgrade on this machine"
+        );
     }
     Ok(())
 }

@@ -156,3 +156,8 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Refresh the external connector schema and verify live status reads and cancellation with deviceId.
 - [x] Read the actual Linux Node service journal with `rc logs --follow` and expose local current process/argv inspection with `rc ps --watch --commands`; validate ordered journal delivery across a Node restart.
 - [x] Temporarily gate Windows runtime CI behind `RC_WINDOWS_RUNTIME_ENABLED`, preserving release artifact builds and documenting reactivation.
+
+## Account-wide MCP consent
+- [x] Version account-wide grants without widening existing device grants; keep Node-local Owner, signature, scope, lock, and expiry verification.
+- [x] Persist owner-signed RC Lock transitions and replay them on reconnect without blocking consent on offline machines.
+- [x] Validate account discovery, future enrollment, membership loss, legacy scope, offline restart recovery, and native/browser compatibility before release.

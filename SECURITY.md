@@ -25,7 +25,7 @@ Only the newest published release is supported. Security fixes move forward to a
 - Private HTML, JSON, and SSE responses default to `Cache-Control: no-store`.
 - Request bodies and hosted MCP output are bounded.
 
-SSH and MCP are explicit hosted-relay surfaces. SSH is authenticated by a registered public key bound to a control client. MCP uses OAuth 2.0 authorization code flow with PKCE, explicit machine/tool scopes, and passkey-backed grants. Treat these paths as different trust boundaries from direct browser/CLI control.
+SSH and MCP are explicit hosted-relay surfaces. SSH is authenticated by a registered public key bound to a control client. MCP uses OAuth 2.0 authorization code flow with PKCE, explicit account/tool consent (legacy grants retain their device lists), and passkey-backed grants. Treat these paths as different trust boundaries from direct browser/CLI control.
 
 ## Secrets and local state
 

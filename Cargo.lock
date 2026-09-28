@@ -2072,7 +2072,7 @@ dependencies = [
 
 [[package]]
 name = "rc-cli"
-version = "0.19.9"
+version = "0.20.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2160,6 +2160,7 @@ dependencies = [
  "ed25519-dalek",
  "flate2",
  "nix 0.31.3",
+ "openssl",
  "p256",
  "parking_lot",
  "rand 0.8.8",
@@ -2202,7 +2203,7 @@ dependencies = [
 
 [[package]]
 name = "rc-server"
-version = "0.19.9"
+version = "0.20.0"
 dependencies = [
  "anyhow",
  "axum",

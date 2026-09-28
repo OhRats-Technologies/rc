@@ -57,8 +57,11 @@ impl Database {
             connection.execute_batch(schema::MIGRATE_2_TO_3)?;
         } else if current == 2 {
             connection.execute_batch(schema::MIGRATE_2_TO_3)?;
-        } else if current != 3 {
+        } else if current != 3 && current != 4 {
             anyhow::bail!("unsupported RC database schema {current}");
+        }
+        if current <= 3 {
+            connection.execute_batch(schema::MIGRATE_3_TO_4)?;
         }
         secure_database(path)?;
         Ok(Self(Arc::new(Mutex::new(connection))))

@@ -35,7 +35,7 @@ async fn status(
     let devices = state.db.with_connection(|db| {
         let mut s =
             db.prepare("SELECT lock_hash,lock_generation,id FROM devices WHERE workspace_id=?")?;
-        s.query_map([id], |r| {
+        s.query_map([&id], |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, i64>(1)?,
@@ -56,6 +56,14 @@ async fn status(
     for (h, g, _) in &devices {
         let h = h.to_lowercase();
         if h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()) && h != hash {
+            parents.insert(
+                format!("{g}:{h}"),
+                serde_json::json!({"hash":h,"generation":g}),
+            );
+        }
+    }
+    for (h, g) in crate::authority_delivery::parents(&state.db, &id)? {
+        if h != hash {
             parents.insert(
                 format!("{g}:{h}"),
                 serde_json::json!({"hash":h,"generation":g}),
@@ -138,29 +146,32 @@ async fn sync(
         })?
         .collect::<Result<Vec<_>, _>>()
     })?;
-    let mut online = 0usize;
     for (device, previous_hash, generation) in &devices {
-        let key = format!("{}:{}", generation, previous_hash.to_lowercase());
-        let Some(signature) = signatures.get(&key) else {
-            continue;
-        };
-        if state
-            .nodes
-            .send(
+        let mut parents = crate::authority_delivery::device_parents(&state.db, device)?;
+        parents.push((previous_hash.clone(), *generation));
+        for (from, generation) in parents {
+            let key = format!("{}:{}", generation, from.to_lowercase());
+            let Some(signature) = signatures.get(&key) else {
+                continue;
+            };
+            crate::authority_delivery::save(
+                &state.db,
                 device,
                 &ServerToNode::LockSync {
                     snapshot: snapshot.clone(),
-                    previous_hash: previous_hash.clone(),
-                    previous_generation: *generation as u64,
+                    previous_hash: from,
+                    previous_generation: generation as u64,
                     grant: proof.grant.clone(),
                     credential_id: proof.credential_id.clone(),
                     assertion: proof.assertion.clone(),
                     signature: signature.clone(),
                 },
-            )
-            .await
-            .is_ok()
-        {
+            )?;
+        }
+    }
+    let mut online = 0usize;
+    for (device, _, _) in &devices {
+        if crate::authority_delivery::deliver(&state.nodes, &state.db, device).await? {
             online += 1;
         }
     }

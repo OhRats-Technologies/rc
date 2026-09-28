@@ -4,6 +4,7 @@ mod auth_private_routes;
 mod auth_public_routes;
 mod auth_session;
 mod authority;
+mod authority_delivery;
 mod cli_authorization;
 mod client_auth;
 mod config;

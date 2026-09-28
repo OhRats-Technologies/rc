@@ -18,7 +18,7 @@ pub fn verify_mcp_grant(
     let grant: McpGrantPayload =
         serde_json::from_str(grant_json).map_err(|_| LockError::McpGrant)?;
     let now = now_ms();
-    if grant.v != 1
+    if !grant.valid_audience()
         || grant.id.is_empty()
         || grant.user_id != user_id
         || grant.user_id != control.grant.user_id
@@ -27,7 +27,12 @@ pub fn verify_mcp_grant(
             && (grant.expires_at <= now
                 || grant.expires_at <= grant.issued_at
                 || grant.expires_at - grant.issued_at > 366_i64 * 24 * 60 * 60 * 1000))
-        || !grant.device_ids.iter().any(|id| id == device_id)
+        || !grant.allows_device(device_id)
+        || control.role != "owner"
+        || !snapshot
+            .members
+            .iter()
+            .any(|member| member.user_id == user_id && member.role == "owner")
         || !grant.scopes.iter().any(|scope| scope == "mcp:terminal")
     {
         return Err(LockError::McpGrant);
@@ -42,7 +47,7 @@ pub fn verify_mcp_grant(
     }
     verify_ed25519(
         &control.grant.signing_public_key,
-        format!("rc-mcp-grant-v1\n{digest}").as_bytes(),
+        grant.signature_payload(&digest).as_bytes(),
         signature,
     )
     .map_err(|_| LockError::McpSignature)?;

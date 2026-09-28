@@ -30,6 +30,7 @@ pub const DEFAULT_SERVER: &str = "https://rc.ohrats.party";
 pub const NODE_CAPABILITIES: &[&str] = &[
     "process",
     "execution-v2",
+    "mcp-account-v2",
     "scheduler",
     "update",
     "lock",

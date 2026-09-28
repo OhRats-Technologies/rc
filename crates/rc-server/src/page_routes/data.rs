@@ -79,6 +79,7 @@ pub(super) fn mcp_grants(
                 expires_at,
                 last_used,
                 device_count: payload.device_ids.len(),
+                account_wide: payload.v == 2 && payload.valid_audience(),
             })
         })
         .collect()

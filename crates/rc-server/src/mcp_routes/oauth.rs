@@ -82,19 +82,8 @@ pub(super) async fn authorize(
         .as_array()
         .cloned()
         .unwrap_or_default();
-    let devices = match crate::devices_json(&state, &user.id).await {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::error!(%error, "MCP authorization device lookup failed");
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Html(crate::page_html::error(500, "Internal server error")),
-            )
-                .into_response();
-        }
-    };
     Html(super::page::authorize_page(
-        request_id, client, &user.name, callback, &requested, &devices,
+        request_id, client, &user.name, callback, &requested,
     ))
     .into_response()
 }
@@ -103,7 +92,7 @@ pub(super) async fn authorize(
 #[serde(rename_all = "camelCase")]
 pub(super) struct PrepareInput {
     request_id: String,
-    device_ids: Vec<String>,
+    audience: String,
     scopes: Vec<String>,
     lifetime: Option<String>,
 }
@@ -119,7 +108,7 @@ pub(super) async fn prepare(
             &state,
             &user,
             &input.request_id,
-            &input.device_ids,
+            &input.audience,
             &input.scopes,
             input.lifetime.as_deref(),
         )

@@ -243,6 +243,7 @@ fn seed_grant(
     let grant_id = "mcp-process-grant";
     let client_id = "mcp-process-client";
     let grant = serde_json::to_string(&McpGrantPayload {
+        audience: None,
         v: 1,
         id: grant_id.into(),
         user_id: user.into(),

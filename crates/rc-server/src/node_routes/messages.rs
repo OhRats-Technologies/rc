@@ -7,6 +7,13 @@ pub(super) async fn bootstrap_lock_if_needed(
     device: &str,
     message: &NodeToServer,
 ) {
+    if matches!(
+        message,
+        NodeToServer::Hello { .. } | NodeToServer::LockState { .. }
+    ) && let Err(error) = crate::authority_delivery::deliver(nodes, db, device).await
+    {
+        tracing::warn!(%device, %error, "failed to deliver signed RC Lock update");
+    }
     if let NodeToServer::Hello { hello } = message
         && hello.lock_hash.is_empty()
     {

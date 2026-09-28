@@ -10,6 +10,9 @@ use std::{net::SocketAddr, path::PathBuf};
 use tower::ServiceExt;
 use uuid::Uuid;
 
+#[path = "mcp_oauth/account.rs"]
+mod account;
+
 #[tokio::test]
 async fn oauth_codes_and_refresh_tokens_are_single_use_and_resource_bound() -> anyhow::Result<()> {
     let root = temp_root()?;
@@ -189,6 +192,7 @@ fn seed(
         ],
     )?;
     let grant = serde_json::to_string(&McpGrantPayload {
+        audience: None,
         v: 1,
         id: grant_id.into(),
         user_id: user.into(),

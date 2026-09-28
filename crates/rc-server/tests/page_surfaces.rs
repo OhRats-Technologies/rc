@@ -110,6 +110,8 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
                 "<main class=\"auth-shell\"",
                 "data-mcp-request",
                 "Connect Surface MCP",
+                "current and future machines",
+                "Offline machines become available after reconnecting",
                 "mcp-authorize.js",
             ],
         ),
@@ -128,6 +130,8 @@ async fn public_authenticated_and_form_surfaces_render_and_mutate() -> anyhow::R
             );
         }
     }
+    let consent = get(&application, oauth_path, Some(&cookie)).await?;
+    assert!(!consent.body.contains("name=\"device\""));
     for path in ["/devices/not-a-device", "/not-a-page"] {
         let missing = get(&application, path, Some(&cookie)).await?;
         assert_eq!(missing.status, StatusCode::NOT_FOUND, "GET {path}");

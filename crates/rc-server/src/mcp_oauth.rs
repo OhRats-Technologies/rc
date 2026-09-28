@@ -3,7 +3,9 @@ mod grant;
 mod token;
 
 pub use client::{create_oauth_request, register_mcp_client};
-pub use grant::{ApprovedGrant, PreparedGrant, approve_oauth_grant, prepare_oauth_grant};
+pub use grant::{
+    ApprovedGrant, PreparedGrant, approve_oauth_grant, mcp_grant_workspace_ids, prepare_oauth_grant,
+};
 pub use token::{access_grant, exchange_token, revoke_mcp_grant};
 
 use crate::AppState;
