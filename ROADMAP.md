@@ -8,6 +8,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Pin Bun Shell upstream and define extraction provenance.
 - [x] Specify execution modes, lifetimes, privacy, Windows, and scheduler authority.
 - [x] Add executable native-host, component-runtime, shell, MCP, browser-control, scheduler, and release conformance fixtures.
+- [x] Accept long opaque MCP OAuth state, preserve it across login/account switching/denial, and enforce an encoded authorization-query budget before login or persistence.
 
 ## Contracts and runtime
 - [x] Add process WIT v0.3 exact argv, typed modes/signals, environments, lifetimes, groups, and byte streams.

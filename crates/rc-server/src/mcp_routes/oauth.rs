@@ -7,7 +7,7 @@ use crate::{
 use axum::{
     Json,
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{Path, RawQuery, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Response},
 };
@@ -44,14 +44,15 @@ pub(super) async fn register(
 pub(super) async fn authorize(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Query(query): Query<std::collections::HashMap<String, String>>,
+    RawQuery(query): RawQuery,
 ) -> Response {
+    let raw = query.as_deref().unwrap_or_default();
+    if raw.len() > crate::mcp_oauth::MAX_OAUTH_QUERY_BYTES {
+        return (StatusCode::URI_TOO_LONG, "authorization query is too large").into_response();
+    }
     let user = match browser_user(&state, &headers) {
         Ok(Some(user)) => user,
         Ok(None) => {
-            let raw = url::form_urlencoded::Serializer::new(String::new())
-                .extend_pairs(query.iter())
-                .finish();
             let next = format!("/oauth/authorize?{raw}");
             let location = format!(
                 "/?next={}",
@@ -68,10 +69,7 @@ pub(super) async fn authorize(
                 .into_response();
         }
     };
-    let raw = url::form_urlencoded::Serializer::new(String::new())
-        .extend_pairs(query.iter())
-        .finish();
-    let request = match create_oauth_request(&state, &user, &raw) {
+    let request = match create_oauth_request(&state, &user, raw) {
         Ok(value) => value,
         Err(error) => return (StatusCode::BAD_REQUEST, error.to_string()).into_response(),
     };

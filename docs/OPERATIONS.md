@@ -168,6 +168,13 @@ and timestamp for that investigation.
 
 There is no password or recovery bypass for passkey authority.
 
+MCP OAuth `state` is opaque and is returned exactly on approval or denial,
+including after login or account switching. Gemini custom connectors may send
+more than 1,024 bytes. RC accepts these values within an 8 KiB encoded
+authorization-query budget; larger queries receive HTTP 414 before login or
+storage. After deploying an OAuth fix, reconnect using
+`https://rc.ohrats.party/mcp` to obtain fresh client state and PKCE values.
+
 ## Local live inspection
 
 On Linux with a systemd user service and on Windows, `rc logs` reads the Node's journal

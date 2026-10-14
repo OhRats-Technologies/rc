@@ -86,6 +86,9 @@ pub fn create_oauth_request(
     user: &UserIdentity,
     query: &str,
 ) -> anyhow::Result<serde_json::Value> {
+    if query.len() > super::MAX_OAUTH_QUERY_BYTES {
+        anyhow::bail!("authorization query is too large");
+    }
     let params = url::form_urlencoded::parse(query.as_bytes())
         .into_owned()
         .collect::<std::collections::HashMap<_, _>>();
@@ -122,9 +125,6 @@ pub fn create_oauth_request(
             .unwrap_or("mcp:observe"),
     )?;
     let oauth_state = params.get("state").cloned().unwrap_or_default();
-    if oauth_state.len() > 1024 {
-        anyhow::bail!("state is too long");
-    }
     let id = Uuid::new_v4().to_string();
     state.db.with_connection(|db| {
         db.execute(

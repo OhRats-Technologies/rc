@@ -13,6 +13,10 @@ use crate::AppState;
 pub const MCP_PROTOCOL_VERSION: &str = "2026-07-28";
 pub const MCP_SCOPES: [&str; 2] = ["mcp:observe", "mcp:terminal"];
 
+// Bound the encoded request, including unknown parameters, rather than opaque
+// client state. Leave room for percent-encoding it again in the login redirect.
+pub(crate) const MAX_OAUTH_QUERY_BYTES: usize = 8 * 1024;
+
 #[derive(Debug, Clone)]
 pub struct McpGrantRecord {
     pub id: String,

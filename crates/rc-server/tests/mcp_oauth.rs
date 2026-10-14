@@ -13,6 +13,9 @@ use uuid::Uuid;
 #[path = "mcp_oauth/account.rs"]
 mod account;
 
+#[path = "mcp_oauth/state.rs"]
+mod oauth_state;
+
 #[tokio::test]
 async fn oauth_codes_and_refresh_tokens_are_single_use_and_resource_bound() -> anyhow::Result<()> {
     let root = temp_root()?;

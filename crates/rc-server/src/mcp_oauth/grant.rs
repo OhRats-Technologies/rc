@@ -8,6 +8,10 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+#[cfg(test)]
+#[path = "grant/tests.rs"]
+mod tests;
+
 #[derive(Debug, Serialize)]
 pub struct PreparedGrant {
     pub grant: String,
