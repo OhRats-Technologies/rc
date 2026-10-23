@@ -2,6 +2,16 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.2] - 2026-10-23
+
+- Remove aggregate journal reservations and fixed execution-count quotas that
+  rejected new MCP processes after earlier executions completed. Preserve
+  rolling per-process output journals, authorization, and duplicate-ID rejection.
+- Report bounded, user/grant-scoped startup failure categories instead of a
+  generic unavailable-process error. Never retain execution plaintext.
+- Accept long opaque MCP OAuth state within the HTTP request budget.
+- Requires native kernel 0.1.3 and execution-runtime component 0.1.1.
+
 ## [0.20.1] - 2026-09-28
 
 - Run the Windows Node through an embedded native windowless supervisor.

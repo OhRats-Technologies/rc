@@ -141,9 +141,12 @@ One binary-safe ordered journal serves reattach and MCP status. It preserves
 stdout/stderr boundaries and coalesces only adjacent same-stream chunks; PTY is
 stdout. Reads return chunks after an absolute cursor, next cursor,
 truncated-before cursor, and whether more remains. Limits roll forward
-deterministically. Per-execution limits sit beneath a 256 MiB aggregate Node
-journal budget; capacity exhaustion rejects a new Execution and never evicts a
-live Execution merely to admit another.
+deterministically. Each execution has a bounded rolling journal, allocated as
+output arrives. There is no aggregate Node journal reservation or fixed execution
+count quota: empty and completed journals do not reserve their maximum capacity
+against new executions. Native resource exhaustion can still reject a start.
+Never evict a live Execution merely to admit another. Duplicate execution IDs
+remain non-replayable regardless of the number of executions.
 
 ## Browser, CLI, and MCP
 

@@ -39,7 +39,7 @@ impl Guest for ExecutionRuntime {
     fn descriptor() -> Descriptor {
         Descriptor {
             id: "ohrats:execution-runtime".into(),
-            version: "0.1.0".into(),
+            version: "0.1.1".into(),
             provides: vec![Service {
                 name: "ohrats:rc-process/runtime".into(),
                 version: "0.3.0".into(),

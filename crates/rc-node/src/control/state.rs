@@ -20,6 +20,7 @@ pub(super) struct ControlInner {
     pub challenges: Mutex<HashMap<String, Instant>>,
     pub sessions: Mutex<HashMap<String, ControlSession>>,
     pub pending_starts: Mutex<HashMap<(String, String), PendingStart>>,
+    pub mcp_start_failures: Mutex<super::hosted::mcp_failures::StartFailures>,
     pub mesh: Mutex<Option<Arc<MeshAuthority>>>,
     pub process_policy: Arc<dyn ProcessPolicy>,
     pub transport_policy: Arc<dyn TransportPolicy>,

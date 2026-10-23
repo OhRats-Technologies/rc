@@ -13,7 +13,6 @@ use std::{
 };
 
 mod attachment;
-mod capacity;
 mod events;
 use attachment::{attach, detach};
 use events::{emit_to, poll_execution};
@@ -36,7 +35,6 @@ struct Managed {
     secure: bool,
     writer: Mutex<String>,
     stdin_limit: usize,
-    journal_limit: usize,
     status: Mutex<Status>,
 }
 
@@ -44,9 +42,6 @@ struct Managed {
 struct Status {
     name: &'static str,
 }
-
-const MAX_EXECUTIONS_PER_NODE_RUN: usize = 65_536;
-const MAX_RETAINED_EXECUTIONS: usize = 1_024;
 
 impl ComponentExecutionManager {
     pub fn new(runtime: ComponentExecutionRuntime, event_sink: ProcessEventSink) -> Self {
@@ -119,17 +114,6 @@ impl ExecutionManager for ComponentExecutionManager {
         {
             return Ok(false);
         }
-        let journal_limit = spec.scrollback_bytes as usize;
-        let journal_bytes = processes
-            .values()
-            .map(|value| value.journal_limit)
-            .sum::<usize>();
-        if seen.len() >= MAX_EXECUTIONS_PER_NODE_RUN
-            || processes.len() >= MAX_RETAINED_EXECUTIONS
-            || !capacity::journal(journal_bytes, journal_limit)
-        {
-            return Err(io::Error::other("execution registry capacity reached"));
-        }
         seen.insert(spec.id.clone());
         let request = ProcessStartRequest {
             execution_id: spec.id.clone(),
@@ -157,7 +141,6 @@ impl ExecutionManager for ComponentExecutionManager {
             secure: spec.secure,
             writer: Mutex::new(spec.session_id),
             stdin_limit: spec.stdin_chunk_bytes as usize,
-            journal_limit,
             status: Mutex::new(Status { name: "running" }),
         });
         processes.insert(spec.id.clone(), managed.clone());

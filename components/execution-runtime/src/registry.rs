@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 
-const MAX_EXECUTIONS_PER_GENERATION: usize = 65_536;
-
 #[derive(Default)]
 pub struct Registry {
     seen: HashSet<String>,
@@ -15,9 +13,6 @@ impl Registry {
         }
         if self.seen.contains(id) {
             return Err("execution id was already claimed".into());
-        }
-        if self.seen.len() >= MAX_EXECUTIONS_PER_GENERATION {
-            return Err("execution id registry capacity reached".into());
         }
         self.seen.insert(id.into());
         Ok(())
@@ -62,6 +57,15 @@ mod tests {
             Registry::default().claim(""),
             Err("execution id is empty".into())
         );
+    }
+
+    #[test]
+    fn fresh_ids_are_not_rejected_after_a_fixed_number_of_executions() {
+        let mut registry = Registry::default();
+        for index in 0..65_537 {
+            registry.claim(&format!("execution-{index}")).unwrap();
+        }
+        assert!(registry.claim("execution-0").is_err());
     }
 
     #[test]

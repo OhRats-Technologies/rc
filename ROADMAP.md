@@ -41,7 +41,8 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Prove the replay filter rejects the same execution ID after a fresh kernel process opens the same Node-local durable store.
 - [x] Enforce process-policy access, resize normalization, and semantic signal authorization inside execution-runtime after start.
 - [x] Reject channel/lifetime confusion and PTY requests on MCP or scheduled execution at the process-policy boundary.
-- [x] Enforce a 256 MiB Node-wide journal budget by rejecting new executions rather than evicting live execution state.
+- [x] Remove aggregate Node journal reservations and fixed execution-count quotas; prove 80 completed MCP executions remain readable without blocking new work, while preserving rolling per-execution journals and duplicate-ID rejection.
+- [x] Retain bounded Node-local failed-start categories for the originating user/grant so startup rejection is distinguishable from an unavailable process without logging execution plaintext.
 - [x] Test component-owned attached/managed/scheduled lease deadlines, writer supersession, max runtime, and TERM escalation with a fake clock.
 - [x] Migrate typed encrypted browser/CLI start modes and Node capability negotiation.
 - [x] Migrate MCP status/input/signal correlation to Node-owned journals and delete hosted process buffering.

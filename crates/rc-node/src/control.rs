@@ -46,6 +46,7 @@ impl ControlManager {
             challenges: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
             pending_starts: Mutex::new(HashMap::new()),
+            mcp_start_failures: Mutex::new(Default::default()),
             mesh: Mutex::new(mesh),
             process_policy,
             transport_policy,

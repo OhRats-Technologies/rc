@@ -8,6 +8,7 @@ use std::{
     sync::{Arc, mpsc},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
+mod admission;
 mod cancellation;
 mod failed_read;
 mod glob_check;
@@ -32,6 +33,8 @@ pub fn check_manager(runtime: ComponentExecutionRuntime) -> anyhow::Result<()> {
     terminal::check(runtime.clone())?;
     eprintln!("runtime check: MCP completed output");
     mcp_read::check(runtime.clone())?;
+    eprintln!("runtime check: MCP admission beyond the former aggregate budget");
+    admission::check(runtime.clone())?;
     stderr::check(runtime.clone())?;
     #[cfg(unix)]
     reaped::check(runtime.clone())?;

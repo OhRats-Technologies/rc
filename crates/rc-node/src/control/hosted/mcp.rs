@@ -20,20 +20,21 @@ impl ControlManager {
         credential_id: String,
         control_assertion: String,
     ) {
-        if self
-            .authorize_mcp(
-                &process_id,
-                &user_id,
-                ProcessAction::Observe,
-                &mcp_grant,
-                &mcp_signature,
-                control_grant,
-                credential_id,
-                control_assertion,
-            )
-            .is_err()
-        {
-            self.emit_status_error(request_id, process_id, "process is unavailable");
+        if let Err(error) = self.authorize_mcp(
+            &process_id,
+            &user_id,
+            ProcessAction::Observe,
+            &mcp_grant,
+            &mcp_signature,
+            control_grant,
+            credential_id,
+            control_assertion,
+        ) {
+            let message = error
+                .downcast_ref::<super::mcp_failures::StartFailure>()
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "process is unavailable".into());
+            self.emit_status_error(request_id, process_id, &message);
             return;
         }
         let manager = self.clone();
@@ -123,6 +124,15 @@ impl ControlManager {
             user_id,
             &self.0.state.device_id,
         )?;
+        // Grant verification must precede access to retained failure metadata.
+        if let Some(failure) = self.0.mcp_start_failures.lock().get(
+            process_id,
+            user_id,
+            &grant.id,
+            std::time::Instant::now(),
+        ) {
+            return Err(failure.into());
+        }
         if self.0.processes.execution_authority(process_id)
             != Some((crate::ProcessChannel::Mcp, grant.id))
         {
