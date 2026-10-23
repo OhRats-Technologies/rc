@@ -10,6 +10,8 @@ All notable RC changes are recorded here. Published tags are immutable.
 - Report bounded, user/grant-scoped startup failure categories instead of a
   generic unavailable-process error. Never retain execution plaintext.
 - Accept long opaque MCP OAuth state within the HTTP request budget.
+- Update Rustls, Quinn, WebPKI, root certificates, Tokio, and Wasmtime to address the
+  newly published dependency security advisories.
 - Requires native kernel 0.1.3 and execution-runtime component 0.1.1.
 
 ## [0.20.1] - 2026-09-28
