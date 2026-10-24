@@ -968,7 +968,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         if: ${{ !inputs.windows_only || inputs.windows_browser }}
         with:
-          bun-version: "1.4.0"
+          bun-version: "1.4.4"
       - name: Build native Windows browser conformance inputs
         if: ${{ !inputs.windows_only || inputs.windows_browser }}
         shell: pwsh
@@ -998,7 +998,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.0"
+          bun-version: "1.4.4"
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test:web
@@ -1024,7 +1024,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.4.0"
+          bun-version: "1.4.4"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.98.0"
@@ -1092,7 +1092,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         if: needs.changes.outputs.legacy-security == 'true'
         with:
-          bun-version: "1.4.0"
+          bun-version: "1.4.4"
       - run: bun install --frozen-lockfile
         if: needs.changes.outputs.legacy-security == 'true'
       - name: Install RustSec auditor
