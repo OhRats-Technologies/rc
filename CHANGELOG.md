@@ -2,6 +2,12 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.4] - 2026-11-06
+
+- Harden POSIX installer with umask 077 and explicit component directory/file permissions (0700/0600).
+- Add platform.ProtectPrivatePath validation to atomic directory operations.
+- Fix Windows installer recovery journal $previous variable initialization.
+
 ## [0.20.3] - 2026-11-06
 
 - Complete architectural simplification to a unified native Go core with direct
