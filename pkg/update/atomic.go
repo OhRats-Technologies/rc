@@ -5,6 +5,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+
+	"github.com/OhRats-Technologies/rc/pkg/platform"
 )
 
 // ensurePrivateDir creates a directory and validates it is not a symlink.
@@ -19,7 +21,7 @@ func ensurePrivateDir(path string) error {
 	if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() {
 		return fmt.Errorf("%s is not a private directory", path)
 	}
-	return nil
+	return platform.ProtectPrivatePath(path, true)
 }
 
 func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {

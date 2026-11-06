@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+umask 077
 # The release bundle is the POSIX bootstrap boundary.
 TOKEN="${1:-${RC_ENROLL_TOKEN:-}}"
 SERVER="${2:-${RC_URL:-}}"
@@ -200,7 +201,8 @@ test "$("$TMPDIR_PATH/new/rc" version)" = "RC $VERSION" ||
   { echo "downloaded rc did not report the release version" >&2; exit 1; }
 "$TMPDIR_PATH/new/rc" policy-check --component-dir "$TMPDIR_PATH/new/components" >/dev/null ||
   { echo "core profile failed runtime validation" >&2; exit 1; }
-mkdir -p "$BIN_DIR" "$COMPONENT_DIR" "$ROLLBACK_DIR"
+test -d "$COMPONENT_DIR" || { mkdir -p "$COMPONENT_DIR"; chmod 0700 "$COMPONENT_DIR" 2>/dev/null || true; }
+mkdir -p "$BIN_DIR" "$ROLLBACK_DIR"
 BACKUP="$ROLLBACK_DIR/previous"
 rm -rf "$BACKUP.new"
 mkdir -p "$BACKUP.new/components"
@@ -269,7 +271,7 @@ install_file() {
 ACTIVATING=1
 install_file "$TMPDIR_PATH/new/rc" "$BIN_DIR/rc" 0755
 if [ "$CORE_MODE" = profile ]; then
-  install_file "$TMPDIR_PATH/profile.lock" "$COMPONENT_DIR/profile.lock" 0644
+  install_file "$TMPDIR_PATH/profile.lock" "$COMPONENT_DIR/profile.lock" 0600
 fi
 for name in $CORE_COMPONENTS; do
   target="$COMPONENT_DIR/$name.wasm"
@@ -278,7 +280,7 @@ for name in $CORE_COMPONENTS; do
     echo "component override preserved: $name" >&2
     continue
   fi
-  install_file "$TMPDIR_PATH/new/components/$name.wasm" "$target" 0644
+  install_file "$TMPDIR_PATH/new/components/$name.wasm" "$target" 0600
   printf 'sha256:%s\n' "$(sha256_file "$TMPDIR_PATH/new/components/$name.wasm")" > "$marker.rc-install.$$"
   mv "$marker.rc-install.$$" "$marker"
 done

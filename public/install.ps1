@@ -241,6 +241,9 @@ try {
   }
   if (Test-Path $Backup) { Remove-Item -Recurse -Force $Backup }
   Move-Item $backupNew $Backup
+  $previous = if (Test-Path (Join-Path $Bin 'rc.exe')) {
+    try { (& (Join-Path $Bin 'rc.exe') version 2>$null) -replace '^RC\s*', '' } catch { '' }
+  } else { '' }
   Atomic-Text $Journal (@{previous=$previous;names=$names} | ConvertTo-Json -Compress)
   $activating = $true
   try { & (Join-Path $Bin 'rc.exe') service stop 2>$null } catch {}
