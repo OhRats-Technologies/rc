@@ -2,6 +2,14 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.5] - 2026-11-06
+
+- Fix 0.20.2 upgrade compatibility: rc-kernel-* archives now contain an rc-kernel binary, and the release workflow checks their contents.
+- Persist accounts, workspaces, devices, and device revocations in the server database; enrolled devices survive restarts.
+- Import relay-era and Rust-era databases once at startup; unrecognized databases are refused.
+- Return 410 Gone to a Node whose device was removed, so it clears its enrollment.
+- Accept passkeys registered by the Rust-era server on sign-in and step-up.
+
 ## [0.20.4] - 2026-11-06
 
 - Harden POSIX installer with umask 077 and explicit component directory/file permissions (0700/0600).
