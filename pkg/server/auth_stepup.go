@@ -82,7 +82,9 @@ func (s *Server) handleStepUpVerify(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusUnauthorized, "step-up expired")
 		return
 	}
-	if err := webauthn.VerifyAuthentication(input.Response, challenge, rp, passkey.CredentialID, passkey.PublicKey, []byte(passkey.UserID)); err != nil {
+	if err := verifyWithAccountHandles(passkey.UserID, func(handle []byte) error {
+		return webauthn.VerifyAuthentication(input.Response, challenge, rp, passkey.CredentialID, passkey.PublicKey, handle)
+	}); err != nil {
 		writeError(w, http.StatusUnauthorized, "passkey verification failed")
 		return
 	}
