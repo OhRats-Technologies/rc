@@ -82,8 +82,6 @@ const server = Bun.spawn([serverBinary], {
     STATIC_DIR: assets,
     PUBLIC_URL: base,
     RC_SETUP_TOKEN: setupToken,
-    RC_SSH_DAEMON_PORT: String(sshPort),
-    RC_SSH_INTERNAL_PORT: String(sshInternalPort),
   },
   stdout: "inherit",
   stderr: "inherit",
