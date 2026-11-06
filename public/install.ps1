@@ -266,6 +266,7 @@ try {
   }
   Remove-Item -Force $Journal
   $activating = $false; Write-Host "installed RC $version in $Bin (added to user and current-session PATH)"
+  exit 0
 } catch {
   if ($activating) {
     Restore-Previous '' $names
