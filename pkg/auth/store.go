@@ -19,21 +19,18 @@ type Store struct {
 	db *platform.DB
 }
 
-// Open opens or creates a store at path and applies the schema.
+// Open opens or creates a store at path. Empty databases receive the current
+// schema; databases at schemaVersion are migrated in place. Legacy databases
+// are rejected here and handled only by OpenDataDir.
 func Open(path string) (*Store, error) {
 	db, err := platform.OpenDB(path)
 	if err != nil {
 		return nil, err
 	}
 	store := &Store{db: db}
-	ctx := context.Background()
-	for _, statements := range [][]string{schema, oauthSchema} {
-		for _, statement := range statements {
-			if _, err := db.ExecContext(ctx, statement); err != nil {
-				db.Close()
-				return nil, err
-			}
-		}
+	if err := store.migrate(); err != nil {
+		db.Close()
+		return nil, err
 	}
 	return store, nil
 }

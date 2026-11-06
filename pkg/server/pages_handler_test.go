@@ -78,11 +78,16 @@ func TestAuthenticatedPagesAndDeviceRename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	srv.registry.mu.Lock()
-	srv.registry.devices["dev_test"] = &RegisteredDevice{
+	device := &RegisteredDevice{
 		ID: "dev_test", WorkspaceID: "ws_default", Name: "Build box", Platform: "linux",
 		Arch: "amd64", Hostname: "build", Version: "1.0.0", Online: true,
+		IdentityPublicKey: base64URL(32, 5), TransportPublicKey: base64URL(32, 6),
 	}
+	if err := srv.registry.persistEnrollment(device); err != nil {
+		t.Fatal(err)
+	}
+	srv.registry.mu.Lock()
+	srv.registry.devices[device.ID] = device
 	srv.registry.mu.Unlock()
 	cookie := &http.Cookie{Name: sessionCookieName, Value: token}
 

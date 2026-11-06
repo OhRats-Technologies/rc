@@ -37,7 +37,7 @@ func (r *DeviceRegistry) verifyNode(req *http.Request, body []byte) (*Registered
 	device, ok := r.devices[deviceID]
 	if !ok {
 		r.mu.Unlock()
-		return nil, errors.New("unknown Node")
+		return nil, r.unknownNode(deviceID)
 	}
 	r.pruneNoncesLocked()
 	key := deviceID + "\x00" + nonce
@@ -53,6 +53,26 @@ func (r *DeviceRegistry) verifyNode(req *http.Request, body []byte) (*Registered
 		return nil, errors.New("invalid Node signature")
 	}
 	return device, nil
+}
+
+// errNodeRevoked tells a Node that its device was removed. The Node clears its
+// local enrollment on this response; generic unknown devices stay 401.
+var errNodeRevoked = errors.New("Node was removed from RC")
+
+func nodeAuthStatus(err error) int {
+	if errors.Is(err, errNodeRevoked) {
+		return http.StatusGone
+	}
+	return http.StatusUnauthorized
+}
+
+func (r *DeviceRegistry) unknownNode(deviceID string) error {
+	if r.store != nil {
+		if revoked, err := r.store.DeviceRevoked(deviceID); err == nil && revoked {
+			return errNodeRevoked
+		}
+	}
+	return errors.New("unknown Node")
 }
 
 func (r *DeviceRegistry) pruneNoncesLocked() {
@@ -82,7 +102,7 @@ func (s *Server) handleNodeSelf(w http.ResponseWriter, req *http.Request) {
 	}
 	device, err := s.registry.verifyNode(req, nil)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, err.Error(), nodeAuthStatus(err))
 		return
 	}
 	s.registry.markOnline(device.ID, true)
@@ -110,7 +130,7 @@ func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, req *http.Request) {
 	}
 	device, err := s.registry.verifyNode(req, body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, err.Error(), nodeAuthStatus(err))
 		return
 	}
 	s.registry.markOnline(device.ID, true)
@@ -120,7 +140,7 @@ func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, req *http.Request) {
 // handleNodeICE issues short-lived TURN credentials to an authenticated Node.
 func (s *Server) handleNodeICE(w http.ResponseWriter, req *http.Request) {
 	if _, err := s.registry.verifyNode(req, nil); err != nil {
-		writeError(w, http.StatusUnauthorized, err.Error())
+		writeError(w, nodeAuthStatus(err), err.Error())
 		return
 	}
 	servers, err := s.turn.iceServers(req.Context())

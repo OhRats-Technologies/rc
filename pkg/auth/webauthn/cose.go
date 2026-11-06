@@ -128,3 +128,22 @@ func (key publicKey) coseKey() []byte {
 	result = append(result, 0x22, 0x58, 0x20)
 	return append(result, key.y...)
 }
+
+// ES256CoseKey encodes a P-256 public key (32-byte X and Y) as the canonical
+// COSE_Key bytes that VerifyAuthentication expects.
+func ES256CoseKey(x, y []byte) ([]byte, error) {
+	if len(x) != 32 || len(y) != 32 ||
+		!elliptic.P256().IsOnCurve(new(big.Int).SetBytes(x), new(big.Int).SetBytes(y)) {
+		return nil, ErrInvalidPublicKey
+	}
+	return publicKey{x: x, y: y}.coseKey(), nil
+}
+
+// CanonicalCoseKey validates one CBOR COSE_Key and returns its canonical form.
+func CanonicalCoseKey(input []byte) ([]byte, error) {
+	key, err := fromCOSEKey(input)
+	if err != nil {
+		return nil, err
+	}
+	return key.coseKey(), nil
+}

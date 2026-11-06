@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 	"github.com/OhRats-Technologies/rc/pkg/node"
 )
 
@@ -24,6 +25,8 @@ type DeviceRegistry struct {
 	nonces  map[string]time.Time
 	// Consume resolves a durable enrollment token to its workspace.
 	Consume func(string) (string, error)
+	// store persists devices; nil keeps the registry in memory only.
+	store *authstore.Store
 }
 
 type RegisteredDevice struct {
@@ -89,7 +92,7 @@ func (r *DeviceRegistry) HandleEnroll(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	workspaceID := "ws_default"
+	workspaceID := defaultWorkspaceID
 	r.mu.Lock()
 	if r.tokens[enrollReq.Token] {
 		delete(r.tokens, enrollReq.Token)
@@ -126,6 +129,10 @@ func (r *DeviceRegistry) HandleEnroll(w http.ResponseWriter, req *http.Request) 
 		TransportPublicKey: enrollReq.TransportPublicKey,
 		Online:             true,
 		LastSeen:           time.Now(),
+	}
+	if err := r.persistEnrollment(dev); err != nil {
+		http.Error(w, "device could not be stored", http.StatusInternalServerError)
+		return
 	}
 	r.mu.Lock()
 	r.devices[deviceID] = dev
@@ -188,6 +195,11 @@ func (r *DeviceRegistry) Rename(id, name string) (*RegisteredDevice, error) {
 	if !ok {
 		return nil, errors.New("device not found")
 	}
+	if r.store != nil {
+		if err := r.store.RenameDevice(id, name); err != nil {
+			return nil, err
+		}
+	}
 	device.Name = name
 	copied := *device
 	return &copied, nil
@@ -226,9 +238,14 @@ func (r *DeviceRegistry) HandleDeviceRoutes(w http.ResponseWriter, req *http.Req
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"name": renamed.Name})
 	case http.MethodDelete:
-		r.mu.Lock()
-		delete(r.devices, id)
-		r.mu.Unlock()
+		if err := r.remove(id); err != nil {
+			if errors.Is(err, authstore.ErrDeviceNotFound) {
+				http.Error(w, "device not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "device could not be removed", http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

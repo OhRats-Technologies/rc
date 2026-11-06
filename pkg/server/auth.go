@@ -31,10 +31,13 @@ func (s *Server) initAuth() {
 	if path == "" {
 		path = filepath.Join(s.cfg.DataDir, "rc.db")
 	}
-	store, err := authstore.Open(path)
+	store, err := authstore.OpenDataDir(path)
 	if err != nil {
-		log.Printf("account store unavailable: %v", err)
-		return
+		// Serving without the store would silently discard every account and device.
+		log.Fatalf("account store: %v", err)
+	}
+	if err := s.registry.attachStore(store); err != nil {
+		log.Fatalf("device store: %v", err)
 	}
 	s.auth = store
 	s.registry.Consume = store.ConsumeEnrollmentToken
@@ -224,6 +227,12 @@ func (s *Server) handleCreateEnrollment(w http.ResponseWriter, req *http.Request
 	if s.auth == nil {
 		writeError(w, http.StatusServiceUnavailable, "account store is unavailable")
 		return
+	}
+	if workspaceID == defaultWorkspaceID {
+		if err := s.auth.EnsureWorkspace(defaultWorkspaceID, "Default"); err != nil {
+			writeError(w, http.StatusInternalServerError, "workspace could not be created")
+			return
+		}
 	}
 	token, expires, err := s.auth.CreateEnrollmentToken(workspaceID, 15*time.Minute)
 	if err != nil {
