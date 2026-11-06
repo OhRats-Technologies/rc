@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"time"
 
@@ -46,24 +45,7 @@ func runDoctor(_ context.Context, args []string) error {
 	if err != nil {
 		report.fail("state", err)
 	} else {
-		// Skip strict ACL validation on Windows where the installer handles it
-		if runtime.GOOS == "windows" {
-			if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
-				report.ok("state", "missing at "+dir+" (not enrolled)")
-			} else if err != nil {
-				report.fail("state", err)
-			} else {
-				report.ok("state", dir)
-			}
-		} else if err := platform.ValidatePrivatePath(dir, true); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				report.ok("state", "missing at "+dir+" (not enrolled)")
-			} else {
-				report.fail("state", err)
-			}
-		} else {
-			report.ok("state", dir)
-		}
+		validateStateDir(report, dir)
 		checkEnrollment(report, dir)
 	}
 	checkComponents(report, *componentDir)
@@ -133,12 +115,9 @@ func checkComponents(report *doctorReport, explicit string) {
 		report.fail("components", err)
 		return
 	}
-	// Skip strict ACL validation on Windows where the installer handles it
-	if runtime.GOOS != "windows" {
-		if err := platform.ValidatePrivatePath(dir, true); err != nil {
-			report.fail("components", err)
-			return
-		}
+	if err := validateComponentDir(report, dir); err != nil {
+		report.fail("components", err)
+		return
 	}
 	runtimeHandle, err := kernel.NewRuntime(dir)
 	if err != nil {
