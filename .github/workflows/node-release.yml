@@ -140,12 +140,18 @@ jobs:
           mv dist/core/rc-core-components.tar.gz dist/
           mv dist/core/rc-core-profile.tar.gz dist/
           rmdir dist/core
+      - name: Create backwards-compatible kernel assets for 0.20.2 upgrades
+        run: |
+          for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64 rc-windows-amd64; do
+            cp "dist/$name.tar.gz" "dist/rc-kernel-${name#rc-}.tar.gz"
+          done
       - name: Validate release assets
         run: |
           cp packaging/rc-upgrade.json dist/rc-upgrade.json
           {
             for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64 rc-windows-amd64; do
               echo "$name.tar.gz"
+              echo "rc-kernel-${name#rc-}.tar.gz"
             done
             echo rc-core-components.tar.gz
             echo rc-core-profile.tar.gz
