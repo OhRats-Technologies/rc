@@ -65,29 +65,16 @@ func (m *NativeExecutionManager) Start(spec ProcessSpec) (bool, error) {
 		return false, err
 	}
 
-	stdinPipe, err := cmd.StdinPipe()
-	if err != nil {
+	stdinPipe, errIn := cmd.StdinPipe()
+	stdoutPipe, errOut := cmd.StdoutPipe()
+	stderrPipe, errErr := cmd.StderrPipe()
+	if errIn != nil || errOut != nil || errErr != nil {
 		m.mu.Unlock()
-		return false, err
-	}
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = stdinPipe.Close()
-		m.mu.Unlock()
-		return false, err
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		_ = stdinPipe.Close()
-		_ = stdoutPipe.Close()
-		m.mu.Unlock()
-		return false, err
+		return false, errors.New("failed creating process pipes")
 	}
 
 	if err := cmd.Start(); err != nil {
 		_ = stdinPipe.Close()
-		_ = stdoutPipe.Close()
-		_ = stderrPipe.Close()
 		m.mu.Unlock()
 		return false, err
 	}
@@ -105,9 +92,17 @@ func (m *NativeExecutionManager) Start(spec ProcessSpec) (bool, error) {
 	m.processes[spec.ID] = p
 	m.mu.Unlock()
 
-	go journal.streamReader(stdoutPipe, StreamStdout)
-	go journal.streamReader(stderrPipe, StreamStderr)
-	go p.waitExit()
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		journal.streamReader(stdoutPipe, StreamStdout)
+	}()
+	go func() {
+		defer wg.Done()
+		journal.streamReader(stderrPipe, StreamStderr)
+	}()
+	go p.waitExit(&wg)
 
 	return true, nil
 }
@@ -169,7 +164,8 @@ func buildCommand(spec ProcessSpec) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func (p *runningProcess) waitExit() {
+func (p *runningProcess) waitExit(wg *sync.WaitGroup) {
+	wg.Wait()
 	err := p.cmd.Wait()
 	p.mu.Lock()
 	defer p.mu.Unlock()
