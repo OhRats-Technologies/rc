@@ -114,10 +114,12 @@ func componentArtifacts(t *testing.T, names ...string) string {
 				t.Fatalf("build component %s: %v\n%s%s", name, buildErr, stdout, stderr)
 			}
 			built := strings.TrimSpace(stdout)
-			if !filepath.IsAbs(built) {
-				built = filepath.Join(root, built)
+			lines := strings.Split(built, "\n")
+			lastLine := strings.TrimSpace(lines[len(lines)-1])
+			if !filepath.IsAbs(lastLine) {
+				lastLine = filepath.Join(root, lastLine)
 			}
-			source = built
+			source = lastLine
 		}
 		data, err := os.ReadFile(source)
 		if err != nil {
