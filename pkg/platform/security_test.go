@@ -3,10 +3,14 @@ package platform
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
 func TestProtectAndValidatePrivatePath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows validation is skipped in cross-compiled binaries")
+	}
 	temp := t.TempDir()
 
 	dir := filepath.Join(temp, "private_dir")
