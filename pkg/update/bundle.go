@@ -100,7 +100,8 @@ func ExtractProfile(archive []byte, requireLock bool) (*Profile, error) {
 			return nil, errors.New("component archive contains too many entries")
 		}
 		clean := path.Clean(header.Name)
-		if clean != header.Name || strings.HasPrefix(clean, "../") || path.IsAbs(clean) {
+		isClean := clean == header.Name || (header.Typeflag == tar.TypeDir && clean+"/" == header.Name)
+		if !isClean || strings.HasPrefix(clean, "../") || path.IsAbs(clean) {
 			return nil, fmt.Errorf("component archive entry %q is unsafe", header.Name)
 		}
 		switch {

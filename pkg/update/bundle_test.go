@@ -1,7 +1,9 @@
 package update
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"testing"
 )
 
@@ -79,5 +81,28 @@ func TestExtractProfileVerifiesLock(t *testing.T) {
 		"components/crypto-control.wasm": component,
 	}), true); err == nil {
 		t.Fatal("profile without lock accepted")
+	}
+}
+
+func TestExtractProfileAcceptsDirectoryEntry(t *testing.T) {
+	component := []byte("\x00asm\x01\x00\x00\x00")
+	lock := "schema 1\nprofile ohrats:core\ncomponent crypto-control " + Digest(component) + "\n"
+	var buffer bytes.Buffer
+	gw := gzip.NewWriter(&buffer)
+	tw := tar.NewWriter(gw)
+	_ = tw.WriteHeader(&tar.Header{Name: "components/", Mode: 0o755, Typeflag: tar.TypeDir})
+	_ = tw.WriteHeader(&tar.Header{Name: "profile.lock", Mode: 0o600, Size: int64(len(lock)), Typeflag: tar.TypeReg})
+	_, _ = tw.Write([]byte(lock))
+	_ = tw.WriteHeader(&tar.Header{Name: "components/crypto-control.wasm", Mode: 0o644, Size: int64(len(component)), Typeflag: tar.TypeReg})
+	_, _ = tw.Write(component)
+	_ = tw.Close()
+	_ = gw.Close()
+
+	profile, err := ExtractProfile(buffer.Bytes(), true)
+	if err != nil {
+		t.Fatalf("expected profile with components/ directory entry to succeed, got %v", err)
+	}
+	if len(profile.Components) != 1 {
+		t.Fatalf("unexpected components count: %d", len(profile.Components))
 	}
 }
