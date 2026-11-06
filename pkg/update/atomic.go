@@ -53,15 +53,6 @@ func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {
 	return syncDir(dir)
 }
 
-func syncDir(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer dir.Close()
-	return dir.Sync()
-}
-
 func copyExecutable(source, destination string) error {
 	data, err := os.ReadFile(source)
 	if err != nil {
