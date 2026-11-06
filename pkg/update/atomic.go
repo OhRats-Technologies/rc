@@ -5,9 +5,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
-
-	"github.com/OhRats-Technologies/rc/pkg/platform"
 )
 
 // ensurePrivateDir creates a directory and validates it is not a symlink.
@@ -22,12 +19,7 @@ func ensurePrivateDir(path string) error {
 	if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() {
 		return fmt.Errorf("%s is not a private directory", path)
 	}
-	// Only validate permissions after directory creation; strict ACL
-	// enforcement happens in the installer.
-	if runtime.GOOS != "windows" {
-		return platform.ProtectPrivatePath(path, true)
-	}
-	return nil
+	return protectPrivateDir(path)
 }
 
 func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {
@@ -57,21 +49,6 @@ func writeFileAtomic(path string, data []byte, mode fs.FileMode) error {
 		return err
 	}
 	return syncDir(dir)
-}
-
-func syncDir(path string) error {
-	// Directory sync on Windows with strict ACLs causes Access Denied errors.
-	// It's not critical for Windows filesystems and is primarily a Unix
-	// crash-safety mechanism.
-	if runtime.GOOS == "windows" {
-		return nil
-	}
-	dir, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("sync %s: %w", path, err)
-	}
-	defer dir.Close()
-	return dir.Sync()
 }
 
 func copyExecutable(source, destination string) error {
