@@ -81,7 +81,6 @@ func ValidatePrivatePath(path string, directory bool) error {
 	if err != nil {
 		return err
 	}
-	defer windows.LocalFree(windows.Handle(unsafe.Pointer(secDesc)))
 
 	owner, _, err := secDesc.Owner()
 	if err != nil || owner == nil || !windows.EqualSid(owner, userSid) {

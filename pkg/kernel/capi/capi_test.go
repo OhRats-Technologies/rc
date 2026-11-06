@@ -34,6 +34,9 @@ func fixtureWasm(t *testing.T, name string) []byte {
 	root := repoRoot(t)
 	artifact := filepath.Join(root, "dist", "components", name+".wasm")
 	if _, err := os.Stat(artifact); err != nil {
+		if _, err := exec.LookPath("componentize-go"); err != nil {
+			t.Skip("componentize-go is not installed; skipping component artifact test")
+		}
 		command := exec.Command("sh", "scripts/build-component.sh", "components/"+name)
 		command.Dir = root
 		if output, err := command.CombinedOutput(); err != nil {

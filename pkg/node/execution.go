@@ -238,11 +238,12 @@ func (m *NativeExecutionManager) Signal(id string, sigName string) error {
 	}
 
 	p.signal = sigName
+	if runtime.GOOS == "windows" || sigName == "KILL" {
+		return p.cmd.Process.Kill()
+	}
 	switch sigName {
 	case "INT":
 		return p.cmd.Process.Signal(syscall.SIGINT)
-	case "KILL":
-		return p.cmd.Process.Kill()
 	default:
 		return p.cmd.Process.Signal(syscall.SIGTERM)
 	}

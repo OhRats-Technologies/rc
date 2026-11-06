@@ -1,6 +1,7 @@
 package node
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -12,12 +13,19 @@ func TestNativeExecutionExactArgv(t *testing.T) {
 	mgr := NewNativeExecutionManager()
 	defer mgr.Shutdown()
 
+	program := "echo"
+	args := []string{"hello", "rc", "exact"}
+	if runtime.GOOS == "windows" {
+		program = "cmd.exe"
+		args = []string{"/c", "echo", "hello", "rc", "exact"}
+	}
+
 	spec := ProcessSpec{
 		ID: "proc_exact_1",
 		Mode: protocol.ExecutionMode{
 			Kind:    protocol.ExecutionModeArgv,
-			Program: "echo",
-			Args:    []string{"hello", "rc", "exact"},
+			Program: program,
+			Args:    args,
 		},
 	}
 
@@ -54,6 +62,9 @@ func TestNativeExecutionExactArgv(t *testing.T) {
 }
 
 func TestNativeExecutionInputAndSignal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping cat test on windows")
+	}
 	mgr := NewNativeExecutionManager()
 	defer mgr.Shutdown()
 

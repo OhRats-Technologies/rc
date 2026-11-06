@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.27.1"
+  GO_VERSION: "1.27.3"
   # Product-level Windows checks need the full Node transport and browser
   # session implementation. Enable with the repository variable once available.
   RC_WINDOWS_RUNTIME_ENABLED: ${{ vars.RC_WINDOWS_RUNTIME_ENABLED || 'false' }}
@@ -132,6 +132,10 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
+      - name: Install componentize-go
+        run: |
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: go build ./...
       - run: go test -race ./...
       - name: Build without cgo
