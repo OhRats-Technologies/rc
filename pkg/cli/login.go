@@ -9,7 +9,6 @@ import (
 
 	"github.com/OhRats-Technologies/rc/pkg/apiclient"
 	"github.com/OhRats-Technologies/rc/pkg/node"
-	"github.com/OhRats-Technologies/rc/pkg/platform"
 )
 
 func runLogin(args []string) error {
@@ -71,7 +70,7 @@ func runLogout(args []string) error {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	if err := platform.ValidatePrivatePath(dir, true); err != nil && !os.IsNotExist(err) {
+	if err := validateStateDirectory(dir); err != nil {
 		return err
 	}
 	fmt.Println("RC CLI account authorization removed")
