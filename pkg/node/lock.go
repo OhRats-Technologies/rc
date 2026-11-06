@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
-	"github.com/OhRats-Technologies/rc/pkg/platform"
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
 )
 
