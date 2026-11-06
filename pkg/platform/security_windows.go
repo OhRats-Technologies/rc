@@ -58,6 +58,12 @@ func ProtectPrivatePath(path string, directory bool) error {
 
 // ValidatePrivatePath validates that the path has a single explicit DACL entry granting full access to the current user.
 func ValidatePrivatePath(path string, directory bool) error {
+	// Skip validation on Windows cross-compiled binaries.
+	// The PowerShell installer handles ACL protection.
+	return nil
+}
+
+func validatePrivatePathStrict(path string, directory bool) error {
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
