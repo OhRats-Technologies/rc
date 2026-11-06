@@ -143,7 +143,18 @@ jobs:
       - name: Create backwards-compatible kernel assets for 0.20.2 upgrades
         run: |
           for name in rc-darwin-arm64 rc-darwin-amd64 rc-linux-arm64 rc-linux-amd64 rc-windows-amd64; do
-            cp "dist/$name.tar.gz" "dist/rc-kernel-${name#rc-}.tar.gz"
+            platform=${name#rc-}
+            binary=rc-kernel
+            source=rc
+            if [ "$platform" = windows-amd64 ]; then
+              binary=rc-kernel.exe
+              source=rc.exe
+            fi
+            work=$(mktemp -d)
+            tar -xzf "dist/$name.tar.gz" -C "$work" "$source"
+            mv "$work/$source" "$work/$binary"
+            tar -C "$work" -czf "dist/rc-kernel-$platform.tar.gz" "$binary"
+            rm -rf "$work"
           done
       - name: Validate release assets
         run: |
@@ -164,6 +175,10 @@ jobs:
             test "$(tar -tzf "dist/$name.tar.gz")" = "rc"
           done
           test "$(tar -tzf dist/rc-windows-amd64.tar.gz)" = "rc.exe"
+          for name in rc-kernel-darwin-arm64 rc-kernel-darwin-amd64 rc-kernel-linux-arm64 rc-kernel-linux-amd64; do
+            test "$(tar -tzf "dist/$name.tar.gz")" = "rc-kernel"
+          done
+          test "$(tar -tzf dist/rc-kernel-windows-amd64.tar.gz)" = "rc-kernel.exe"
           test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '\.wasm$')" -eq 10
           test "$(tar -tzf dist/rc-core-components.tar.gz | grep -c '^profile.lock$')" -eq 0
           expected=$(python3 scripts/profile-components.py core | wc -l)
