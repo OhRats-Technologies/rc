@@ -24,7 +24,7 @@ and Windows-specific redirect flags, but is not a stable-Rust drop-in:
 - the executor under `src/runtime/shell` depends on Bun runtime/JSC state,
   event-loop dispatch, and Bun subprocess machinery.
 
-RC therefore ports the parser/AST behavior to stable Rust and executes it
+RC therefore ports the parser/AST behavior to Go and executes it
 against explicit RC process, filesystem, and environment capabilities. It does
 not import JSC, Bun's event loop, or Bun's native subprocess implementation.
 RC integration remains under `components/shell`; this directory contains only

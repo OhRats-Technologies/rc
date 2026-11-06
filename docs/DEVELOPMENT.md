@@ -2,66 +2,69 @@
 
 ## Toolchain
 
-- Rust 1.98
-- Bun 1.4
+- Go 1.26.5 or newer for the native binaries (`cmd/rc`, `cmd/rc-server`)
+- Go 1.27.1 when building components: every `components/*/go.mod` declares it
+- `componentize-go` v0.5.3 for WebAssembly components
+- Bun 1.4.4 for the typed browser client
 - Docker for runtime-image validation
+- A C toolchain: `pkg/kernel` links wasmtime-go through cgo
 - macOS, Linux, or Windows for native Node/service integration
 
 Install dependencies without changing lockfiles:
 
 ```sh
 bun install --frozen-lockfile
-cargo fetch --locked
+go mod download
+go install github.com/bytecodealliance/componentize-go@v0.5.3
 ```
+
+`componentize-go` is installed into `$(go env GOPATH)/bin`; keep that directory on
+`PATH`. Go 1.21+ downloads the component toolchain declared by each module's
+`go` directive automatically unless `GOTOOLCHAIN=local`.
 
 ### Windows
 
-Install Git, Rust 1.98 (MSVC), Bun 1.4, Python 3, Strawberry Perl, and Visual Studio 2022
-Build Tools with the **Desktop development with C++** workload and Windows SDK.
-Rust uses the native MSVC linker; installing VS Code alone is insufficient.
-Strawberry Perl must be on PATH to build the server's bundled OpenSSL.
-The repository's `rust-toolchain.toml` selects Rust, rustfmt, and clippy.
-Open a new PowerShell after installing tools so it inherits their updated PATH.
+Install Go 1.27.1, Bun 1.4.4, Python 3, and MinGW-w64 (`gcc` on `PATH`).
+`pkg/kernel` uses cgo to link the prebuilt wasmtime archive, so the MSVC
+toolchain alone is insufficient. Docker Desktop is only needed for container
+validation.
 
 ```powershell
 bun install --frozen-lockfile
-cargo fetch --locked
+go mod download
+go install github.com/bytecodealliance/componentize-go@v0.5.3
 bun run build:client
-cargo build --locked -p rc-cli -p rc-server
-cargo run --locked -p rc-server
+go build -o dist/rc.exe ./cmd/rc
+go build -o dist/rc-server.exe ./cmd/rc-server
 ```
 
-Run the release installer separately to install the normal background Node:
-
-```powershell
-& ./public/install.ps1
-rc status
-```
-
-This preserves an existing enrollment and adds `rc` to PATH. See
-[installation](INSTALL.md) for enrolling a new machine and repairing legacy
-Task Scheduler permissions. Development server state is separate from the
-installed Node's state. Docker Desktop is only needed for container validation.
+The release installers target the single Go `rc` archive and core profile; see
+[installation](INSTALL.md). Development server state is separate from the
+installed Node's state.
 
 ## Current local server
 
-The component migration is not yet the production server path. Run the current
-native server with:
+`cmd/rc-server` serves `/healthz`, immutable assets, and the product routes that
+the Go runtime implements. Signed Node authentication, passkey sessions, and
+SSE are still pending, so `/api/v1/node/enroll`, `/api/v1/devices*`,
+`/api/v1/events`, and `/mcp` fail closed with HTTP 503 unless the development
+registry is explicitly enabled:
 
 ```sh
-cp .env.example .env
 bun run build:client
-cargo run -p rc-server
+RC_DEV_INSECURE=1 RC_DEV_ENROLL_TOKEN="$(openssl rand -hex 16)" go run ./cmd/rc-server
 ```
 
-If `RC_SETUP_TOKEN` is unset, the development server logs a temporary setup
-URL. Set an explicit token for shared environments.
+The token is one-time and only exists in the in-memory development registry.
+Never enable `RC_DEV_INSECURE` in a deployment.
 
 ## Validation
 
 Static checks:
 
 ```sh
+gofmt -l cmd pkg tests
+go vet ./...
 sh scripts/check-version.sh
 sh scripts/check-source-size.sh
 python3 scripts/check-component-boundaries.py
@@ -73,21 +76,18 @@ python3 scripts/check-doc-links.py
 git diff --check
 ```
 
-Native Rust:
+Native Go:
 
 ```sh
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace --all-targets --locked
+go build ./...
+go test ./...
+CGO_ENABLED=0 go build ./...   # portable kernel-free build
+go test ./tests/integration/ -count=1 -v
 ```
 
-Kernel:
-
-```sh
-cargo fmt --manifest-path kernel/Cargo.toml --all -- --check
-cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
-cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
-```
+The integration harness starts `cmd/rc-server` on a kernel-assigned port and
+drives `cmd/rc` and `dist/components/*.wasm` against it. It skips component
+tests when `componentize-go` is not installed.
 
 Browser:
 
@@ -102,19 +102,25 @@ Components:
 ```sh
 scripts/check-component.sh COMPONENT
 scripts/check-components.sh
+scripts/build-component.sh components/COMPONENT
 ```
 
-Runtime smokes are under `scripts/smoke-*.sh`. CI selects affected component,
-runtime, profile, browser, and image jobs through `scripts/affected-units.py`.
+Each component owns its `go.mod` and generated WIT bindings. `componentize-go`
+writes `dist/components/<artifact>.wasm`; the kernel never imports a component
+module.
 
-Native compilation starts alongside portable component builds; native jobs wait
-for artifacts from the same workflow run only when they reach conformance.
-Browser fixture changes select browser/service coverage without rebuilding
-unrelated workspace tests. Rust source changes retain the native test gates.
+CI selects affected component, runtime, profile, browser, and image jobs through
+`scripts/affected-units.py`. Linux component builds share the Go module cache;
+keep the kernel build cache separate so one job's module downloads do not evict
+the Windows/macOS caches.
 
-Linux smoke jobs share the `rc-kernel` dependency cache. Keep their component
-caches separate: storing a kernel dependency tree inside every smoke-job cache
-exhausts the repository cache quota and evicts the expensive Windows/macOS caches.
+## Runtime status
+
+All first-party component bodies and native CLI commands are implemented. The
+kernel still links unknown component imports as traps and does not invoke
+exports, so component behavior is not executed end to end; the hosted passkey
+session and WebRTC control plane are also pending. `docs/GO-MIGRATION-STATUS.md`
+tracks the remaining work and which checks are gated on it.
 
 ## Change rules
 

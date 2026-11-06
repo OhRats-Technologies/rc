@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/mesh-policy@0.1.0"
 wit = ["mesh", "plugin"]
 
 [build]
-kind = "rust"
-package = "rc-mesh-policy"
+kind = "go"
+package = "components/mesh-policy"
 artifact = "mesh-policy"

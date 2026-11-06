@@ -19,22 +19,20 @@ cat > "$fixture/rc" <<'EOF'
 #!/bin/sh
 case "${1:-}" in
   version) echo 'RC 1.0.0' ;;
+  policy-check)
+    if [ "${RC_INSTALL_FAIL_VALIDATION:-0}" = 1 ]; then
+      echo 'fixture validation failure' >&2
+      exit 1
+    fi
+    exit 0
+    ;;
   enroll) printf 'enroll-called\n' > "$RC_INSTALL_FIXTURE/enroll-called" ;;
   service) printf 'service-called\n' > "$RC_INSTALL_FIXTURE/service-called" ;;
   *) exit 0 ;;
 esac
 EOF
-cat > "$fixture/rc-kernel" <<'EOF'
-#!/bin/sh
-case "${1:-}" in
-  --version) echo 'RC kernel 1.0.0' ;;
-  --component-dir) exit 0 ;;
-  *) exit 0 ;;
-esac
-EOF
-chmod 0755 "$fixture/rc" "$fixture/rc-kernel"
+chmod 0755 "$fixture/rc"
 tar -C "$fixture" -czf "$fixture/rc-linux-amd64.tar.gz" rc
-tar -C "$fixture" -czf "$fixture/rc-kernel-linux-amd64.tar.gz" rc-kernel
 
 for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store execution-runtime github-source \
   http-source local-source oci-source package-manager process-policy scheduler shell transport-webrtc updater; do
@@ -50,7 +48,6 @@ cat > "$fixture/release.json" <<EOF
   "tag_name": "v1.0.0",
   "assets": [
     {"name": "rc-linux-amd64.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-linux-amd64.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-linux-amd64.tar.gz")"},
-    {"name": "rc-kernel-linux-amd64.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-kernel-linux-amd64.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-kernel-linux-amd64.tar.gz")"},
     {"name": "rc-core-components.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-core-components.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-core-components.tar.gz")"},
     {"name": "rc-core-profile.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-core-profile.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-core-profile.tar.gz")"}
   ]
@@ -61,7 +58,6 @@ cat > "$fixture/release-legacy.json" <<EOF
   "tag_name": "v1.0.0",
   "assets": [
     {"name": "rc-linux-amd64.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-linux-amd64.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-linux-amd64.tar.gz")"},
-    {"name": "rc-kernel-linux-amd64.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-kernel-linux-amd64.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-kernel-linux-amd64.tar.gz")"},
     {"name": "rc-core-components.tar.gz", "browser_download_url": "https://github.com/OhRats-Technologies/rc/releases/download/v1.0.0/rc-core-components.tar.gz", "digest": "sha256:$(hash_file "$fixture/rc-core-components.tar.gz")"}
   ]
 }
@@ -91,7 +87,6 @@ done
 case "$url" in
   https://api.github.com/*) source="$RC_INSTALL_FIXTURE/${RC_INSTALL_RELEASE_JSON:-release.json}" ;;
   *rc-linux-amd64.tar.gz) source="$RC_INSTALL_FIXTURE/rc-linux-amd64.tar.gz" ;;
-  *rc-kernel-linux-amd64.tar.gz) source="$RC_INSTALL_FIXTURE/rc-kernel-linux-amd64.tar.gz" ;;
   *rc-core-profile.tar.gz) source="$RC_INSTALL_FIXTURE/rc-core-profile.tar.gz" ;;
   *rc-core-components.tar.gz) source="$RC_INSTALL_FIXTURE/rc-core-components.tar.gz" ;;
   *) echo "unexpected fixture URL: $url" >&2; exit 1 ;;
@@ -106,13 +101,15 @@ cat > "$old_rc" <<'EOF'
 echo 'RC 0.9.0'
 EOF
 chmod 0755 "$old_rc"
-cp "$fixture/rc-kernel" "$fixture/home/.local/bin/rc-kernel"
 for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store execution-runtime github-source \
   http-source local-source oci-source package-manager process-policy scheduler shell transport-webrtc updater; do
   printf 'old:%s\n' "$name" > "$fixture/home/.local/share/rc/components/$name.wasm"
   printf 'sha256:%s\n' "$(hash_file "$fixture/home/.local/share/rc/components/$name.wasm")" \
     > "$fixture/home/.local/share/rc/components/$name.core"
 done
+# A component without a .core marker is a local override and must be preserved.
+printf 'local override\n' > "$fixture/home/.local/share/rc/components/updater.wasm"
+rm -f "$fixture/home/.local/share/rc/components/updater.core"
 mkdir -p "$fixture/custom-state"
 printf 'enrolled\n' > "$fixture/custom-state/device.json"
 
@@ -121,10 +118,10 @@ PATH="$fixture/bin:$PATH" HOME="$fixture/home" RC_INSTALL_FIXTURE="$fixture" \
   RC_STATE_DIR="$fixture/custom-state" \
   RC_INSTALL_BIN_DIR="$fixture/home/.local/bin" \
   RC_DATA_DIR="$fixture/home/.local/share/rc" sh "$root/public/install.sh" enroll_existing https://rc.example \
-  > "$fixture/reinstall-output"
+  > "$fixture/reinstall-output" 2>&1
 
 test "$(HOME="$fixture/home" "$fixture/home/.local/bin/rc" version)" = 'RC 1.0.0'
-test -x "$fixture/home/.local/bin/rc-kernel"
+test ! -e "$fixture/home/.local/bin/rc-kernel"
 test -f "$fixture/home/.local/share/rc/rollback/previous/rc"
 test "$(HOME="$fixture/home" "$fixture/home/.local/share/rc/rollback/previous/rc" version)" = 'RC 0.9.0'
 grep -F 'old:package-manager' \
@@ -138,9 +135,34 @@ grep -F "token:      not consumed; use the separate 'rc enroll' command on an un
 test -f "$fixture/home/.local/share/rc/components/package-manager.core"
 test ! -e "$fixture/home/.local/share/rc/components/package-manager.managed"
 test -f "$fixture/home/.local/share/rc/components/artifact-cache-local.wasm"
-test -f "$fixture/home/.local/share/rc/components/updater.wasm"
-test -f "$fixture/home/.local/share/rc/components/scheduler.wasm"
-test -f "$fixture/home/.local/share/rc/components/shell.wasm"
+test -f "$fixture/home/.local/share/rc/components/profile.lock"
+grep -F 'local override' "$fixture/home/.local/share/rc/components/updater.wasm" >/dev/null
+test ! -e "$fixture/home/.local/share/rc/components/updater.core"
+grep -F 'component override preserved: updater' "$fixture/reinstall-output" >/dev/null
+
+# A failed candidate validation leaves the installed runtime untouched.
+PATH="$fixture/bin:$PATH" HOME="$fixture/home" RC_INSTALL_FIXTURE="$fixture" \
+  RC_INSTALL_FAIL_VALIDATION=1 \
+  RC_RELEASE_API=https://api.github.com/repos/OhRats-Technologies/rc/releases/latest \
+  RC_STATE_DIR="$fixture/custom-state" \
+  RC_INSTALL_BIN_DIR="$fixture/home/.local/bin" \
+  RC_DATA_DIR="$fixture/home/.local/share/rc" sh "$root/public/install.sh" \
+  > "$fixture/failure-output" 2>&1 && { echo 'installer unexpectedly accepted an invalid profile' >&2; exit 1; }
+test "$(HOME="$fixture/home" "$fixture/home/.local/bin/rc" version)" = 'RC 1.0.0'
+test ! -e "$fixture/home/.local/bin/rc-kernel"
+
+# A failure after activation starts restores the previous controller.
+mkdir -p "$fixture/rollback-home/.local/bin" "$fixture/rollback-data/components"
+printf '#!/bin/sh\necho "RC 0.9.0"\n' > "$fixture/rollback-home/.local/bin/rc"
+chmod 0755 "$fixture/rollback-home/.local/bin/rc"
+chmod 0500 "$fixture/rollback-data/components"
+PATH="$fixture/bin:$PATH" HOME="$fixture/rollback-home" RC_INSTALL_FIXTURE="$fixture" \
+  RC_RELEASE_API=https://api.github.com/repos/OhRats-Technologies/rc/releases/latest \
+  RC_INSTALL_BIN_DIR="$fixture/rollback-home/.local/bin" \
+  RC_DATA_DIR="$fixture/rollback-data" sh "$root/public/install.sh" \
+  > "$fixture/rollback-output" 2>&1 && { echo 'installer unexpectedly succeeded with an unwritable component directory' >&2; exit 1; }
+chmod 0700 "$fixture/rollback-data/components"
+test "$("$fixture/rollback-home/.local/bin/rc" version)" = 'RC 0.9.0'
 
 mkdir -p "$fixture/legacy-home/.local/bin" "$fixture/legacy-data/components"
 PATH="$fixture/bin:$PATH" HOME="$fixture/legacy-home" RC_INSTALL_FIXTURE="$fixture" \

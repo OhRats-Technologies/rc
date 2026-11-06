@@ -1,9 +1,0 @@
-schema = 1
-
-[profile]
-id = "ohrats:authority-smoke"
-components = [
-  "authority-fixture",
-  "authority-store",
-  "crypto-ed25519",
-]

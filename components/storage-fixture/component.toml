@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/storage-fixture@0.1.0"
 wit = ["plugin", "storage"]
 
 [build]
-kind = "rust"
-package = "rc-storage-fixture"
+kind = "go"
+package = "components/storage-fixture"
 artifact = "storage-fixture"

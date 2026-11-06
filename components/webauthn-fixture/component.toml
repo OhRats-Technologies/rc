@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/webauthn-fixture@0.1.0"
 wit = ["plugin", "webauthn"]
 
 [build]
-kind = "rust"
-package = "rc-webauthn-fixture"
+kind = "go"
+package = "components/webauthn-fixture"
 artifact = "webauthn-fixture"

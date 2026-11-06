@@ -7,36 +7,36 @@ if [ "$#" -ne 1 ]; then
 fi
 
 component=${1%/}
-manifest="$component/Cargo.toml"
 component_manifest="$component/component.toml"
-test -f "$manifest" || {
-  echo "missing component manifest: $manifest" >&2
-  exit 1
-}
 test -f "$component_manifest" || {
   echo "missing component manifest: $component_manifest" >&2
   exit 1
 }
 
-rustup target add wasm32-wasip2 >/dev/null
 values=$(python3 - "$component_manifest" <<'PY'
 import sys, tomllib
 with open(sys.argv[1], "rb") as handle:
-    value = tomllib.load(handle)["build"]
-print(value["package"], value["artifact"])
+    data = tomllib.load(handle)
+build = data["build"]
+if build["kind"] != "go":
+    raise SystemExit(f"unsupported component build kind: {build['kind']}")
+print(build["artifact"], data["component"]["world"])
 PY
 )
-package=${values% *}
-artifact=${values#* }
+artifact=$(printf '%s' "$values" | cut -d' ' -f1)
+world=$(printf '%s' "$values" | cut -d' ' -f2)
 
-cargo build --manifest-path "$manifest" --locked --release --target wasm32-wasip2
-mkdir -p dist/components
-target_root=${CARGO_TARGET_DIR:-"$component/target"}
-source="$target_root/wasm32-wasip2/release/$(printf '%s' "$package" | tr - _).wasm"
-test -f "$source" || {
-  echo "component output not found: $source" >&2
+command -v componentize-go >/dev/null 2>&1 || {
+  echo "componentize-go is required to build Go components" >&2
+  echo "install it with: go install github.com/bytecodealliance/componentize-go@v0.5.3" >&2
   exit 1
 }
+
+mkdir -p dist/components
 destination="dist/components/$artifact.wasm"
-cp "$source" "$destination"
+
+(
+  cd "$component"
+  componentize-go -d ../../wit -w "$world" build -o "../../$destination"
+)
 printf '%s\n' "$destination"

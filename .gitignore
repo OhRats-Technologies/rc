@@ -10,7 +10,3 @@ node_modules/
 *.db
 *.db-shm
 *.db-wal
-
-/target/
-/kernel/target/
-/components/*/target/

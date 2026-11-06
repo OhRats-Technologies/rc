@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/plugin@0.1.0"
 wit = ["plugin"]
 
 [build]
-kind = "rust"
-package = "rc-fixture-limit"
+kind = "go"
+package = "components/fixture-limit"
 artifact = "fixture-limit"

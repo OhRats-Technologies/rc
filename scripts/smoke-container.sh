@@ -4,7 +4,7 @@ set -eu
 IMAGE="${1:-rc-ci}"
 NAME="rc-container-smoke-$$"
 VOLUME="rc-container-smoke-data-$$"
-TOKEN="container-smoke-setup-token-0123456789abcdef"
+SETUP_TOKEN="container-smoke-setup-token"
 
 cleanup() {
   docker rm -f "$NAME" >/dev/null 2>&1 || true
@@ -17,7 +17,7 @@ docker run -d --name "$NAME" \
   -p 127.0.0.1::3000 \
   -v "$VOLUME:/data" \
   -e PUBLIC_URL=http://localhost:3000 \
-  -e RC_SETUP_TOKEN="$TOKEN" \
+  -e RC_SETUP_TOKEN="$SETUP_TOKEN" \
   "$IMAGE" >/dev/null
 
 refresh_base() {
@@ -47,34 +47,38 @@ wait_for_health() {
 wait_for_health
 test "$(curl -fsS "$BASE/healthz")" = "ok"
 curl -fsS "$BASE/api/v1/health" | grep -q '"ok":true'
-curl -fsS "$BASE/api/v1/status" | grep -q '"setupRequired":true'
-curl -fsS "$BASE/docs" | grep -q '<main'
-curl -fsS "$BASE/install.sh" | grep -q 'RC_ENROLL_TOKEN'
+curl -fsS "$BASE/" | grep -q 'RC / REMOTE CONTROL'
+curl -fsS "$BASE/docs" | grep -q '<title>'
+curl -fsS "$BASE/assets/$(docker exec "$NAME" sh -c 'ls /app/assets | head -1')" >/dev/null
 
-setup_headers="$(curl -sS -D - -o /dev/null "$BASE/setup/$TOKEN")"
-printf '%s' "$setup_headers" | grep -Eq '^HTTP/[^ ]+ 30[2378]'
-printf '%s' "$setup_headers" | tr -d '\r' | grep -qi '^location: /$'
-printf '%s' "$setup_headers" | grep -qi '^set-cookie: '
+# First-instance setup is token-gated end to end.
+test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/setup/wrong-token")" = "404"
+test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/setup/$SETUP_TOKEN")" = "303"
+test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"Alice"}' "$BASE/api/v1/auth/setup/options")" = "403"
+test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+  -H "X-RC-Setup-Token: $SETUP_TOKEN" -d '{"name":"Alice"}' \
+  "$BASE/api/v1/auth/setup/options")" = "200"
+
+# Product routes must fail closed until the signed control plane exists.
+test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/api/v1/devices")" = "401"
+test "$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$BASE/mcp")" = "401"
 
 test "$(docker exec "$NAME" id -u rc)" = "10001"
 test "$(docker exec "$NAME" id -g rc)" = "10001"
 docker exec "$NAME" sh -c 'test "$(stat -c %a /data)" = 700'
-docker exec "$NAME" sh -c '
-  for file in /data/rc-v2.sqlite3*; do
-    test "$(stat -c %a "$file")" = 600
-    test "$(stat -c %U:%G "$file")" = rc:rc
-  done
-'
-docker exec "$NAME" sh -c 'test "$(stat -c %a /data/ssh_host_ed25519_key)" = 600'
+docker exec "$NAME" /usr/local/bin/rc --version | grep -q '^RC '
+docker exec "$NAME" /usr/local/bin/rc-server --version | grep -q '^RC server '
 docker exec "$NAME" sh -c 'ps -eo user=,args= | grep -Eq "^rc[[:space:]]+.*/rc-server$"'
-docker exec "$NAME" sh -c 'ssh-keyscan -T 2 -p 2222 127.0.0.1 >/dev/null 2>&1'
+docker exec "$NAME" /usr/local/bin/rc-server --healthcheck
 
-HOST_KEY="$(docker exec "$NAME" sha256sum /data/ssh_host_ed25519_key | awk '{print $1}')"
+# State survives a restart with the same private-directory permissions.
+docker exec "$NAME" sh -c 'printf marker > /data/container-smoke-marker'
 docker restart "$NAME" >/dev/null
 refresh_base
 wait_for_health
-test "$HOST_KEY" = "$(docker exec "$NAME" sha256sum /data/ssh_host_ed25519_key | awk '{print $1}')"
-docker exec "$NAME" /usr/local/bin/rc-server --healthcheck
+test "$(docker exec "$NAME" cat /data/container-smoke-marker)" = "marker"
+test "$(docker exec "$NAME" stat -c %a /data)" = "700"
 
 STATUS="$(docker inspect "$NAME" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}')"
 test "$STATUS" = "healthy" || test "$STATUS" = "starting"

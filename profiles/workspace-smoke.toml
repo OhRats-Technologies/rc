@@ -1,4 +1,0 @@
-schema = 1
-[profile]
-id = "ohrats:workspace-smoke"
-components = ["workspace-fixture", "workspace-store"]

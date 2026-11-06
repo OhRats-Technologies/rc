@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/http-source@0.1.0"
 wit = ["plugin"]
 
 [build]
-kind = "rust"
-package = "rc-http-source"
+kind = "go"
+package = "components/http-source"
 artifact = "http-source"

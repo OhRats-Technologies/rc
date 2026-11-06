@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/execution-runtime@0.1.0"
 wit = ["diagnostics", "node-worlds", "plugin", "process", "shell", "storage"]
 
 [build]
-kind = "rust"
-package = "rc-execution-runtime"
+kind = "go"
+package = "components/execution-runtime"
 artifact = "execution-runtime"

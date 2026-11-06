@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/identity-fixture@0.1.0"
 wit = ["identity", "plugin", "session", "webauthn"]
 
 [build]
-kind = "rust"
-package = "rc-identity-fixture"
+kind = "go"
+package = "components/identity-fixture"
 artifact = "identity-fixture"

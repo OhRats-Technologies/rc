@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/process-policy@0.1.0"
 wit = ["node-worlds", "plugin", "process"]
 
 [build]
-kind = "rust"
-package = "rc-process-policy"
+kind = "go"
+package = "components/process-policy"
 artifact = "process-policy"

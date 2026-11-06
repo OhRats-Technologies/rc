@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/diagnostics-ui@0.1.0"
 wit = ["diagnostics", "plugin", "webui"]
 
 [build]
-kind = "rust"
-package = "rc-diagnostics-ui"
+kind = "go"
+package = "components/diagnostics-ui"
 artifact = "diagnostics-ui"

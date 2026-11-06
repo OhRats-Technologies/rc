@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/scheduler@0.1.0"
 wit = ["diagnostics", "node-worlds", "plugin", "process", "scheduler", "storage"]
 
 [build]
-kind = "rust"
-package = "rc-scheduler"
+kind = "go"
+package = "components/scheduler"
 artifact = "scheduler"

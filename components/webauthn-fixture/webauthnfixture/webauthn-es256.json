@@ -1,0 +1,20 @@
+{
+  "algorithm": "es256",
+  "authentication": {
+    "authenticatorData": "B9uppMKQ4T8XU3xg8jYjEufq2tyUbIdJgRrZz4swHTsFAAAAAQ",
+    "challenge": "CQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQk",
+    "clientDataJSON": "eyJjaGFsbGVuZ2UiOiJDUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRa0pDUWtKQ1FrSkNRa0pDUWtKQ1FrIiwiY3Jvc3NPcmlnaW4iOmZhbHNlLCJvcmlnaW4iOiJodHRwczovL3JjLmV4YW1wbGUudGVzdCIsInR5cGUiOiJ3ZWJhdXRobi5nZXQifQ",
+    "credentialId": "cmMtZXMyNTYtZml4dHVyZS1jcmVkZW50aWFs",
+    "signature": "MEUCIHXrW0lfIblBFQx_biiuNDpkeFpisWdekpXbDojZdlIuAiEA9dSbCS07sc933_OYWkoBcERi9Sw1aaxp59Cj0bOc4VY",
+    "userHandle": "cmMtZml4dHVyZS11c2Vy"
+  },
+  "expectedUserHandle": "cmMtZml4dHVyZS11c2Vy",
+  "origin": "https://rc.example.test",
+  "registration": {
+    "attestationObject": "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVifB9uppMKQ4T8XU3xg8jYjEufq2tyUbIdJgRrZz4swHTtFAAAAAAEBAQEBAQEBAQEBAQEBAQEAG3JjLWVzMjU2LWZpeHR1cmUtY3JlZGVudGlhbKUBAgMmIAEhWCBZGrdx67z9bZy5CU0QZSit0aadRMLB9ifwiexYucYa3yJYIJ9Oar8NBFwMaTo8aK18l8pyvmTe9KJv7NJj3ZipJ4Dw",
+    "challenge": "CAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg",
+    "clientDataJSON": "eyJjaGFsbGVuZ2UiOiJDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnIiwiY3Jvc3NPcmlnaW4iOmZhbHNlLCJvcmlnaW4iOiJodHRwczovL3JjLmV4YW1wbGUudGVzdCIsInR5cGUiOiJ3ZWJhdXRobi5jcmVhdGUifQ",
+    "credentialId": "cmMtZXMyNTYtZml4dHVyZS1jcmVkZW50aWFs"
+  },
+  "rpId": "rc.example.test"
+}

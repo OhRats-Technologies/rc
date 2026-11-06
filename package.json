@@ -1,23 +1,25 @@
 {
   "name": "rc",
   "private": true,
-  "version": "0.20.2",
+  "version": "0.20.3",
   "scarfSettings": {
     "enabled": false
   },
   "type": "module",
   "scripts": {
-    "audit": "cargo audit && bun audit",
+    "audit": "bun audit",
     "check:docs": "python3 scripts/check-doc-links.py",
     "check:source-size": "sh scripts/check-source-size.sh",
     "check:version": "sh scripts/check-version.sh",
-    "dev": "bun run build:client && cargo run -p rc-server",
-    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name].[ext]' ./web/client/pages.ts ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/sidebar.ts ./web/client/public.ts ./web/styles.css ./web/public.css ./web/social-card.png",
-    "build": "rm -rf dist && bun run build:client",
-    "start": "cargo run --release -p rc-server",
+    "dev": "bun run build:client && go run ./cmd/rc-server",
+    "build:client": "rm -rf dist/assets && bun build --target=browser --production --splitting --public-path=/assets/ --outdir=dist/assets --entry-naming='[name].[ext]' --chunk-naming='chunk-[hash].[ext]' --asset-naming='[name].[ext]' ./web/client/pages.ts ./web/client/auth.ts ./web/client/account.ts ./web/client/api-page.ts ./web/client/authority.ts ./web/client/cli-authorize.ts ./web/client/mcp-authorize.ts ./web/client/mcp-page.ts ./web/client/live.ts ./web/client/device.ts ./web/client/process-terminal.ts ./web/client/sidebar.ts ./web/client/public.ts ./web/client/copy.ts ./web/styles.css ./web/public.css ./web/social-card.png",
+    "build:bin": "go build -o dist/rc ./cmd/rc && go build -o dist/rc-server ./cmd/rc-server",
+    "build:components": "for c in components/*/component.toml; do scripts/build-component.sh \"${c%/component.toml}\" >/dev/null; done",
+    "build": "rm -rf dist && bun run build:client && bun run build:bin && bun run build:components",
+    "start": "go run ./cmd/rc-server",
     "typecheck": "tsc --noEmit",
     "test:web": "bun test web/client/*.test.ts",
-    "test": "cargo test --workspace --all-targets",
+    "test": "go test ./...",
     "smoke:webview": "bun scripts/webview-smoke.ts",
     "smoke:browser-e2e": "bun scripts/browser-e2e.ts"
   },

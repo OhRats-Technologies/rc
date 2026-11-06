@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/greeter-consumer@0.1.0"
 wit = ["plugin"]
 
 [build]
-kind = "rust"
-package = "rc-call-context-consumer"
+kind = "go"
+package = "components/call-context-consumer"
 artifact = "call-context-consumer"

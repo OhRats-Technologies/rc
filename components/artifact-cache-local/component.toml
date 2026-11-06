@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/artifact-cache-local@0.1.0"
 wit = ["artifact-cache", "plugin"]
 
 [build]
-kind = "rust"
-package = "rc-artifact-cache-local"
+kind = "go"
+package = "components/artifact-cache-local"
 artifact = "artifact-cache-local"

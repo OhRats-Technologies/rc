@@ -10,14 +10,13 @@ execution.
 Browser / rc CLI
        │ HTTPS: pages, API, signaling, SSE
        ▼
-  rc-kernel + locked server component graph
+  rc-server + locked component graph
        │
        │ signed Node HTTP + signaling
        ▼
-  rc-kernel + locked Node component graph
+  rc + locked Node component graph
 
 Browser / rc CLI ══ encrypted WebRTC DataChannel ══ Node
-OpenSSH ── hosted SSH gateway ── Node process
 MCP ── OAuth + JSON-RPC/HTTP ── hosted execution adapter ── Node registry
 ```
 
@@ -33,12 +32,11 @@ path. [`ROADMAP.md`](../ROADMAP.md) is the authoritative checklist.
 | Browser/CLI signaling | HTTPS | Browser/CLI grant | Signaling only |
 | Browser/CLI process traffic | WebRTC DataChannel | Node-verified authority | End-to-end encrypted |
 | Node bootstrap/status | HTTPS | Ed25519 Node proof | Control metadata |
-| SSH | WebSocket + OpenSSH | Registered SSH key | Hosted byte relay |
 | MCP | OAuth + JSON-RPC/HTTP | Scoped grant | Hosted transit; Node-owned state/journal |
 
 The server is trusted for identity and authorization. It does not need normal
-browser/CLI terminal plaintext after WebRTC connects. SSH and MCP are explicit
-hosted-transit exceptions. MCP request correlation is bounded and ephemeral;
+browser/CLI terminal plaintext after WebRTC connects. MCP is an explicit
+hosted-transit adapter; MCP request correlation is bounded and ephemeral;
 the Node owns execution state and output journals.
 
 The Node owns its long-term identity, transport secret, process runtime, and RC
@@ -121,23 +119,24 @@ Node state defaults to `~/.config/rc` on Unix and
 ## Source ownership during migration
 
 ```text
-kernel/       native Wasmtime host and OS adapters
+cmd/          native Go binaries (`rc`, `rc-server`)
+pkg/          native Go runtime (platform, protocol, crypto, node, kernel, server)
 wit/          contracts
-components/   product components
+components/   product components (each with its own go.mod)
 profiles/     graph assemblies
-crates/rc-*   transitional native product code
-web/          transitional global browser source
+web/          global browser source
 ```
 
-The transitional native product crates and global browser tree are removed as
-their final semantics move behind tested component contracts.
+The Go runtime replaces the former Rust workspace. `pkg/kernel` owns the
+Wasmtime embedder and component reconciliation; product behavior stays in
+components.
 
 ## Build boundaries
 
-- Kernel implementation changes build native kernel targets only.
+- Kernel implementation changes build native Go targets only.
 - Component implementation changes build that component only.
 - WIT changes rebuild importing components.
 - Profile/lock changes assemble artifacts without compiling code.
-- Native Rust dynamic libraries are not a plugin boundary.
+- Native dynamic libraries are not a plugin boundary.
 
 Maintained source files stay below 300 lines.

@@ -15,7 +15,6 @@ docker run -d --name rc --restart unless-stopped \
   -v rc-data:/data \
   -e PUBLIC_URL=https://rc.example \
   -e RC_SETUP_TOKEN="$RC_SETUP_TOKEN" \
-  -e RC_TRUST_PROXY=1 \
   rc
 ```
 
@@ -30,17 +29,22 @@ Run one server writer against a SQLite volume.
 | Variable | Purpose |
 | --- | --- |
 | `PUBLIC_URL` | Exact public origin for WebAuthn, cookies, OAuth, and links |
-| `DATA_DIR` | Server data directory; container default `/data` |
+| `RC_DATA_DIR` | Server data directory; container default `/data` |
+| `RC_ASSETS_DIR` | Browser asset directory; container default `/app/assets` |
 | `RC_SETUP_TOKEN` | First-account setup secret |
-| `RC_TRUST_PROXY` | Trust sanitized forwarding headers when set to `1` |
+| `RC_TRUST_PROXY` | Trust sanitized `X-Forwarded-Proto`/`X-Forwarded-Host` headers when set to `1` |
 | `RC_PUBLIC_SIGNUP` | Enable managed public signup when set to `1` |
-| `RC_TURNSTILE_SITE_KEY` / `RC_TURNSTILE_SECRET_KEY` | Public-signup Turnstile keys |
-| `RC_CF_TURN_TOKEN_ID` / `RC_CF_TURN_API_TOKEN` | Backend-only Cloudflare TURN credentials |
-| `RC_EXECUTION_HISTORY` | `none` or `metadata` |
-| `RC_EXECUTION_HISTORY_TTL_HOURS` | Metadata retention window |
+| `RC_TURNSTILE_SITE_KEY` / `RC_TURNSTILE_SECRET_KEY` | Required for public signup; validated server-side against Cloudflare Siteverify |
+| `RC_CF_TURN_TOKEN_ID` / `RC_CF_TURN_API_TOKEN` | Optional Cloudflare TURN credentials; the server mints short-lived ICE credentials |
 
-Keep long-lived TURN credentials server-side. Browser and Node clients receive
-only short-lived ICE credentials.
+Keep public signup disabled until both Turnstile keys are configured. Keep
+long-lived TURN credentials server-side; browser and Node clients receive only
+short-lived ICE credentials.
+
+Remote control and terminals use direct end-to-end encrypted WebRTC DataChannels.
+Execution state is strictly ephemeral and never persisted after process completion.
+The legacy SSH gateway and execution-history retention have been deprecated and
+removed in favor of the unified zero-knowledge WebRTC control plane.
 
 ## Health
 
@@ -209,6 +213,12 @@ interface. No TUI dependency is required.
 
 Windows runtime conformance is temporarily skipped unless the repository Actions
 variable `RC_WINDOWS_RUNTIME_ENABLED` is `true`. Restore that variable after the
-native runtime conformance failure is fixed. Windows CLI/kernel artifact builds
-remain enabled: successful packaging does not imply passing runtime conformance.
-Linux and macOS checks and the release's successful-CI requirement remain active.
+runtime harness and browser control path can execute on Windows. The Windows
+release archive still builds in `release-prebuild.yml` with cgo and MinGW;
+successful packaging does not imply passing runtime conformance. Linux and
+macOS checks and the release's successful-CI requirement remain active.
+
+`RC_BROWSER_E2E_ENABLED` gates browser end-to-end coverage. Release
+installation smoke now runs for every published release. Leave the browser and
+Windows runtime variables unset unless the behavior they exercise exists; see
+`docs/GO-MIGRATION-STATUS.md`.

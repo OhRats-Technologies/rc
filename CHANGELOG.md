@@ -2,6 +2,17 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.3] - 2026-11-06
+
+- Complete architectural simplification to a unified native Go core with direct
+  WebRTC end-to-end encrypted DataChannels.
+- Implement native exact argv and login shell execution manager; delete the in-house
+  Wasm shell re-implementation and deprecated first-party Wasm crypto/store micro-components.
+- Remove container OpenSSH gateway and helper; remote terminals use E2EE WebRTC.
+- Standardize on strict Version-2 account-wide MCP grants and delete legacy v1 grant paths.
+- Streamline wire framing with binary frame envelopes and wire native execution to MCP.
+- Eliminate execution-history database retention in favor of strictly ephemeral in-memory state.
+
 ## [0.20.2] - 2026-10-23
 
 - Remove aggregate journal reservations and fixed execution-count quotas that

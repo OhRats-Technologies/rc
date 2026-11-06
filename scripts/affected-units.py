@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve build units affected by a Git diff."""
+"""Resolve Go runtime build units affected by a Git diff."""
 
 from __future__ import annotations
 
@@ -53,12 +53,11 @@ def resolve(paths: list[str]) -> dict:
     components: set[str] = set()
     affected_profiles: set[str] = set()
     flags = {
-        "kernel": False,
-        "legacy_rust": False,
+        "runtime": False,
         "web": False,
         "image": False,
         "docs": False,
-        "legacy_security": False,
+        "deps": False,
         "browser": False,
     }
     if "<all>" in paths:
@@ -78,32 +77,37 @@ def resolve(paths: list[str]) -> dict:
                 "scripts/windows-service-registration.ps1",
             }:
                 flags["browser"] = True
-            elif raw in {".github/workflows/ci.yml", ".github/workflows/native-components.yml",
-                         "scripts/wait-native-components.py"}:
-                flags["kernel"] = True
-            elif root == "kernel":
-                flags["kernel"] = True
+            elif raw.startswith("tests/integration/"):
+                flags["runtime"] = True
+                components.update(all_components)
+            elif raw in {
+                ".github/workflows/ci.yml",
+                ".github/workflows/full-build.yml",
+            }:
+                flags["runtime"] = True
+            elif root in {"pkg", "cmd", "tests"} or raw in RUNTIME_ROOTS:
+                flags["runtime"] = True
+                flags["image"] = True
+                if raw in {"go.mod", "go.sum"}:
+                    flags["deps"] = True
             elif root == "wit":
-                if len(parts) == 2:
-                    flags["kernel"] = True
-                    package = path.stem
-                elif len(parts) >= 4 and parts[1] == "deps":
+                if len(parts) >= 4 and parts[1] == "deps":
                     package = parts[2]
                     if package in KERNEL_WIT:
-                        flags["kernel"] = True
+                        flags["runtime"] = True
                 else:
                     package = path.stem
+                    flags["runtime"] = True
                 components.update(
                     name for name, dependencies in metadata.items() if package in dependencies
                 )
             elif root == "components" and len(parts) > 1:
                 if parts[1] in metadata:
                     components.add(parts[1])
+                    flags["runtime"] = True
             elif raw in COMPONENT_TOOLING:
                 components.update(all_components)
-            elif raw in RUNTIME_TOOLING:
-                flags["kernel"] = True
-                components.update(RUNTIME_TOOLING[raw])
+                flags["runtime"] = True
             elif root == "profiles":
                 if path.stem in profiles:
                     affected_profiles.add(path.stem)
@@ -111,23 +115,17 @@ def resolve(paths: list[str]) -> dict:
                     affected_profiles.update(profiles)
             elif raw in PROFILE_TOOLING:
                 affected_profiles.update(profiles)
-            elif root in {"crates", "fixtures"} or raw in RUST_ROOTS:
-                flags["legacy_rust"] = True
-                flags["image"] = True
-                if raw.endswith(("Cargo.lock", "Cargo.toml")):
-                    flags["legacy_security"] = True
             elif root == "web" or raw in WEB_ROOTS:
                 flags["web"] = True
                 flags["image"] = True
                 if raw in {"package.json", "bun.lock"}:
-                    flags["legacy_security"] = True
+                    flags["deps"] = True
             elif root in {"docker", "public"} or raw in IMAGE_ROOTS:
                 flags["image"] = True
             elif root == "docs" or raw in DOC_ROOTS:
                 flags["docs"] = True
-            elif root == "scripts" and raw not in STATIC_ONLY:
-                flags["legacy_rust"] = True
-                flags["web"] = True
+            elif root == "scripts":
+                flags["runtime"] = True
                 flags["image"] = True
 
     affected_profiles.update(
@@ -154,104 +152,15 @@ COMPONENT_TOOLING = {
     "scripts/check-components.sh",
     "scripts/validate-components.py",
 }
-RUNTIME_TOOLING = {
-    "scripts/smoke-updater.sh": {"updater"},
-    "scripts/smoke-artifact-cache.sh": {
-        "artifact-cache-fixture-consumer",
-        "artifact-cache-fixture-mesh-adapter",
-        "artifact-cache-fixture-provider-v2",
-        "artifact-cache-local",
-        "artifact-cache-mesh",
-    },
-    "scripts/smoke-authority.sh": {
-        "authority-fixture",
-        "authority-store",
-        "crypto-ed25519",
-    },
-    "scripts/smoke-keys.sh": {
-        "crypto-ed25519",
-        "key-custody-fixture",
-        "key-custody-local",
-    },
-    "scripts/smoke-control-crypto.sh": {"crypto-control"},
-    "scripts/smoke-api-credentials.sh": {
-        "api-credential-fixture",
-        "api-credential-store",
-        "identity-store",
-        "webauthn-es256",
-    },
-    "scripts/smoke-authenticated-webui.sh": {
-        "identity-fixture",
-        "identity-store",
-        "webauthn-es256",
-        "webui-app",
-        "webui-shell",
-    },
-    "scripts/smoke-diagnostics.sh": {
-        "diagnostics-cli",
-        "diagnostics-mesh",
-        "diagnostics-reporter",
-        "diagnostics-store",
-        "diagnostics-ui",
-        "webui-shell",
-    },
-    "scripts/smoke-kernel.sh": {
-        "call-context-consumer",
-        "fixture-broken",
-        "fixture-consumer",
-        "fixture-provider",
-        "fixture-provider-v2",
-    },
-    "scripts/smoke-mesh-policy.sh": {
-        "mesh-policy",
-        "mesh-policy-fixture",
-    },
-    "scripts/smoke-node-components.sh": {
-        "diagnostics-store",
-        "execution-runtime",
-        "process-policy",
-        "scheduler",
-        "shell",
-        "transport-test",
-        "transport-webrtc",
-    },
-    "scripts/smoke-identity.sh": {
-        "identity-fixture",
-        "identity-store",
-        "webauthn-es256",
-    },
-    "scripts/smoke-packages.sh": {
-        "artifact-cache-local",
-        "http-source",
-        "local-source",
-        "oci-source",
-        "package-manager",
-    },
-    "scripts/smoke-storage.sh": {"storage-fixture"},
-    "scripts/smoke-webauthn.sh": {"webauthn-es256", "webauthn-fixture"},
-    "scripts/smoke-web-runtime.sh": {
-        "diagnostics-store",
-        "diagnostics-ui",
-        "webui-shell",
-    },
-}
 PROFILE_TOOLING = {
     "schemas/profile.schema.json",
     "scripts/assemble-profile.py",
     "scripts/validate-profiles.py",
 }
-RUST_ROOTS = {"Cargo.toml", "Cargo.lock", "rust-toolchain.toml"}
+RUNTIME_ROOTS = {"go.mod", "go.sum"}
 WEB_ROOTS = {"package.json", "bun.lock", "tsconfig.json"}
 IMAGE_ROOTS = {"Dockerfile", ".dockerignore", "docker-entrypoint.sh"}
 DOC_ROOTS = {"README.md", "SECURITY.md", "ROADMAP.md", "CHECKLIST.md", "AGENTS.md"}
-STATIC_ONLY = {
-    "scripts/affected-units.py",
-    "scripts/check-component-boundaries.py",
-    "scripts/check-doc-links.py",
-    "scripts/check-source-size.sh",
-    "scripts/test-affected-units.py",
-    "scripts/validate-profiles.py",
-}
 
 
 def write_github(path: pathlib.Path, result: dict) -> None:

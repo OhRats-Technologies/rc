@@ -83,7 +83,7 @@ bounded capture; ordinary process streams and redirections remain binary-safe.
 The upstream baseline is oven-sh/bun commit
 ed950b88ab2ec6b58bccdfe7d310731b8ca13c4d from 2026-08-29. Its Rust
 src/shell_parser and tests are the extraction source; its Zig/JSC interpreter
-is not imported. A stable-Rust parser/AST port and RC-host executor MUST retain
+is not imported. The Go parser/AST port and RC-host executor MUST retain
 MIT provenance in third_party/bun-shell. RC adapters stay outside vendored
 files; source-size exceptions are limited to identified vendored files.
 

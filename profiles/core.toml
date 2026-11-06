@@ -15,7 +15,6 @@ components = [
   "package-manager",
   "process-policy",
   "scheduler",
-  "shell",
   "transport-webrtc",
   "updater",
 ]

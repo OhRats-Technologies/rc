@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/identity-store@0.1.0"
 wit = ["identity", "plugin", "session", "storage", "webauthn"]
 
 [build]
-kind = "rust"
-package = "rc-identity-store"
+kind = "go"
+package = "components/identity-store"
 artifact = "identity-store"

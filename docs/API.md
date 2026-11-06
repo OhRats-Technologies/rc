@@ -41,15 +41,18 @@ rc-api-v1
 
 There is no final newline after the body digest. For a request without a body, hash the empty byte string. JSON must be serialized once and the exact resulting bytes both signed and sent. The request URI includes the raw query string in transmitted order but excludes scheme, authority, and fragment.
 
-The canonical implementation is `rc_crypto::api_payload`; `rc_api_client::ApiClient` applies it automatically.
+The canonical implementation is `crypto.ApiPayload` in `pkg/crypto`; `apiclient.ApiClient` applies it automatically.
 
-```rust
-use rc_api_client::{ApiClient, Credential};
-
-let credential = Credential::parse(&std::env::var("RC_API_TOKEN")?)?;
-let client = ApiClient::new("https://rc.example", credential)?;
-let devices = client.devices().await?;
-# Ok::<(), Box<dyn std::error::Error>>(())
+```go
+credential, err := apiclient.ParseCredential(os.Getenv("RC_API_TOKEN"))
+if err != nil {
+	return err
+}
+client, err := apiclient.New("https://rc.example", credential)
+if err != nil {
+	return err
+}
+devices, err := client.Devices(context.Background())
 ```
 
 ## Scopes

@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/events-store@0.1.0"
 wit = ["events", "plugin", "storage"]
 
 [build]
-kind = "rust"
-package = "rc-events-store"
+kind = "go"
+package = "components/events-store"
 artifact = "events-store"

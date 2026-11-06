@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/diagnostics-mesh@0.1.0"
 wit = ["diagnostics", "mesh-diagnostics", "plugin"]
 
 [build]
-kind = "rust"
-package = "rc-diagnostics-mesh"
+kind = "go"
+package = "components/diagnostics-mesh"
 artifact = "diagnostics-mesh"

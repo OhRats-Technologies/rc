@@ -19,45 +19,32 @@ class AffectedUnitsTests(unittest.TestCase):
     def resolve(self, *paths: str) -> dict:
         return MODULE.resolve(list(paths))
 
-    def test_updater_smoke_change_selects_updater_and_kernel(self) -> None:
-        value = self.resolve("scripts/smoke-updater.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["updater"])
-        self.assertFalse(value["legacy_rust"])
+    def test_runtime_change_builds_no_components(self) -> None:
+        value = self.resolve("pkg/kernel/runtime.go")
+        self.assertTrue(value["runtime"])
+        self.assertEqual(value["components"], [])
+        self.assertFalse(value["deps"])
 
-    def test_kernel_change_is_native_only(self) -> None:
-        for path in ("kernel/src/runtime.rs", ".github/workflows/ci.yml", ".github/workflows/native-components.yml"):
-            value = self.resolve(path)
-            self.assertTrue(value["kernel"], path)
-            self.assertEqual(value["components"], [], path)
-            self.assertFalse(value["legacy_rust"], path)
-
-    def test_browser_fixture_does_not_rebuild_unrelated_rust_tests(self) -> None:
-        for path in ("scripts/browser-e2e-service.ts", "scripts/windows-browser-e2e.ps1",
-                     "scripts/windows-service-registration.ps1"):
-            value = self.resolve(path)
-            self.assertTrue(value["browser"], path)
-            self.assertFalse(value["legacy_rust"], path)
-            self.assertFalse(value["kernel"], path)
-            self.assertFalse(value["image"], path)
+    def test_command_change_rebuilds_image(self) -> None:
+        value = self.resolve("cmd/rc-server/main.go")
+        self.assertTrue(value["runtime"])
+        self.assertTrue(value["image"])
+        self.assertFalse(value["web"])
 
     def test_component_change_is_surgical(self) -> None:
-        value = self.resolve("components/fixture-provider/src/lib.rs")
-        self.assertFalse(value["kernel"])
+        value = self.resolve("components/fixture-provider/export_wit_world/stub.go")
+        self.assertTrue(value["runtime"])
         self.assertEqual(value["components"], ["fixture-provider"])
         self.assertEqual(value["profiles"], ["kernel-smoke"])
 
-    def test_wit_change_rebuilds_consumers_and_kernel(self) -> None:
+    def test_wit_change_rebuilds_consumers_and_runtime(self) -> None:
         value = self.resolve("wit/plugin.wit")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            sorted(MODULE.component_metadata()),
-        )
+        self.assertTrue(value["runtime"])
+        self.assertEqual(value["components"], sorted(MODULE.component_metadata()))
 
     def test_dependency_wit_change_rebuilds_only_consumers(self) -> None:
         value = self.resolve("wit/deps/diagnostics/diagnostics.wit")
-        self.assertFalse(value["kernel"])
+        self.assertFalse(value["runtime"])
         self.assertEqual(
             value["components"],
             [
@@ -71,243 +58,49 @@ class AffectedUnitsTests(unittest.TestCase):
             ],
         )
 
-    def test_http_wit_change_rebuilds_kernel_adapter_and_web_consumer(self) -> None:
+    def test_http_wit_change_rebuilds_runtime_and_web_consumer(self) -> None:
         value = self.resolve("wit/deps/http/http.wit")
-        self.assertTrue(value["kernel"])
+        self.assertTrue(value["runtime"])
         self.assertEqual(value["components"], ["identity-http", "webui-app", "webui-shell"])
 
-    def test_storage_wit_change_rebuilds_kernel_adapter_and_fixture(self) -> None:
-        value = self.resolve("wit/deps/storage/storage.wit")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "api-credential-store",
-                "authority-store",
-                "device-store",
-                "events-store",
-                "execution-runtime",
-                "identity-store",
-                "scheduler",
-                "ssh-policy-store",
-                "storage-fixture",
-                "workspace-store",
-            ],
-        )
-
-    def test_process_wit_change_rebuilds_kernel_and_policy(self) -> None:
-        value = self.resolve("wit/deps/process/process.wit")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"], ["execution-runtime", "process-policy", "scheduler"]
-        )
-
-    def test_mesh_wit_change_rebuilds_mesh_policy_units(self) -> None:
-        value = self.resolve("wit/deps/mesh/mesh.wit")
-        self.assertFalse(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["mesh-policy", "mesh-policy-fixture"],
-        )
-        self.assertEqual(value["profiles"], ["mesh-smoke"])
-
-    def test_crypto_wit_change_rebuilds_authority_crypto_units(self) -> None:
-        value = self.resolve("wit/deps/crypto/crypto.wit")
-        self.assertFalse(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "authority-store",
-                "crypto-control",
-                "crypto-ed25519",
-                "key-custody-fixture",
-            ],
-        )
-        self.assertEqual(
-            value["profiles"],
-            ["authority-smoke", "control-crypto-smoke", "keys-smoke"],
-        )
-
-    def test_keys_wit_change_rebuilds_kernel_and_custody_units(self) -> None:
-        value = self.resolve("wit/deps/keys/keys.wit")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["crypto-control", "key-custody-fixture", "key-custody-local"],
-        )
-        self.assertEqual(value["profiles"], ["control-crypto-smoke", "keys-smoke"])
-
-    def test_transport_wit_change_rebuilds_kernel_and_providers(self) -> None:
-        value = self.resolve("wit/deps/transport/transport.wit")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["transport-test", "transport-webrtc"],
-        )
-
-    def test_node_smoke_change_selects_its_complete_runtime(self) -> None:
-        value = self.resolve("scripts/smoke-node-components.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["diagnostics-store", "execution-runtime", "process-policy", "scheduler", "shell", "transport-test", "transport-webrtc"])
-
-    def test_identity_wit_change_rebuilds_identity_units(self) -> None:
-        value = self.resolve("wit/deps/identity/identity.wit")
-        self.assertFalse(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "api-credential-fixture",
-                "api-credential-store",
-                "identity-fixture",
-                "identity-http",
-                "identity-store",
-            ],
-        )
-
-    def test_session_wit_change_rebuilds_identity_units(self) -> None:
-        value = self.resolve("wit/deps/session/session.wit")
-        self.assertFalse(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "api-credential-fixture",
-                "identity-fixture",
-                "identity-http",
-                "identity-store",
-                "webui-app",
-            ],
-        )
-
-    def test_webauthn_wit_change_rebuilds_only_verifier_units(self) -> None:
-        value = self.resolve("wit/deps/webauthn/webauthn.wit")
-        self.assertFalse(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "api-credential-fixture",
-                "identity-fixture",
-                "identity-http",
-                "identity-store",
-                "webauthn-es256",
-                "webauthn-fixture",
-            ],
-        )
-
     def test_profile_change_compiles_nothing(self) -> None:
-        value = self.resolve("profiles/kernel-smoke.toml")
-        self.assertEqual(value["profiles"], ["kernel-smoke"])
-        self.assertFalse(value["kernel"])
+        value = self.resolve("profiles/core.toml")
+        self.assertEqual(value["profiles"], ["core"])
+        self.assertFalse(value["runtime"])
         self.assertEqual(value["components"], [])
 
-    def test_web_change_does_not_build_kernel(self) -> None:
+    def test_web_change_does_not_build_runtime(self) -> None:
         value = self.resolve("web/client/pages.ts")
         self.assertTrue(value["web"])
         self.assertTrue(value["image"])
-        self.assertFalse(value["kernel"])
+        self.assertFalse(value["runtime"])
 
     def test_component_tooling_rebuilds_components_only(self) -> None:
         value = self.resolve("scripts/build-component.sh")
-        self.assertFalse(value["kernel"])
+        self.assertTrue(value["runtime"])
         self.assertEqual(value["components"], sorted(MODULE.component_metadata()))
 
-    def test_web_runtime_smoke_change_selects_its_units(self) -> None:
-        value = self.resolve("scripts/smoke-web-runtime.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["diagnostics-store", "diagnostics-ui", "webui-shell"],
-        )
+    def test_module_change_marks_dependency_audit(self) -> None:
+        value = self.resolve("go.mod")
+        self.assertTrue(value["runtime"])
+        self.assertTrue(value["deps"])
 
-    def test_storage_runtime_smoke_selects_only_its_fixture(self) -> None:
-        value = self.resolve("scripts/smoke-storage.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["storage-fixture"])
+    def test_browser_script_does_not_build_runtime(self) -> None:
+        value = self.resolve("scripts/windows-browser-e2e.ps1")
+        self.assertTrue(value["browser"])
+        self.assertFalse(value["runtime"])
+        self.assertFalse(value["image"])
 
-    def test_mesh_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-mesh-policy.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["mesh-policy", "mesh-policy-fixture"],
-        )
+    def test_ci_workflow_change_runs_runtime_only(self) -> None:
+        value = self.resolve(".github/workflows/ci.yml")
+        self.assertTrue(value["runtime"])
+        self.assertEqual(value["components"], [])
 
-    def test_authority_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-authority.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["authority-fixture", "authority-store", "crypto-ed25519"],
-        )
-
-    def test_keys_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-keys.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["crypto-ed25519", "key-custody-fixture", "key-custody-local"],
-        )
-
-    def test_control_crypto_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-control-crypto.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(value["components"], ["crypto-control"])
-
-    def test_artifact_cache_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-artifact-cache.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "artifact-cache-fixture-consumer",
-                "artifact-cache-fixture-mesh-adapter",
-                "artifact-cache-fixture-provider-v2",
-                "artifact-cache-local",
-                "artifact-cache-mesh",
-            ],
-        )
-
-    def test_api_credential_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-api-credentials.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "api-credential-fixture",
-                "api-credential-store",
-                "identity-store",
-                "webauthn-es256",
-            ],
-        )
-
-    def test_authenticated_webui_runtime_smoke_selects_its_graph(self) -> None:
-        value = self.resolve("scripts/smoke-authenticated-webui.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            [
-                "identity-fixture",
-                "identity-store",
-                "webauthn-es256",
-                "webui-app",
-                "webui-shell",
-            ],
-        )
-
-    def test_identity_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
-        value = self.resolve("scripts/smoke-identity.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["identity-fixture", "identity-store", "webauthn-es256"],
-        )
-
-    def test_webauthn_runtime_smoke_selects_its_provider_and_fixture(self) -> None:
-        value = self.resolve("scripts/smoke-webauthn.sh")
-        self.assertTrue(value["kernel"])
-        self.assertEqual(
-            value["components"],
-            ["webauthn-es256", "webauthn-fixture"],
-        )
+    def test_docs_change_is_docs_only(self) -> None:
+        value = self.resolve("docs/DEVELOPMENT.md")
+        self.assertTrue(value["docs"])
+        self.assertFalse(value["runtime"])
+        self.assertFalse(value["web"])
 
 
 if __name__ == "__main__":

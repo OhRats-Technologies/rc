@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       windows_only:
-        description: Run only native Windows runtime and installer checks
+        description: Run only Windows runtime and installer checks
         type: boolean
         default: false
       windows_browser:
@@ -22,20 +22,26 @@ concurrency:
   group: ci-${{ github.ref }}-${{ inputs.windows_only && 'windows' || 'all' }}
   cancel-in-progress: true
 
+env:
+  GO_VERSION: "1.27.1"
+  # Product-level Windows checks need the full Node transport and browser
+  # session implementation. Enable with the repository variable once available.
+  RC_WINDOWS_RUNTIME_ENABLED: ${{ vars.RC_WINDOWS_RUNTIME_ENABLED || 'false' }}
+  # Browser end-to-end coverage needs a server that renders the real WebUI.
+  RC_BROWSER_E2E_ENABLED: ${{ vars.RC_BROWSER_E2E_ENABLED || 'false' }}
+
 jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      kernel: ${{ steps.affected.outputs.kernel }}
+      runtime: ${{ steps.affected.outputs.runtime }}
       components: ${{ steps.affected.outputs.components }}
       component-matrix: ${{ steps.affected.outputs.component_matrix }}
-      legacy-rust: ${{ steps.affected.outputs.legacy_rust }}
-      legacy-security: ${{ steps.affected.outputs.legacy_security }}
+      profiles: ${{ steps.affected.outputs.profiles }}
       web: ${{ steps.affected.outputs.web }}
       browser: ${{ steps.affected.outputs.browser }}
       image: ${{ steps.affected.outputs.image }}
-      profiles: ${{ steps.affected.outputs.profiles }}
-      profile-matrix: ${{ steps.affected.outputs.profile_matrix }}
+      deps: ${{ steps.affected.outputs.deps }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,6 +65,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
       - name: Install repository linters
         run: |
           if ! command -v shellcheck >/dev/null 2>&1; then
@@ -74,6 +84,15 @@ jobs:
           mkdir -p "$directory"
           tar -xzf "$archive" -C "$directory" actionlint
           echo "$directory" >> "$GITHUB_PATH"
+      - name: Check Go formatting
+        run: |
+          unformatted=$(gofmt -l cmd pkg tests)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt'd:" >&2
+            printf '%s\n' "$unformatted" >&2
+            exit 1
+          fi
+      - run: go vet ./...
       - run: sh scripts/check-version.sh
       - run: sh scripts/check-source-size.sh
       - run: python3 scripts/check-component-boundaries.py
@@ -82,11 +101,13 @@ jobs:
       - run: python3 scripts/validate-profiles.py
       - run: python3 scripts/test-affected-units.py
       - run: python3 scripts/check-doc-links.py
+      - name: Run installer smoke
+        run: sh scripts/smoke-install.sh
       - name: Validate shell entry points and workflows
         run: |
-          sh -n docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
+          sh -n docker-entrypoint.sh \
             public/install.sh scripts/*.sh
-          shellcheck docker-entrypoint.sh docker/rc-ssh-authorized docker/rc-ssh-bridge \
+          shellcheck docker-entrypoint.sh \
             public/install.sh scripts/*.sh
           actionlint -shellcheck shellcheck .github/workflows/*.yml
       - name: Parse PowerShell installer
@@ -99,52 +120,44 @@ jobs:
           if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
       - run: git diff --check
 
-  kernel:
+  go-test:
     needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.kernel == 'true') }}
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.runtime == 'true' || needs.changes.outputs.deps == 'true') }}
     runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - run: cargo fmt --manifest-path kernel/Cargo.toml --all -- --check
-      - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
-      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: go build ./...
+      - run: go test -race ./...
+      - name: Build without cgo
+        env:
+          CGO_ENABLED: "0"
+        run: go build ./...
 
   components:
     needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.components != '[]') }}
+    if: ${{ !inputs.windows_only && needs.changes.outputs.components != '[]' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.changes.outputs.component-matrix) }}
     runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: components/${{ matrix.name }} -> target
-          shared-key: rc-component-${{ matrix.name }}
-          add-job-id-key: false
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install componentize-go
+        run: |
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: python3 scripts/validate-components.py
       - run: scripts/check-component.sh "${{ matrix.name }}"
       - uses: actions/upload-artifact@v7
@@ -154,656 +167,85 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  component-runtime:
-    needs: [changes, components]
-    if: ${{ !inputs.windows_only && (always() && needs.changes.outputs.kernel == 'true') }}
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/fixture-provider -> target
-            components/fixture-consumer -> target
-            components/fixture-broken -> target
-            components/fixture-collision -> target
-            components/fixture-trap -> target
-            components/fixture-limit -> target
-          shared-key: rc-component-runtime
-          add-job-id-key: false
-      - uses: actions/download-artifact@v7
-        if: needs.changes.outputs.components != '[]'
-        with:
-          pattern: rc-component-*
-          path: dist/components
-          merge-multiple: true
-      - name: Exercise live component reconciliation
-        env:
-          COMPONENTS: ${{ needs.changes.outputs.components }}
-        run: |
-          if [ "$COMPONENTS" = '[]' ]; then
-            scripts/smoke-kernel.sh
-          else
-            RC_SKIP_COMPONENT_BUILD=1 scripts/smoke-kernel.sh
-          fi
-
-  updater-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'updater')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/updater -> target
-          shared-key: rc-updater-runtime
-          add-job-id-key: false
-      - uses: actions/download-artifact@v7
-        if: contains(needs.changes.outputs.components, 'updater')
-        with:
-          name: rc-component-updater
-          path: dist/components
-      - name: Exercise native replacement recovery
-        env:
-          COMPONENTS: ${{ needs.changes.outputs.components }}
-        run: |
-          case "$COMPONENTS" in
-            *updater*) RC_SKIP_COMPONENT_BUILD=1 scripts/smoke-updater.sh ;;
-            *) scripts/smoke-updater.sh ;;
-          esac
-
-  package-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'package-manager') ||
-       contains(needs.changes.outputs.components, 'local-source') ||
-       contains(needs.changes.outputs.components, 'http-source') ||
-       contains(needs.changes.outputs.components, 'oci-source')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/local-source -> target
-            components/http-source -> target
-            components/oci-source -> target
-            components/package-manager -> target
-            components/fixture-provider -> target
-            components/fixture-provider-v2 -> target
-          shared-key: rc-package-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-packages.sh
-
-  node-policy-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       needs.changes.outputs.legacy-rust == 'true' ||
-       contains(needs.changes.outputs.components, 'process-policy') ||
-       contains(needs.changes.outputs.components, 'transport-test') ||
-       contains(needs.changes.outputs.components, 'transport-webrtc')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/process-policy -> target
-            components/transport-test -> target
-            components/transport-webrtc -> target
-          shared-key: rc-node-policy-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-node-components.sh
-
-  mesh-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'mesh-policy') ||
-       contains(needs.changes.outputs.components, 'mesh-policy-fixture')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/mesh-policy -> target
-            components/mesh-policy-fixture -> target
-          shared-key: rc-mesh-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-mesh-policy.sh
-
-  authority-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'authority-fixture') ||
-       contains(needs.changes.outputs.components, 'authority-store') ||
-       contains(needs.changes.outputs.components, 'crypto-ed25519')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/authority-fixture -> target
-            components/authority-store -> target
-            components/crypto-ed25519 -> target
-          shared-key: rc-authority-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-authority.sh
-
-  keys-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'crypto-ed25519') ||
-       contains(needs.changes.outputs.components, 'key-custody-fixture') ||
-       contains(needs.changes.outputs.components, 'key-custody-local')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/crypto-ed25519 -> target
-            components/key-custody-fixture -> target
-            components/key-custody-local -> target
-          shared-key: rc-keys-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-keys.sh
-
-  control-crypto-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'crypto-control')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/crypto-control -> target
-          shared-key: rc-control-crypto-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-control-crypto.sh
-
-  diagnostics-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'diagnostics-') ||
-       contains(needs.changes.outputs.components, 'webui-shell')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/diagnostics-cli -> target
-            components/diagnostics-mesh -> target
-            components/diagnostics-reporter -> target
-            components/diagnostics-store -> target
-            components/diagnostics-ui -> target
-            components/webui-shell -> target
-          shared-key: rc-diagnostics-runtime
-          add-job-id-key: false
-      - run: python3 scripts/check-diagnostics-capabilities.py
-      - run: scripts/smoke-diagnostics.sh
-
-  identity-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'identity-store') ||
-       contains(needs.changes.outputs.components, 'identity-fixture')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/identity-store -> target
-            components/identity-fixture -> target
-          shared-key: rc-identity-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-identity.sh
-
-  storage-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'storage-fixture')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/storage-fixture -> target
-          shared-key: rc-storage-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-storage.sh
-
-  webauthn-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'webauthn-es256') ||
-       contains(needs.changes.outputs.components, 'webauthn-fixture')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/webauthn-es256 -> target
-            components/webauthn-fixture -> target
-          shared-key: rc-webauthn-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-webauthn.sh
-
-  web-runtime:
-    needs: [changes, components]
-    if: >-
-      inputs.windows_only != true && (
-      always() &&
-      (needs.changes.outputs.kernel == 'true' ||
-       contains(needs.changes.outputs.components, 'webui-shell') ||
-       contains(needs.changes.outputs.components, 'diagnostics-ui') ||
-       contains(needs.changes.outputs.components, 'diagnostics-store')))
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: kernel -> target
-          shared-key: rc-kernel
-          add-job-id-key: false
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            components/diagnostics-store -> target
-            components/diagnostics-ui -> target
-            components/webui-shell -> target
-          shared-key: rc-web-runtime
-          add-job-id-key: false
-      - run: scripts/smoke-web-runtime.sh
-
   profiles:
     needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.profiles != '[]') }}
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.changes.outputs.profile-matrix) }}
+    if: ${{ !inputs.windows_only && needs.changes.outputs.profiles != '[]' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: python3 scripts/validate-components.py
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
       - run: python3 scripts/validate-profiles.py
-      - run: python3 scripts/assemble-profile.py "${{ matrix.name }}"
-      - uses: actions/upload-artifact@v7
-        with:
-          name: rc-profile-${{ matrix.name }}
-          path: dist/profiles/${{ matrix.name }}.json
-          if-no-files-found: error
-          retention-days: 7
-
-  legacy-rust-lint:
-    needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.legacy-rust == 'true') }}
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: legacy-validation
-          add-job-id-key: false
-          cache-bin: false
-          save-if: false
-      - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-
-  legacy-rust-test:
-    needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.legacy-rust == 'true') }}
-    runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: legacy-validation
-          add-job-id-key: false
-          cache-bin: false
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: mozilla-actions/sccache-action@v0.0.11
-        with:
-          version: "v0.16.0"
-      - name: Enable sccache
+      - name: Assemble affected profiles
+        env:
+          PROFILES: ${{ needs.changes.outputs.profiles }}
         run: |
-          cat >> "$GITHUB_ENV" <<'EOF'
-          SCCACHE_GHA_ENABLED=true
-          SCCACHE_GHA_VERSION=rc-ci-v1
-          RUSTC_WRAPPER=sccache
-          EOF
-      - run: cargo test --workspace --all-targets --locked
-      - run: sccache --show-stats
+          for profile in $(python3 -c 'import json, os; print(" ".join(json.loads(os.environ["PROFILES"])))'); do
+            python3 scripts/assemble-profile.py "$profile"
+          done
 
-  native-runtime-components:
+  integration:
     needs: changes
-    if: >-
-      needs.changes.outputs.browser == 'true' ||
-      needs.changes.outputs.legacy-rust == 'true' ||
-      needs.changes.outputs.kernel == 'true' ||
-      needs.changes.outputs.image == 'true' ||
-      contains(needs.changes.outputs.components, 'execution-runtime') ||
-      contains(needs.changes.outputs.components, 'process-policy') ||
-      contains(needs.changes.outputs.components, 'scheduler') ||
-      contains(needs.changes.outputs.components, 'shell') ||
-      contains(needs.changes.outputs.components, 'transport-webrtc')
-    uses: ./.github/workflows/native-components.yml
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.runtime == 'true' || needs.changes.outputs.components != '[]' || needs.changes.outputs.deps == 'true') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install componentize-go
+        run: |
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Run Go integration harness
+        run: go test ./tests/integration/ -count=1 -v
 
   macos-runtime:
     needs: changes
-    permissions:
-      contents: read
-      actions: read
-    if: >-
-      inputs.windows_only != true && (
-      needs.changes.outputs.legacy-rust == 'true' ||
-      needs.changes.outputs.kernel == 'true' ||
-      contains(needs.changes.outputs.components, 'execution-runtime') ||
-      contains(needs.changes.outputs.components, 'process-policy') ||
-      contains(needs.changes.outputs.components, 'scheduler') ||
-      contains(needs.changes.outputs.components, 'shell') ||
-      contains(needs.changes.outputs.components, 'transport-webrtc'))
+    if: ${{ !inputs.windows_only }}
     runs-on: macos-15
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-            kernel -> target
-          shared-key: macos-runtime
-          add-job-id-key: false
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-        if: needs.changes.outputs.legacy-rust == 'true'
-      - run: cargo test --workspace --all-targets --locked
-        if: needs.changes.outputs.legacy-rust == 'true'
-      - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets --locked -- -D warnings
-        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
-      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
-        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
-      - name: Build component-backed macOS kernel
-        run: cargo build --manifest-path kernel/Cargo.toml --locked
-      - name: Wait for portable runtime components
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/wait-native-components.py
-      - name: Download portable runtime components built on Linux
-        uses: actions/download-artifact@v7
-        with:
-          pattern: rc-native-runtime-*
-          path: dist/components
-          merge-multiple: true
-      - name: Run component-backed runtime conformance natively
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Install componentize-go
         run: |
-          component_dir="$RUNNER_TEMP/rc-runtime-root/components"
-          mkdir -p "$component_dir"
-          for component in diagnostics-store diagnostics-cli process-policy shell execution-runtime scheduler transport-webrtc; do
-            cp "dist/components/$component.wasm" "$component_dir/"
-          done
-          kernel/target/debug/rc-kernel --component-dir "$component_dir" policy-check
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: Run native component and server harness
+        run: go test ./tests/integration/ -count=1 -v
+      - name: Build native binaries
+        run: |
+          go build -o dist/rc ./cmd/rc
+          go build -o dist/rc-server ./cmd/rc-server
+          ./dist/rc version
 
   windows-runtime:
     needs: changes
     permissions:
       contents: read
-      actions: read
-    if: >-
-      (
-      needs.changes.outputs.browser == 'true' ||
-      needs.changes.outputs.legacy-rust == 'true' ||
-      needs.changes.outputs.kernel == 'true' ||
-      needs.changes.outputs.image == 'true' ||
-      contains(needs.changes.outputs.components, 'execution-runtime') ||
-      contains(needs.changes.outputs.components, 'process-policy') ||
-      contains(needs.changes.outputs.components, 'scheduler') ||
-      contains(needs.changes.outputs.components, 'shell') ||
-      contains(needs.changes.outputs.components, 'transport-webrtc'))
     runs-on: windows-latest
-    env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
       - name: Parse Windows installer natively
         shell: pwsh
         run: |
@@ -814,177 +256,41 @@ jobs:
           if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
       - name: Exercise Windows installer archive validation
         shell: pwsh
-        run: |
-          & ./scripts/test-windows-installer-path.ps1
-          $fixture = Join-Path $env:RUNNER_TEMP 'rc-installer-shape'
-          New-Item -ItemType Directory -Force $fixture | Out-Null
-          $env:RC_INSTALL_BIN_DIR = Join-Path $fixture 'bin'
-          $env:RC_DATA_DIR = Join-Path $fixture 'data'
-          $env:RC_COMPONENT_DIR = Join-Path $fixture 'data\components'
-          $env:RC_STATE_DIR = Join-Path $fixture 'state'
-          . ./public/install.ps1 -ValidateFunctionsOnly
-          $metadata = Join-Path $fixture 'release.json'
-          $downloadOutput = Download-Limited 'https://api.github.com/repos/OhRats-Technologies/rc/releases/latest' $metadata (4MB)
-          if ($null -ne $downloadOutput) { throw 'download leaked pipeline output' }
-          $release = Get-Content -Raw $metadata | ConvertFrom-Json
-          New-Item -ItemType Directory -Force $Temp | Out-Null
-          try {
-            $verified = Asset $release 'rc-upgrade.json'
-            if ($verified -isnot [string] -or !(Test-Path $verified)) { throw 'verified asset path is invalid' }
-          } finally { Remove-Item -Recurse -Force $Temp }
-          $private = Join-Path $fixture 'private'
-          Protect-PrivateDirectories @($private)
-          $privateAcl = Get-Acl -LiteralPath $private
-          if (!$privateAcl.AreAccessRulesProtected) { throw 'installer private DACL still inherits' }
-          if ($privateAcl.Access | Where-Object { $_.IdentityReference.Value -in 'Everyone','BUILTIN\Users','NT AUTHORITY\Authenticated Users' }) {
-            throw 'installer private DACL grants a broad principal'
-          }
-          if ((Parse-Kernel-Version 'RC kernel 2.3.0') -ne [version]'2.3.0') {
-            throw 'installer kernel version parser failed'
-          }
-          $pointer = Join-Path $fixture 'atomic-pointer'
-          Atomic-Text $pointer 'old'; Atomic-Text $pointer 'new'
-          if ((Get-Content -Raw $pointer).Trim() -ne 'new' -or (Test-Path "$pointer.new-$PID")) {
-            throw 'installer atomic pointer replacement failed'
-          }
-          $badRelease = [pscustomobject]@{tag_name='v2.3.0';assets=@([pscustomobject]@{
-            name='rc-windows-amd64.tar.gz';browser_download_url='https://github.com/OhRats-Technologies/rc/releases/download/v2.2.0/rc-windows-amd64.tar.gz';digest=('sha256:' + ('0' * 64))
-          })}
-          try { Asset $badRelease 'rc-windows-amd64.tar.gz'; throw 'cross-release asset accepted' }
-          catch { if ($_.Exception.Message -eq 'cross-release asset accepted') { throw } }
-          try { Require-Kernel-NotDowngrade ([version]'2.2.9') ([version]'2.3.0'); throw 'downgrade accepted' }
-          catch { if ($_.Exception.Message -eq 'downgrade accepted') { throw } }
-          $old = Join-Path $Versions '1.0.0'; $current = Join-Path $Versions '2.0.0'
-          $stale = Join-Path $Versions '0.9.0'; $unknown = Join-Path $Versions 'local'
-          New-Item -ItemType Directory -Force $old,$current,$stale,$unknown | Out-Null
-          Remove-StaleVersions $current $old
-          if (!(Test-Path $old) -or !(Test-Path $current) -or (Test-Path $stale) -or !(Test-Path $unknown)) {
-            throw 'installer version cleanup violated retention policy'
-          }
-          Set-Content -LiteralPath (Join-Path $fixture 'rc.exe') -Value 'fixture' -NoNewline
-          Set-Content -LiteralPath (Join-Path $fixture 'extra') -Value 'extra' -NoNewline
-          @'
-          import pathlib, sys, tarfile
-          root = pathlib.Path(sys.argv[1])
-          for name, members in [('valid', ['rc.exe']), ('invalid', ['rc.exe', 'extra'])]:
-              with tarfile.open(root / (name + '.tar.gz'), 'w:gz', format=tarfile.GNU_FORMAT) as archive:
-                  for member in members:
-                      archive.add(root / member, arcname=member)
-          '@ | python - $fixture
-          if ($LASTEXITCODE) { throw 'could not create installer archive fixtures' }
-          Require-Single (Join-Path $fixture 'valid.tar.gz') 'rc.exe'
-          $rejected = $false
-          try { Require-Single (Join-Path $fixture 'invalid.tar.gz') 'rc.exe' }
-          catch { $rejected = $true }
-          if (!$rejected) { throw 'installer accepted an extra archive member' }
-          New-Item -ItemType Directory -Force $Bin,$Components,$Runtime,(Join-Path $Backup 'components') | Out-Null
-          Set-Content -LiteralPath (Join-Path $Bin 'rc.exe') -Value 'new-cli' -NoNewline
-          Set-Content -LiteralPath (Join-Path $Backup 'rc.exe') -Value 'old-cli' -NoNewline
-          Set-Content -LiteralPath (Join-Path $Components 'shell.wasm') -Value 'new-shell' -NoNewline
-          Set-Content -LiteralPath (Join-Path $Backup 'components\shell.wasm') -Value 'old-shell' -NoNewline
-          Set-Content -LiteralPath (Join-Path $Runtime 'installed-version') -Value '2.0.0' -NoNewline
-          Set-Content -LiteralPath (Join-Path $Backup 'installed-version') -Value '1.0.0' -NoNewline
-          Atomic-Text $Active 'C:\runtime\new'
-          Atomic-Text $Journal (@{previous='C:\runtime\old';names=@('shell')} | ConvertTo-Json -Compress)
-          Recover-InterruptedActivation
-          if ((Get-Content -Raw (Join-Path $Bin 'rc.exe')) -ne 'old-cli') { throw 'CLI rollback failed' }
-          if ((Get-Content -Raw (Join-Path $Components 'shell.wasm')) -ne 'old-shell') { throw 'component rollback failed' }
-          if ((Get-Content -Raw $Active).Trim() -ne 'C:\runtime\old') { throw 'active runtime rollback failed' }
-          if (Test-Path $Journal) { throw 'activation journal was not cleared after recovery' }
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.98.0"
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            . -> target
-            kernel -> target
-          shared-key: windows-runtime
-          cache-on-failure: true
-          add-job-id-key: false
-      - run: cargo fmt --all --check
-        if: needs.changes.outputs.legacy-rust == 'true'
-      - name: Build Windows execution guard fixture
-        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
-        run: >-
-          cargo build --manifest-path kernel/Cargo.toml --locked
-          --features windows-test-fixture --bin rc-windows-execution-guard-fixture
-      - name: Run Windows kernel tests serially
-        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
+        run: ./scripts/test-windows-installer-path.ps1
+      - name: Build without cgo
         env:
-          RUST_TEST_THREADS: "1"
-        run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-        if: ${{ !inputs.windows_only && needs.changes.outputs.legacy-rust == 'true' }}
-      - run: cargo test --workspace --all-targets --locked
-        if: ${{ !inputs.windows_only && needs.changes.outputs.legacy-rust == 'true' }}
-      - run: cargo clippy --manifest-path kernel/Cargo.toml --features windows-test-fixture --all-targets --locked -- -D warnings
-        if: needs.changes.outputs.kernel == 'true' || needs.changes.outputs.legacy-rust == 'true'
-      - name: Build component-backed Windows kernel
-        run: cargo build --manifest-path kernel/Cargo.toml --locked
-      - name: Wait for portable runtime components
+          CGO_ENABLED: "0"
+        run: go build ./...
+      - name: Run portable runtime tests
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: python scripts/wait-native-components.py
-      - name: Download portable runtime components built on Linux
-        uses: actions/download-artifact@v7
-        with:
-          pattern: rc-native-runtime-*
-          path: dist/components
-          merge-multiple: true
-      - name: Run component-backed runtime conformance natively
+          CGO_ENABLED: "0"
+        run: go test ./pkg/platform/... ./pkg/protocol/... ./pkg/crypto/... ./pkg/mesh/... ./pkg/context/... ./pkg/apiclient/... ./pkg/node/...
+      - name: Locate the Windows C compiler
+        if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true'
         shell: pwsh
         run: |
-          $componentDir = Join-Path $env:RUNNER_TEMP 'rc-runtime-root\components'
-          New-Item -ItemType Directory -Force $componentDir | Out-Null
-          'diagnostics-store','diagnostics-cli','process-policy','shell','execution-runtime','scheduler','transport-webrtc' | ForEach-Object {
-            Copy-Item "dist/components/$_.wasm" $componentDir
+          $candidates = @('C:\mingw64\bin', 'C:\msys64\mingw64\bin', 'C:\Strawberry\c\bin')
+          $found = $false
+          foreach ($candidate in $candidates) {
+            if (Test-Path (Join-Path $candidate 'gcc.exe')) {
+              $candidate | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+              $found = $true
+            }
           }
-          $start = [Diagnostics.ProcessStartInfo]::new()
-          $start.FileName = 'kernel/target/debug/rc-kernel.exe'
-          $start.ArgumentList.Add('--component-dir')
-          $start.ArgumentList.Add($componentDir)
-          $start.ArgumentList.Add('policy-check')
-          $start.UseShellExecute = $false
-          $start.RedirectStandardOutput = $true
-          $start.RedirectStandardError = $true
-          $process = [Diagnostics.Process]::new()
-          $process.StartInfo = $start
-          if (-not $process.Start()) { throw 'failed to start runtime conformance' }
-          $stdout = $process.StandardOutput.ReadToEndAsync()
-          $stderr = $process.StandardError.ReadToEndAsync()
-          if (-not $process.WaitForExit(120000)) {
-            $process.Kill($true)
-            $process.WaitForExit()
-            Write-Output $stdout.Result
-            Write-Error $stderr.Result
-            throw 'runtime conformance exceeded 120 seconds'
-          }
-          Write-Output $stdout.Result
-          [Console]::Error.Write($stderr.Result)
-          if ($process.ExitCode) { exit $process.ExitCode }
-      - uses: oven-sh/setup-bun@v2
-        if: ${{ !inputs.windows_only || inputs.windows_browser }}
-        with:
-          bun-version: "1.4.4"
-      - name: Build native Windows browser conformance inputs
-        if: ${{ !inputs.windows_only || inputs.windows_browser }}
+          if (-not $found) { throw 'no MinGW gcc is available for cgo' }
+      - name: Install componentize-go
+        if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true'
         shell: pwsh
         run: |
-          bun install --frozen-lockfile
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          bun run build:client
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cargo build --locked -p rc-server --bin rc-server -p rc-cli --bin rc
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Exercise installer permissions and service registration as a standard Windows user
-        if: ${{ !inputs.windows_only || inputs.windows_browser }}
-        shell: pwsh
-        run: ./scripts/windows-standard-user-e2e.ps1
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          (Join-Path (go env GOPATH) 'bin') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - name: Run native component, server, and CLI harness
+        if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true'
+        env:
+          CGO_ENABLED: "1"
+        run: go test ./... -count=1 -v
       - name: Exercise service execution and browser control in the logged-in Windows session
-        if: ${{ !inputs.windows_only || inputs.windows_browser }}
+        if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true' && (!inputs.windows_only || inputs.windows_browser)
         shell: pwsh
         run: ./scripts/windows-browser-e2e.ps1
 
@@ -1007,16 +313,13 @@ jobs:
   browser-e2e:
     needs: changes
     if: >-
-      inputs.windows_only != true && (
+      inputs.windows_only != true && vars.RC_BROWSER_E2E_ENABLED == 'true' && (
       needs.changes.outputs.browser == 'true' ||
-      needs.changes.outputs.legacy-rust == 'true' ||
       needs.changes.outputs.web == 'true' ||
+      needs.changes.outputs.runtime == 'true' ||
       needs.changes.outputs.image == 'true')
     runs-on: ubuntu-latest
     env:
-      CARGO_INCREMENTAL: "0"
-      CARGO_PROFILE_DEV_DEBUG: "0"
-      CARGO_PROFILE_TEST_DEBUG: "0"
       RC_CDP_URL: http://127.0.0.1:9223
     steps:
       - uses: actions/checkout@v7
@@ -1025,25 +328,21 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.4"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: browser-e2e
-          add-job-id-key: false
-          cache-bin: false
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
       - run: bun install --frozen-lockfile
       - run: bun run build:client
-      - run: cargo build --locked -p rc-server --bin rc-server -p rc-cli --bin rc
-      - run: cargo build --locked --manifest-path kernel/Cargo.toml
-      - name: Build Node runtime components
+      - name: Build Go binaries
         run: |
-          export CARGO_TARGET_DIR="$RUNNER_TEMP/browser-components-target"
-          for component in diagnostics-store diagnostics-cli process-policy shell execution-runtime scheduler transport-webrtc; do
-            scripts/build-component.sh "components/$component"
-          done
+          go build -o dist/rc ./cmd/rc
+          go build -o dist/rc-server ./cmd/rc-server
+      - name: Install componentize-go
+        run: |
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: bun run build:components
       - name: Start persistent Chrome DevTools
         run: |
           chrome=$(command -v google-chrome || command -v chromium || command -v chromium-browser)
@@ -1055,23 +354,18 @@ jobs:
             --disable-gpu \
             --disable-dev-shm-usage \
             --disable-background-networking \
-            --disable-features=WebRtcHideLocalIpsWithMdns \
             --remote-allow-origins='*' \
             --remote-debugging-address=127.0.0.1 \
             --remote-debugging-port=9223 \
             --user-data-dir="$RUNNER_TEMP/rc-chrome-e2e" \
             about:blank >"$RUNNER_TEMP/rc-chrome.log" 2>&1 &
-          RC_CHROME_PID=$!
-          echo "RC_CHROME_PID=$RC_CHROME_PID" >> "$GITHUB_ENV"
-          attempt=0
-          while [ "$attempt" -lt 300 ]; do
+          echo "RC_CHROME_PID=$!" >> "$GITHUB_ENV"
+          attempts=0
+          while [ "$attempts" -lt 300 ]; do
             if curl -fsS "$RC_CDP_URL/json/version" >/dev/null 2>&1; then
               exit 0
             fi
-            if ! kill -0 "$RC_CHROME_PID" 2>/dev/null; then
-              break
-            fi
-            attempt=$((attempt + 1))
+            attempts=$((attempts + 1))
             sleep 0.1
           done
           cat "$RUNNER_TEMP/rc-chrome.log" >&2
@@ -1083,47 +377,29 @@ jobs:
 
   dependency-security:
     needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.legacy-security == 'true' || needs.changes.outputs.kernel == 'true' || needs.changes.outputs.components != '[]') }}
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.deps == 'true' || needs.changes.outputs.runtime == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - run: go mod verify
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - run: govulncheck ./...
       - uses: oven-sh/setup-bun@v2
-        if: needs.changes.outputs.legacy-security == 'true'
         with:
           bun-version: "1.4.4"
       - run: bun install --frozen-lockfile
-        if: needs.changes.outputs.legacy-security == 'true'
-      - name: Install RustSec auditor
-        run: |
-          archive="$RUNNER_TEMP/cargo-audit.tgz"
-          directory="$RUNNER_TEMP/cargo-audit"
-          curl -fsSL \
-            -o "$archive" \
-            https://github.com/RustSec/rustsec/releases/download/cargo-audit/v0.22.2/cargo-audit-x86_64-unknown-linux-gnu-v0.22.2.tgz
-          echo "ab28a1bdb54db4d5d8ad5981cf1f959410370b3d28250dbd35f6a44248620e39  $archive" | sha256sum -c -
-          mkdir -p "$directory"
-          tar -xzf "$archive" -C "$directory" --strip-components=1
-          echo "$directory" >> "$GITHUB_PATH"
-      - run: cargo-audit audit
-        if: needs.changes.outputs.legacy-security == 'true'
       - run: bun audit
-        if: needs.changes.outputs.legacy-security == 'true'
-      - run: cargo-audit audit --file kernel/Cargo.lock
-        if: needs.changes.outputs.kernel == 'true'
-      - name: Audit affected component locks
-        if: needs.changes.outputs.components != '[]'
-        env:
-          COMPONENTS: ${{ needs.changes.outputs.components }}
-        run: |
-          printf '%s' "$COMPONENTS" | jq -r '.[]' | while read -r name; do
-            cargo-audit audit --file "components/$name/Cargo.lock"
-          done
 
   image:
     needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.image == 'true') }}
+    if: ${{ !inputs.windows_only && (needs.changes.outputs.image == 'true' || needs.changes.outputs.runtime == 'true') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -1142,9 +418,8 @@ jobs:
         run: |
           docker run --rm --entrypoint /bin/sh rc-ci -c '
             command -v rc-server >/dev/null &&
-            command -v rc-ssh-helper >/dev/null &&
+            command -v rc >/dev/null &&
             command -v curl >/dev/null &&
-            command -v sshd >/dev/null &&
             ! command -v bun >/dev/null 2>&1 &&
             ! command -v go >/dev/null 2>&1 &&
             test -d /app/assets &&

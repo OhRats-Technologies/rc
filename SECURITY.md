@@ -48,4 +48,4 @@ API secrets are shown once. The `rcsk_...` value contains a private key; rotate 
 
 Changes to domains, canonical request payloads, grants, key derivation, nonces, counters, or serialization require deterministic fixtures, positive/negative cross-component tests, and replay tests. Never reuse a key/nonce pair or silently downgrade to plaintext or a hosted fallback.
 
-CI audits the locked Rust graph against RustSec and the Bun graph against the registry advisory service. New vulnerabilities, yanked crates, or informational warnings fail validation. The sole documented exception is the unmaintained-only `bincode 1.3.3` notice inherited from `webrtc` through `dtls`; `.cargo/audit.toml` records the exact advisory and upstream path.
+CI audits the Go module graph with `govulncheck` and the Bun graph against the registry advisory service. New vulnerabilities fail validation. Keep `go.sum` and `bun.lock` committed; do not add a second scanner or suppress findings without a documented exception.

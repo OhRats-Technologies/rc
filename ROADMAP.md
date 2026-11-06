@@ -165,3 +165,38 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Version account-wide grants without widening existing device grants; keep Node-local Owner, signature, scope, lock, and expiry verification.
 - [x] Persist owner-signed RC Lock transitions and replay them on reconnect without blocking consent on offline machines.
 - [x] Validate account discovery, future enrollment, membership loss, legacy scope, offline restart recovery, and native/browser compatibility before release.
+
+## Go Runtime Migration
+- [x] Port platform abstraction to pure Go with `modernc.org/sqlite` and cross-platform DACL/file-locking.
+- [x] Port wire frames, chunk fragmentation, and cursor protocol to `pkg/protocol`.
+- [x] Port cryptography (Ed25519, X25519, HKDF-SHA256, AES-256-GCM, WebAuthn ES256/RS256) passing deterministic fixtures.
+- [x] Port dependency broker and context runtime to `pkg/context`.
+- [x] Port API client with Proof-of-Possession request signing to `pkg/apiclient`.
+- [x] Port mesh topology, capability negotiation, and envelope signing to `pkg/mesh`.
+- [x] Port Node state, RC Lock authority, and control manager to `pkg/node`.
+- [x] Port kernel Wasm host with cheap change-tracking fingerprinting and `wasmtime-go` to `pkg/kernel`.
+- [x] Unify CLI entry point and server daemon into `cmd/rc` and `cmd/rc-server`.
+- [x] Remove legacy Rust crates (`crates/rc-*`) and `kernel/` workspace to eliminate build bloat.
+
+The Go packages replace the Rust implementation at the library level. These product behaviors are not yet re-established, so the native OS matrix cannot pass:
+
+- [x] Implement the component export bodies: all 60 `components/*` modules now export real behavior instead of generated `wit-bindgen` stubs.
+- [x] Implement a cgo component host over the vendored wasmtime C API: linker root/instances/functions, WASI, plugin host callbacks, value conversion, and `descriptor`/`activate`/`invoke` fixture tests.
+- [x] Link the durable-storage host (`revision`, `get`, `scan`, `commit`) and verify `storage-fixture` commands through the cgo host.
+- [x] Persist component storage in SQLite through `pkg/platform.DB` with revision transactions and verify cross-process `rc kv-set`/`kv-get`/`kv-list`.
+- [x] Dispatch unknown `rc <command>` invocations to an installed component that declares the command.
+- [x] Link process-host resource types (execution-group, child, byte-stream) with create-group, spawn, read/write/close, signal/resize, child state/poll-exit, and a real `/bin/sh` probe.
+- [x] Link environment, clock (timer resource), and filesystem hosts, and verify them through component-host probes.
+- [x] Add nested interface export calls and exercise `device-store` enrollments/registry against SQLite storage.
+- [x] Link policy/diagnostics host stubs and drive `execution-runtime.start`/read/close through nested exports with a real argv process.
+- [x] Link the plugin HTTP client host and verify `http-source.resolve` against a live HTTP server.
+- [x] Link keys host-custody resources (ed25519/x25519 secret keys, shared secrets, HKDF session keys, AES-GCM) and verify sign/agree/derive/encrypt round-trips.
+- [x] Link `ohrats:rc-net/byte-stream-host` with exact endpoint allowlisting, connection resources, read/write/close, and a TCP echo probe.
+- [x] Add a pion WebRTC DataChannel transport package with a local offer/answer and bidirectional message round-trip test.
+- [ ] Add authenticated WebRTC signaling endpoints, wire the Node and CLI/browser control handshake, and re-enable browser/Windows E2E.
+- [x] Add passkey setup/login/register/step-up sessions, durable workspace enrollment-token storage, and session-authenticated SSE `/api/v1/events` to `pkg/server`; signed Node presence is implemented.
+- [x] Add MCP OAuth discovery, authorization, token exchange, and grant-scoped `/mcp` access to `pkg/server`.
+- [x] Implement `rc run`, `rc shell`, background service installation, `rc repair`, `rc doctor`, `rc update`, `rc upgrade`, `rc logs`, `rc ps`, `rc login`, `rc logout`, and signed `rc devices`.
+- [x] Port `public/install.sh` and `public/install.ps1` to the single Go `rc` archive, publish them as release assets, and run installation smoke on Linux, macOS, and Windows.
+- [ ] Re-enable browser and Windows product E2E by setting `RC_BROWSER_E2E_ENABLED` and `RC_WINDOWS_RUNTIME_ENABLED` once the runtime behavior they exercise exists.
+- [ ] Extend `tests/integration/` to cover the component domains that still need kernel host invocation: API credentials, authority, device/workspace stores, events, identity/passkeys, keys, mesh policy, packages, sessions, storage, updater, and shell.

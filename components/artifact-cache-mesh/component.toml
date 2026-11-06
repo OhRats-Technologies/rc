@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/artifact-cache-mesh@0.1.0"
 wit = ["artifact-cache", "plugin"]
 
 [build]
-kind = "rust"
-package = "rc-artifact-cache-mesh"
+kind = "go"
+package = "components/artifact-cache-mesh"
 artifact = "artifact-cache-mesh"

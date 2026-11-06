@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/key-custody-local@0.1.0"
 wit = ["keys", "plugin"]
 
 [build]
-kind = "rust"
-package = "rc-key-custody-local"
+kind = "go"
+package = "components/key-custody-local"
 artifact = "key-custody-local"

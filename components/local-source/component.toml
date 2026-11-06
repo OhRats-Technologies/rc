@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/local-source@0.1.0"
 wit = ["plugin"]
 
 [build]
-kind = "rust"
-package = "rc-local-source"
+kind = "go"
+package = "components/local-source"
 artifact = "local-source"

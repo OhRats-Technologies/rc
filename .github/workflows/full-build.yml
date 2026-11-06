@@ -12,40 +12,31 @@ concurrency:
   group: rc-full-component-build
   cancel-in-progress: true
 
+env:
+  GO_VERSION: "1.27.1"
+
 jobs:
   component-stack:
     runs-on: ubuntu-latest
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-          components: rustfmt,clippy
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            kernel -> target
-            components/fixture-provider -> target
-            components/fixture-consumer -> target
-            components/fixture-broken -> target
-            components/fixture-collision -> target
-            components/fixture-trap -> target
-            components/fixture-limit -> target
-          shared-key: rc-full-component-build
-          add-job-id-key: false
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install componentize-go
+        run: |
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - run: python3 scripts/check-component-boundaries.py
       - run: python3 scripts/validate-components.py
       - run: python3 scripts/validate-profiles.py
-      - run: cargo fmt --manifest-path kernel/Cargo.toml --all -- --check
-      - run: cargo clippy --manifest-path kernel/Cargo.toml --all-targets -- -D warnings
-      - run: cargo test --manifest-path kernel/Cargo.toml --all-targets --locked
+      - run: go vet ./...
+      - run: go test ./...
       - run: scripts/check-components.sh
-      - run: scripts/smoke-kernel.sh
+      - run: go test ./tests/integration/ -count=1 -v
       - name: Assemble every profile without compiling code
         run: |
           for profile in profiles/*.toml; do

@@ -5,55 +5,37 @@ RUN bun install --frozen-lockfile
 COPY web ./web
 RUN bun run build:client
 
-FROM lukemathwalker/cargo-chef:latest-rust-1.98-bookworm@sha256:b1ed45bf65418f5daa5348b39f05ec6a6f5950996e0b797dbe38326d18d42e41 AS chef
+FROM golang:1.27-bookworm AS build
 WORKDIR /src
-
-FROM chef AS planner
-COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
-COPY public ./public
-RUN cargo chef prepare --recipe-path recipe.json
-
-FROM chef AS rust
-COPY --from=planner /src/recipe.json recipe.json
-RUN cargo chef cook --locked --release -p rc-server --recipe-path recipe.json
-COPY Cargo.toml Cargo.lock ./
-COPY crates ./crates
-COPY public ./public
-RUN cargo build --locked --release -p rc-server --bin rc-server --bin rc-ssh-helper
+COPY go.mod go.sum ./
+RUN go mod download
+COPY pkg ./pkg
+COPY cmd ./cmd
+RUN CGO_ENABLED=1 go build -trimpath -o /out/rc-server ./cmd/rc-server \
+ && CGO_ENABLED=1 go build -trimpath -o /out/rc ./cmd/rc
 
 FROM debian:bookworm-slim
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates curl gosu openssh-server tini \
+      ca-certificates curl gosu procps tini \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd --gid 10001 rc \
  && useradd --uid 10001 --gid 10001 --home-dir /home/rc --create-home --shell /bin/sh rc \
  && passwd -d rc \
- && mkdir -p /app/assets /data /run/sshd \
+ && mkdir -p /app/assets /data \
  && chown -R rc:rc /data
 
-COPY --from=rust /src/target/release/rc-server /usr/local/bin/rc-server
-COPY --from=rust /src/target/release/rc-ssh-helper /usr/local/bin/rc-ssh-helper
+COPY --from=build /out/rc-server /usr/local/bin/rc-server
+COPY --from=build /out/rc /usr/local/bin/rc
 COPY --from=web /src/dist/assets /app/assets
 COPY docker-entrypoint.sh /usr/local/bin/rc-entrypoint
-COPY docker/sshd_config /etc/ssh/sshd_config_rc
-COPY docker/rc-ssh-authorized /usr/local/bin/rc-ssh-authorized
-COPY docker/rc-ssh-bridge /usr/local/bin/rc-ssh-bridge
 
-RUN chmod 0755 \
-      /usr/local/bin/rc-server \
-      /usr/local/bin/rc-ssh-helper \
-      /usr/local/bin/rc-entrypoint \
-      /usr/local/bin/rc-ssh-authorized \
-      /usr/local/bin/rc-ssh-bridge
+RUN chmod 0755 /usr/local/bin/rc-server /usr/local/bin/rc /usr/local/bin/rc-entrypoint
 
 ENV PORT=3000 \
-    DATA_DIR=/data \
-    STATIC_DIR=/app/assets \
-    PUBLIC_URL=https://rc.ohrats.party \
-    RC_SSH_DAEMON_PORT=2222 \
-    RC_SSH_INTERNAL_PORT=3001
+    RC_DATA_DIR=/data \
+    RC_ASSETS_DIR=/app/assets \
+    PUBLIC_URL=https://rc.ohrats.party
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \

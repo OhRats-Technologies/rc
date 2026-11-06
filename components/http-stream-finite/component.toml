@@ -5,6 +5,6 @@ version = "0.1.0"
 world = "ohrats:rc-plugin/http-stream-finite@0.1.0"
 wit = ["plugin"]
 [build]
-kind = "rust"
-package = "rc-http-stream-finite"
+kind = "go"
+package = "components/http-stream-finite"
 artifact = "http-stream-finite"

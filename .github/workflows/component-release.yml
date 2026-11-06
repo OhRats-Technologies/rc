@@ -43,15 +43,14 @@ jobs:
             echo "version=$(printf '%s' "$metadata" | jq -r .version)"
             echo "artifact=$(printf '%s' "$metadata" | jq -r .artifact)"
           } >> "$GITHUB_OUTPUT"
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          targets: wasm32-wasip2
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: components/${{ steps.release.outputs.component }} -> target
-          shared-key: component-release-${{ steps.release.outputs.component }}
-          add-job-id-key: false
+          go-version: "1.27.1"
+          cache: true
+      - name: Install componentize-go
+        run: |
+          go install github.com/bytecodealliance/componentize-go@v0.5.3
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Validate and build component
         env:
           COMPONENT: ${{ steps.release.outputs.component }}

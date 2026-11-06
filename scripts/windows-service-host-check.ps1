@@ -5,8 +5,13 @@ New-Item -ItemType Directory -Path $root | Out-Null
 $fixture = Join-Path $root 'fixture.exe'
 $hostProcess = $null
 try {
-  & rustc --edition=2024 ./fixtures/windows-service-child.rs -o $fixture
-  if ($LASTEXITCODE) { throw 'service child fixture compilation failed' }
+  Push-Location (Join-Path $PSScriptRoot '..\fixtures\windows-service-child')
+  try {
+    & go build -o $fixture .
+    if ($LASTEXITCODE) { throw 'service child fixture compilation failed' }
+  } finally {
+    Pop-Location
+  }
   $image = [IO.File]::ReadAllBytes($HostBinary)
   $pe = [BitConverter]::ToInt32($image, 0x3c)
   if ([BitConverter]::ToUInt16($image, $pe + 24 + 68) -ne 2) { throw 'service host is not a GUI-subsystem executable' }

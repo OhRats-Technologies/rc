@@ -7,6 +7,6 @@ world = "ohrats:rc-plugin/key-custody-fixture@0.1.0"
 wit = ["crypto", "keys", "plugin"]
 
 [build]
-kind = "rust"
-package = "rc-key-custody-fixture"
+kind = "go"
+package = "components/key-custody-fixture"
 artifact = "key-custody-fixture"

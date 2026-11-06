@@ -10,6 +10,7 @@ DATA_DIR="${RC_DATA_DIR:-$HOME_DIR/.local/share/rc}"
 COMPONENT_DIR="${RC_COMPONENT_DIR:-$DATA_DIR/components}"
 ROLLBACK_DIR="${RC_INSTALL_ROLLBACK_DIR:-$DATA_DIR/rollback}"
 STATE_DIR="${RC_STATE_DIR:-$HOME_DIR/.config/rc}"
+FORCE_CORE="${RC_INSTALL_FORCE_CORE:-0}"
 test -n "$HOME_DIR" || { echo "HOME is required" >&2; exit 1; }
 case "$SERVER" in
   ""|http://*|https://*) ;;
@@ -172,14 +173,11 @@ if [ -z "$(asset_field "$CORE_ASSET" browser_download_url)" ]; then
   CORE_COMPONENTS=$LEGACY_CORE_COMPONENTS
 fi
 verify_asset "rc-${PLATFORM}.tar.gz" $((160 << 20))
-verify_asset "rc-kernel-${PLATFORM}.tar.gz" $((160 << 20))
 verify_asset "$CORE_ASSET" $((128 << 20))
 validate_single_archive "$TMPDIR_PATH/rc-${PLATFORM}.tar.gz" rc
-validate_single_archive "$TMPDIR_PATH/rc-kernel-${PLATFORM}.tar.gz" rc-kernel
 validate_bundle_archive "$TMPDIR_PATH/$CORE_ASSET" "$CORE_MODE"
 mkdir -p "$TMPDIR_PATH/new/components"
 tar -xzf "$TMPDIR_PATH/rc-${PLATFORM}.tar.gz" -C "$TMPDIR_PATH/new"
-tar -xzf "$TMPDIR_PATH/rc-kernel-${PLATFORM}.tar.gz" -C "$TMPDIR_PATH/new"
 tar -xzf "$TMPDIR_PATH/$CORE_ASSET" -C "$TMPDIR_PATH/new"
 if [ "$CORE_MODE" = profile ]; then
   mv "$TMPDIR_PATH/new/profile.lock" "$TMPDIR_PATH/profile.lock"
@@ -197,20 +195,17 @@ for name in $CORE_COMPONENTS; do
       { echo "core component digest mismatch: $name" >&2; exit 1; }
   fi
 done
-chmod 0755 "$TMPDIR_PATH/new/rc" "$TMPDIR_PATH/new/rc-kernel"
+chmod 0755 "$TMPDIR_PATH/new/rc"
 test "$("$TMPDIR_PATH/new/rc" version)" = "RC $VERSION" ||
   { echo "downloaded rc did not report the release version" >&2; exit 1; }
-"$TMPDIR_PATH/new/rc-kernel" --version | grep -Eq '^RC kernel [0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$' ||
-  { echo "downloaded kernel did not report a valid version" >&2; exit 1; }
-"$TMPDIR_PATH/new/rc-kernel" --component-dir "$TMPDIR_PATH/new/components" policy-check >/dev/null ||
-  { echo "core profile failed kernel validation" >&2; exit 1; }
+"$TMPDIR_PATH/new/rc" policy-check --component-dir "$TMPDIR_PATH/new/components" >/dev/null ||
+  { echo "core profile failed runtime validation" >&2; exit 1; }
 mkdir -p "$BIN_DIR" "$COMPONENT_DIR" "$ROLLBACK_DIR"
 BACKUP="$ROLLBACK_DIR/previous"
 rm -rf "$BACKUP.new"
 mkdir -p "$BACKUP.new/components"
-for path in rc rc-kernel; do
-  if [ -f "$BIN_DIR/$path" ]; then cp -p "$BIN_DIR/$path" "$BACKUP.new/$path"; fi
-done
+if [ -f "$BIN_DIR/rc" ]; then cp -p "$BIN_DIR/rc" "$BACKUP.new/rc"; fi
+if [ -f "$COMPONENT_DIR/profile.lock" ]; then cp -p "$COMPONENT_DIR/profile.lock" "$BACKUP.new/profile.lock"; fi
 for name in $CORE_COMPONENTS; do
   for suffix in wasm core; do
     if [ -f "$COMPONENT_DIR/$name.$suffix" ]; then
@@ -218,22 +213,26 @@ for name in $CORE_COMPONENTS; do
     fi
   done
 done
-if [ -f "$BIN_DIR/rc" ] || [ -f "$BIN_DIR/rc-kernel" ]; then
+if [ -f "$BIN_DIR/rc" ]; then
   old_version=$("$BIN_DIR/rc" version 2>/dev/null || :)
   printf '%s\n' "$old_version" > "$BACKUP.new/version"
 fi
 rm -rf "$BACKUP"
 mv "$BACKUP.new" "$BACKUP"
 restore_previous() {
-  for path in rc rc-kernel; do
-    if [ -f "$BACKUP/$path" ]; then
-      cp "$BACKUP/$path" "$BIN_DIR/$path.rc-restore.$$"
-      chmod 0755 "$BIN_DIR/$path.rc-restore.$$"
-      mv "$BIN_DIR/$path.rc-restore.$$" "$BIN_DIR/$path"
-    else
-      rm -f "$BIN_DIR/$path"
-    fi
-  done
+  if [ -f "$BACKUP/rc" ]; then
+    cp "$BACKUP/rc" "$BIN_DIR/rc.rc-restore.$$"
+    chmod 0755 "$BIN_DIR/rc.rc-restore.$$"
+    mv "$BIN_DIR/rc.rc-restore.$$" "$BIN_DIR/rc"
+  else
+    rm -f "$BIN_DIR/rc"
+  fi
+  if [ -f "$BACKUP/profile.lock" ]; then
+    cp "$BACKUP/profile.lock" "$COMPONENT_DIR/profile.lock.rc-restore.$$"
+    mv "$COMPONENT_DIR/profile.lock.rc-restore.$$" "$COMPONENT_DIR/profile.lock"
+  else
+    rm -f "$COMPONENT_DIR/profile.lock"
+  fi
   for name in $CORE_COMPONENTS; do
     for suffix in wasm core; do
       old="$BACKUP/components/$name.$suffix"
@@ -269,10 +268,16 @@ install_file() {
 }
 ACTIVATING=1
 install_file "$TMPDIR_PATH/new/rc" "$BIN_DIR/rc" 0755
-install_file "$TMPDIR_PATH/new/rc-kernel" "$BIN_DIR/rc-kernel" 0755
+if [ "$CORE_MODE" = profile ]; then
+  install_file "$TMPDIR_PATH/profile.lock" "$COMPONENT_DIR/profile.lock" 0644
+fi
 for name in $CORE_COMPONENTS; do
   target="$COMPONENT_DIR/$name.wasm"
   marker="$COMPONENT_DIR/$name.core"
+  if [ -f "$target" ] && [ ! -f "$marker" ] && [ "$FORCE_CORE" != 1 ]; then
+    echo "component override preserved: $name" >&2
+    continue
+  fi
   install_file "$TMPDIR_PATH/new/components/$name.wasm" "$target" 0644
   printf 'sha256:%s\n' "$(sha256_file "$TMPDIR_PATH/new/components/$name.wasm")" > "$marker.rc-install.$$"
   mv "$marker.rc-install.$$" "$marker"

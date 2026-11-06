@@ -67,22 +67,31 @@ def validate(path: pathlib.Path) -> tuple[list[str], str | None]:
             elif not wit_package_exists(name):
                 errors.append(f"{relative}: missing WIT package {name!r}")
 
-    if build.get("kind") != "rust":
-        errors.append(f"{relative}: unsupported build kind")
+    kind = build.get("kind")
+    if kind != "go":
+        errors.append(f"{relative}: build.kind must be 'go'")
     if not isinstance(package, str) or not package:
         errors.append(f"{relative}: build.package is required")
+    elif isinstance(component_id, str) and package != f"components/{path.parent.name}":
+        errors.append(f"{relative}: build.package must be components/{path.parent.name}")
     if not isinstance(artifact, str) or not TOKEN.fullmatch(artifact):
         errors.append(f"{relative}: invalid artifact name")
+    elif artifact != path.parent.name:
+        errors.append(f"{relative}: artifact must match the component directory name")
 
-    cargo_path = path.parent / "Cargo.toml"
-    if not cargo_path.is_file():
-        errors.append(f"{relative}: Rust component is missing Cargo.toml")
+    module = path.parent / "go.mod"
+    if not module.is_file():
+        errors.append(f"{relative}: Go component is missing go.mod")
     else:
-        cargo = read(cargo_path).get("package", {})
-        if cargo.get("name") != package:
-            errors.append(f"{relative}: build.package does not match Cargo package")
-        if cargo.get("version") != version:
-            errors.append(f"{relative}: component and Cargo versions differ")
+        text = module.read_text(encoding="utf-8")
+        if not re.search(r"(?m)^module\s+wit_component\s*$", text):
+            errors.append(f"{relative}: go.mod must declare module wit_component")
+        if not re.search(r"(?m)^go\s+[0-9]+\.[0-9]+", text):
+            errors.append(f"{relative}: go.mod is missing a go directive")
+    if (path.parent / "Cargo.toml").is_file():
+        errors.append(f"{relative}: remove the legacy Cargo manifest")
+    if not any(path.parent.glob("*.go")):
+        errors.append(f"{relative}: Go component is missing Go source files")
     return errors, artifact if isinstance(artifact, str) else None
 
 

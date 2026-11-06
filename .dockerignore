@@ -4,8 +4,6 @@ data
 data-v2
 dist
 node_modules
-target
-kernel
 components
 wit
 schemas

@@ -1,10 +1,10 @@
 # Installation
 
 The public installers are POSIX `install.sh` and Windows PowerShell
-`install.ps1`. They download the platform `rc` archive,
-matching kernel archive, and the core component asset from the immutable GitHub
-release returned by the release API. GitHub SHA-256 digests are required and
-verified before any archive is read or activated.
+`install.ps1`. They download the platform `rc` archive and the core component
+asset from the immutable GitHub release returned by the release API. GitHub
+SHA-256 digests are required and verified before any archive is read or
+activated.
 
 The canonical core profile is an atomic part of the native runtime. Install and
 upgrade replace its named members together while leaving non-core third-party
@@ -28,8 +28,8 @@ profile ohrats:core
 component <name> sha256:<64 hex characters>
 ```
 
-The installer verifies every locked component digest and asks the staged kernel
-to validate the staged graph before activation.
+The installer verifies every locked component digest and runs the staged
+`rc policy-check` against the staged component directory before activation.
 
 `rc-core-components.tar.gz` is the ten-component compatibility asset accepted
 by the released v0.19.2 upgrader. It has no `profile.lock`. The installer uses
@@ -37,35 +37,28 @@ it only when a release does not provide the current profile asset. This keeps
 old immutable releases installable without weakening validation of current
 releases.
 
-On Linux and macOS, by default, `rc` and `rc-kernel` are installed in `~/.local/bin`; components go
-in `~/.local/share/rc/components`. `RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`,
+On Linux and macOS, by default, `rc` is installed in `~/.local/bin`; components
+go in `~/.local/share/rc/components`. `RC_INSTALL_BIN_DIR`, `RC_DATA_DIR`,
 `RC_COMPONENT_DIR`, and `RC_STATE_DIR` provide explicit test or packaging
 locations.
 
 On Windows, run `install.ps1` in normal PowerShell as the enrolled user;
-administrator elevation is not required. The script is
-published with the release; downloaded artifacts are verified against GitHub
-release digests. It is not an Authenticode-signed script.
-Defaults live under `%LOCALAPPDATA%\OhRats\RC`. The installer stages the native
-pair under `data\runtime\versions\VERSION`, validates it with the staged core
-profile, and atomically changes `data\runtime\active`. The controller remains
-at `bin\rc.exe`; service registration resolves the versioned active kernel.
-Installer-owned runtime, component, state, rollback, binary, and staging
+administrator elevation is not required. The script is published with the
+release; downloaded artifacts are verified against GitHub release digests. It
+is not an Authenticode-signed script.
+Defaults live under `%LOCALAPPDATA%\OhRats\RC`. The installer stages the
+single `rc.exe` controller and core component set, validates it with
+`rc policy-check`, records a rollback snapshot under `data\rollback`, writes a
+durable activation journal, then replaces `bin\rc.exe` and the managed
+components. Installer-owned component, state, rollback, binary, and staging
 directories receive protected DACLs for the enrolled user, SYSTEM, and local
 Administrators before artifacts are written.
-The previous activation pointer, stable controller, and managed core component
-set are retained for interruption recovery. Activation writes a durable
-journal only after that rollback snapshot is complete; a later installer or
-`rc upgrade` restores it before new work if interruption left the journal.
-If the running stable Windows controller itself must be rolled back, RC stages
-a post-exit helper, exits with a rerun instruction, and leaves the journal until
-that helper commits the replacement.
-When `rc upgrade` is itself running from `bin\rc.exe`, a staged external
-PowerShell helper waits for that process to exit before replacing the stable
-controller image; RC never renames over its running Windows executable.
-The active and previous runtime generations remain available for rollback;
-after activation commits, RC removes only older semantic-version directories.
-CLI and independently versioned kernel downgrades are rejected separately.
+The previous controller and managed core component set are retained for
+interruption recovery. A later installer or `rc upgrade` restores the snapshot
+before new work if interruption left the journal.
+When `rc upgrade` is itself running from `bin\rc.exe`, a staged post-exit
+helper waits for that process to exit before replacing the stable controller
+image; RC never renames over its running Windows executable.
 
 The normal Windows Node is a per-user interactive Task Scheduler task. It
 starts at that user's logon and runs only while an interactive user session is
@@ -82,8 +75,8 @@ from normal PowerShell. In that case, run `scripts/repair-windows-service.ps1`
 once from an elevated PowerShell using the enrolled Windows account, then
 rerun the installer normally. The repair refuses tasks assigned to another user.
 
-Activation uses same-filesystem temporary files and retains the previous native
-pair and installer-owned core component files under
+Activation uses same-filesystem temporary files and retains the previous
+controller and installer-owned core component files under
 `~/.local/share/rc/rollback/previous`. `.core` markers are distinct from package
 manager `.managed` markers. A component without a matching `.core` marker is a
 local override and is not replaced by the installer.
@@ -93,6 +86,10 @@ Run the deterministic installer smoke with:
 ```sh
 sh scripts/smoke-install.sh
 ```
+
+The smoke covers the single-`rc` release layout, profile-lock and component
+digest validation, reinstall, local component override preservation, rollback
+after a failed candidate validation, and the legacy ten-component bundle.
 
 PowerShell syntax and native Windows runtime integration are gated in
 `windows-latest` CI. Installer directory permissions and service registration,

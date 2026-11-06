@@ -5,9 +5,10 @@ on:
   push:
     branches: [main]
     paths:
-      - Cargo.toml
-      - Cargo.lock
-      - crates/**
+      - go.mod
+      - go.sum
+      - cmd/**
+      - pkg/**
       - public/install.sh
       - public/install.ps1
       - scripts/check-version.sh
@@ -20,6 +21,9 @@ concurrency:
   group: rc-release-assets-main
   cancel-in-progress: true
 
+env:
+  GO_VERSION: "1.27.1"
+
 jobs:
   build:
     strategy:
@@ -27,90 +31,101 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
             os: linux
             arch: amd64
+            cross: ""
           - runner: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
             os: linux
             arch: arm64
+            cross: aarch64-linux-gnu
           - runner: macos-15
-            target: aarch64-apple-darwin
             os: darwin
             arch: arm64
+            cross: ""
           - runner: macos-15
-            target: x86_64-apple-darwin
             os: darwin
             arch: amd64
+            cross: ""
           - runner: windows-latest
-            target: x86_64-pc-windows-msvc
             os: windows
             arch: amd64
+            cross: ""
     runs-on: ${{ matrix.runner }}
-    env:
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-go@v6
         with:
-          toolchain: "1.98.0"
-          targets: ${{ matrix.target }}
-      - name: Verify Rust target
-        shell: bash
-        env:
-          TARGET: ${{ matrix.target }}
-        run: rustup target list --installed | grep -Fx "$TARGET"
-      - name: Restore release build cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: release-v2-${{ matrix.target }}
-          add-job-id-key: false
-          cache-workspace-crates: true
-          cache-directories: ~/.cache/cargo-zigbuild
-      - uses: mlugg/setup-zig@v2
-        if: runner.os == 'Linux'
-        with:
-          version: "0.16.0"
-      - name: Install cargo-zigbuild
-        if: runner.os == 'Linux'
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: Install the Linux ARM64 cross compiler
+        if: matrix.cross != ''
         run: |
-          archive="$RUNNER_TEMP/cargo-zigbuild.tar.xz"
-          directory="$RUNNER_TEMP/cargo-zigbuild"
-          curl -fsSL \
-            -o "$archive" \
-            https://github.com/rust-cross/cargo-zigbuild/releases/download/v0.23.2/cargo-zigbuild-x86_64-unknown-linux-gnu.tar.xz
-          echo "68f56ad657054afc04fa6f6b75a5752cec60378a046ad4e9441b9a06bd51211e  $archive" | sha256sum -c -
-          mkdir -p "$directory"
-          tar -xJf "$archive" -C "$directory" --strip-components=1 cargo-zigbuild-x86_64-unknown-linux-gnu/cargo-zigbuild
-          echo "$directory" >> "$GITHUB_PATH"
+          sudo apt-get update
+          sudo apt-get install --yes gcc-aarch64-linux-gnu libc6-dev-arm64-cross
+      - name: Locate the Windows C compiler
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $candidates = @('C:\mingw64\bin', 'C:\msys64\mingw64\bin', 'C:\Strawberry\c\bin')
+          $found = $false
+          foreach ($candidate in $candidates) {
+            if (Test-Path (Join-Path $candidate 'gcc.exe')) {
+              $candidate | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+              $found = $true
+            }
+          }
+          if (-not $found) {
+            throw 'no MinGW gcc is available for cgo'
+          }
+          gcc --version
+
       - name: Build RC on Linux
         if: runner.os == 'Linux'
         env:
-          RUSTFLAGS: -D warnings -A linker-messages
-        run: cargo zigbuild --locked --release -p rc-cli --target ${{ matrix.target }}
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CC: ${{ matrix.cross && format('{0}-gcc', matrix.cross) || 'gcc' }}
+        run: go build -trimpath -buildvcs=false -o dist/package/rc ./cmd/rc
       - name: Build RC on macOS
         if: runner.os == 'macOS'
         env:
-          RUSTFLAGS: -D warnings
-        run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: go build -trimpath -buildvcs=false -o dist/package/rc ./cmd/rc
       - name: Build RC on Windows
         if: runner.os == 'Windows'
         env:
-          RUSTFLAGS: -D warnings -C target-feature=+crt-static
-        run: cargo build --locked --release -p rc-cli --target ${{ matrix.target }}
-      - name: Package RC
+          CGO_ENABLED: "1"
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CC: gcc
+        shell: bash
+        run: go build -trimpath -buildvcs=false -o dist/package/rc.exe ./cmd/rc
+      - name: Verify the release binary runs
         shell: bash
         env:
-          TARGET: ${{ matrix.target }}
           OS: ${{ matrix.os }}
           ARCH: ${{ matrix.arch }}
         run: |
-          mkdir -p dist/package
+          if [ "$OS:$ARCH" != "$(go env GOOS):$(go env GOARCH)" ]; then
+            echo "cross-compiled $OS/$ARCH binary cannot execute on this runner"
+            exit 0
+          fi
           suffix=""
           test "$OS" != windows || suffix=.exe
-          cp "target/$TARGET/release/rc$suffix" "dist/package/rc$suffix"
+          "./dist/package/rc$suffix" version | grep -F "$(sed -n 's/^const Version = "\([^"]*\)"/\1/p' pkg/version/version.go)"
+      - name: Package RC
+        shell: bash
+        env:
+          OS: ${{ matrix.os }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          suffix=""
+          test "$OS" != windows || suffix=.exe
           test "$OS" = windows || chmod 0755 dist/package/rc
           tar -C dist/package -czf "dist/rc-$OS-$ARCH.tar.gz" "rc$suffix"
       - uses: actions/upload-artifact@v7
