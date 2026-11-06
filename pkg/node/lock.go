@@ -66,7 +66,7 @@ func ValidateSnapshot(snapshot string) (*protocol.AuthoritySnapshot, error) {
 
 func LoadLock(dir string) (*protocol.LockState, error) {
 	path := LockPath(dir)
-	if err := platform.ValidatePrivatePath(path, false); err != nil {
+	if err := validatePrivateFile(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrLockMissing
 		}

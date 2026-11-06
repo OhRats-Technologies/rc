@@ -144,7 +144,7 @@ func SaveAccount(dir string, a *AccountSession) error {
 }
 
 func loadJSON(path string, out any) error {
-	if err := platform.ValidatePrivatePath(path, false); err != nil {
+	if err := validatePrivateFile(path); err != nil {
 		return err
 	}
 	data, err := os.ReadFile(path)
