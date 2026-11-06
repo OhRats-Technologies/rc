@@ -59,7 +59,7 @@ jobs:
             artifact-cache-local \
             package-manager local-source http-source oci-source github-source \
             diagnostics-store diagnostics-reporter diagnostics-cli \
-            process-policy execution-runtime scheduler shell transport-webrtc updater
+            process-policy execution-runtime scheduler transport-webrtc updater
           do
             scripts/build-component.sh "components/$component"
           done

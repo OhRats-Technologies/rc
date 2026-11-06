@@ -35,7 +35,7 @@ chmod 0755 "$fixture/rc"
 tar -C "$fixture" -czf "$fixture/rc-linux-amd64.tar.gz" rc
 
 for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store execution-runtime github-source \
-  http-source local-source oci-source package-manager process-policy scheduler shell transport-webrtc updater; do
+  http-source local-source oci-source package-manager process-policy scheduler transport-webrtc updater; do
   printf 'fixture:%s\n' "$name" > "$fixture/components/$name.wasm"
 done
 "$root/packaging/build-core-bundle.sh" "$fixture/rc-core-profile.tar.gz" \
@@ -102,7 +102,7 @@ echo 'RC 0.9.0'
 EOF
 chmod 0755 "$old_rc"
 for name in artifact-cache-local diagnostics-cli diagnostics-reporter diagnostics-store execution-runtime github-source \
-  http-source local-source oci-source package-manager process-policy scheduler shell transport-webrtc updater; do
+  http-source local-source oci-source package-manager process-policy scheduler transport-webrtc updater; do
   printf 'old:%s\n' "$name" > "$fixture/home/.local/share/rc/components/$name.wasm"
   printf 'sha256:%s\n' "$(hash_file "$fixture/home/.local/share/rc/components/$name.wasm")" \
     > "$fixture/home/.local/share/rc/components/$name.core"

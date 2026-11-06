@@ -61,7 +61,7 @@ if (!windows) {
   await chmod(loginShell, 0o700);
 }
 for (const name of [
-  "diagnostics-store", "diagnostics-cli", "process-policy", "shell",
+  "diagnostics-store", "diagnostics-cli", "process-policy",
   "execution-runtime", "scheduler", "transport-webrtc",
 ]) {
   const source = join(root, "dist/components", `${name}.wasm`);
@@ -69,7 +69,6 @@ for (const name of [
   await copyFile(source, join(components, `${name}.wasm`));
 }
 const port = Number(process.env.RC_E2E_PORT || await freePort());
-const sshPort = await freePort(), sshInternalPort = await freePort();
 const localBase = `http://localhost:${port}`;
 const base = (process.env.RC_E2E_PUBLIC_URL || localBase).replace(/\/$/, "");
 const nodeBase = (process.env.RC_E2E_NODE_URL || localBase).replace(/\/$/, "");
