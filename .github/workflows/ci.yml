@@ -101,6 +101,7 @@ jobs:
       - run: python3 scripts/validate-profiles.py
       - run: python3 scripts/test-affected-units.py
       - run: python3 scripts/check-doc-links.py
+      - run: python3 scripts/check-shared-assets.py
       - name: Run installer smoke
         run: sh scripts/smoke-install.sh
       - name: Validate shell entry points and workflows

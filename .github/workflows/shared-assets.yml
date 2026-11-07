@@ -1,0 +1,19 @@
+name: Shared UI assets
+
+# RC pins content-fingerprinted assets from assets.ohrats.party (the `ui` repo).
+# Verify daily that every pinned URL is still published and consistent so a
+# `ui` redeploy cannot silently leave RC pages unstyled.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 9 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/check-shared-assets.py
