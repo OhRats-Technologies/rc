@@ -44,7 +44,9 @@ control plane.
 
 The 22 cargo smoke scripts were deleted with the Rust crates. `tests/integration/`
 now covers server lifecycle, enrollment, signed presence, CLI behavior, local
-shell, logs, doctor, component build/load/reload, release upgrade (happy path,
+shell, logs, doctor, component build/load/reload, API-key authentication,
+workspace authority and audit events, sessions and passkeys, key agreement and
+mesh envelopes, package-manager discovery, storage, release upgrade (happy path,
 no-op, downgrade, minimum upgrader, digest mismatch, local override), and
 fail-closed routes. Domain coverage that requires component invocation remains
 blocked on the kernel host.
