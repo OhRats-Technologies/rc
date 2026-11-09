@@ -25,10 +25,12 @@ func startMCPTestNode(t *testing.T, srv *Server, ts *httptest.Server) string {
 		t.Fatalf("enroll test node: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	stateDir := t.TempDir()
 	exec := node.NewNativeExecutionManager()
-	go node.RunControl(ctx, ts.URL, t.TempDir(), state, exec, func(message string) {
+	control := node.NewControlManager(state, stateDir, exec)
+	go node.RunControl(ctx, ts.URL, stateDir, state, exec, func(message string) {
 		t.Logf("node: %s", message)
-	})
+	}, control)
 	waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
 	defer waitCancel()
 	if err := srv.nodes.WaitOnline(waitCtx, state.DeviceID); err != nil {

@@ -111,8 +111,9 @@ export class ControlSession {
 
 export async function openControlSession(deviceId: string, onTransportStatus: (status: ControlTransportStatus) => void = () => {}) {
   const identity = await ensureControlAuthorized();
-  const { device } = await api<{ device: Device & { identity_public_key?: string; transport_public_key?: string } }>(`/api/v1/devices/${encodeURIComponent(deviceId)}`);
-  const identityKey = String(device.identity_public_key || ""), expectedTransport = String(device.transport_public_key || "");
+  const { device } = await api<{ device: Device }>(`/api/v1/devices/${encodeURIComponent(deviceId)}`);
+  const identityKey = String(device.identity_public_key || device.identityPublicKey || "");
+  const expectedTransport = String(device.transport_public_key || device.transportPublicKey || "");
   if (!identityKey || !expectedTransport) throw new Error("Update this RC Node before opening an encrypted control session.");
   await pinDevice(deviceId, identityKey, expectedTransport);
   const { challenge } = await controlChallenge(deviceId);

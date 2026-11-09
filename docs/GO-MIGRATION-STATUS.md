@@ -21,6 +21,7 @@ control plane.
 | Remote MCP | OAuth metadata, dynamic client registration, authorization code + S256 PKCE with explicit consent, rotating refresh tokens, resource-bound Bearer tokens, scoped standard JSON-RPC `/mcp` tools |
 | Authority | Passkey-authorized control clients, Owner-signed MCP grants, API signing keys, schedule permits, canonical workspace snapshots, signed transitions, offline delivery, Node lock bootstrap |
 | Node MCP channel | Authenticated Node WebSocket, RC Lock verification, Node-owned process journals, remote image transfer |
+| Control data plane | Authenticated challenge/open/WebRTC signaling, Node and CLI/browser encrypted DataChannel sessions, current RC Lock invalidation, API-key execution authority |
 | Upgrade | Release API, digest pinning, size bounds, semver/downgrade rules, `minimumUpgrader`, core-profile validation, atomic replace, journal recovery, Windows side-by-side activation |
 | Diagnostics | Bounded local journal, service log tail/follow, process-tree inspection, `doctor` health checks |
 | Service | Per-user systemd, launchd, and Scheduled Task install/start/stop/uninstall |
@@ -33,11 +34,6 @@ control plane.
   `/devices/{id}`, `/account`, `/api`, and `/integrations/mcp` are
   server-rendered. Workspace access/activity and process pages still need their
   page handlers and workspace persistence ported.
-- **WebRTC signaling**: `pkg/transport` provides the DataChannel peer, offer/
-  answer, non-trickle ICE gathering, and message transport. Authenticated server
-  signaling endpoints and Node/CLI control handshake wiring are still missing.
-- **Remote control data plane**: WebRTC control signaling, Node-side connection
-  management, and direct E2EE control channel wiring are being unified.
 - **SSH gateway**: deprecated and removed. All remote terminal and execution
   workflows use direct E2EE WebRTC channels.
 - **Execution history**: deprecated and removed. Process state is strictly

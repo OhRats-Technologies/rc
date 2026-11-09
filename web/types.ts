@@ -23,6 +23,8 @@ export interface Device {
   role?: Role;
   identity_public_key?: string;
   transport_public_key?: string;
+  identityPublicKey?: string;
+  transportPublicKey?: string;
 }
 
 export interface RemoteProcess {

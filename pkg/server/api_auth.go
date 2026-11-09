@@ -77,7 +77,9 @@ func (s *Server) allowSessionOrAPI(next http.Handler) http.Handler {
 				writeError(w, status, message)
 				return
 			}
-			if required := apiRequiredScope(req); required != "" && !principal.HasScope(required) {
+			if required := apiRequiredScope(req); required != "" &&
+				!principal.HasScope(required) &&
+				!(required == "execute" && principal.HasScope("manage-devices")) {
 				writeError(w, http.StatusForbidden, "API key is missing the required scope")
 				return
 			}
@@ -106,6 +108,8 @@ func apiRequiredScope(req *http.Request) string {
 		return "manage-devices"
 	case req.URL.Path == "/api/v1/me":
 		return "read"
+	case strings.HasPrefix(req.URL.Path, "/api/v1/control/"):
+		return "execute"
 	case strings.HasPrefix(req.URL.Path, "/api/v1/workspaces/") &&
 		strings.HasSuffix(req.URL.Path, "/enrollments") && req.Method == http.MethodPost:
 		return "manage-devices"

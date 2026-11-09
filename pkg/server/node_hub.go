@@ -32,13 +32,14 @@ type nodePeer struct {
 // NodeHub owns authenticated Node command channels. It carries MCP execution
 // requests and responses; it never owns process output or execution state.
 type NodeHub struct {
-	mu         sync.RWMutex
-	peers      map[string]*nodePeer
-	pending    map[string]pendingNodeRequest
-	images     map[string]*pendingNodeImage
-	onPresence func(string, bool)
-	onHello    func(string, *protocol.NodeHello)
-	onLock     func(string, string, uint64)
+	mu              sync.RWMutex
+	peers           map[string]*nodePeer
+	pending         map[string]pendingNodeRequest
+	images          map[string]*pendingNodeImage
+	onPresence      func(string, bool)
+	onHello         func(string, *protocol.NodeHello)
+	onLock          func(string, string, uint64)
+	onControlClosed func(string, string)
 }
 
 func newNodeHub() *NodeHub {

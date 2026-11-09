@@ -49,6 +49,7 @@ type Server struct {
 	auth     *authstore.Store
 	turn     *turnProvider
 	nodes    *NodeHub
+	control  *controlHub
 
 	mu         sync.RWMutex
 	listenAddr string
@@ -78,15 +79,23 @@ func New(cfg Config) *Server {
 		nodes:    nodes,
 		turn:     newTurnProvider(cfg.TurnTokenID, cfg.TurnAPIToken),
 	}
+	s.control = newControlHub(nodes, s.turn)
 	mcp.challenge = s.writeOAuthChallenge
 	nodes.onHello = s.handleNodeHello
 	nodes.onLock = s.handleNodeLockState
+	nodes.onControlClosed = func(deviceID, sessionID string) {
+		session, ok := s.control.get(sessionID)
+		if ok && session.DeviceID == deviceID {
+			s.control.remove(sessionID)
+		}
+	}
 	nodes.onPresence = func(deviceID string, online bool) {
 		if online {
 			s.registry.markOnline(deviceID, true)
 			s.events.Publish("device.online", map[string]any{"deviceId": deviceID})
 			return
 		}
+		s.control.releaseDevice(deviceID)
 		s.markOffline(deviceID)
 	}
 	if cfg.Development && cfg.DevelopmentEnrollToken != "" {
@@ -125,6 +134,10 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/v1/control/clients/{id}", s.handleControlClientStatus)
 	mux.HandleFunc("POST /api/v1/control/authorize/options", s.handleControlAuthorizeOptions)
 	mux.HandleFunc("POST /api/v1/control/authorize/verify", s.handleControlAuthorizeVerify)
+	mux.Handle("POST /api/v1/control/challenge", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlChallenge)))
+	mux.Handle("POST /api/v1/control/open", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlOpen)))
+	mux.Handle("POST /api/v1/control/{session}/webrtc", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlWebRTC)))
+	mux.Handle("DELETE /api/v1/control/{session}", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlClose)))
 	mux.HandleFunc("POST /account/logout", s.handleLogout)
 	mux.HandleFunc("GET /account", s.handleAccountPage)
 	mux.HandleFunc("GET /api", s.handleAPIPage)

@@ -31,19 +31,19 @@ type DeviceRegistry struct {
 
 type RegisteredDevice struct {
 	ID                 string    `json:"id"`
-	WorkspaceID        string    `json:"workspaceId"`
+	WorkspaceID        string    `json:"workspace_id"`
 	Name               string    `json:"name"`
 	Hostname           string    `json:"hostname"`
 	Platform           string    `json:"platform"`
 	Arch               string    `json:"arch"`
 	Version            string    `json:"version"`
 	Capabilities       []string  `json:"capabilities"`
-	IdentityPublicKey  string    `json:"identityPublicKey"`
-	TransportPublicKey string    `json:"transportPublicKey"`
-	LockHash           string    `json:"lockHash,omitempty"`
-	LockGeneration     uint64    `json:"lockGeneration,omitempty"`
+	IdentityPublicKey  string    `json:"identity_public_key"`
+	TransportPublicKey string    `json:"transport_public_key"`
+	LockHash           string    `json:"lock_hash,omitempty"`
+	LockGeneration     uint64    `json:"lock_generation,omitempty"`
 	Online             bool      `json:"online"`
-	LastSeen           time.Time `json:"lastSeen"`
+	LastSeen           time.Time `json:"last_seen"`
 }
 
 func NewDeviceRegistry() *DeviceRegistry {

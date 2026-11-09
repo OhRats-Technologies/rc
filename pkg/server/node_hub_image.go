@@ -63,6 +63,10 @@ func (h *NodeHub) dispatch(deviceID string, message protocol.NodeToServer) {
 		if h.onLock != nil {
 			h.onLock(deviceID, message.Hash, message.Generation)
 		}
+	case protocol.TypeControlClosed:
+		if h.onControlClosed != nil {
+			h.onControlClosed(deviceID, message.SessionID)
+		}
 	}
 	if message.Type == "mcp_image_chunk" || message.Type == "mcp_image_result" {
 		h.dispatchImage(deviceID, message)

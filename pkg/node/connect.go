@@ -141,7 +141,9 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 				if err := BootstrapLock(stateDir, message.Snapshot, server); err != nil {
 					logf("lock bootstrap: " + err.Error())
 				} else if control != nil {
-					control.CloseAllSessions()
+					for _, sessionID := range control.CloseAllSessions() {
+						_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
+					}
 				}
 				hash, generation := LockMetadata(stateDir)
 				_ = send(protocol.NodeToServer{Type: "lock_state", Hash: hash, Generation: generation})
@@ -155,10 +157,62 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 				message.PreviousGeneration, proof, message.Signature); err != nil {
 				logf("lock sync: " + err.Error())
 			} else if control != nil {
-				control.CloseAllSessions()
+				for _, sessionID := range control.CloseAllSessions() {
+					_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
+				}
 			}
 			hash, generation := LockMetadata(stateDir)
 			_ = send(protocol.NodeToServer{Type: "lock_state", Hash: hash, Generation: generation})
+		case protocol.TypeControlChallenge:
+			if control == nil {
+				sendControlError(send, message.RequestID, "control manager unavailable")
+				continue
+			}
+			send(protocol.NodeToServer{
+				Type: protocol.TypeControlChallenge, RequestID: message.RequestID,
+				Challenge: control.CreateChallenge(message.RequestID),
+			})
+		case protocol.TypeControlOpen:
+			if control == nil {
+				sendControlError(send, message.RequestID, "control manager unavailable")
+				continue
+			}
+			authority, err := controlSessionAuthority(stateDir, message)
+			if err != nil {
+				sendControlError(send, message.RequestID, err.Error())
+				continue
+			}
+			ready, err := control.OpenAuthorizedSession(
+				message.Challenge, message.ClientID, message.PublicKey,
+				message.Signature, authority, message.IceServers,
+			)
+			if err != nil {
+				sendControlError(send, message.RequestID, err.Error())
+				continue
+			}
+			send(protocol.NodeToServer{
+				Type: protocol.TypeControlOpen, RequestID: message.RequestID,
+				SessionID: ready.SessionID, TransportPublicKey: ready.TransportPublicKey,
+				EphemeralPublicKey: ready.EphemeralPublicKey, Signature: ready.Signature,
+				Attempts: ready.Attempts,
+			})
+		case protocol.TypeControlWebRTC:
+			if control == nil {
+				sendControlError(send, message.RequestID, "control manager unavailable")
+				continue
+			}
+			answer, err := control.AnswerWebRTC(message.SessionID, message.SDP, message.IceServers)
+			if err != nil {
+				sendControlError(send, message.RequestID, err.Error())
+				continue
+			}
+			send(protocol.NodeToServer{
+				Type: protocol.TypeControlWebRTC, RequestID: message.RequestID, SDP: answer,
+			})
+		case protocol.TypeControlClose:
+			if control != nil {
+				control.CloseSession(message.SessionID)
+			}
 		case "mcp_start", "mcp_status", "mcp_input", "mcp_cancel", "mcp_image":
 			go hosted.Handle(message)
 		}
@@ -186,3 +240,9 @@ func controlURL(server string) (*url.URL, error) {
 type errInvalidControlURL struct{}
 
 func (errInvalidControlURL) Error() string { return "RC server URL must use http or https" }
+
+func sendControlError(send func(protocol.NodeToServer) error, requestID, message string) {
+	_ = send(protocol.NodeToServer{
+		Type: protocol.TypeControlError, RequestID: requestID, Error: message,
+	})
+}

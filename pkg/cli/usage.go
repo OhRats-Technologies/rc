@@ -30,7 +30,7 @@ Commands:
 
 Unknown commands are dispatched to an installed component that declares them.
 
-Remote device control needs a configured WebRTC control data plane; "rc shell"
-opens a local shell on the enrolled device.
+"rc shell" opens a local shell on the enrolled device. "rc shell DEVICE" uses
+the authenticated WebRTC control session and saved API key authorization.
 `, Version)
 }

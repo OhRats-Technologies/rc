@@ -29,7 +29,15 @@ func runShell(ctx context.Context, args []string) error {
 		return node.ErrNotEnrolled
 	}
 	if *device != "" && *device != state.DeviceID {
-		return fmt.Errorf("remote shell for %s requires a WebRTC control data plane; this runtime can open a local shell on the enrolled device %s", *device, state.DeviceID)
+		config, _ := node.LoadConfig(dir)
+		server := config.Server
+		if server == "" {
+			server = os.Getenv("RC_URL")
+		}
+		if server == "" {
+			server = "https://rc.ohrats.party"
+		}
+		return runRemoteShell(ctx, dir, server, *device, *command)
 	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
