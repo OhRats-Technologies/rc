@@ -8,7 +8,7 @@ export async function startWindowsNodeService(binary: string, state: string, com
     stdout: "pipe", stderr: "inherit",
   });
   const catalog = await new Response(prepare.stdout).text();
-  if (await prepare.exited !== 0 || !/^  logs\s+.*\(ohrats:diagnostics-cli\)\r?$/m.test(catalog)) {
+  if (await prepare.exited !== 0 || !/^\s*logs\s+.*\(ohrats:diagnostics-cli\)\r?$/m.test(catalog)) {
     throw new Error("Windows service fixture requires diagnostics-cli");
   }
   async function command(action: string) {
