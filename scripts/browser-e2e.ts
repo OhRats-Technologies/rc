@@ -47,7 +47,7 @@ async function waitForHttp(url: string, timeoutMs = 20_000) {
 }
 
 if (!await Bun.file(binary).exists() || !await Bun.file(serverBinary).exists() || !await Bun.file(kernelBinary).exists()) {
-  throw new Error("build rc-server, rc, and rc-kernel before running browser E2E");
+  throw new Error("build rc-server and rc before running browser E2E");
 }
 if (!await Bun.file(join(assets, "auth.js")).exists()) {
   throw new Error("run bun run build:client before running browser E2E");

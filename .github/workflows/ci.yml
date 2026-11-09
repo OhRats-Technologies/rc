@@ -352,6 +352,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RC_CDP_URL: http://127.0.0.1:9223
+      RC_E2E_BINARY: ${{ github.workspace }}/dist/rc
+      RC_E2E_SERVER: ${{ github.workspace }}/dist/rc-server
+      RC_E2E_KERNEL: ${{ github.workspace }}/dist/rc
     steps:
       - uses: actions/checkout@v7
         with:
