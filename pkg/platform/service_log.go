@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 )
@@ -16,6 +17,8 @@ const (
 	logCapacity = 1024 * 1024
 	MaxMessage  = 4096
 )
+
+var journalGeneration atomic.Uint64
 
 // LogEntry is an entry read from the service journal.
 type LogEntry struct {
@@ -50,7 +53,7 @@ func NewJournal(directory string) (*Journal, error) {
 	return &Journal{
 		directory:  directory,
 		sequence:   0,
-		generation: fmt.Sprintf("%d-%d", Micros(), os.Getpid()),
+		generation: fmt.Sprintf("%d-%d-%d", Micros(), os.Getpid(), journalGeneration.Add(1)),
 	}, nil
 }
 
