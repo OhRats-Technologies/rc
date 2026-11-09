@@ -2,7 +2,9 @@ package integration
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
+	"github.com/OhRats-Technologies/rc/pkg/auth/webauthn"
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
 )
 
@@ -63,7 +66,17 @@ func seedDomainServer(t *testing.T) (string, *authstore.User, *authstore.User, s
 	if err := store.EnsureWorkspaceMembership("ws_domain", member.ID, "viewer"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AddPasskey(owner.ID, "Domain Passkey", []byte("domain-credential"), []byte{0xa1, 0x01, 0x01}, authstore.AlgorithmES256); err != nil {
+	passkeyKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cose, err := webauthn.ES256CoseKey(
+		passkeyKey.PublicKey.X.FillBytes(make([]byte, 32)),
+		passkeyKey.PublicKey.Y.FillBytes(make([]byte, 32)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AddPasskey(owner.ID, "Domain Passkey", []byte("domain-credential"), cose, authstore.AlgorithmES256); err != nil {
 		t.Fatal(err)
 	}
 	passkeys, err := store.PasskeysForUser(owner.ID)
@@ -133,6 +146,10 @@ func TestServerDomainAuthorityStoresEventsAndSessions(t *testing.T) {
 	res, payload = domainRequest(t, http.MethodGet, srv.baseURL+"/api/v1/workspaces/ws_domain/access", "", ownerCookie)
 	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte(member.ID)) {
 		t.Fatalf("workspace access = %d: %s", res.StatusCode, payload)
+	}
+	res, payload = domainRequest(t, http.MethodGet, srv.baseURL+"/api/v1/workspaces/ws_domain/authority", "", ownerCookie)
+	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte(`"devices"`)) {
+		t.Fatalf("authority status = %d: %s", res.StatusCode, payload)
 	}
 	res, payload = domainRequest(t, http.MethodPatch,
 		srv.baseURL+"/api/v1/workspaces/ws_domain/members/"+member.ID,
