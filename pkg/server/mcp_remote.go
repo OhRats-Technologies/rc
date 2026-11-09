@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"time"
 
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
@@ -39,7 +40,7 @@ func (h *McpHandler) nodeReady(deviceID string) error {
 		return err
 	}
 	if device.LockHash != hash {
-		return errors.New("MCP grant is not synchronized with this Node")
+		return fmt.Errorf("MCP grant is not synchronized with this Node; open RC and run Sync device access for workspace %s", device.WorkspaceID)
 	}
 	return nil
 }

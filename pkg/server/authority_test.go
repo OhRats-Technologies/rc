@@ -217,6 +217,7 @@ func TestAuthorityStatusKeepsSameHashAtDifferentGenerations(t *testing.T) {
 	if err := srv.auth.EnsureWorkspaceMembership("ws_multi", user.ID, "owner"); err != nil {
 		t.Fatal(err)
 	}
+	control := seedTestControl(t, srv, user.ID, ts.URL)
 	for _, device := range []*RegisteredDevice{
 		{ID: "dev_old", WorkspaceID: "ws_multi", Name: "Old", Hostname: "old", Platform: "linux", Arch: "amd64",
 			Version: "0.20.6", IdentityPublicKey: "old-identity", TransportPublicKey: "old-transport",
@@ -236,6 +237,7 @@ func TestAuthorityStatusKeepsSameHashAtDifferentGenerations(t *testing.T) {
 		t.Fatalf("authority status = %d: %s", res.StatusCode, payload)
 	}
 	var status struct {
+		Hash    string `json:"hash"`
 		Parents []struct {
 			Hash       string `json:"hash"`
 			Generation uint64 `json:"generation"`
@@ -252,5 +254,27 @@ func TestAuthorityStatusKeepsSameHashAtDifferentGenerations(t *testing.T) {
 	}
 	if !generations[2] || !generations[7] || len(status.Parents) != 2 {
 		t.Fatalf("parents = %+v", status.Parents)
+	}
+	transitions := make([]map[string]any, 0, len(status.Parents))
+	for _, parent := range status.Parents {
+		transitions = append(transitions, map[string]any{
+			"fromHash": parent.Hash, "generation": parent.Generation,
+			"signature": control.sign("rc-authority-v3\n" + itoa(int(parent.Generation)) +
+				"\n" + parent.Hash + "\n" + status.Hash),
+		})
+	}
+	syncBody, _ := json.Marshal(map[string]any{"clientId": control.ID, "transitions": transitions})
+	req, _ = http.NewRequest(http.MethodPost, ts.URL+"/api/v1/workspaces/ws_multi/authority/sync", bytes.NewReader(syncBody))
+	req.Header.Set("Content-Type", "application/json")
+	req.AddCookie(cookie)
+	res, payload = oauthDo(t, http.DefaultClient, req)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("authority sync = %d: %s", res.StatusCode, payload)
+	}
+	for _, deviceID := range []string{"dev_old", "dev_new"} {
+		parents, err := srv.auth.AuthorityDeliveryParentsForDevice(deviceID)
+		if err != nil || len(parents) == 0 {
+			t.Fatalf("%s deliveries = %+v, %v", deviceID, parents, err)
+		}
 	}
 }
