@@ -289,6 +289,31 @@ jobs:
         run: |
           go install github.com/bytecodealliance/componentize-go@v0.5.3
           (Join-Path (go env GOPATH) 'bin') | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+      - uses: oven-sh/setup-bun@v2
+        if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true' && (!inputs.windows_only || inputs.windows_browser)
+        with:
+          bun-version: "1.4.4"
+      - name: Build Windows browser E2E fixtures
+        if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true' && (!inputs.windows_only || inputs.windows_browser)
+        shell: pwsh
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          New-Item -ItemType Directory -Force target/debug,dist/components | Out-Null
+          go build -o target/debug/rc.exe ./cmd/rc
+          go build -o target/debug/rc-server.exe ./cmd/rc-server
+          bun install --frozen-lockfile
+          bun run build:client
+          foreach ($component in @('diagnostics-store','diagnostics-cli','process-policy','execution-runtime','scheduler','transport-webrtc')) {
+            $manifest = "components/$component/component.toml"
+            $artifact = (python -c "import sys,tomllib; print(tomllib.load(open(sys.argv[1],'rb'))['build']['artifact'])" $manifest).Trim()
+            $world = (python -c "import sys,tomllib; print(tomllib.load(open(sys.argv[1],'rb'))['component']['world'])" $manifest).Trim()
+            Push-Location "components/$component"
+            try {
+              componentize-go -d ../../wit -w $world build -o "../../dist/components/$artifact.wasm"
+              if ($LASTEXITCODE) { throw "component build failed: $component" }
+            } finally { Pop-Location }
+          }
       - name: Run native component, server, and CLI harness
         if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true'
         env:
