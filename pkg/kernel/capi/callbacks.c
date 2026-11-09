@@ -1,3 +1,5 @@
+//go:build cgo && !windows
+
 #include "capi.h"
 
 extern void* goRCLog(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
