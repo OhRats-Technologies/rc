@@ -234,6 +234,7 @@ func TestInstallerRoutesServePublicScripts(t *testing.T) {
 		t.Fatal(err)
 	}
 	srv := New(Config{Addr: ":0", DataDir: t.TempDir(), AssetsDir: assets})
+	defer srv.Close()
 	ts := httptest.NewServer(srv.httpSrv.Handler)
 	defer ts.Close()
 	for name, want := range map[string]string{
