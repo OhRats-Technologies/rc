@@ -131,6 +131,16 @@ func (h *NodeHub) failDevice(deviceID string) {
 	}
 }
 
+// Disconnect closes one live Node transport after its enrollment is revoked.
+func (h *NodeHub) Disconnect(deviceID string) {
+	h.mu.RLock()
+	peer := h.peers[deviceID]
+	h.mu.RUnlock()
+	if peer != nil {
+		_ = peer.conn.Close()
+	}
+}
+
 func (h *NodeHub) Online(deviceID string) bool {
 	h.mu.RLock()
 	defer h.mu.RUnlock()

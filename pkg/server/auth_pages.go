@@ -192,7 +192,11 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, req *http.Request) {
 		`<form method="post" action="/account/name" hidden data-account-name-form><input class="account-title-input" name="name" value="` + escape(user.Name) + `" aria-label="Account name" required maxlength="120"></form>` +
 		`<button class="header-icon-button" type="button" data-account-rename aria-label="Rename account" title="Rename account"><span class="ui-icon icon-pencil"></span></button></div>` +
 		`<p class="error account-title-error"></p></div></header><section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Passkeys</span><div class="badge-line"></div></div><h2>Sign-in credentials</h2></div></div>` +
-		`<div class="settings-list">` + rows.String() + `</div><p id="passkey-error" class="error"></p></section></div>`
+		`<div class="settings-list">` + rows.String() + `</div><p id="passkey-error" class="error"></p></section>` +
+		`<section class="content-section"><div class="section-heading"><div><h2>Delete account</h2></div></div>` +
+		`<p class="meta">Deletes this account, every workspace you own, and your memberships. Workspaces you do not own remain.</p>` +
+		`<button class="text-button danger-text" type="button" data-delete-kind="account" data-delete-name="` + escape(user.Name) +
+		`" data-delete-endpoint="/account/delete" data-delete-method="POST" data-delete-redirect="/" data-delete-description="This cannot be undone.">DELETE ACCOUNT</button></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/account")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Account", sidebar, body, []string{"account"}, version.Version), "no-store")
 }

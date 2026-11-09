@@ -254,7 +254,26 @@ try {
   for (const needle of ["docs-sidebar", "docs-mobile-catalog", "docs-toc", "Quickstart", "Security model", "Authentication"]) {
     if (!docs.includes(needle)) throw new Error(`restored docs missing ${needle}`);
   }
-  console.log("passkey setup, Node enrollment, encrypted browser control, logout, landing, and docs passed");
+  await navigate(`${base}/login`);
+  await waitFor(`document.querySelector("#login-form") !== null`, 10_000, "login form");
+  await evaluate(`(()=>{document.querySelector("#login-form").requestSubmit();return true})()`);
+  await waitFor(`location.pathname === "/devices"`, 30_000, "passkey login");
+  await navigate(`${base}/account`);
+  await waitFor(`document.querySelector('[data-delete-endpoint="/account/delete"]') !== null`, 10_000, "account delete action");
+  await evaluate(`(()=>{document.querySelector('[data-delete-endpoint="/account/delete"]').click();return true})()`);
+  await waitFor(`document.querySelector('[data-delete-dialog]')?.open === true`, 10_000, "account delete dialog");
+  await evaluate(`(()=>{document.querySelector('[data-delete-confirm]').click();return true})()`);
+  try {
+    await waitFor(`location.pathname === "/" && document.querySelector('#setup-form') !== null`, 30_000, "protected setup after account deletion");
+  } catch (failure) {
+    const diagnostics = await evaluate(`({ url: location.href, dialogOpen: document.querySelector('[data-delete-dialog]')?.open,
+      deleteError: document.querySelector('[data-delete-error]')?.textContent,
+      deleteTitle: document.querySelector('[data-delete-title]')?.textContent,
+      authError: document.querySelector('#auth-error')?.textContent,
+      body: document.body.innerText.slice(0, 1000) })`).catch(() => null);
+    throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
+  }
+  console.log("passkey setup, Node enrollment, encrypted browser control, logout, landing, docs, and account deletion passed");
 } finally {
   if (service) await service.dispose();
   for (const child of [node, server]) {

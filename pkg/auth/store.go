@@ -40,10 +40,18 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// UserCount reports how many accounts exist.
+// DeletedAccountID is the historical-attribution principal left behind when an
+// account is deleted. It is never a login account.
+const DeletedAccountID = "__deleted_account__"
+
+// DeletedAccountName is the display name for surviving historical attribution.
+const DeletedAccountName = "Deleted account"
+
+// UserCount reports how many human accounts exist.
 func (s *Store) UserCount() (int, error) {
 	var count int
-	err := s.db.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM users;`).Scan(&count)
+	err := s.db.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM users WHERE id <> ?;`, DeletedAccountID).Scan(&count)
 	if err != nil {
 		return 0, err
 	}

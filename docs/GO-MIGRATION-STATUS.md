@@ -17,7 +17,7 @@ control plane.
 | Presence | Signed `GET /api/v1/node/self` and `POST /api/v1/node/heartbeat`, replay window, nonce cache, online/offline events |
 | Public web | Server-rendered landing/docs pages and token-gated setup/login/signup pages; Turnstile Siteverify for public signup |
 | ICE | `GET /api/v1/node/ice` returns cached short-lived Cloudflare TURN credentials or the public STUN fallback |
-| Accounts | SQLite users/passkeys/ceremonies/sessions; passkey setup, login, register, step-up; durable workspace enrollment tokens; API signing keys with scopes/expiry; `/api/v1/me`; authenticated `/api/v1/events` and device reads |
+| Accounts | SQLite users/passkeys/ceremonies/sessions; passkey setup, login, register, step-up; fresh-passkey account deletion with `Deleted account` attribution; durable workspace enrollment tokens; API signing keys with scopes/expiry; `/api/v1/me`; authenticated `/api/v1/events` and device reads |
 | Remote MCP | OAuth metadata, dynamic client registration, authorization code + S256 PKCE with explicit consent, rotating refresh tokens, resource-bound Bearer tokens, scoped standard JSON-RPC `/mcp` tools |
 | Authority | Passkey-authorized control clients, Owner-signed MCP grants, API signing keys, schedule permits, canonical workspace snapshots, signed transitions, offline delivery, Node lock bootstrap |
 | Node MCP channel | Authenticated Node WebSocket, RC Lock verification, Node-owned process journals, remote image transfer |

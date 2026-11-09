@@ -9,7 +9,7 @@ import (
 )
 
 // relayDeletedAccount is the tombstone user the relay wrote for deleted accounts.
-const relayDeletedAccount = "__deleted_account__"
+const relayDeletedAccount = DeletedAccountID
 
 // readRelay reads the relay-era database. Its passkeys have no display name,
 // so they receive the default name used by the current setup flow.

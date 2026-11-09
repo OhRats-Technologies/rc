@@ -160,7 +160,7 @@ func (s *Store) WorkspaceMembers(workspaceID string) ([]Membership, error) {
 // ListUsers returns every account.
 func (s *Store) ListUsers() ([]User, error) {
 	rows, err := s.db.QueryContext(context.Background(),
-		`SELECT id, name, created_ms FROM users ORDER BY id;`)
+		`SELECT id, name, created_ms FROM users WHERE id <> ? ORDER BY id;`, DeletedAccountID)
 	if err != nil {
 		return nil, err
 	}

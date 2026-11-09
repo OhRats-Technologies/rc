@@ -154,6 +154,8 @@ func New(cfg Config) *Server {
 	mux.Handle("POST /api/v1/control/{session}/webrtc", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlWebRTC)))
 	mux.Handle("DELETE /api/v1/control/{session}", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlClose)))
 	mux.HandleFunc("POST /account/logout", s.handleLogout)
+	mux.HandleFunc("POST /account/delete", s.handleAccountDelete)
+	mux.HandleFunc("DELETE /api/v1/account", s.handleAccountDelete)
 	mux.HandleFunc("GET /account", s.handleAccountPage)
 	mux.HandleFunc("GET /api", s.handleAPIPage)
 	mux.HandleFunc("GET /api/keys/new", s.handleAPIPage)

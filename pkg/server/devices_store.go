@@ -78,6 +78,14 @@ func (r *DeviceRegistry) persistEnrollment(device *RegisteredDevice) error {
 	return r.store.InsertDevice(enrolledDevice(device, time.Now().UTC()))
 }
 
+// forget drops one device from the in-memory cache after a durable account or
+// workspace deletion already wrote its revocation tombstone.
+func (r *DeviceRegistry) forget(id string) {
+	r.mu.Lock()
+	delete(r.devices, id)
+	r.mu.Unlock()
+}
+
 // remove revokes a device durably, then drops it from the cache.
 func (r *DeviceRegistry) remove(id string) error {
 	if r.store != nil {
