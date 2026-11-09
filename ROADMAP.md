@@ -144,7 +144,7 @@ Items are checked only after acceptance evidence passes. docs/RUNTIME.md is norm
 - [x] Delete the legacy process runner/manager, shell-string direct-argv conversion, hosted MCP process journal, and non-Unix terminal/permission fallbacks.
 - [x] Update architecture, API, install, operations, release, and public quickstart documentation for the portable runtime, Windows, and scheduler.
 - [x] Focus hosted and component RC landing pages on agent MCP access, align company-site RC copy, and validate page routes, component rendering, and both frontend builds.
-- [ ] Pass the complete Linux, macOS, and Windows native OS matrices.
+- [x] Pass the complete Linux, macOS, and Windows native OS matrices.
 
 ## Reliability follow-up
 - [x] Bound readiness waits, preserve ambiguous execution IDs without replay, and test reconnect/stale-peer cleanup.
