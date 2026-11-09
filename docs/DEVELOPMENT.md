@@ -116,8 +116,12 @@ the Windows/macOS caches.
 
 ## Runtime status
 
-All first-party component bodies and native CLI commands are implemented. A few
-component imports still link as traps instead of executing their host exports.
+All first-party component bodies and native CLI commands are implemented. The
+control-authority component imports are linked and exercised through the native
+host. Package-manager installation flows (`rc add`, `rc install`, artifact
+caching, and managed state) and the native component host on Windows are
+explicitly out of scope for the control-authority model; unsupported package
+operations fail with a clear message instead of reaching an empty host stub.
 The hosted passkey session and authenticated WebRTC control plane are implemented,
 and the browser and Windows product E2E suites pass against the Go binaries.
 `docs/GO-MIGRATION-STATUS.md` tracks the remaining work and which checks are

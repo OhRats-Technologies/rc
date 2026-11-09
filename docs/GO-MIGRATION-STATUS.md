@@ -39,6 +39,15 @@ control plane.
   and locally on macOS; the Windows suite runs encrypted browser control and
   process exit on a `windows-latest` runner. `RC_BROWSER_E2E_ENABLED` and
   `RC_WINDOWS_RUNTIME_ENABLED` are enabled in the repository.
+- **Package management scope**: the component host implements
+  `component-store.installed` so `rc list` reports managed components.
+  `rc add`, `rc install`, package-source resolution, artifact caching, and
+  managed state are outside the control-authority scope and fail with an
+  explicit message. `rc update` remains the native component-update command.
+- **Native host platform scope**: the native component host is supported on
+  Linux and macOS. Windows runs the control-plane and browser E2E; porting the
+  native component host to Windows is out of scope for the control-authority
+  model.
 
 ## Removed Rust harnesses
 
@@ -49,10 +58,9 @@ workspace authority and audit events, sessions and passkeys, key agreement and
 mesh envelopes, package-manager discovery, storage, release upgrade (happy path,
 no-op, downgrade, minimum upgrader, digest mismatch, local override), and
 fail-closed routes. Kernel host imports for mesh policy, key custody, identity,
-sessions, API credentials, events, and the component store are implemented; the
-integration suite invokes each fixture command through the real component host.
-The native component host remains unavailable on Windows, where those fixture
-tests skip explicitly.
+sessions, API credentials, events, and `component-store.installed` are
+implemented; the integration suite invokes each control-authority fixture
+command through the real component host.
 
 ## Enabling gated jobs
 

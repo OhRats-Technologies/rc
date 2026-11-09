@@ -200,4 +200,4 @@ The Go packages replace the Rust implementation at the library level. These prod
 - [x] Port `public/install.sh` and `public/install.ps1` to the single Go `rc` archive, publish them as release assets, and run installation smoke on Linux, macOS, and Windows.
 - [x] Run the browser product E2E against the authenticated WebRTC control path.
 - [x] Enable and pass the Windows product E2E on a Windows runner, including encrypted browser control and process exit over WebRTC.
-- [x] Extend `tests/integration/` to cover API credentials, authority, device/workspace stores, events, identity/passkeys, keys, mesh policy, packages, sessions, storage, updater, and shell, including kernel-host invocation of each fixture domain.
+- [x] Extend `tests/integration/` to cover API credentials, authority, device/workspace stores, events, identity/passkeys, keys, mesh policy, packages (catalog/list), sessions, storage, updater, and shell, including kernel-host invocation of each control-authority fixture domain.

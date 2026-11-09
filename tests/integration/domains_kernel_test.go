@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -22,7 +23,7 @@ func runDomainCommand(t *testing.T, binary, components string, env []string, arg
 // the real kernel host: users, passkeys, ceremonies, sessions, and admin proof.
 func TestKernelHostIdentityAndSessionDomains(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("native component host imports are unavailable on Windows")
+		t.Skip("native component host is out of scope on Windows")
 	}
 	binary := buildBinary(t, "./cmd/rc", "rc")
 	components := componentArtifacts(t, "identity-fixture")
@@ -46,7 +47,7 @@ func TestKernelHostIdentityAndSessionDomains(t *testing.T) {
 // the kernel host, including step-up proof, replay, expiry, revocation, and CLI.
 func TestKernelHostAPICredentialDomain(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("native component host imports are unavailable on Windows")
+		t.Skip("native component host is out of scope on Windows")
 	}
 	binary := buildBinary(t, "./cmd/rc", "rc")
 	components := componentArtifacts(t, "api-credential-fixture")
@@ -64,7 +65,7 @@ func TestKernelHostAPICredentialDomain(t *testing.T) {
 
 func TestKernelHostAPICredentialRace(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("native component host imports are unavailable on Windows")
+		t.Skip("native component host is out of scope on Windows")
 	}
 	binary := buildBinary(t, "./cmd/rc", "rc")
 	components := componentArtifacts(t, "api-credential-fixture")
@@ -83,7 +84,7 @@ func TestKernelHostAPICredentialRace(t *testing.T) {
 // the kernel host with durable state shared across separate CLI processes.
 func TestKernelHostEventsDomain(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("native component host imports are unavailable on Windows")
+		t.Skip("native component host is out of scope on Windows")
 	}
 	binary := buildBinary(t, "./cmd/rc", "rc")
 	components := componentArtifacts(t, "events-fixture")
@@ -103,7 +104,7 @@ func TestKernelHostEventsDomain(t *testing.T) {
 // protected key-custody fixtures through the kernel host.
 func TestKernelHostMeshAndKeyDomains(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("native component host imports are unavailable on Windows")
+		t.Skip("native component host is out of scope on Windows")
 	}
 	binary := buildBinary(t, "./cmd/rc", "rc")
 	components := componentArtifacts(t, "mesh-policy-fixture", "key-custody-fixture")
@@ -127,7 +128,7 @@ func TestKernelHostMeshAndKeyDomains(t *testing.T) {
 // through the kernel host and verifies its managed command catalog.
 func TestKernelHostPackageManagerCatalog(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("native component host imports are unavailable on Windows")
+		t.Skip("native component host is out of scope on Windows")
 	}
 	binary := buildBinary(t, "./cmd/rc", "rc")
 	components := componentArtifacts(t, "package-manager")
@@ -148,5 +149,31 @@ func TestKernelHostPackageManagerCatalog(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "NAME") {
 		t.Fatalf("package-manager list output = %q", stdout)
+	}
+}
+
+// TestPackageInstallationIsExplicitlyOutOfScope proves that package lifecycle
+// commands fail with a deliberate scope message instead of silently reaching an
+// unimplemented host callback. Package management is not part of RC Lock.
+func TestPackageInstallationIsExplicitlyOutOfScope(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("native component host is out of scope on Windows")
+	}
+	binary := buildBinary(t, "./cmd/rc", "rc")
+	components := componentArtifacts(t, "package-manager")
+	_, env := kernelDomainEnv(t)
+	cases := [][]string{
+		{"add", filepath.Join(t.TempDir(), "missing.wasm")},
+		{"install"},
+	}
+	for _, args := range cases {
+		stdout, stderr, err := runDomainCommand(t, binary, components, env, args...)
+		combined := stdout + stderr
+		if err == nil {
+			t.Fatalf("%v unexpectedly succeeded:\n%s", args, combined)
+		}
+		if !strings.Contains(combined, "out of scope for the control-authority host") {
+			t.Fatalf("%v did not report an explicit scope error:\n%s", args, combined)
+		}
 	}
 }

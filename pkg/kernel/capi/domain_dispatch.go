@@ -125,6 +125,11 @@ func domainDispatch(id uint64, name string, args *C.wasmtime_component_val_t, na
 		domainEventsCurrent(args, nargs, results)
 	case "component.installed":
 		domainComponentInstalled(args, nargs, results)
+	case "component.install", "component.prepare", "component.commit", "component.abort",
+		"component.remove", "cache.read", "cache.write", "files.read", "catalog.read",
+		"services.providers", "source.resolve", "artifact.fetch", "state.read",
+		"state.write", "state.remove":
+		setStringResult(results, false, "package installation is out of scope for the control-authority host")
 	default:
 		setStringResult(results, false, "domain host is unavailable")
 	}
