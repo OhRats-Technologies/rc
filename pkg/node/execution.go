@@ -195,11 +195,12 @@ func (m *NativeExecutionManager) Input(id string, data []byte) error {
 	}
 	p.mu.RLock()
 	stdin := p.stdin
+	spec := p.spec
 	p.mu.RUnlock()
 	if stdin == nil {
 		return errors.New("stdin not available")
 	}
-	_, err := stdin.Write(data)
+	_, err := stdin.Write(terminalInput(spec, data))
 	return err
 }
 

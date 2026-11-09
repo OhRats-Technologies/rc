@@ -60,7 +60,7 @@ const typeInput = windows || process.env.RC_E2E_TYPE_INPUT === "1";
 const loginShell = windows ? (process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe") : join(directory, "login-shell");
 if (!windows) {
   const script = typeInput
-    ? "#!/bin/bash\nprintf 'RC_BROWSER_E2E_OK\\n'\nprintf 'RC_BROWSER_E2E_PROMPT> '\nwhile IFS= read -r -d $'\\r' line; do\n  [ \"$line\" = \"exit 0\" ] && exit 0\n  printf '%s\\n' \"$line\"\n  printf 'RC_BROWSER_E2E_PROMPT> '\ndone\n"
+    ? "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\nprintf 'RC_BROWSER_E2E_PROMPT> '\nwhile IFS= read -r line; do\n  [ \"$line\" = \"exit 0\" ] && exit 0\n  printf '%s\\n' \"$line\"\n  printf 'RC_BROWSER_E2E_PROMPT> '\ndone\n"
     : "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n";
   await writeFile(loginShell, script, { mode: 0o700 });
   await chmod(loginShell, 0o700);
