@@ -304,15 +304,14 @@ jobs:
           go build -o target/debug/rc-server.exe ./cmd/rc-server
           bun install --frozen-lockfile
           bun run build:client
+          $versionLine = Select-String -Path pkg/version/version.go -Pattern 'var Version = "([^"]+)"'
+          if (!$versionLine) { throw 'could not read RC version' }
+          $version = $versionLine.Matches[0].Groups[1].Value
+          $profile = Join-Path $env:RUNNER_TEMP 'rc-core-profile.tar.gz'
+          Invoke-WebRequest -Uri "https://github.com/OhRats-Technologies/rc/releases/download/v$version/rc-core-profile.tar.gz" -OutFile $profile
+          tar -xzf $profile -C dist
           foreach ($component in @('diagnostics-store','diagnostics-cli','process-policy','execution-runtime','scheduler','transport-webrtc')) {
-            $manifest = "components/$component/component.toml"
-            $artifact = (python -c "import sys,tomllib; print(tomllib.load(open(sys.argv[1],'rb'))['build']['artifact'])" $manifest).Trim()
-            $world = (python -c "import sys,tomllib; print(tomllib.load(open(sys.argv[1],'rb'))['component']['world'])" $manifest).Trim()
-            Push-Location "components/$component"
-            try {
-              componentize-go -d ../../wit -w $world build -o "../../dist/components/$artifact.wasm"
-              if ($LASTEXITCODE) { throw "component build failed: $component" }
-            } finally { Pop-Location }
+            if (!(Test-Path "dist/components/$component.wasm")) { throw "missing release component: $component" }
           }
       - name: Run native component, server, and CLI harness
         if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true'
