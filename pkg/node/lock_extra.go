@@ -8,6 +8,64 @@ import (
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
 )
 
+// VerifyApiControlAuthority resolves a proof-of-possession API key through the
+// local RC Lock snapshot. Expired or absent keys, keys of viewers, and keys
+// without an execution or device-management capability are rejected.
+func VerifyApiControlAuthority(dir, keyID string) (*ApiControlAuthority, error) {
+	lock, err := LoadLock(dir)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := ValidateSnapshot(lock.Snapshot)
+	if err != nil {
+		return nil, err
+	}
+	var key *protocol.AuthorityApiKey
+	for i := range snap.ApiKeys {
+		entry := &snap.ApiKeys[i]
+		if entry.ID != keyID {
+			continue
+		}
+		now := time.Now().UnixMilli()
+		if entry.PublicKey == "" || (entry.ExpiresAt != 0 && entry.ExpiresAt <= now) {
+			return nil, ErrLockApiKey
+		}
+		key = entry
+		break
+	}
+	if key == nil {
+		return nil, ErrLockApiKey
+	}
+	var member *protocol.AuthorityMember
+	for i := range snap.Members {
+		if snap.Members[i].UserID == key.UserID {
+			member = &snap.Members[i]
+			break
+		}
+	}
+	if member == nil || (member.Role != "owner" && member.Role != "operator") {
+		return nil, ErrLockApiKey
+	}
+	canExecute := hasAPIScope(key.Scopes, "execute")
+	canManageDevices := member.Role == "owner" && hasAPIScope(key.Scopes, "manage-devices")
+	if !canExecute && !canManageDevices {
+		return nil, ErrLockApiKey
+	}
+	return &ApiControlAuthority{
+		UserID: key.UserID, Role: member.Role, PublicKey: key.PublicKey,
+		CanExecute: canExecute, CanManageDevices: canManageDevices,
+	}, nil
+}
+
+func hasAPIScope(scopes []string, required string) bool {
+	for _, scope := range scopes {
+		if scope == required {
+			return true
+		}
+	}
+	return false
+}
+
 func HostedControlAuthority(dir string, proof *protocol.ControlProof, userID string) (*ControlAuthority, error) {
 	lock, err := LoadLock(dir)
 	if err != nil {

@@ -151,8 +151,13 @@ func (r *DeviceRegistry) HandleListDevices(w http.ResponseWriter, req *http.Requ
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	devices, ok := r.requestDevices(req)
+	if !ok {
+		http.Error(w, "authentication required", http.StatusUnauthorized)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"devices": r.List()})
+	_ = json.NewEncoder(w).Encode(map[string]any{"devices": devices})
 }
 
 // List returns registered devices ordered by workspace and name.
@@ -219,12 +224,21 @@ func (r *DeviceRegistry) HandleDeviceRoutes(w http.ResponseWriter, req *http.Req
 		http.Error(w, "device not found", http.StatusNotFound)
 		return
 	}
+	role, ok := r.requestRole(req, dev.WorkspaceID)
+	if !ok {
+		http.Error(w, "device not found", http.StatusNotFound)
+		return
+	}
 
 	switch req.Method {
 	case http.MethodGet:
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"device": dev})
 	case http.MethodPatch:
+		if role != "owner" && role != "operator" {
+			http.Error(w, "operator access required", http.StatusForbidden)
+			return
+		}
 		var input struct {
 			Name string `json:"name"`
 		}
@@ -240,6 +254,10 @@ func (r *DeviceRegistry) HandleDeviceRoutes(w http.ResponseWriter, req *http.Req
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"name": renamed.Name})
 	case http.MethodDelete:
+		if role != "owner" {
+			http.Error(w, "owner access required", http.StatusForbidden)
+			return
+		}
 		if err := r.remove(id); err != nil {
 			if errors.Is(err, authstore.ErrDeviceNotFound) {
 				http.Error(w, "device not found", http.StatusNotFound)

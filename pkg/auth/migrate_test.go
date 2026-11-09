@@ -55,3 +55,30 @@ func TestSchemaOneAddsOAuthRequestStateAndCodeScopes(t *testing.T) {
 		t.Fatal("oauth_requests table was not created")
 	}
 }
+
+func TestSchemaThreeAddsAPIKeyAuthorityTables(t *testing.T) {
+	path := t.TempDir() + "/rc.db"
+	db := openTestDB(t, path)
+	if _, err := db.Exec(`PRAGMA user_version = 3;`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(path)
+	if err != nil {
+		t.Fatalf("open schema 3: %v", err)
+	}
+	defer store.Close()
+	for _, table := range []string{"api_keys", "schedule_grants", "request_nonces"} {
+		var count int
+		if err := store.db.QueryRowContext(context.Background(),
+			`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?;`, table).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 {
+			t.Fatalf("%s table was not created", table)
+		}
+	}
+}

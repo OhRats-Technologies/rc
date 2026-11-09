@@ -19,92 +19,9 @@ func (s *Server) renderAuthenticated(w http.ResponseWriter, req *http.Request, t
 		http.Redirect(w, req, "/login?next="+escape(path), http.StatusSeeOther)
 		return
 	}
-	sidebar := s.renderSidebar(user.Name, path)
+	sidebar := s.renderSidebar(user.ID, user.Name, path)
 	document := pages.Authenticated(title, sidebar, body, scripts, version.Version)
 	s.writePage(w, http.StatusOK, document, "no-store")
-}
-
-func (s *Server) renderSidebar(userName, path string) string {
-	current := ""
-	if rest, ok := strings.CutPrefix(path, "/devices/"); ok {
-		current = strings.SplitN(rest, "/", 2)[0]
-	}
-	devices := s.registry.List()
-	var rows strings.Builder
-	for _, device := range devices {
-		rows.WriteString(s.sidebarDeviceRow(device, current))
-	}
-	children := `<span class="workspace-empty">No devices</span>`
-	if rows.Len() > 0 {
-		children = rows.String()
-	}
-	open := strings.HasPrefix(path, "/devices")
-	hidden := ""
-	if !open {
-		hidden = "hidden"
-	}
-	initial := "?"
-	if trimmed := strings.TrimSpace(userName); trimmed != "" {
-		initial = strings.ToUpper(string([]rune(trimmed)[0]))
-	}
-	return `<aside id="site-sidebar" class="site-sidebar"><div class="sidebar-scroll">` +
-		`<a class="site-brand" href="/devices"><img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt=""><strong>RC</strong></a>` +
-		`<nav aria-label="RC navigation"><section class="sidebar-section"><h2>Navigation</h2>` +
-		`<a class="nav-link` + activeClass(path, "/devices") + `" href="/devices"><span class="ui-icon icon-devices"></span><span>Devices</span></a>` +
-		`<a class="nav-link` + activeClass(path, "/integrations/mcp") + `" href="/integrations/mcp"><span class="ui-icon icon-api"></span><span>MCP</span></a>` +
-		`</section><section class="sidebar-section workspace-section"><div class="sidebar-section-title"><h2>Workspaces</h2></div>` +
-		`<div class="workspace-folder active" data-workspace-folder="ws_default" data-default-open="true">` +
-		`<div class="workspace-folder-head"><button class="workspace-toggle" type="button" aria-expanded="true" data-workspace-toggle="ws_default"><span class="ui-icon icon-folder"></span><span class="workspace-name">Personal</span></button></div>` +
-		`<div class="workspace-children" data-workspace-children="ws_default" data-open="true" ` + hidden + `>` + children + `</div></div>` +
-		`</section></nav></div><div class="sidebar-footer"><div class="profile-row">` +
-		`<a class="profile-link" href="/account"><span class="profile-initial">` + escape(initial) + `</span><span class="profile-name">` + escape(userName) + `</span></a>` +
-		`<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme"></button>` +
-		`<form method="post" action="/account/logout"><button class="icon-button" type="submit" aria-label="Sign out" title="Sign out"><span class="ui-icon icon-sign-out"></span></button></form>` +
-		`</div></div></aside><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar"><span class="ui-icon icon-sidebar"></span></button>` +
-		deleteDialog()
-}
-
-func activeClass(path, target string) string {
-	if path == target || strings.HasPrefix(path, target+"/") {
-		return " active"
-	}
-	return ""
-}
-
-func (s *Server) sidebarDeviceRow(device *RegisteredDevice, current string) string {
-	active := ""
-	if device.ID == current {
-		active = " active"
-	}
-	online := " online"
-	if !device.Online {
-		online = ""
-	}
-	status := "OFFLINE"
-	if device.Online {
-		status = "ONLINE"
-	}
-	_ = status
-	return `<div class="workspace-device-row` + active + `" data-sidebar-device="` + escape(device.ID) + `">` +
-		`<div class="workspace-device-head has-menu"><a class="workspace-device-link" href="/devices/` + escape(device.ID) + `" data-device-name-view>` +
-		`<span class="workspace-device-presence` + online + `" data-sidebar-device-status="` + escape(device.ID) + `"></span>` +
-		`<span class="workspace-device-name"><span>` + escape(device.Name) + `</span></span></a>` +
-		`<details class="workspace-menu device-menu"><summary class="workspace-menu-trigger" aria-label="Actions for ` + escape(device.Name) + `"><span class="ui-icon icon-ellipsis"></span></summary>` +
-		`<div class="workspace-menu-popover"><div class="workspace-menu-actions">` +
-		`<form class="device-inline-rename" method="post" action="/devices/` + escape(device.ID) + `/rename" hidden data-device-rename-form>` +
-		`<input class="device-rename-input" name="name" value="` + escape(device.Name) + `" aria-label="Rename ` + escape(device.Name) + `" required maxlength="120">` +
-		`<input type="hidden" name="next" value="/devices/` + escape(device.ID) + `"></form>` +
-		`<button type="button" data-device-rename><span class="ui-icon icon-pencil"></span>Rename device</button>` +
-		`<button class="danger-text" type="button" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `"><span class="ui-icon icon-trash"></span>Delete device</button>` +
-		`</div></div></details></div></div>`
-}
-
-func deleteDialog() string {
-	return `<dialog class="delete-dialog" data-delete-dialog aria-labelledby="delete-dialog-title"><div class="delete-dialog-content">` +
-		`<h2 id="delete-dialog-title" data-delete-title>Delete?</h2><p>This will delete <strong data-delete-name>this item</strong>.</p>` +
-		`<p class="page-copy" data-delete-description hidden></p><p class="error" data-delete-error></p>` +
-		`<div class="delete-dialog-actions"><button class="or-button secondary" type="button" data-delete-cancel>Cancel</button>` +
-		`<button class="or-button delete-confirm" type="button" data-delete-confirm>Delete</button></div></div></dialog>`
 }
 
 func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
@@ -113,7 +30,7 @@ func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
 		http.Redirect(w, req, "/login?next=%2Fdevices", http.StatusSeeOther)
 		return
 	}
-	devices := s.registry.List()
+	devices := s.visibleDevices(user.ID)
 	var rows strings.Builder
 	if len(devices) == 0 {
 		rows.WriteString(`<p class="empty-state">No devices yet. Enroll one from a workspace.</p>`)
@@ -125,7 +42,7 @@ func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
 	body := `<div class="page" data-live-page="devices"><header class="page-header"><div><h1>Devices</h1></div>` +
 		`<a class="header-icon-button" href="/devices/enroll" aria-label="Enroll device" title="Enroll device"><span class="ui-icon icon-plus"></span></a></header>` +
 		`<div class="data-list" id="device-list">` + rows.String() + `</div></div>`
-	sidebar := s.renderSidebar(user.Name, "/devices")
+	sidebar := s.renderSidebar(user.ID, user.Name, "/devices")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Devices", sidebar, body, []string{"live"}, version.Version), "no-store")
 }
 
@@ -169,6 +86,10 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
+	if _, err := s.auth.WorkspaceRole(user.ID, device.WorkspaceID); err != nil {
+		http.NotFound(w, req)
+		return
+	}
 	status := "OFFLINE"
 	if device.Online {
 		status = "ONLINE"
@@ -197,7 +118,7 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		`<p id="process-error" class="error"></p></section>` +
 		`<section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Processes</span><div class="badge-line"></div></div><h2>Active</h2></div></div>` +
 		`<div class="data-list" id="process-list"><p class="empty-state">No active processes.</p></div></section></div>`
-	sidebar := s.renderSidebar(user.Name, req.URL.Path)
+	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device"}, version.Version), "no-store")
 }
 
@@ -207,7 +128,7 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 		http.Redirect(w, req, "/login?next=%2Fdevices%2Fenroll", http.StatusSeeOther)
 		return
 	}
-	devices := s.registry.List()
+	devices := s.visibleDevices(user.ID)
 	ids := make([]string, 0, len(devices))
 	for _, device := range devices {
 		ids = append(ids, device.ID)
@@ -223,7 +144,7 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 		`<span class="meta">ALREADY INSTALLED · SHOWN ONCE</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
 		`<p class="meta">One default background enrollment is supported per OS user. RC refuses to overwrite an existing device identity.</p>` +
 		`<p class="error" role="alert" data-enrollment-error></p><p id="enrollment-state" class="meta"></p></div></div>`
-	sidebar := s.renderSidebar(user.Name, "/devices/enroll")
+	sidebar := s.renderSidebar(user.ID, user.Name, "/devices/enroll")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Enroll device", sidebar, body, []string{"pages", "live"}, version.Version), "no-store")
 }
 
@@ -248,7 +169,7 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, req *http.Request) {
 		`<button class="header-icon-button" type="button" data-account-rename aria-label="Rename account" title="Rename account"><span class="ui-icon icon-pencil"></span></button></div>` +
 		`<p class="error account-title-error"></p></div></header><section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Passkeys</span><div class="badge-line"></div></div><h2>Sign-in credentials</h2></div></div>` +
 		`<div class="settings-list">` + rows.String() + `</div><p id="passkey-error" class="error"></p></section></div>`
-	sidebar := s.renderSidebar(user.Name, "/account")
+	sidebar := s.renderSidebar(user.ID, user.Name, "/account")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Account", sidebar, body, []string{"account"}, version.Version), "no-store")
 }
 
@@ -280,8 +201,23 @@ func (s *Server) handleAccountName(w http.ResponseWriter, req *http.Request) {
 }
 
 func (s *Server) handleDeviceRenameForm(w http.ResponseWriter, req *http.Request) {
-	if _, _, err := s.currentSession(req); err != nil {
+	user, _, err := s.currentSession(req)
+	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	device, ok := s.registry.Get(req.PathValue("id"))
+	if !ok {
+		writeError(w, http.StatusNotFound, "device not found")
+		return
+	}
+	role, err := s.auth.WorkspaceRole(user.ID, device.WorkspaceID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "device not found")
+		return
+	}
+	if role != "owner" && role != "operator" {
+		writeError(w, http.StatusForbidden, "operator access required")
 		return
 	}
 	renamed, err := s.registry.Rename(req.PathValue("id"), req.FormValue("name"))

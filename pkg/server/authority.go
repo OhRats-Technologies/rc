@@ -58,6 +58,35 @@ func (s *Server) authoritySnapshot(workspaceID string) (string, error) {
 	}
 	sort.Slice(authorityMembers, func(i, j int) bool { return authorityMembers[i].UserID < authorityMembers[j].UserID })
 
+	keys, err := s.auth.ActiveAPIKeysForWorkspace(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	authorityKeys := make([]protocol.AuthorityApiKey, 0, len(keys))
+	for _, key := range keys {
+		authorityKeys = append(authorityKeys, protocol.AuthorityApiKey{
+			ID: key.ID, UserID: key.UserID, PublicKey: key.PublicKey,
+			Scopes: key.Scopes, ExpiresAt: msOrZero(key.ExpiresAt),
+		})
+	}
+	sort.Slice(authorityKeys, func(i, j int) bool { return authorityKeys[i].ID < authorityKeys[j].ID })
+
+	schedules, err := s.auth.ActiveScheduleGrantsForWorkspace(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	authoritySchedules := make([]protocol.AuthorityScheduleGrant, 0, len(schedules))
+	for _, grant := range schedules {
+		authoritySchedules = append(authoritySchedules, protocol.AuthorityScheduleGrant{
+			ScheduleID: grant.ScheduleID, DeviceID: grant.DeviceID,
+			UserID: grant.UserID, SpecHash: grant.SpecHash,
+			MaxRuntimeMs: grant.MaxRuntimeMs, ExpiresAt: msOrZero(grant.ExpiresAt),
+		})
+	}
+	sort.Slice(authoritySchedules, func(i, j int) bool {
+		return authoritySchedules[i].ScheduleID < authoritySchedules[j].ScheduleID
+	})
+
 	grants, err := s.auth.ActiveMcpGrants()
 	if err != nil {
 		return "", err
@@ -80,7 +109,8 @@ func (s *Server) authoritySnapshot(workspaceID string) (string, error) {
 
 	snapshot := protocol.AuthoritySnapshot{
 		V: 1, WorkspaceID: workspaceID,
-		Devices: authorityDevices, Members: authorityMembers, McpGrants: authorityGrants,
+		Devices: authorityDevices, Members: authorityMembers, ApiKeys: authorityKeys,
+		McpGrants: authorityGrants, ScheduleGrants: authoritySchedules,
 	}
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
@@ -246,27 +276,4 @@ func (s *Server) handleAuthoritySync(w http.ResponseWriter, req *http.Request) {
 		"ok": true, "devices": len(devices), "online": online,
 		"lockHash": digest, "at": time.Now().UnixMilli(),
 	})
-}
-
-func hasScope(scopes []string, required string) bool {
-	for _, scope := range scopes {
-		if scope == required || scope == "mcp" {
-			return true
-		}
-	}
-	return false
-}
-
-func validAuthorityHash(value string) bool {
-	if len(value) != 64 {
-		return false
-	}
-	for index := 0; index < len(value); index++ {
-		char := value[index]
-		if char >= '0' && char <= '9' || char >= 'a' && char <= 'f' || char >= 'A' && char <= 'F' {
-			continue
-		}
-		return false
-	}
-	return true
 }

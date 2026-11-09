@@ -33,4 +33,8 @@ var (
 	ErrOAuthResourceMismatch = errors.New("auth: oauth token is bound to another resource")
 	ErrControlClientNotFound = errors.New("auth: control client not found or expired")
 	ErrControlClientConflict = errors.New("auth: control client belongs to another account")
+	ErrAPIKeyNotFound        = errors.New("auth: API key not found or expired")
+	ErrAPIKeyLimit           = errors.New("auth: API key limit reached")
+	ErrAPIKeyReplay          = errors.New("auth: API key request was replayed")
+	ErrScheduleGrantNotFound = errors.New("auth: schedule authority permit not found")
 )

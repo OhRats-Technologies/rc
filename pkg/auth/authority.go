@@ -178,6 +178,34 @@ func (s *Store) ListUsers() ([]User, error) {
 	return users, rows.Err()
 }
 
+// WorkspaceAccess is one workspace visible to an account.
+type WorkspaceAccess struct {
+	ID   string
+	Name string
+	Role string
+}
+
+// WorkspacesForUser lists every workspace membership for an account.
+func (s *Store) WorkspacesForUser(userID string) ([]WorkspaceAccess, error) {
+	rows, err := s.db.QueryContext(context.Background(),
+		`SELECT w.id, w.name, wm.role FROM workspace_members wm
+		 JOIN workspaces w ON w.id = wm.workspace_id
+		 WHERE wm.user_id = ? ORDER BY w.created_ms, w.id;`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var workspaces []WorkspaceAccess
+	for rows.Next() {
+		var workspace WorkspaceAccess
+		if err := rows.Scan(&workspace.ID, &workspace.Name, &workspace.Role); err != nil {
+			return nil, err
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	return workspaces, rows.Err()
+}
+
 // WorkspacesForOwner lists workspaces where userID is an Owner.
 func (s *Store) WorkspacesForOwner(userID string) ([]string, error) {
 	rows, err := s.db.QueryContext(context.Background(),

@@ -46,7 +46,7 @@ func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
 		`the lock change to affected Nodes.</p></section>` +
 		`<div class="data-list">` + rows.String() + `</div>` +
 		`<p class="error" data-mcp-page-error role="alert"></p></div>`
-	sidebar := s.renderSidebar(user.Name, "/integrations/mcp")
+	sidebar := s.renderSidebar(user.ID, user.Name, "/integrations/mcp")
 	s.writePage(w, http.StatusOK, pages.Authenticated("MCP", sidebar, body,
 		[]string{"mcp-page"}, version.Version), "no-store")
 }

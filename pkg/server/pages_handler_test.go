@@ -74,6 +74,9 @@ func TestAuthenticatedPagesAndDeviceRename(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := srv.auth.EnsureWorkspaceMembership(defaultWorkspaceID, user.ID, "owner"); err != nil {
+		t.Fatal(err)
+	}
 	token, _, err := srv.auth.IssueSession(user.ID, "1h")
 	if err != nil {
 		t.Fatal(err)

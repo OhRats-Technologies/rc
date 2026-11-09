@@ -63,6 +63,7 @@ func runRun(ctx context.Context, args []string) error {
 
 	execMgr := node.NewNativeExecutionManager()
 	defer execMgr.Shutdown()
+	controlMgr := node.NewControlManager(state, dir, execMgr)
 
 	components, err := resolveDirectory("components", *componentDir)
 	if err != nil {
@@ -89,7 +90,7 @@ func runRun(ctx context.Context, args []string) error {
 	}
 	controlCtx, stopControl := context.WithCancel(ctx)
 	defer stopControl()
-	go node.RunControl(controlCtx, server, dir, state, execMgr, logEvent)
+	go node.RunControl(controlCtx, server, dir, state, execMgr, logEvent, controlMgr)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)

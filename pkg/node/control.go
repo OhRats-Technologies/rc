@@ -98,6 +98,19 @@ func (m *ControlManager) CloseSession(sessionID string) {
 	}
 }
 
+// CloseAllSessions invalidates every live encrypted control channel after the
+// Node accepts a new RC Lock generation.
+func (m *ControlManager) CloseAllSessions() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for sessionID := range m.sessions {
+		if m.processes != nil {
+			m.processes.DetachSecureSession(sessionID)
+		}
+	}
+	m.sessions = make(map[string]*ControlSession)
+}
+
 func (m *ControlManager) HandleRawFrame(sessionID string, frameBytes []byte) ([]byte, error) {
 	if protocol.IsBinaryFrame(frameBytes) {
 		binFrame, err := protocol.DecodeBinaryFrame(frameBytes)

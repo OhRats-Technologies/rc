@@ -137,22 +137,6 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 	})
 }
 
-// allowSessionOrDev permits dev mode or a valid passkey session. It is used for
-// browser-facing device and SSE reads.
-func (s *Server) allowSessionOrDev(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if s.cfg.Development {
-			next.ServeHTTP(w, req)
-			return
-		}
-		if _, _, err := s.currentSession(req); err != nil {
-			writeError(w, http.StatusUnauthorized, "authentication required")
-			return
-		}
-		next.ServeHTTP(w, req)
-	})
-}
-
 func (s *Server) requireSetupAuthorization(w http.ResponseWriter, req *http.Request) bool {
 	if s.cfg.SetupToken == "" {
 		return true
@@ -194,8 +178,16 @@ func (s *Server) handleSetupLink(w http.ResponseWriter, req *http.Request) {
 func (s *Server) handleMe(w http.ResponseWriter, req *http.Request) {
 	user, _, err := s.currentSession(req)
 	if err != nil {
-		writeError(w, http.StatusUnauthorized, "authentication required")
-		return
+		userID, ok := requestUserID(req)
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		user, err = s.auth.GetUser(userID)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
 	}
 	stepUp := false
 	if cookie, err := req.Cookie(stepUpCookieName); err == nil && cookie.Value != "" {
@@ -203,12 +195,20 @@ func (s *Server) handleMe(w http.ResponseWriter, req *http.Request) {
 			stepUp = true
 		}
 	}
+	memberships, err := s.auth.WorkspacesForUser(user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "workspaces could not be loaded")
+		return
+	}
+	workspaces := make([]map[string]string, 0, len(memberships))
+	for _, membership := range memberships {
+		workspaces = append(workspaces, map[string]string{
+			"id": membership.ID, "name": membership.Name, "role": membership.Role,
+		})
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"user": map[string]string{"id": user.ID, "name": user.Name},
-		"workspaces": []map[string]string{
-			{"id": "ws_default", "name": "Default", "role": "owner"},
-		},
-		"stepUp": stepUp,
+		"user":       map[string]string{"id": user.ID, "name": user.Name},
+		"workspaces": workspaces, "stepUp": stepUp,
 	})
 }
 

@@ -152,3 +152,20 @@ func init() {
 	_ = os.Setenv("RC_STATE_DIR", filepath.Join(os.TempDir(), "rc-test-state"))
 	_ = time.Second
 }
+
+func TestCloseAllSessionsInvalidatesLiveControl(t *testing.T) {
+	state, err := GenerateNodeState("dev_node_invalidate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mgr := NewControlManager(state, t.TempDir(), nil)
+	mgr.sessions["session_a"] = &ControlSession{SessionID: "session_a"}
+	mgr.sessions["session_b"] = &ControlSession{SessionID: "session_b"}
+	mgr.CloseAllSessions()
+	mgr.mu.RLock()
+	remaining := len(mgr.sessions)
+	mgr.mu.RUnlock()
+	if remaining != 0 {
+		t.Fatalf("sessions remained after lock change: %d", remaining)
+	}
+}

@@ -32,6 +32,8 @@ func (s *Store) migrate() error {
 	case version == 2:
 		// Schema 3 adds control clients, MCP grants, authority deliveries, and
 		// OAuth grant links.
+	case version == 3:
+		// Schema 4 adds API signing keys, schedule authority permits, and request replay nonces.
 	default:
 		return fmt.Errorf("unsupported database schema version %d (expected %d)", version, schemaVersion)
 	}

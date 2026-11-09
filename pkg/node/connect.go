@@ -15,14 +15,18 @@ import (
 
 // RunControl keeps one authenticated Node command channel open, reconnecting
 // after transport failures until ctx ends. Execution state remains Node-local.
-func RunControl(ctx context.Context, server, stateDir string, state *NodeState, exec ExecutionManager, logf func(string)) {
+func RunControl(ctx context.Context, server, stateDir string, state *NodeState, exec ExecutionManager, logf func(string), control ...*ControlManager) {
 	if logf == nil {
 		logf = func(string) {}
 	}
 	hosted := NewHostedMCP(stateDir, state, exec)
+	var sessions *ControlManager
+	if len(control) > 0 {
+		sessions = control[0]
+	}
 	backoff := time.Second
 	for {
-		err := runControlOnce(ctx, server, stateDir, state, exec, hosted, logf)
+		err := runControlOnce(ctx, server, stateDir, state, exec, hosted, sessions, logf)
 		if ctx.Err() != nil {
 			return
 		}
@@ -43,7 +47,7 @@ func RunControl(ctx context.Context, server, stateDir string, state *NodeState, 
 	}
 }
 
-func runControlOnce(ctx context.Context, server, stateDir string, state *NodeState, exec ExecutionManager, hosted *HostedMCP, logf func(string)) error {
+func runControlOnce(ctx context.Context, server, stateDir string, state *NodeState, exec ExecutionManager, hosted *HostedMCP, control *ControlManager, logf func(string)) error {
 	target, err := controlURL(server)
 	if err != nil {
 		return err
@@ -136,6 +140,8 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 			if message.Snapshot != "" {
 				if err := BootstrapLock(stateDir, message.Snapshot, server); err != nil {
 					logf("lock bootstrap: " + err.Error())
+				} else if control != nil {
+					control.CloseAllSessions()
 				}
 				hash, generation := LockMetadata(stateDir)
 				_ = send(protocol.NodeToServer{Type: "lock_state", Hash: hash, Generation: generation})
@@ -148,6 +154,8 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 			if err := SyncLock(stateDir, message.Snapshot, message.PreviousHash,
 				message.PreviousGeneration, proof, message.Signature); err != nil {
 				logf("lock sync: " + err.Error())
+			} else if control != nil {
+				control.CloseAllSessions()
 			}
 			hash, generation := LockMetadata(stateDir)
 			_ = send(protocol.NodeToServer{Type: "lock_state", Hash: hash, Generation: generation})

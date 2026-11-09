@@ -2,7 +2,7 @@ package auth
 
 // schemaVersion is the user_version written by the current schema. Supported
 // older versions are migrated in place; unknown versions are refused.
-const schemaVersion = 3
+const schemaVersion = 4
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS users (
@@ -118,4 +118,33 @@ var schema = []string{
 		PRIMARY KEY (device_id, previous_hash, generation)
 	);`,
 	`CREATE INDEX IF NOT EXISTS authority_deliveries_device ON authority_deliveries(device_id);`,
+	`CREATE TABLE IF NOT EXISTS api_keys (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		public_key TEXT NOT NULL,
+		scopes TEXT NOT NULL DEFAULT '[]',
+		created_ms INTEGER NOT NULL,
+		expires_ms INTEGER NOT NULL DEFAULT 0,
+		last_used_ms INTEGER
+	);`,
+	`CREATE INDEX IF NOT EXISTS api_keys_user_id ON api_keys(user_id);`,
+	`CREATE TABLE IF NOT EXISTS schedule_grants (
+		schedule_id TEXT PRIMARY KEY,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		spec_hash TEXT NOT NULL,
+		max_runtime_ms INTEGER NOT NULL,
+		expires_ms INTEGER NOT NULL DEFAULT 0,
+		created_ms INTEGER NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS schedule_grants_workspace ON schedule_grants(workspace_id, schedule_id);`,
+	`CREATE TABLE IF NOT EXISTS request_nonces (
+		principal TEXT NOT NULL,
+		nonce_hash BLOB NOT NULL,
+		expires_ms INTEGER NOT NULL,
+		PRIMARY KEY (principal, nonce_hash)
+	);`,
+	`CREATE INDEX IF NOT EXISTS request_nonces_expires_ms ON request_nonces(expires_ms);`,
 }
