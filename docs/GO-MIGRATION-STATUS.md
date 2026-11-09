@@ -38,9 +38,9 @@ control plane.
   workflows use direct E2EE WebRTC channels.
 - **Execution history**: deprecated and removed. Process state is strictly
   ephemeral in memory for live leases and reconnection reconciliation.
-- **Gated E2E**: the browser product E2E passes against the Go binaries and
-  authenticated WebRTC control path. The Windows product E2E remains gated by
-  `RC_WINDOWS_RUNTIME_ENABLED` and a Windows runner.
+- **Gated E2E**: the browser and Windows product E2E suites pass against the Go
+  binaries and authenticated WebRTC control path. Windows runs encrypted
+  browser control and process exit on a `windows-latest` runner.
 
 ## Removed Rust harnesses
 

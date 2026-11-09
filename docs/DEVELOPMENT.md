@@ -116,11 +116,12 @@ the Windows/macOS caches.
 
 ## Runtime status
 
-All first-party component bodies and native CLI commands are implemented. The
-kernel still links unknown component imports as traps and does not invoke
-exports, so component behavior is not executed end to end; the hosted passkey
-session and WebRTC control plane are also pending. `docs/GO-MIGRATION-STATUS.md`
-tracks the remaining work and which checks are gated on it.
+All first-party component bodies and native CLI commands are implemented. A few
+component imports still link as traps instead of executing their host exports.
+The hosted passkey session and authenticated WebRTC control plane are implemented,
+and the browser and Windows product E2E suites pass against the Go binaries.
+`docs/GO-MIGRATION-STATUS.md` tracks the remaining work and which checks are
+gated on it.
 
 ## Change rules
 

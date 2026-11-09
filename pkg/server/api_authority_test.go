@@ -150,6 +150,14 @@ func TestAPIKeyHTTPAuthenticationRejectsExpiredRevokedAndReplay(t *testing.T) {
 	if res.StatusCode != http.StatusForbidden {
 		t.Fatalf("scope-restricted API key = %d: %s", res.StatusCode, payload)
 	}
+	challengeBody, _ := json.Marshal(map[string]string{"deviceId": "dev_missing"})
+	challengeRequest := signedAPIRequest(t, http.MethodPost,
+		ts.URL+"/api/v1/control/challenge", challengeBody, manageOnly.ID, managePrivate, "nonce-control-scope-1")
+	challengeRequest.Header.Set("Content-Type", "application/json")
+	res, payload = oauthDo(t, http.DefaultClient, challengeRequest)
+	if res.StatusCode != http.StatusForbidden {
+		t.Fatalf("manage-devices-only control challenge = %d: %s", res.StatusCode, payload)
+	}
 	enroll := signedAPIRequest(t, http.MethodPost,
 		ts.URL+"/api/v1/workspaces/ws_default/enrollments", []byte("{}"),
 		manageOnly.ID, managePrivate, "nonce-enroll-0000001")

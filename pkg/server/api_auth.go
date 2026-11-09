@@ -77,9 +77,7 @@ func (s *Server) allowSessionOrAPI(next http.Handler) http.Handler {
 				writeError(w, status, message)
 				return
 			}
-			if required := apiRequiredScope(req); required != "" &&
-				!principal.HasScope(required) &&
-				!(required == "execute" && principal.HasScope("manage-devices")) {
+			if required := apiRequiredScope(req); required != "" && !principal.HasScope(required) {
 				writeError(w, http.StatusForbidden, "API key is missing the required scope")
 				return
 			}
