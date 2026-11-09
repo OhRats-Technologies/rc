@@ -161,6 +161,7 @@ rc_component_func_callback_t rc_net_read_callback(void);
 rc_component_func_callback_t rc_net_close_write_callback(void);
 rc_component_func_callback_t rc_net_close_callback(void);
 rc_component_func_callback_t rc_caller_callback(void);
+rc_component_func_callback_t rc_domain_callback(void);
 
 
 static inline uint8_t rc_val_kind(const wasmtime_component_val_t* v) { return v->kind; }

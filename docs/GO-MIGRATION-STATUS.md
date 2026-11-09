@@ -48,8 +48,11 @@ shell, logs, doctor, component build/load/reload, API-key authentication,
 workspace authority and audit events, sessions and passkeys, key agreement and
 mesh envelopes, package-manager discovery, storage, release upgrade (happy path,
 no-op, downgrade, minimum upgrader, digest mismatch, local override), and
-fail-closed routes. Domain coverage that requires component invocation remains
-blocked on the kernel host.
+fail-closed routes. Kernel host imports for mesh policy, key custody, identity,
+sessions, API credentials, events, and the component store are implemented; the
+integration suite invokes each fixture command through the real component host.
+The native component host remains unavailable on Windows, where those fixture
+tests skip explicitly.
 
 ## Enabling gated jobs
 

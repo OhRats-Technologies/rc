@@ -127,3 +127,8 @@ rc_component_func_callback_t rc_caller_callback(void) {
 void rc_go_set_none_option(wasmtime_component_val_t* results, size_t len) {
   rc_set_none_option_result(results, len);
 }
+
+extern void* goRCDomain(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
+rc_component_func_callback_t rc_domain_callback(void) {
+  return (rc_component_func_callback_t)goRCDomain;
+}

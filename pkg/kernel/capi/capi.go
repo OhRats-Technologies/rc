@@ -33,6 +33,7 @@ type Host struct {
 	storageSlot unsafe.Pointer
 	storage     storageBackend
 	netSlot     unsafe.Pointer
+	domainSlot  unsafe.Pointer
 }
 
 // New compiles and instantiates one component with the RC plugin host imports.
@@ -131,6 +132,10 @@ func NewWithNet(engine *wasmtime.Engine, wasm []byte, storagePath string, endpoi
 	if err == nil {
 		err = linkExtraHosts(root, host.netSlot)
 	}
+	if err == nil {
+		host.domainSlot = newDomainSlot(host.storage)
+		err = linkDomainHosts(root, host.domainSlot)
+	}
 	C.wasmtime_component_linker_instance_delete(root)
 	if err != nil {
 		host.Close()
@@ -178,6 +183,8 @@ func (h *Host) Close() {
 	}
 	releaseNetHost(h.netSlot)
 	h.netSlot = nil
+	releaseDomainSlot(h.domainSlot)
+	h.domainSlot = nil
 }
 
 // Descriptor calls the component descriptor export.

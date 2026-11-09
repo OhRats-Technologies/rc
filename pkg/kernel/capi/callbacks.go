@@ -8,6 +8,7 @@ package capi
 typedef struct wasmtime_component_val wasmtime_component_val_t;
 extern void* goRCLog(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
 extern void* goRCCaller(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
+extern void* goRCDomain(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
 extern void rc_go_set_none_option(wasmtime_component_val_t*, size_t);
 extern void* goRCStorageRevision(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
 extern void* goRCStorageGet(void*, void*, void*, wasmtime_component_val_t*, size_t, wasmtime_component_val_t*, size_t);
@@ -58,7 +59,9 @@ extern void* goRCSessionDecrypt(void*, void*, void*, wasmtime_component_val_t*, 
 */
 import "C"
 
-import "unsafe"
+import (
+	"unsafe"
+)
 
 //export goRCLog
 func goRCLog(data unsafe.Pointer, context unsafe.Pointer, functionType unsafe.Pointer, args *C.wasmtime_component_val_t, nargs C.size_t, results *C.wasmtime_component_val_t, nresults C.size_t) unsafe.Pointer {
