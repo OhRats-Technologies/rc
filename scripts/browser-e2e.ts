@@ -1,4 +1,5 @@
 import { startWindowsNodeService } from "./browser-e2e-service";
+import { instrumentSource } from "./browser-e2e-instrument";
 import { chmod, copyFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -55,9 +56,13 @@ if (!await Bun.file(join(assets, "auth.js")).exists()) {
 const directory = process.env.RC_E2E_DIRECTORY || await mkdtemp(join(tmpdir(), "rc-browser-e2e-"));
 const data = join(directory, "data"), nodeState = join(directory, "node"), components = join(directory, "components");
 await mkdir(data); await mkdir(nodeState); await mkdir(components);
+const typeInput = windows || process.env.RC_E2E_TYPE_INPUT === "1";
 const loginShell = windows ? (process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe") : join(directory, "login-shell");
 if (!windows) {
-  await writeFile(loginShell, "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n", { mode: 0o700 });
+  const script = typeInput
+    ? "#!/bin/bash\nprintf 'RC_BROWSER_E2E_OK\\n'\nprintf 'RC_BROWSER_E2E_PROMPT> '\nwhile IFS= read -r -d $'\\r' line; do\n  [ \"$line\" = \"exit 0\" ] && exit 0\n  printf '%s\\n' \"$line\"\n  printf 'RC_BROWSER_E2E_PROMPT> '\ndone\n"
+    : "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n";
+  await writeFile(loginShell, script, { mode: 0o700 });
   await chmod(loginShell, 0o700);
 }
 for (const name of [
@@ -148,49 +153,7 @@ try {
   }
 
   await call("Page.enable"); await call("Runtime.enable"); await call("Network.enable");
-  await call("Page.addScriptToEvaluateOnNewDocument", { source: `
-    (() => {
-      const original = SubtleCrypto.prototype.decrypt;
-      const originalFetch = window.fetch.bind(window);
-      Object.defineProperty(window, "__rcE2EOutput", { value: "", writable: true, configurable: true });
-      Object.defineProperty(window, "__rcE2ERtc", { value: { offers: [], answers: [] }, configurable: true });
-      const summarizeCandidates = sdp => String(sdp || "").split(String.fromCharCode(10)).filter(line => line.startsWith("a=candidate:"))
-        .map(line => { const fields = line.slice(12).trim().split(" ").filter(Boolean), typeAt = fields.indexOf("typ"), address = fields[4] || "";
-          return { protocol: fields[2] || "", address: address.endsWith(".local") ? "mdns" : address.includes(":") ? "ipv6" : "ipv4", type: typeAt >= 0 ? fields[typeAt + 1] : "" }; });
-      window.fetch = async (...args) => {
-        const input = args[0], options = args[1] || {};
-        const requestUrl = new URL(typeof input === "string" ? input : input.url, location.href);
-        const signaling = requestUrl.pathname.startsWith("/api/v1/control/") && requestUrl.pathname.endsWith("/webrtc");
-        if (signaling && typeof options.body === "string") {
-          try { window.__rcE2ERtc.offers.push(summarizeCandidates(JSON.parse(options.body).sdp)); } catch {}
-        }
-        const response = await originalFetch(...args);
-        if (signaling && response.ok) {
-          try { window.__rcE2ERtc.answers.push(summarizeCandidates((await response.clone().json()).sdp)); } catch {}
-        }
-        if (requestUrl.pathname !== "/api/v1/control/open" || !response.ok) return response;
-        const body = await response.clone().json();
-        body.iceServers = [...(body.iceServers || []), {
-          urls: "turn:127.0.0.1:9?transport=udp", username: "e2e", credential: "unreachable",
-        }];
-        const headers = new Headers(response.headers); headers.delete("content-length");
-        return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers });
-      };
-      SubtleCrypto.prototype.decrypt = async function(...args) {
-        const result = await original.apply(this, args);
-        try {
-          const message = JSON.parse(new TextDecoder().decode(result));
-          if ((message.type === "process.stdout" || message.type === "process.stderr") && message.data) {
-            const base64 = String(message.data).replace(/-/g, "+").replace(/_/g, "/");
-            const padded = base64 + "=".repeat((4 - base64.length % 4) % 4);
-            const bytes = Uint8Array.from(atob(padded), value => value.charCodeAt(0));
-            window.__rcE2EOutput += new TextDecoder().decode(bytes);
-          }
-        } catch {}
-        return result;
-      };
-    })();
-  ` });
+  await call("Page.addScriptToEvaluateOnNewDocument", { source: instrumentSource });
   await call("WebAuthn.enable");
   await call("Storage.clearDataForOrigin", { origin: base, storageTypes: "all" });
   await call("WebAuthn.addVirtualAuthenticator", { options: {
@@ -248,19 +211,29 @@ try {
         .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
     throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
   }
-  if (windows) {
-    await waitFor(`String(window.__rcE2EOutput || '').includes('>')`, 20_000, "Windows shell prompt");
-    await evaluate(`document.querySelector('.xterm-helper-textarea').focus()`);
-    for (const text of ["echo RC_BROWSER_E2E_OK", "exit 0"]) {
+  if (typeInput) {
+    await waitFor(`String(window.__rcE2EOutput || '').includes('>') && document.querySelector('#process-state')?.textContent === 'RUNNING'`, 20_000, "interactive shell prompt");
+    const focused = await evaluate<boolean>(`(()=>{const terminal=document.querySelector('.xterm-helper-textarea');if(!terminal)return false;terminal.focus();return document.activeElement===terminal})()`);
+    if (!focused) throw new Error("terminal input did not receive focus");
+    for (const text of ["echo RC_BROWSER_E2E_INPUT_OK", "exit 0"]) {
       await call("Input.insertText", { text });
-      await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
-      await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+      await call("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
+      await call("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, nativeVirtualKeyCode: 13 });
     }
   }
-  await waitFor(`String(window.__rcE2EOutput || '').includes('RC_BROWSER_E2E_OK')`, 35_000, "terminal output");
+  try {
+    await waitFor(`String(window.__rcE2EOutput || '').includes(${JSON.stringify(typeInput ? "RC_BROWSER_E2E_INPUT_OK" : "RC_BROWSER_E2E_OK")})`, 35_000, "terminal output");
+  } catch (failure) {
+    const diagnostics = await evaluate(`({ output: String(window.__rcE2EOutput || "").slice(-2000),
+      sent: window.__rcE2ESent, keyEvents: window.__rcE2EKeyEvents,
+      state: document.querySelector('#process-state')?.textContent,
+      active: document.activeElement?.className, transport: document.querySelector('#control-transport')?.textContent,
+      clientError: document.querySelector('#process-client-error')?.textContent })`).catch(() => null);
+    throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
+  }
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${createdProcess.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
-  if (!terminalText.includes("RC_BROWSER_E2E_OK")) throw new Error("terminal output did not traverse encrypted WebRTC control");
+  if (typeInput && !terminalText.includes("RC_BROWSER_E2E_INPUT_OK")) throw new Error("terminal input output did not traverse encrypted WebRTC control");
   const transport = await evaluate<string>(`document.querySelector('#control-transport')?.textContent || ""`);
   if (transport.includes("TURN")) throw new Error(`direct browser route unexpectedly used ${transport}`);
   console.log(`browser command passed over ${transport}`);
