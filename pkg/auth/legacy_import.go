@@ -15,6 +15,8 @@ type legacyData struct {
 	memberships []Membership
 	devices     []Device
 	revoked     []RevokedDevice
+	mcpClients  []legacyMCPClient
+	mcpGrants   []legacyMCPGrant
 }
 
 // readDevices scans device rows selected in the device-column order used by
@@ -123,6 +125,26 @@ func (s *Store) importData(data legacyData) error {
 				`INSERT INTO revoked_devices (id, identity_public_key, revoked_ms) VALUES (?, ?, ?);`,
 				item.ID, item.IdentityPublicKey, msFromTime(item.RevokedAt)); err != nil {
 				return fmt.Errorf("revoked device %s: %w", item.ID, err)
+			}
+		}
+		for _, client := range data.mcpClients {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO oauth_clients (client_id, client_name, redirect_uris, created_ms)
+				 VALUES (?, ?, ?, ?);`,
+				client.ID, client.Name, client.RedirectURIs, client.CreatedAtMs); err != nil {
+				return fmt.Errorf("MCP client %s: %w", client.ID, err)
+			}
+		}
+		for _, grant := range data.mcpGrants {
+			if _, err := tx.ExecContext(ctx,
+				`INSERT INTO mcp_grants
+				 (id, user_id, client_id, name, grant, signature, control_client_id,
+				  credential_id, control_grant, control_assertion, created_ms, expires_ms, revoked_ms)
+				 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+				grant.ID, grant.UserID, grant.ClientID, grant.Name, grant.Grant, grant.Signature,
+				grant.ControlClientID, grant.CredentialID, grant.ControlGrant, grant.ControlAssertion,
+				grant.CreatedAtMs, grant.ExpiresAtMs, nullableMsFromInt(grant.RevokedAtMs)); err != nil {
+				return fmt.Errorf("MCP grant %s: %w", grant.ID, err)
 			}
 		}
 		rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check;`)

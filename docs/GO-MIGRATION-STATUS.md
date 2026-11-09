@@ -54,6 +54,12 @@ control plane.
 
 ## Removed Rust harnesses
 
+Legacy account-store migration carries MCP client registrations and Owner-signed
+grants, and an idempotent backfill repairs stores that were migrated before
+that coverage existed. Legacy OAuth tokens and codes are intentionally not
+imported because their hash encoding differs; MCP clients receive current tokens
+after re-authorizing.
+
 The 22 cargo smoke scripts were deleted with the Rust crates. `tests/integration/`
 now covers server lifecycle, enrollment, signed presence, CLI behavior, local
 shell, logs, doctor, component build/load/reload, API-key authentication,

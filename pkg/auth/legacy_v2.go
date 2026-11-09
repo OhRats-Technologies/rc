@@ -63,7 +63,7 @@ func readV2(path string, data *legacyData) error {
 		return err
 	}
 	data.revoked = append(data.revoked, revoked...)
-	return nil
+	return readV2MCP(ctx, db, data)
 }
 
 func readV2Passkeys(ctx context.Context, db *sql.DB) ([]Passkey, error) {

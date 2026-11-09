@@ -29,7 +29,17 @@ func OpenDataDir(path string) (*Store, error) {
 			return nil, err
 		}
 		if !relay {
-			return Open(path)
+			store, err := Open(path)
+			if err != nil {
+				return nil, err
+			}
+			if existingFile(v2Path) != "" {
+				if err := store.backfillLegacyMCP(v2Path); err != nil {
+					store.Close()
+					return nil, fmt.Errorf("legacy MCP backfill: %w", err)
+				}
+			}
+			return store, nil
 		}
 		relayPath := path + legacyRelaySuffix
 		if err := moveDatabase(path, relayPath); err != nil {

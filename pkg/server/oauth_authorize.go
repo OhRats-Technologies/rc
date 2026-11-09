@@ -33,7 +33,7 @@ func (s *Server) handleOAuthAuthorize(w http.ResponseWriter, req *http.Request) 
 	}
 	client, err := s.auth.GetOAuthClient(clientID)
 	if err != nil {
-		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "client is invalid")
+		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "MCP client is not registered; reconnect or re-add the connector")
 		return
 	}
 	if err := s.auth.ValidateRedirectURI(clientID, redirectURI); err != nil {
