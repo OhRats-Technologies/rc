@@ -213,11 +213,15 @@ try {
   });
   const [code, output, error] = await Promise.all([enroll.exited, readStream(enroll.stdout), readStream(enroll.stderr)]);
   if (code !== 0) throw new Error(`node enrollment failed (${code}): ${output}\n${error}`);
-  if (windows) service = await startWindowsNodeService(binary, nodeState, components, kernelBinary);
-  else node = Bun.spawn([binary, "run", "--state-dir", nodeState], {
-    env: { ...Bun.env, RC_KERNEL: kernelBinary, RC_COMPONENT_DIR: components, RC_SHELL: loginShell },
-    stdout: "inherit", stderr: "inherit",
-  });
+  if (windows && process.env.RC_E2E_SKIP_WINDOWS_SERVICE !== "1") {
+    service = await startWindowsNodeService(binary, nodeState, components, kernelBinary);
+  }
+  if (!service) {
+    node = Bun.spawn([binary, "run", "--state-dir", nodeState], {
+      env: { ...Bun.env, RC_KERNEL: kernelBinary, RC_COMPONENT_DIR: components, RC_SHELL: loginShell },
+      stdout: "inherit", stderr: "inherit",
+    });
+  }
   const device = await waitFor(`(async()=>{const r=await fetch('/api/v1/devices');if(!r.ok)return false;const j=await r.json();return j.devices.find(d=>d.name==='Browser E2E Node'&&d.online)||false})()`, 30_000, "Node online") as { id: string };
   if (service) {
     await service.stop();

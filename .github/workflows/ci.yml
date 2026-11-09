@@ -321,6 +321,8 @@ jobs:
       - name: Exercise service execution and browser control in the logged-in Windows session
         if: env.RC_WINDOWS_RUNTIME_ENABLED == 'true' && (!inputs.windows_only || inputs.windows_browser)
         shell: pwsh
+        env:
+          RC_E2E_SKIP_WINDOWS_SERVICE: "1"
         run: ./scripts/windows-browser-e2e.ps1
 
   web:
