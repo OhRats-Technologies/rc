@@ -96,7 +96,7 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 	}
 	supportsProcess := false
 	for _, capability := range device.Capabilities {
-		if capability == "process" {
+		if capability == "process" || capability == "pty" || capability == "shell" {
 			supportsProcess = true
 		}
 	}

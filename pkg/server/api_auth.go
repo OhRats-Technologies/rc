@@ -101,6 +101,14 @@ func apiRequiredScope(req *http.Request) string {
 	switch {
 	case strings.HasPrefix(req.URL.Path, "/api/v1/events"):
 		return "read"
+	case strings.HasSuffix(req.URL.Path, "/processes") &&
+		strings.HasPrefix(req.URL.Path, "/api/v1/devices/"):
+		if req.Method == http.MethodGet || req.Method == http.MethodHead {
+			return "read"
+		}
+		return "execute"
+	case strings.HasPrefix(req.URL.Path, "/api/v1/processes/"):
+		return "read"
 	case strings.HasPrefix(req.URL.Path, "/api/v1/devices"):
 		if req.Method == http.MethodGet || req.Method == http.MethodHead {
 			return "read"

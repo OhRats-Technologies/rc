@@ -13,6 +13,7 @@ import (
 
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 	"github.com/OhRats-Technologies/rc/pkg/node"
+	"github.com/OhRats-Technologies/rc/pkg/protocol"
 )
 
 // Config describes one rc-server process.
@@ -41,15 +42,16 @@ type Config struct {
 }
 
 type Server struct {
-	cfg      Config
-	httpSrv  *http.Server
-	registry *DeviceRegistry
-	events   *EventHub
-	mcp      *McpHandler
-	auth     *authstore.Store
-	turn     *turnProvider
-	nodes    *NodeHub
-	control  *controlHub
+	cfg       Config
+	httpSrv   *http.Server
+	registry  *DeviceRegistry
+	events    *EventHub
+	mcp       *McpHandler
+	auth      *authstore.Store
+	turn      *turnProvider
+	nodes     *NodeHub
+	control   *controlHub
+	processes *processHub
 
 	mu         sync.RWMutex
 	listenAddr string
@@ -80,6 +82,7 @@ func New(cfg Config) *Server {
 		turn:     newTurnProvider(cfg.TurnTokenID, cfg.TurnAPIToken),
 	}
 	s.control = newControlHub(nodes, s.turn)
+	s.processes = newProcessHub()
 	mcp.challenge = s.writeOAuthChallenge
 	nodes.onHello = s.handleNodeHello
 	nodes.onLock = s.handleNodeLockState
@@ -88,6 +91,18 @@ func New(cfg Config) *Server {
 		if ok && session.DeviceID == deviceID {
 			s.control.remove(sessionID)
 		}
+	}
+	nodes.onProcessState = func(deviceID string, message protocol.NodeToServer) {
+		exit := message.ExitCode
+		s.processes.update(message.ProcessID, message.Status, &exit, message.Signal, message.Error)
+		kind := "process.started"
+		if message.Status != "running" {
+			kind = "process.exited"
+		}
+		s.events.Publish(kind, map[string]any{
+			"deviceId": deviceID, "processId": message.ProcessID,
+			"exitCode": message.ExitCode, "signal": message.Signal, "error": message.Error,
+		})
 	}
 	nodes.onPresence = func(deviceID string, online bool) {
 		if online {
@@ -156,6 +171,7 @@ func New(cfg Config) *Server {
 	mux.Handle("GET /api/v1/devices", s.allowSessionOrAPI(http.HandlerFunc(reg.HandleListDevices)))
 	mux.Handle("/api/v1/devices/", s.allowSessionOrAPI(http.HandlerFunc(reg.HandleDeviceRoutes)))
 	mux.Handle("GET /api/v1/events", s.allowSessionOrAPI(events))
+	s.registerProcessAPIRoutes(mux)
 	mux.HandleFunc("GET /api/v1/tokens", s.handleListAPITokens)
 	mux.HandleFunc("POST /api/v1/tokens", s.handleCreateAPIToken)
 	mux.HandleFunc("DELETE /api/v1/tokens/{id}", s.handleDeleteAPIToken)

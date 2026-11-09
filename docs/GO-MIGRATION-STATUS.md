@@ -31,15 +31,16 @@ control plane.
 ## Not implemented yet
 
 - **Authenticated web surfaces**: `/devices`, `/devices/enroll`,
-  `/devices/{id}`, `/account`, `/api`, and `/integrations/mcp` are
-  server-rendered. Workspace access/activity and process pages still need their
-  page handlers and workspace persistence ported.
+  `/devices/{id}`, `/devices/{id}/processes/{process}`, `/account`, `/api`,
+  and `/integrations/mcp` are server-rendered. Workspace access/activity pages
+  and workspace persistence still need their handlers ported.
 - **SSH gateway**: deprecated and removed. All remote terminal and execution
   workflows use direct E2EE WebRTC channels.
 - **Execution history**: deprecated and removed. Process state is strictly
   ephemeral in memory for live leases and reconnection reconciliation.
-- **Gated E2E**: `RC_BROWSER_E2E_ENABLED` and `RC_WINDOWS_RUNTIME_ENABLED`
-  remain off; their scripts still default to `target/debug` binaries.
+- **Gated E2E**: the browser product E2E passes against the Go binaries and
+  authenticated WebRTC control path. The Windows product E2E remains gated by
+  `RC_WINDOWS_RUNTIME_ENABLED` and a Windows runner.
 
 ## Removed Rust harnesses
 

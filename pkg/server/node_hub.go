@@ -40,6 +40,7 @@ type NodeHub struct {
 	onHello         func(string, *protocol.NodeHello)
 	onLock          func(string, string, uint64)
 	onControlClosed func(string, string)
+	onProcessState  func(string, protocol.NodeToServer)
 }
 
 func newNodeHub() *NodeHub {

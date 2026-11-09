@@ -10,7 +10,7 @@ const cdp = process.env.RC_CDP_URL || "http://127.0.0.1:9223";
 const windows = process.platform === "win32", suffix = windows ? ".exe" : "";
 const binary = process.env.RC_E2E_BINARY || join(root, `target/debug/rc${suffix}`);
 const serverBinary = process.env.RC_E2E_SERVER || join(root, `target/debug/rc-server${suffix}`);
-const kernelBinary = process.env.RC_E2E_KERNEL || join(root, `kernel/target/debug/rc-kernel${suffix}`);
+const kernelBinary = process.env.RC_E2E_KERNEL || join(root, `target/debug/rc${suffix}`);
 const assets = process.env.RC_E2E_ASSETS || join(root, "dist/assets");
 const keep = process.env.RC_E2E_KEEP === "1";
 

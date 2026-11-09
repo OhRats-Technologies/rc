@@ -76,6 +76,7 @@ type ControlManager struct {
 	sessions        map[string]*ControlSession
 	challenges      map[string]challengeEntry
 	challengeValues map[string]time.Time
+	onProcessState  func(protocol.NodeToServer)
 }
 
 func NewControlManager(state *NodeState, stateDir string, processes ExecutionManager) *ControlManager {
@@ -86,6 +87,21 @@ func NewControlManager(state *NodeState, stateDir string, processes ExecutionMan
 		sessions:        make(map[string]*ControlSession),
 		challenges:      make(map[string]challengeEntry),
 		challengeValues: make(map[string]time.Time),
+	}
+}
+
+func (m *ControlManager) SetProcessStateHandler(handler func(protocol.NodeToServer)) {
+	m.mu.Lock()
+	m.onProcessState = handler
+	m.mu.Unlock()
+}
+
+func (m *ControlManager) publishProcessState(message protocol.NodeToServer) {
+	m.mu.RLock()
+	handler := m.onProcessState
+	m.mu.RUnlock()
+	if handler != nil {
+		handler(message)
 	}
 }
 

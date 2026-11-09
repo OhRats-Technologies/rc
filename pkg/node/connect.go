@@ -104,6 +104,9 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 		return nil
 	}
 	hosted.SetSend(send)
+	if control != nil {
+		control.SetProcessStateHandler(func(message protocol.NodeToServer) { _ = send(message) })
+	}
 	transportKey, _ := state.TransportPublicKey()
 	lockHash, lockGeneration := LockMetadata(stateDir)
 	_ = send(protocol.NodeToServer{

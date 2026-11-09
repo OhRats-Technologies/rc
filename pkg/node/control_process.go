@@ -130,6 +130,9 @@ func (m *ControlManager) startControlledProcess(session *ControlSession, msg *pr
 		return nil
 	}
 	m.processes.AttachSecure(msg.ID, session.SessionID)
+	m.publishProcessState(protocol.NodeToServer{
+		Type: protocol.TypeProcessState, ProcessID: msg.ID, Status: "running",
+	})
 	m.sendFrame(session.SessionID, protocol.ControlMessage{
 		Type: protocol.TypeProcessStarted, ID: msg.ID,
 	})
@@ -162,6 +165,10 @@ func (m *ControlManager) pumpProcess(sessionID, processID string) {
 			if read.ExitCode != nil {
 				exit = *read.ExitCode
 			}
+			m.publishProcessState(protocol.NodeToServer{
+				Type: protocol.TypeProcessState, ProcessID: processID,
+				Status: "exited", ExitCode: exit, Signal: read.Signal,
+			})
 			m.sendFrame(sessionID, protocol.ControlMessage{
 				Type: protocol.TypeProcessExit, ID: processID,
 				ExitCode: &exit, Signal: read.Signal,

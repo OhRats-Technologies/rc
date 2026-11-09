@@ -118,7 +118,10 @@ func buildCommand(spec ProcessSpec) (*exec.Cmd, error) {
 		cmd = exec.Command(spec.Mode.Program, spec.Mode.Args...)
 
 	case protocol.ExecutionModeSystemLoginShell:
-		shell := os.Getenv("SHELL")
+		shell := os.Getenv("RC_SHELL")
+		if shell == "" {
+			shell = os.Getenv("SHELL")
+		}
 		if shell == "" {
 			if runtime.GOOS == "windows" {
 				shell = "powershell.exe"

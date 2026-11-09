@@ -8,6 +8,7 @@ const (
 	TypeControlClose     = "control_close"
 	TypeControlClosed    = "control_closed"
 	TypeControlError     = "control_error"
+	TypeProcessState     = "process_state"
 )
 
 // TypeControlFrame is the WebRTC DataChannel frame type.
