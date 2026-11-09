@@ -111,6 +111,10 @@ func (s *Server) handleRegisterVerify(w http.ResponseWriter, req *http.Request) 
 			writeError(w, http.StatusConflict, "passkey is already registered")
 			return
 		}
+		if err := s.ensureDefaultMembership(userID); err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		s.finishSession(w, req, userID, "", http.StatusCreated)
 		return
 	}

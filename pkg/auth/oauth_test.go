@@ -92,41 +92,41 @@ func TestOAuthCodeSingleUseAndPKCE(t *testing.T) {
 	verifier := strings.Repeat("v", 48)
 	challenge := pkceChallenge(verifier)
 
-	code, err := store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource)
+	code, err := store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource, OAuthScopeObserve, "grant_test")
 	if err != nil {
 		t.Fatalf("issue code: %v", err)
 	}
-	gotUser, gotResource, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier)
+	gotUser, gotResource, gotScopes, gotGrant, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier, oauthTestResource)
 	if err != nil {
 		t.Fatalf("consume code: %v", err)
 	}
-	if gotUser != user.ID || gotResource != oauthTestResource {
-		t.Fatalf("consume returned %q, %q", gotUser, gotResource)
+	if gotUser != user.ID || gotResource != oauthTestResource || gotScopes != OAuthScopeObserve || gotGrant != "grant_test" {
+		t.Fatalf("consume returned %q, %q, %q, %q", gotUser, gotResource, gotScopes, gotGrant)
 	}
-	if _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier); !errors.Is(err, ErrOAuthInvalidCode) {
+	if _, _, _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier, ""); !errors.Is(err, ErrOAuthInvalidCode) {
 		t.Fatalf("reused code error = %v", err)
 	}
 
-	code, err = store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource)
+	code, err = store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource, OAuthScopeObserve, "grant_test")
 	if err != nil {
 		t.Fatalf("issue code: %v", err)
 	}
-	if _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, "wrong-verifier"); !errors.Is(err, ErrOAuthInvalidVerifier) {
+	if _, _, _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, "wrong-verifier", ""); !errors.Is(err, ErrOAuthInvalidVerifier) {
 		t.Fatalf("wrong verifier error = %v", err)
 	}
-	if _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier); !errors.Is(err, ErrOAuthInvalidCode) {
+	if _, _, _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier, ""); !errors.Is(err, ErrOAuthInvalidCode) {
 		t.Fatalf("code survived failed PKCE: %v", err)
 	}
 
-	code, err = store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource)
+	code, err = store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource, OAuthScopeObserve, "grant_test")
 	if err != nil {
 		t.Fatalf("issue code: %v", err)
 	}
-	if _, _, err := store.ConsumeOAuthCode(code, clientID, "https://client.example/other", verifier); !errors.Is(err, ErrOAuthInvalidGrant) {
+	if _, _, _, _, err := store.ConsumeOAuthCode(code, clientID, "https://client.example/other", verifier, ""); !errors.Is(err, ErrOAuthInvalidGrant) {
 		t.Fatalf("redirect mismatch error = %v", err)
 	}
 
-	code, err = store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource)
+	code, err = store.IssueOAuthCode(clientID, user.ID, redirect, challenge, oauthTestResource, OAuthScopeObserve, "grant_test")
 	if err != nil {
 		t.Fatalf("issue code: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestOAuthCodeSingleUseAndPKCE(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expire code: %v", err)
 	}
-	if _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier); !errors.Is(err, ErrOAuthInvalidCode) {
+	if _, _, _, _, err := store.ConsumeOAuthCode(code, clientID, redirect, verifier, ""); !errors.Is(err, ErrOAuthInvalidCode) {
 		t.Fatalf("expired code error = %v", err)
 	}
 }
@@ -147,7 +147,7 @@ func TestOAuthTokenLookupAndResourceBinding(t *testing.T) {
 	user, _ := store.CreateUser("Alice")
 
 	access, refresh, accessExpires, refreshExpires, err := store.IssueOAuthTokens(
-		clientID, user.ID, oauthTestResource, "mcp",
+		clientID, user.ID, oauthTestResource, "mcp", "grant_test",
 	)
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
@@ -185,7 +185,7 @@ func TestOAuthTokenLookupAndResourceBinding(t *testing.T) {
 		t.Fatalf("expired access error = %v", err)
 	}
 
-	access, _, _, _, err = store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp")
+	access, _, _, _, err = store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp", "grant_test")
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
 	}
@@ -203,11 +203,11 @@ func TestOAuthRefreshRotation(t *testing.T) {
 	clientID, _ := seedOAuthClient(t, store)
 	user, _ := store.CreateUser("Alice")
 
-	access, refresh, _, _, err := store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp")
+	access, refresh, _, _, err := store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp", "grant_test")
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
 	}
-	newAccess, newRefresh, _, _, err := store.ExchangeOAuthRefresh(refresh, clientID)
+	newAccess, newRefresh, _, _, _, err := store.ExchangeOAuthRefresh(refresh, clientID, oauthTestResource)
 	if err != nil {
 		t.Fatalf("exchange refresh: %v", err)
 	}
@@ -220,14 +220,14 @@ func TestOAuthRefreshRotation(t *testing.T) {
 	if _, err := store.LookupOAuthAccess(access, oauthTestResource); !errors.Is(err, ErrOAuthTokenNotFound) {
 		t.Fatalf("stale access error = %v", err)
 	}
-	if _, _, _, _, err := store.ExchangeOAuthRefresh(refresh, clientID); !errors.Is(err, ErrOAuthInvalidGrant) {
+	if _, _, _, _, _, err := store.ExchangeOAuthRefresh(refresh, clientID, oauthTestResource); !errors.Is(err, ErrOAuthInvalidGrant) {
 		t.Fatalf("refresh reuse error = %v", err)
 	}
-	if _, _, _, _, err := store.ExchangeOAuthRefresh(newRefresh, "other-client"); !errors.Is(err, ErrOAuthInvalidClient) {
+	if _, _, _, _, _, err := store.ExchangeOAuthRefresh(newRefresh, "other-client", oauthTestResource); !errors.Is(err, ErrOAuthInvalidClient) {
 		t.Fatalf("refresh client mismatch error = %v", err)
 	}
 
-	_, refresh2, _, _, err := store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp")
+	_, refresh2, _, _, err := store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp", "grant_test")
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
 	}
@@ -237,11 +237,11 @@ func TestOAuthRefreshRotation(t *testing.T) {
 		msFromTime(time.Now().Add(-time.Minute)), refresh2Hash); err != nil {
 		t.Fatalf("expire refresh: %v", err)
 	}
-	if _, _, _, _, err := store.ExchangeOAuthRefresh(refresh2, clientID); !errors.Is(err, ErrOAuthTokenExpired) {
+	if _, _, _, _, _, err := store.ExchangeOAuthRefresh(refresh2, clientID, oauthTestResource); !errors.Is(err, ErrOAuthTokenExpired) {
 		t.Fatalf("expired refresh error = %v", err)
 	}
 
-	_, refresh3, _, _, err := store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp")
+	_, refresh3, _, _, err := store.IssueOAuthTokens(clientID, user.ID, oauthTestResource, "mcp", "grant_test")
 	if err != nil {
 		t.Fatalf("issue tokens: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestOAuthRefreshRotation(t *testing.T) {
 		`UPDATE oauth_tokens SET revoked_ms = ? WHERE refresh_hash = ?;`, nowMs(), refresh3Hash); err != nil {
 		t.Fatalf("revoke tokens: %v", err)
 	}
-	if _, _, _, _, err := store.ExchangeOAuthRefresh(refresh3, clientID); !errors.Is(err, ErrOAuthTokenRevoked) {
+	if _, _, _, _, _, err := store.ExchangeOAuthRefresh(refresh3, clientID, oauthTestResource); !errors.Is(err, ErrOAuthTokenRevoked) {
 		t.Fatalf("revoked refresh error = %v", err)
 	}
 }

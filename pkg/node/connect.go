@@ -1,0 +1,180 @@
+package node
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/url"
+	"sync"
+	"time"
+
+	"github.com/OhRats-Technologies/rc/pkg/protocol"
+	"github.com/OhRats-Technologies/rc/pkg/version"
+	"golang.org/x/net/websocket"
+)
+
+// RunControl keeps one authenticated Node command channel open, reconnecting
+// after transport failures until ctx ends. Execution state remains Node-local.
+func RunControl(ctx context.Context, server, stateDir string, state *NodeState, exec ExecutionManager, logf func(string)) {
+	if logf == nil {
+		logf = func(string) {}
+	}
+	hosted := NewHostedMCP(stateDir, state, exec)
+	backoff := time.Second
+	for {
+		err := runControlOnce(ctx, server, stateDir, state, exec, hosted, logf)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			logf("control channel: " + err.Error())
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(backoff):
+		}
+		if backoff < 15*time.Second {
+			backoff *= 2
+			if backoff > 15*time.Second {
+				backoff = 15 * time.Second
+			}
+		}
+	}
+}
+
+func runControlOnce(ctx context.Context, server, stateDir string, state *NodeState, exec ExecutionManager, hosted *HostedMCP, logf func(string)) error {
+	target, err := controlURL(server)
+	if err != nil {
+		return err
+	}
+	auth, err := SignNodeRequest(state, http.MethodGet, "/api/v1/node/connect", nil)
+	if err != nil {
+		return err
+	}
+	headers := http.Header{}
+	for key, value := range auth.Headers() {
+		headers.Set(key, value)
+	}
+	originScheme := "http"
+	if target.Scheme == "wss" {
+		originScheme = "https"
+	}
+	origin := &url.URL{Scheme: originScheme, Host: target.Host}
+	conn, err := websocket.DialConfig(&websocket.Config{
+		Location: target,
+		Origin:   origin,
+		Version:  websocket.ProtocolVersionHybi13,
+		Header:   headers,
+	})
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-done:
+		}
+	}()
+	var sendMu sync.Mutex
+	send := func(message protocol.NodeToServer) error {
+		encoded, err := json.Marshal(message)
+		if err != nil {
+			return err
+		}
+		frames, err := protocol.Encode(string(encoded))
+		if err != nil {
+			return err
+		}
+		sendMu.Lock()
+		defer sendMu.Unlock()
+		for _, frame := range frames {
+			if err := websocket.Message.Send(conn, frame); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	hosted.SetSend(send)
+	transportKey, _ := state.TransportPublicKey()
+	lockHash, lockGeneration := LockMetadata(stateDir)
+	_ = send(protocol.NodeToServer{
+		Type: "hello",
+		Hello: &protocol.NodeHello{
+			Version:            version.Version,
+			Hostname:           getHostname(),
+			Platform:           getPlatform(),
+			Arch:               getArch(),
+			Capabilities:       NodeCapabilities,
+			TransportPublicKey: transportKey,
+			LockHash:           lockHash,
+			LockGeneration:     lockGeneration,
+		},
+	})
+	_ = send(protocol.NodeToServer{Type: "process_sync", IDs: exec.ActiveIDs()})
+	logf("control channel connected")
+	decoder := &protocol.Decoder{}
+	for {
+		var payload []byte
+		if err := websocket.Message.Receive(conn, &payload); err != nil {
+			return err
+		}
+		plain, done, err := decoder.Accept(payload)
+		if err != nil || !done {
+			continue
+		}
+		var message protocol.ServerToNode
+		if json.Unmarshal(plain, &message) != nil {
+			continue
+		}
+		switch message.Type {
+		case "lock_bootstrap":
+			if message.Snapshot != "" {
+				if err := BootstrapLock(stateDir, message.Snapshot, server); err != nil {
+					logf("lock bootstrap: " + err.Error())
+				}
+				hash, generation := LockMetadata(stateDir)
+				_ = send(protocol.NodeToServer{Type: "lock_state", Hash: hash, Generation: generation})
+			}
+		case "lock_sync":
+			proof := &protocol.ControlProof{
+				Grant: message.Grant, CredentialID: message.CredentialID,
+				Assertion: message.Assertion,
+			}
+			if err := SyncLock(stateDir, message.Snapshot, message.PreviousHash,
+				message.PreviousGeneration, proof, message.Signature); err != nil {
+				logf("lock sync: " + err.Error())
+			}
+			hash, generation := LockMetadata(stateDir)
+			_ = send(protocol.NodeToServer{Type: "lock_state", Hash: hash, Generation: generation})
+		case "mcp_start", "mcp_status", "mcp_input", "mcp_cancel", "mcp_image":
+			go hosted.Handle(message)
+		}
+	}
+}
+
+func controlURL(server string) (*url.URL, error) {
+	target, err := url.Parse(server)
+	if err != nil || target.Host == "" {
+		return nil, err
+	}
+	switch target.Scheme {
+	case "https":
+		target.Scheme = "wss"
+	case "http":
+		target.Scheme = "ws"
+	default:
+		return nil, &url.Error{Op: "control", URL: server, Err: errInvalidControlURL{}}
+	}
+	target.Path = "/api/v1/node/connect"
+	target.RawQuery = ""
+	return target, nil
+}
+
+type errInvalidControlURL struct{}
+
+func (errInvalidControlURL) Error() string { return "RC server URL must use http or https" }

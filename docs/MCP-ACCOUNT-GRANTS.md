@@ -8,30 +8,33 @@ and the fresh passkey ceremony remain unchanged.
 
 ## Signed contract and compatibility
 
-Version 1 retains its `deviceIds` list and has no `audience` field. An empty
-legacy list grants access to no devices.
+Version 1 used a `deviceIds` list and had no `audience` field. It is removed:
+Version 1 payloads are rejected rather than interpreted.
 Version 2 requires `audience: "account"` and an empty `deviceIds` list. Unknown
 versions and ambiguous combinations fail closed. Signatures bind the exact grant
-bytes through SHA-256 and the domain `rc-mcp-grant-v2`, distinct from version 1.
-The account identifier, scopes, lifetime, client, and grant ID remain signed.
+bytes through SHA-256 and the domain `rc-mcp-grant-v2`. The account identifier,
+scopes, lifetime, client, and grant ID remain signed.
 
-The server evaluates current membership on every request. Each Node independently
-checks the passkey-backed control authority, Owner role in its local workspace
-snapshot, signature, grant hash in RC Lock, Terminal scope, audience, and expiry.
-An account grant is not permission to bootstrap or overwrite an existing lock.
-New Nodes use the existing enrollment/TOFU boundary; later changes still need an
-existing Owner's signed transition. This does not introduce a bearer API key.
+The server evaluates current membership on every request. Machine listing and
+observe operations accept any current workspace membership; every Terminal tool
+(`process_run`, `process_input`, `process_cancel`, and `image_view`) requires
+current Owner access. Each Node independently checks the passkey-backed control
+authority, Owner role in its local workspace snapshot, signature, grant hash in
+RC Lock, Terminal scope, audience, and expiry. An account grant is not permission
+to bootstrap or overwrite an existing lock. New Nodes use the existing
+enrollment/TOFU boundary; later changes still need an existing Owner's signed
+transition. This does not introduce a bearer API key.
 
-Existing connections stay version 1. Reconnect the MCP client and approve the new
-account consent once to adopt version 2; later enrollments need no OAuth renewal.
-Nodes must advertise `mcp-account-v2` before account-wide execution is attempted.
-Older Nodes reject v2 and receive an actionable upgrade error. No fallback may
-expand a v1 device list or bypass RC Lock during a rolling upgrade.
+Existing Version-1 connections must reconnect the MCP client and approve the new
+account consent once; later enrollments need no OAuth renewal. Nodes must
+advertise `mcp-account-v2` before account-wide execution is attempted. Older
+Nodes reject v2 and receive an actionable upgrade error. No fallback may bypass
+RC Lock during a rolling upgrade.
 
 ## Offline delivery
 
 The authority sync endpoint validates owner-signed transitions before persisting
-them in schema-4 `authority_deliveries`. Each row binds a device, previous hash,
+them in `authority_deliveries`. Each row binds a device, previous hash,
 generation, next hash, complete signed message, and control-proof expiration.
 No private signing key or execution content is stored. The durable write happens
 before sending or completing consent. A failed database/signature operation
@@ -51,7 +54,7 @@ accept unsigned updates merely because they have reconnected.
 
 ## Validation
 
-Native tests cover v1 scope retention, v2 future devices, signature-domain
+Native tests cover strict Version-1 rejection, v2 future devices, signature-domain
 separation, ambiguous versions, local demotion, and missing grant hashes.
 Server tests cover current membership, Owner enforcement, explicit empty-account
 consent, schema migration, and offline transitions across restart and acknowledgement.

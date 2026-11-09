@@ -11,8 +11,6 @@ import (
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 )
 
-const oauthDefaultScope = "mcp"
-
 func (s *Server) handleOAuthToken(w http.ResponseWriter, req *http.Request) {
 	if s.auth == nil {
 		writeOAuthError(w, http.StatusServiceUnavailable, "temporarily_unavailable", "account store is unavailable")
@@ -61,12 +59,18 @@ func (s *Server) exchangeAuthorizationCode(w http.ResponseWriter, req *http.Requ
 			"code, redirect_uri, and code_verifier are required")
 		return
 	}
-	userID, resource, err := s.auth.ConsumeOAuthCode(code, clientID, redirectURI, verifier)
+	userID, resource, scopes, grantID, err := s.auth.ConsumeOAuthCode(
+		code, clientID, redirectURI, verifier, req.PostForm.Get("resource"),
+	)
 	if err != nil {
+		if errors.Is(err, authstore.ErrOAuthResourceMismatch) {
+			writeOAuthError(w, http.StatusBadRequest, "invalid_target", "resource does not match this authorization code")
+			return
+		}
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorization code is invalid or expired")
 		return
 	}
-	s.writeOAuthTokens(w, clientID, userID, resource, oauthDefaultScope)
+	s.writeOAuthTokens(w, clientID, userID, resource, scopes, grantID)
 }
 
 func (s *Server) exchangeRefreshToken(w http.ResponseWriter, req *http.Request, clientID string) {
@@ -75,12 +79,16 @@ func (s *Server) exchangeRefreshToken(w http.ResponseWriter, req *http.Request, 
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "refresh_token is required")
 		return
 	}
-	access, newRefresh, _, _, err := s.auth.ExchangeOAuthRefresh(refresh, clientID)
+	access, newRefresh, _, _, scopes, err := s.auth.ExchangeOAuthRefresh(
+		refresh, clientID, req.PostForm.Get("resource"),
+	)
 	if err != nil {
 		switch {
 		case errors.Is(err, authstore.ErrOAuthInvalidClient),
 			errors.Is(err, authstore.ErrOAuthClientNotFound):
 			writeOAuthError(w, http.StatusUnauthorized, "invalid_client", "client_id is invalid")
+		case errors.Is(err, authstore.ErrOAuthResourceMismatch):
+			writeOAuthError(w, http.StatusBadRequest, "invalid_target", "resource does not match this grant")
 		default:
 			writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "refresh token is invalid or expired")
 		}
@@ -91,12 +99,12 @@ func (s *Server) exchangeRefreshToken(w http.ResponseWriter, req *http.Request, 
 		"token_type":    "Bearer",
 		"expires_in":    int(authstore.OAuthAccessTokenLifetime / time.Second),
 		"refresh_token": newRefresh,
-		"scope":         oauthDefaultScope,
+		"scope":         scopes,
 	})
 }
 
-func (s *Server) writeOAuthTokens(w http.ResponseWriter, clientID, userID, resource, scopes string) {
-	access, refresh, _, _, err := s.auth.IssueOAuthTokens(clientID, userID, resource, scopes)
+func (s *Server) writeOAuthTokens(w http.ResponseWriter, clientID, userID, resource, scopes, grantID string) {
+	access, refresh, _, _, err := s.auth.IssueOAuthTokens(clientID, userID, resource, scopes, grantID)
 	if err != nil {
 		writeOAuthError(w, http.StatusInternalServerError, "server_error", "tokens could not be issued")
 		return

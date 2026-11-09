@@ -23,12 +23,14 @@ func TestOAuthMetadata(t *testing.T) {
 		Issuer                        string   `json:"issuer"`
 		AuthorizationEndpoint         string   `json:"authorization_endpoint"`
 		TokenEndpoint                 string   `json:"token_endpoint"`
+		RevocationEndpoint            string   `json:"revocation_endpoint"`
 		RegistrationEndpoint          string   `json:"registration_endpoint"`
 		ResponseTypesSupported        []string `json:"response_types_supported"`
 		GrantTypesSupported           []string `json:"grant_types_supported"`
 		CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
 		TokenEndpointAuthMethods      []string `json:"token_endpoint_auth_methods_supported"`
 		ScopesSupported               []string `json:"scopes_supported"`
+		IssSupported                  bool     `json:"authorization_response_iss_parameter_supported"`
 	}
 	if err := json.Unmarshal(payload, &metadata); err != nil {
 		t.Fatalf("decode metadata: %v", err)
@@ -36,6 +38,7 @@ func TestOAuthMetadata(t *testing.T) {
 	if metadata.Issuer != "https://rc.example.test" ||
 		metadata.AuthorizationEndpoint != metadata.Issuer+"/oauth/authorize" ||
 		metadata.TokenEndpoint != metadata.Issuer+"/oauth/token" ||
+		metadata.RevocationEndpoint != metadata.Issuer+"/oauth/revoke" ||
 		metadata.RegistrationEndpoint != metadata.Issuer+"/oauth/register" {
 		t.Fatalf("metadata endpoints = %+v", metadata)
 	}
@@ -47,7 +50,9 @@ func TestOAuthMetadata(t *testing.T) {
 		metadata.CodeChallengeMethodsSupported[0] != "S256" ||
 		len(metadata.TokenEndpointAuthMethods) != 1 ||
 		metadata.TokenEndpointAuthMethods[0] != "none" ||
-		len(metadata.ScopesSupported) != 1 || metadata.ScopesSupported[0] != "mcp" {
+		len(metadata.ScopesSupported) != 2 ||
+		metadata.ScopesSupported[0] != "mcp:observe" ||
+		metadata.ScopesSupported[1] != "mcp:terminal" || !metadata.IssSupported {
 		t.Fatalf("metadata capabilities = %+v", metadata)
 	}
 
@@ -60,15 +65,24 @@ func TestOAuthMetadata(t *testing.T) {
 		Resource               string   `json:"resource"`
 		AuthorizationServers   []string `json:"authorization_servers"`
 		BearerMethodsSupported []string `json:"bearer_methods_supported"`
+		ScopesSupported        []string `json:"scopes_supported"`
 	}
 	if err := json.Unmarshal(payload, &resource); err != nil {
 		t.Fatalf("decode protected resource: %v", err)
+	}
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodGet, ts.URL+"/.well-known/oauth-protected-resource/mcp", "", nil, nil, ""))
+	if res.StatusCode != http.StatusOK || !strings.Contains(string(payload), `"resource":"https://rc.example.test/mcp"`) {
+		t.Fatalf("resource-specific metadata = %d: %s", res.StatusCode, payload)
 	}
 	if resource.Resource != "https://rc.example.test/mcp" ||
 		len(resource.AuthorizationServers) != 1 ||
 		resource.AuthorizationServers[0] != "https://rc.example.test" ||
 		len(resource.BearerMethodsSupported) != 1 ||
-		resource.BearerMethodsSupported[0] != "header" {
+		resource.BearerMethodsSupported[0] != "header" ||
+		len(resource.ScopesSupported) != 2 ||
+		resource.ScopesSupported[0] != "mcp:observe" ||
+		resource.ScopesSupported[1] != "mcp:terminal" {
 		t.Fatalf("protected resource = %+v", resource)
 	}
 }

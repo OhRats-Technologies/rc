@@ -59,4 +59,11 @@ func TestStrictV2McpGrants(t *testing.T) {
 	if v2NonEmptyDevices.ValidAudience() {
 		t.Fatal("expected ValidAudience to reject V2 grant with deviceIds")
 	}
+
+	if got := v2Valid.SignaturePayload("digest"); got != "rc-mcp-grant-v2\ndigest" {
+		t.Fatalf("v2 signature payload = %q", got)
+	}
+	if got := v1Legacy.SignaturePayload("digest"); got != "rc-mcp-grant-v1\ndigest" {
+		t.Fatalf("v1 signature payload = %q", got)
+	}
 }

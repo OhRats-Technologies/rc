@@ -51,6 +51,7 @@ func (s *Server) renderSidebar(userName, path string) string {
 		`<a class="site-brand" href="/devices"><img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt=""><strong>RC</strong></a>` +
 		`<nav aria-label="RC navigation"><section class="sidebar-section"><h2>Navigation</h2>` +
 		`<a class="nav-link` + activeClass(path, "/devices") + `" href="/devices"><span class="ui-icon icon-devices"></span><span>Devices</span></a>` +
+		`<a class="nav-link` + activeClass(path, "/integrations/mcp") + `" href="/integrations/mcp"><span class="ui-icon icon-api"></span><span>MCP</span></a>` +
 		`</section><section class="sidebar-section workspace-section"><div class="sidebar-section-title"><h2>Workspaces</h2></div>` +
 		`<div class="workspace-folder active" data-workspace-folder="ws_default" data-default-open="true">` +
 		`<div class="workspace-folder-head"><button class="workspace-toggle" type="button" aria-expanded="true" data-workspace-toggle="ws_default"><span class="ui-icon icon-folder"></span><span class="workspace-name">Personal</span></button></div>` +

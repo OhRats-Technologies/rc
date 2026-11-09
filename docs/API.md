@@ -94,6 +94,19 @@ Deployments that explicitly set `RC_EXECUTION_HISTORY=metadata` retain completed
 
 ## Remote MCP execution
 
+Remote MCP uses JSON-RPC 2.0 over authenticated `POST /mcp`
+(`initialize`, `notifications/initialized`, `server/discover`, `ping`,
+`tools/list`, and `tools/call`). OAuth discovery, explicit browser consent,
+token exchange, refresh rotation, and RFC 7009 revocation are exposed under
+`/.well-known/oauth-*` and `/oauth/*`. Terminal grants use passkey-authorized
+Ed25519 control clients (`/api/v1/control/authorize/*`), canonical workspace
+authority snapshots, and Owner-signed RC Lock transitions at
+`/api/v1/workspaces/:id/authority`. Every MCP request re-evaluates current
+workspace membership; Terminal tools require current Owner access. Process and
+image requests travel over the selected Node's authenticated WebSocket command
+channel; the Node verifies the grant hash, control proof, signature, Owner role,
+scope, and expiry before executing, and owns process journals and image transfer.
+
 Remote MCP keeps the focused `process_run`, `process_status`, `process_input`,
 and `process_cancel` surface. `process_run` requires exactly one of `argv` or
 `command`. `argv[0]` is executed directly with exact argument boundaries.

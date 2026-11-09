@@ -31,4 +31,6 @@ var (
 	ErrOAuthTokenExpired     = errors.New("auth: oauth token expired")
 	ErrOAuthTokenRevoked     = errors.New("auth: oauth token revoked")
 	ErrOAuthResourceMismatch = errors.New("auth: oauth token is bound to another resource")
+	ErrControlClientNotFound = errors.New("auth: control client not found or expired")
+	ErrControlClientConflict = errors.New("auth: control client belongs to another account")
 )

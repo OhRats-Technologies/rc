@@ -102,5 +102,9 @@ func (s *Server) handleSetupVerify(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if err := s.ensureDefaultMembership(user.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.finishSession(w, req, user.ID, "30d", http.StatusCreated)
 }

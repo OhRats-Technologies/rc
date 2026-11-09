@@ -1,8 +1,8 @@
 package auth
 
-// schemaVersion is the user_version written by the current schema. Databases
-// with a different version are never opened in place.
-const schemaVersion = 1
+// schemaVersion is the user_version written by the current schema. Supported
+// older versions are migrated in place; unknown versions are refused.
+const schemaVersion = 3
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS users (
@@ -79,4 +79,43 @@ var schema = []string{
 		revoked_ms INTEGER NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS revoked_devices_identity ON revoked_devices(identity_public_key);`,
+	`CREATE TABLE IF NOT EXISTS control_clients (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		kind TEXT NOT NULL CHECK (kind IN ('browser', 'cli')),
+		signing_public_key TEXT NOT NULL,
+		credential_id TEXT NOT NULL,
+		grant TEXT NOT NULL,
+		assertion TEXT NOT NULL,
+		created_ms INTEGER NOT NULL,
+		expires_ms INTEGER NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS control_clients_user_id ON control_clients(user_id);`,
+	`CREATE TABLE IF NOT EXISTS mcp_grants (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		client_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		grant TEXT NOT NULL,
+		signature TEXT NOT NULL,
+		control_client_id TEXT NOT NULL,
+		credential_id TEXT NOT NULL,
+		control_grant TEXT NOT NULL,
+		control_assertion TEXT NOT NULL,
+		created_ms INTEGER NOT NULL,
+		expires_ms INTEGER NOT NULL,
+		revoked_ms INTEGER
+	);`,
+	`CREATE INDEX IF NOT EXISTS mcp_grants_user_id ON mcp_grants(user_id);`,
+	`CREATE INDEX IF NOT EXISTS mcp_grants_revoked ON mcp_grants(revoked_ms);`,
+	`CREATE TABLE IF NOT EXISTS authority_deliveries (
+		device_id TEXT NOT NULL,
+		previous_hash TEXT NOT NULL,
+		generation INTEGER NOT NULL,
+		next_hash TEXT NOT NULL,
+		message TEXT NOT NULL,
+		expires_ms INTEGER NOT NULL,
+		PRIMARY KEY (device_id, previous_hash, generation)
+	);`,
+	`CREATE INDEX IF NOT EXISTS authority_deliveries_device ON authority_deliveries(device_id);`,
 }

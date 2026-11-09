@@ -48,17 +48,19 @@ async function save(key: string, value: unknown) {
   });
 }
 
-async function createIdentity(): Promise<ControlIdentity> {
+async function createIdentity(key: string): Promise<ControlIdentity> {
   const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
   const publicKey = bytesToB64url(await crypto.subtle.exportKey("raw", pair.publicKey));
   const pkcs8 = await crypto.subtle.exportKey("pkcs8", pair.privateKey);
   const privateKey = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "Ed25519" }, false, ["sign"]);
   const identity = { id: crypto.randomUUID(), publicKey, privateKey };
-  await save("control-identity", identity); return identity;
+  await save(key, identity); return identity;
 }
 
 export async function controlIdentity() {
-  return await stored<ControlIdentity>("control-identity") || await createIdentity();
+  const me = await api<Me>("/api/v1/me");
+  const key = `control-identity:${me.user.id}`;
+  return await stored<ControlIdentity>(key) || await createIdentity(key);
 }
 
 export async function ensureControlAuthorized(force = false, lifetime = "30d") {

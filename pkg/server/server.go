@@ -48,6 +48,7 @@ type Server struct {
 	mcp      *McpHandler
 	auth     *authstore.Store
 	turn     *turnProvider
+	nodes    *NodeHub
 
 	mu         sync.RWMutex
 	listenAddr string
@@ -65,18 +66,41 @@ func New(cfg Config) *Server {
 	events := NewEventHub()
 	execMgr := node.NewNativeExecutionManager()
 	mcp := NewMcpHandler(reg, execMgr)
+	nodes := newNodeHub()
+	mcp.nodes = nodes
+	mcp.local = cfg.Development
 
 	s := &Server{
 		cfg:      cfg,
 		registry: reg,
 		events:   events,
 		mcp:      mcp,
+		nodes:    nodes,
 		turn:     newTurnProvider(cfg.TurnTokenID, cfg.TurnAPIToken),
+	}
+	mcp.challenge = s.writeOAuthChallenge
+	nodes.onHello = s.handleNodeHello
+	nodes.onLock = s.handleNodeLockState
+	nodes.onPresence = func(deviceID string, online bool) {
+		if online {
+			s.registry.markOnline(deviceID, true)
+			s.events.Publish("device.online", map[string]any{"deviceId": deviceID})
+			return
+		}
+		s.markOffline(deviceID)
 	}
 	if cfg.Development && cfg.DevelopmentEnrollToken != "" {
 		reg.AddToken(cfg.DevelopmentEnrollToken)
 	}
 	s.initAuth()
+	mcp.auth = s.auth
+	mcp.authorityHash = func(workspaceID string) (string, error) {
+		snapshot, err := s.authoritySnapshot(workspaceID)
+		if err != nil {
+			return "", err
+		}
+		return node.SnapshotHash(snapshot), nil
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
@@ -86,6 +110,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /api/v1/node/self", s.handleNodeSelf)
 	mux.HandleFunc("POST /api/v1/node/heartbeat", s.handleNodeHeartbeat)
 	mux.HandleFunc("GET /api/v1/node/ice", s.handleNodeICE)
+	mux.HandleFunc("GET /api/v1/node/connect", s.handleNodeConnect)
 	mux.HandleFunc("GET /setup/{token}", s.handleSetupLink)
 	mux.HandleFunc("POST /api/v1/auth/setup/options", s.handleSetupOptions)
 	mux.HandleFunc("POST /api/v1/auth/setup/verify", s.handleSetupVerify)
@@ -97,22 +122,35 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/v1/auth/step-up/options", s.handleStepUpOptions)
 	mux.HandleFunc("POST /api/v1/auth/step-up/verify", s.handleStepUpVerify)
 	mux.HandleFunc("GET /api/v1/me", s.handleMe)
+	mux.HandleFunc("GET /api/v1/control/clients/{id}", s.handleControlClientStatus)
+	mux.HandleFunc("POST /api/v1/control/authorize/options", s.handleControlAuthorizeOptions)
+	mux.HandleFunc("POST /api/v1/control/authorize/verify", s.handleControlAuthorizeVerify)
 	mux.HandleFunc("POST /account/logout", s.handleLogout)
 	mux.HandleFunc("GET /account", s.handleAccountPage)
+	mux.HandleFunc("GET /integrations/mcp", s.handleMCPPage)
 	mux.HandleFunc("POST /account/name", s.handleAccountName)
 	mux.HandleFunc("GET /devices", s.handleDevicesPage)
 	mux.HandleFunc("GET /devices/enroll", s.handleEnrollPage)
 	mux.HandleFunc("GET /devices/{id}", s.handleDevicePage)
 	mux.HandleFunc("POST /devices/{id}/rename", s.handleDeviceRenameForm)
 	mux.HandleFunc("POST /api/v1/workspaces/{id}/enrollments", s.handleCreateEnrollment)
+	mux.HandleFunc("GET /api/v1/workspaces/{id}/authority", s.handleAuthorityStatus)
+	mux.HandleFunc("POST /api/v1/workspaces/{id}/authority/sync", s.handleAuthoritySync)
 	mux.Handle("GET /api/v1/devices", s.allowSessionOrDev(http.HandlerFunc(reg.HandleListDevices)))
 	mux.Handle("/api/v1/devices/", s.allowSessionOrDev(http.HandlerFunc(reg.HandleDeviceRoutes)))
 	mux.Handle("GET /api/v1/events", s.allowSessionOrDev(events))
 	mux.HandleFunc("GET /.well-known/oauth-authorization-server", s.handleOAuthAuthorizationServerMetadata)
 	mux.HandleFunc("GET /.well-known/oauth-protected-resource", s.handleOAuthProtectedResourceMetadata)
+	mux.HandleFunc("GET /.well-known/oauth-protected-resource/mcp", s.handleOAuthProtectedResourceMetadata)
 	mux.HandleFunc("POST /oauth/register", s.handleOAuthRegister)
 	mux.HandleFunc("GET /oauth/authorize", s.handleOAuthAuthorize)
+	mux.HandleFunc("POST /oauth/authorize/prepare", s.handleOAuthPrepare)
+	mux.HandleFunc("POST /oauth/authorize/approve", s.handleOAuthApproveGrant)
+	mux.HandleFunc("POST /oauth/authorize/cancel", s.handleOAuthCancel)
+	mux.HandleFunc("POST /oauth/authorize/switch-account", s.handleOAuthSwitchAccount)
+	mux.HandleFunc("DELETE /oauth/grants/{id}", s.handleOAuthRevokeGrant)
 	mux.HandleFunc("POST /oauth/token", s.handleOAuthToken)
+	mux.HandleFunc("POST /oauth/revoke", s.handleOAuthRevoke)
 	mux.Handle("POST /mcp", s.requireOAuth(mcp))
 
 	// Static assets and public pages.
@@ -127,7 +165,7 @@ func New(cfg Config) *Server {
 		Addr:         cfg.Addr,
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
+		WriteTimeout: 90 * time.Second,
 	}
 
 	return s

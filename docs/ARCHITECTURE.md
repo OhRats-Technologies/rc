@@ -40,8 +40,8 @@ hosted-transit adapter; MCP request correlation is bounded and ephemeral;
 the Node owns execution state and output journals.
 
 The Node owns its long-term identity, transport secret, process runtime, and RC
-Lock. It validates local authority and execution permits before starting a
-process.
+Lock. It validates local authority and Owner-signed execution grants before
+starting a process.
 
 ## Control flow
 
@@ -50,7 +50,7 @@ process.
 3. Controller and Node exchange signaling through HTTPS.
 4. Both sides derive an authenticated control key.
 5. Process frames use sequence-bound AES-GCM over WebRTC.
-6. The Node validates RC Lock and the process permit before execution.
+6. The Node validates RC Lock and the Owner-signed grant before execution.
 7. Active lifecycle metadata is published to server state and SSE.
 
 Ambiguous starts are never replayed. Reconnect reconciliation marks hosted

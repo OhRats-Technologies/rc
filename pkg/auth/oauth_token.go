@@ -13,14 +13,15 @@ import (
 
 // IssueOAuthTokens issues a resource-bound access token and refresh token.
 func (s *Store) IssueOAuthTokens(
-	clientID, userID, resource, scopes string,
+	clientID, userID, resource, scopes, grantID string,
 ) (string, string, time.Time, time.Time, error) {
 	resource = strings.TrimSpace(resource)
+	scopes = strings.TrimSpace(scopes)
 	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(userID) == "" || resource == "" {
 		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidGrant
 	}
-	if strings.TrimSpace(scopes) == "" {
-		scopes = "mcp"
+	if scopes == "" {
+		scopes = OAuthScopeObserve
 	}
 	access, refresh, accessExpires, refreshExpires, err := newOAuthTokenPair()
 	if err != nil {
@@ -37,15 +38,16 @@ func (s *Store) IssueOAuthTokens(
 	_, err = s.db.ExecContext(
 		context.Background(),
 		`INSERT INTO oauth_tokens
-		 (access_hash, refresh_hash, client_id, user_id, resource, scopes,
+		 (access_hash, refresh_hash, client_id, user_id, resource, scopes, grant_id,
 		  access_expires_ms, refresh_expires_ms)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
 		accessHash,
 		refreshHash,
 		clientID,
 		userID,
 		resource,
 		scopes,
+		grantID,
 		msFromTime(accessExpires),
 		msFromTime(refreshExpires),
 	)
@@ -56,55 +58,61 @@ func (s *Store) IssueOAuthTokens(
 }
 
 // ExchangeOAuthRefresh rotates a refresh token. The presented token is replaced
-// atomically, so the previous refresh and access tokens stop working.
-func (s *Store) ExchangeOAuthRefresh(refresh, clientID string) (string, string, time.Time, time.Time, error) {
+// atomically, so the previous refresh and access tokens stop working. The
+// resource indicator must match the original grant when supplied.
+func (s *Store) ExchangeOAuthRefresh(
+	refresh, clientID, resource string,
+) (string, string, time.Time, time.Time, string, error) {
 	refreshHash, ok := oauthTokenHash(refresh)
 	if !ok {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidGrant
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthInvalidGrant
 	}
 	ctx := context.Background()
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, err
+		return "", "", time.Time{}, time.Time{}, "", err
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var storedClient string
+	var storedClient, storedResource, scopes string
 	var refreshExpiresMs int64
 	var revoked sql.NullInt64
 	err = tx.QueryRowContext(
 		ctx,
-		`SELECT client_id, refresh_expires_ms, revoked_ms
+		`SELECT client_id, resource, scopes, refresh_expires_ms, revoked_ms
 		 FROM oauth_tokens WHERE refresh_hash = ?;`,
 		refreshHash,
-	).Scan(&storedClient, &refreshExpiresMs, &revoked)
+	).Scan(&storedClient, &storedResource, &scopes, &refreshExpiresMs, &revoked)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidGrant
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthInvalidGrant
 	}
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, err
+		return "", "", time.Time{}, time.Time{}, "", err
 	}
 	if subtle.ConstantTimeCompare([]byte(storedClient), []byte(clientID)) != 1 {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidClient
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthInvalidClient
+	}
+	if resource != "" && subtle.ConstantTimeCompare([]byte(storedResource), []byte(resource)) != 1 {
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthResourceMismatch
 	}
 	if revoked.Valid {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthTokenRevoked
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthTokenRevoked
 	}
 	if refreshExpiresMs <= nowMs() {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthTokenExpired
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthTokenExpired
 	}
 
 	access, newRefresh, accessExpires, refreshExpires, err := newOAuthTokenPair()
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, err
+		return "", "", time.Time{}, time.Time{}, "", err
 	}
 	accessHash, ok := oauthTokenHash(access)
 	if !ok {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidGrant
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthInvalidGrant
 	}
 	newRefreshHash, ok := oauthTokenHash(newRefresh)
 	if !ok {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidGrant
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthInvalidGrant
 	}
 	result, err := tx.ExecContext(
 		ctx,
@@ -118,19 +126,34 @@ func (s *Store) ExchangeOAuthRefresh(refresh, clientID string) (string, string, 
 		refreshHash,
 	)
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, err
+		return "", "", time.Time{}, time.Time{}, "", err
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return "", "", time.Time{}, time.Time{}, err
+		return "", "", time.Time{}, time.Time{}, "", err
 	}
 	if affected != 1 {
-		return "", "", time.Time{}, time.Time{}, ErrOAuthInvalidGrant
+		return "", "", time.Time{}, time.Time{}, "", ErrOAuthInvalidGrant
 	}
 	if err := tx.Commit(); err != nil {
-		return "", "", time.Time{}, time.Time{}, err
+		return "", "", time.Time{}, time.Time{}, "", err
 	}
-	return access, newRefresh, accessExpires, refreshExpires, nil
+	return access, newRefresh, accessExpires, refreshExpires, scopes, nil
+}
+
+// RevokeOAuthToken revokes the token family identified by an access or refresh
+// token. Unknown or malformed tokens are ignored so the endpoint cannot be used
+// to probe token validity.
+func (s *Store) RevokeOAuthToken(token string) error {
+	hash, ok := oauthTokenHash(token)
+	if !ok {
+		return nil
+	}
+	_, err := s.db.ExecContext(context.Background(),
+		`UPDATE oauth_tokens SET revoked_ms = ?
+		 WHERE (access_hash = ? OR refresh_hash = ?) AND revoked_ms IS NULL;`,
+		nowMs(), hash, hash)
+	return err
 }
 
 // LookupOAuthAccess validates an access token and its resource binding.
@@ -144,7 +167,7 @@ func (s *Store) LookupOAuthAccess(token, resource string) (*OAuthGrant, error) {
 	var revoked sql.NullInt64
 	err := s.db.QueryRowContext(
 		context.Background(),
-		`SELECT client_id, user_id, resource, scopes, access_expires_ms, refresh_expires_ms, revoked_ms
+		`SELECT client_id, user_id, resource, scopes, grant_id, access_expires_ms, refresh_expires_ms, revoked_ms
 		 FROM oauth_tokens WHERE access_hash = ?;`,
 		hash,
 	).Scan(
@@ -152,6 +175,7 @@ func (s *Store) LookupOAuthAccess(token, resource string) (*OAuthGrant, error) {
 		&grant.UserID,
 		&grant.Resource,
 		&grant.Scopes,
+		&grant.GrantID,
 		&accessExpiresMs,
 		&refreshExpiresMs,
 		&revoked,
@@ -174,6 +198,11 @@ func (s *Store) LookupOAuthAccess(token, resource string) (*OAuthGrant, error) {
 	grant.AccessExpiresAt = timeFromMs(accessExpiresMs)
 	grant.RefreshExpiresAt = timeFromMs(refreshExpiresMs)
 	return &grant, nil
+}
+
+// HasScope reports whether the grant authorizes required.
+func (g *OAuthGrant) HasScope(required string) bool {
+	return HasOAuthScope(g.Scopes, required)
 }
 
 func newOAuthTokenPair() (string, string, time.Time, time.Time, error) {

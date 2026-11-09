@@ -137,6 +137,17 @@ func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleNodeConnect upgrades an authenticated Node request into the hosted
+// command channel used for MCP execution and image transfer.
+func (s *Server) handleNodeConnect(w http.ResponseWriter, req *http.Request) {
+	device, err := s.registry.verifyNode(req, nil)
+	if err != nil {
+		http.Error(w, err.Error(), nodeAuthStatus(err))
+		return
+	}
+	s.nodes.Serve(device.ID, w, req)
+}
+
 // handleNodeICE issues short-lived TURN credentials to an authenticated Node.
 func (s *Server) handleNodeICE(w http.ResponseWriter, req *http.Request) {
 	if _, err := s.registry.verifyNode(req, nil); err != nil {

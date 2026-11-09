@@ -1,11 +1,16 @@
 package server
 
 import (
+	"context"
 	"net/http"
 	"strings"
+
+	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 )
 
 const mcpResourcePath = "/mcp"
+
+type oauthGrantContextKey struct{}
 
 // issuer resolves the OAuth authorization-server issuer. The configured public
 // URL wins; otherwise the request origin is used so local deployments work.
@@ -49,12 +54,17 @@ func writeOAuthError(w http.ResponseWriter, status int, code, description string
 }
 
 // requireOAuth protects Remote MCP with a resource-bound Bearer access token.
-// Development mode keeps the unauthenticated local control plane.
+// Development mode keeps the unauthenticated local control plane and attaches
+// a full-scope development grant.
 func (s *Server) requireOAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		if s.cfg.Development {
-			next.ServeHTTP(w, req)
+			grant := &authstore.OAuthGrant{
+				UserID: "dev",
+				Scopes: authstore.OAuthScopeObserve + " " + authstore.OAuthScopeTerminal,
+			}
+			next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), oauthGrantContextKey{}, grant)))
 			return
 		}
 		if s.auth == nil {
@@ -63,15 +73,21 @@ func (s *Server) requireOAuth(next http.Handler) http.Handler {
 		}
 		token, ok := bearerToken(req)
 		if !ok {
-			s.writeOAuthChallenge(w, req)
+			s.writeOAuthChallenge(w, req, authstore.OAuthScopeObserve, false)
 			return
 		}
-		if _, err := s.auth.LookupOAuthAccess(token, s.mcpResource(req)); err != nil {
-			s.writeOAuthChallenge(w, req)
+		grant, err := s.auth.LookupOAuthAccess(token, s.mcpResource(req))
+		if err != nil {
+			s.writeOAuthChallenge(w, req, authstore.OAuthScopeObserve, false)
 			return
 		}
-		next.ServeHTTP(w, req)
+		next.ServeHTTP(w, req.WithContext(context.WithValue(req.Context(), oauthGrantContextKey{}, grant)))
 	})
+}
+
+func oauthGrantFromRequest(req *http.Request) *authstore.OAuthGrant {
+	grant, _ := req.Context().Value(oauthGrantContextKey{}).(*authstore.OAuthGrant)
+	return grant
 }
 
 func bearerToken(req *http.Request) (string, bool) {
@@ -86,8 +102,22 @@ func bearerToken(req *http.Request) (string, bool) {
 	return token, true
 }
 
-func (s *Server) writeOAuthChallenge(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+
-		s.issuer(req)+`/.well-known/oauth-protected-resource"`)
+func (s *Server) writeOAuthChallenge(w http.ResponseWriter, req *http.Request, scope string, insufficient bool) {
+	value := `Bearer resource_metadata="` + s.issuer(req) + `/.well-known/oauth-protected-resource"`
+	if insufficient {
+		value = `Bearer error="insufficient_scope", resource_metadata="` +
+			s.issuer(req) + `/.well-known/oauth-protected-resource"`
+	}
+	if scope != "" {
+		value += `, scope="` + scope + `"`
+	}
+	w.Header().Set("WWW-Authenticate", value)
+	if insufficient {
+		writeJSON(w, http.StatusForbidden, map[string]string{
+			"error":             "insufficient_scope",
+			"error_description": "the MCP access token does not grant the required scope",
+		})
+		return
+	}
 	writeError(w, http.StatusUnauthorized, "authentication required")
 }

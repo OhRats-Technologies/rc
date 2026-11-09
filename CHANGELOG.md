@@ -2,6 +2,30 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.6] - 2026-11-09
+
+- Add a standard MCP Streamable HTTP JSON-RPC surface with `initialize`,
+  `server/discover`, `notifications/initialized`, `ping`, `tools/list`, and
+  `tools/call` in addition to the legacy tool method aliases.
+- Publish exact tool input/output schemas, structured results, ordered
+  stdout/stderr chunks, truncation cursors, typed process input/EOF/cancel
+  operations, and the narrow image-view visual primitive.
+- Require explicit MCP OAuth consent with observe/terminal scopes. Terminal
+  consent requires a fresh passkey step-up; access tokens remain short-lived,
+  resource-bound, and refresh tokens rotate with scopes preserved.
+- Add RFC 7009 token revocation that revokes the access/refresh token family.
+- Add passkey-authorized control clients, Owner-signed MCP grants, canonical
+  workspace authority snapshots, signed authority transitions, offline delivery,
+  Node lock bootstrap/reconciliation, and RC Lock verification for MCP process
+  and image tools executed on the selected Node.
+- Revalidate durable MCP grants and current workspace membership on every MCP
+  request; machine listing is scoped to membership and Terminal operations
+  require current Owner access.
+- Store browser control identities per account and reject cross-account
+  control-client key reuse.
+- Add durable OAuth consent requests and schema-1 migration for per-code scopes.
+- Add an authenticated MCP connections page with grant revocation and authority sync.
+
 ## [0.20.5] - 2026-11-06
 
 - Fix 0.20.2 upgrade compatibility: rc-kernel-* archives now contain an rc-kernel binary, and the release workflow checks their contents.

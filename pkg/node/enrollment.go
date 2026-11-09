@@ -18,7 +18,7 @@ import (
 	"github.com/OhRats-Technologies/rc/pkg/apiclient"
 )
 
-var NodeCapabilities = []string{"shell", "files", "pty"}
+var NodeCapabilities = []string{"shell", "files", "pty", "execution-v2", "mcp-account-v2"}
 
 type RemoteNodeStatus struct {
 	Name    string `json:"name"`

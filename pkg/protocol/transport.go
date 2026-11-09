@@ -56,7 +56,8 @@ type NodeHello struct {
 }
 
 type McpExecutionChunk struct {
-	Stream string `json:"stream"`
-	Cursor uint64 `json:"cursor"`
-	Data   string `json:"data"`
+	Stream   string `json:"stream"`
+	Cursor   uint64 `json:"cursor"`
+	Encoding string `json:"encoding"`
+	Data     string `json:"data"`
 }

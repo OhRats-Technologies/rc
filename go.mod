@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/bytecodealliance/wasmtime-go/v50 v50.0.0
 	github.com/pion/webrtc/v4 v4.2.26
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.61.1
 )
@@ -32,7 +33,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	modernc.org/libc v1.79.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

@@ -9,6 +9,7 @@ async function redirectPost(path: string) {
 }
 
 document.querySelector<HTMLButtonElement>("[data-mcp-cancel]")?.addEventListener("click", async event => {
+  event.preventDefault();
   const button = event.currentTarget as HTMLButtonElement; button.disabled = true; error.textContent = "";
   try { await redirectPost("/oauth/authorize/cancel"); }
   catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); button.disabled = false; }

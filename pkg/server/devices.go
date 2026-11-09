@@ -40,6 +40,8 @@ type RegisteredDevice struct {
 	Capabilities       []string  `json:"capabilities"`
 	IdentityPublicKey  string    `json:"identityPublicKey"`
 	TransportPublicKey string    `json:"transportPublicKey"`
+	LockHash           string    `json:"lockHash,omitempty"`
+	LockGeneration     uint64    `json:"lockGeneration,omitempty"`
 	Online             bool      `json:"online"`
 	LastSeen           time.Time `json:"lastSeen"`
 }

@@ -38,6 +38,8 @@ func registeredFromStore(device authstore.Device) *RegisteredDevice {
 		Capabilities:       device.Capabilities,
 		IdentityPublicKey:  device.IdentityPublicKey,
 		TransportPublicKey: device.TransportPublicKey,
+		LockHash:           device.LockHash,
+		LockGeneration:     uint64(device.LockGeneration),
 	}
 	if device.LastSeenAt != nil {
 		registered.LastSeen = *device.LastSeenAt

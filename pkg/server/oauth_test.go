@@ -2,12 +2,8 @@ package server
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -15,110 +11,8 @@ import (
 
 const oauthTestRedirect = "https://client.example/callback"
 
-func newOAuthTestServer(t *testing.T) (*Server, *httptest.Server, *http.Cookie) {
-	t.Helper()
-	srv, ts := newAuthServer(t)
-	user, err := srv.auth.CreateUser("Alice")
-	if err != nil {
-		t.Fatal(err)
-	}
-	token, _, err := srv.auth.IssueSession(user.ID, "1h")
-	if err != nil {
-		t.Fatal(err)
-	}
-	return srv, ts, &http.Cookie{Name: sessionCookieName, Value: token}
-}
-
-func noRedirectClient() *http.Client {
-	return &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-	}
-}
-
-func oauthRequest(t *testing.T, method, target, contentType string, body []byte, cookie *http.Cookie, bearer string) *http.Request {
-	t.Helper()
-	req, err := http.NewRequest(method, target, bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	if cookie != nil {
-		req.AddCookie(cookie)
-	}
-	if bearer != "" {
-		req.Header.Set("Authorization", "Bearer "+bearer)
-	}
-	return req
-}
-
-func oauthDo(t *testing.T, client *http.Client, req *http.Request) (*http.Response, []byte) {
-	t.Helper()
-	res, err := client.Do(req)
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer res.Body.Close()
-	payload, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
-	if err != nil {
-		t.Fatalf("read body: %v", err)
-	}
-	return res, payload
-}
-
-func registerTestClient(t *testing.T, ts *httptest.Server) string {
-	t.Helper()
-	body := mustJSON(t, map[string]any{
-		"client_name":   "Test MCP Client",
-		"redirect_uris": []string{oauthTestRedirect},
-	})
-	res, payload := oauthDo(t, http.DefaultClient, oauthRequest(t,
-		http.MethodPost, ts.URL+"/oauth/register", "application/json", body, nil, ""))
-	if res.StatusCode != http.StatusCreated {
-		t.Fatalf("register status = %d: %s", res.StatusCode, payload)
-	}
-	var created struct {
-		ClientID                string   `json:"client_id"`
-		ClientName              string   `json:"client_name"`
-		RedirectURIs            []string `json:"redirect_uris"`
-		TokenEndpointAuthMethod string   `json:"token_endpoint_auth_method"`
-	}
-	if err := json.Unmarshal(payload, &created); err != nil {
-		t.Fatalf("decode registration: %v", err)
-	}
-	if created.ClientID == "" || created.ClientName != "Test MCP Client" ||
-		created.TokenEndpointAuthMethod != "none" ||
-		len(created.RedirectURIs) != 1 || created.RedirectURIs[0] != oauthTestRedirect {
-		t.Fatalf("registration = %+v", created)
-	}
-	return created.ClientID
-}
-
-func pkcePair(verifier string) string {
-	digest := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(digest[:])
-}
-
-func authorizeTarget(t *testing.T, ts *httptest.Server, clientID, verifier, state string) string {
-	t.Helper()
-	target, err := url.Parse(ts.URL + "/oauth/authorize")
-	if err != nil {
-		t.Fatal(err)
-	}
-	query := target.Query()
-	query.Set("response_type", "code")
-	query.Set("client_id", clientID)
-	query.Set("redirect_uri", oauthTestRedirect)
-	query.Set("code_challenge", pkcePair(verifier))
-	query.Set("code_challenge_method", "S256")
-	query.Set("state", state)
-	target.RawQuery = query.Encode()
-	return target.String()
-}
-
 func TestOAuthAuthorizationCodeFlow(t *testing.T) {
-	srv, ts, cookie := newOAuthTestServer(t)
+	srv, ts, cookie, user := newOAuthTestServerWithUser(t)
 	clientID := registerTestClient(t, ts)
 	verifier := strings.Repeat("k", 48)
 	state := "opaque-state-value"
@@ -137,12 +31,25 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 		t.Fatalf("login next = %q", next)
 	}
 
-	// With a session the authorization server returns a code to the client.
-	res, _ = oauthDo(t, noRedirectClient(), oauthRequest(t, http.MethodGet, target, "", nil, cookie, ""))
-	if res.StatusCode != http.StatusSeeOther {
-		t.Fatalf("authorize status = %d", res.StatusCode)
+	// With a session the authorization server renders explicit consent.
+	res, consent := oauthDo(t, noRedirectClient(), oauthRequest(t, http.MethodGet, target, "", nil, cookie, ""))
+	if res.StatusCode != http.StatusOK || !bytes.Contains(consent, []byte("Connect Test MCP Client")) ||
+		!bytes.Contains(consent, []byte(`value="mcp:terminal"`)) {
+		t.Fatalf("authorize status = %d: %s", res.StatusCode, consent)
 	}
-	callback, err := url.Parse(res.Header.Get("Location"))
+	requestID := consentRequestID(t, consent)
+	control := seedTestControl(t, srv, user.ID, ts.URL)
+	res, payload := prepareAndApprove(t, ts, cookie, control, requestID, []string{"mcp:observe"}, "30d")
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("approve status = %d: %s", res.StatusCode, payload)
+	}
+	var approved struct {
+		Redirect string `json:"redirect"`
+	}
+	if err := json.Unmarshal(payload, &approved); err != nil {
+		t.Fatal(err)
+	}
+	callback, err := url.Parse(approved.Redirect)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,7 +57,7 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 		t.Fatalf("callback = %q", got)
 	}
 	code := callback.Query().Get("code")
-	if code == "" || callback.Query().Get("state") != state {
+	if code == "" || callback.Query().Get("state") != state || callback.Query().Get("iss") != "https://rc.example.test" {
 		t.Fatalf("callback query = %q", callback.RawQuery)
 	}
 
@@ -161,7 +68,7 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 		"client_id":     {clientID},
 		"code_verifier": {verifier},
 	}
-	res, payload := oauthDo(t, http.DefaultClient, oauthRequest(t,
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
 		http.MethodPost, ts.URL+"/oauth/token", "application/x-www-form-urlencoded",
 		[]byte(form.Encode()), nil, ""))
 	if res.StatusCode != http.StatusOK {
@@ -178,24 +85,67 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 		t.Fatalf("decode tokens: %v", err)
 	}
 	if tokens.AccessToken == "" || tokens.RefreshToken == "" || tokens.TokenType != "Bearer" ||
-		tokens.ExpiresIn != 900 || tokens.Scope != "mcp" {
+		tokens.ExpiresIn != 900 || tokens.Scope != "mcp:observe" {
 		t.Fatalf("tokens = %+v", tokens)
 	}
 
-	mcpBody := mustJSON(t, map[string]any{"jsonrpc": "2.0", "id": 1, "method": "machines_list"})
+	initBody := mustJSON(t, map[string]any{
+		"jsonrpc": "2.0", "id": 0, "method": "initialize",
+		"params": map[string]any{"protocolVersion": "2025-06-18", "capabilities": map[string]any{}},
+	})
 	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
-		http.MethodPost, ts.URL+"/mcp", "application/json", mcpBody, nil, ""))
+		http.MethodPost, ts.URL+"/mcp", "application/json", initBody, nil, tokens.AccessToken))
+	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte(`"protocolVersion":"2025-06-18"`)) {
+		t.Fatalf("mcp initialize = %d: %s", res.StatusCode, payload)
+	}
+
+	toolsBody := mustJSON(t, map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/mcp", "application/json", toolsBody, nil, ""))
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("mcp without token = %d: %s", res.StatusCode, payload)
 	}
-	wantChallenge := `Bearer resource_metadata="https://rc.example.test/.well-known/oauth-protected-resource"`
+	wantChallenge := `Bearer resource_metadata="https://rc.example.test/.well-known/oauth-protected-resource", scope="mcp:observe"`
 	if got := res.Header.Get("WWW-Authenticate"); got != wantChallenge {
 		t.Fatalf("WWW-Authenticate = %q, want %q", got, wantChallenge)
 	}
 	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/mcp", "application/json", toolsBody, nil, tokens.AccessToken))
+	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte(`"machines_list"`)) ||
+		bytes.Contains(payload, []byte(`"process_run"`)) {
+		t.Fatalf("observe tools/list = %d: %s", res.StatusCode, payload)
+	}
+
+	callBody := mustJSON(t, map[string]any{
+		"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+		"params": map[string]any{"name": "machines_list", "arguments": map[string]any{}},
+	})
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/mcp", "application/json", callBody, nil, tokens.AccessToken))
+	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte(`"structuredContent"`)) {
+		t.Fatalf("mcp tools/call = %d: %s", res.StatusCode, payload)
+	}
+
+	mcpBody := mustJSON(t, map[string]any{"jsonrpc": "2.0", "id": 3, "method": "machines_list"})
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
 		http.MethodPost, ts.URL+"/mcp", "application/json", mcpBody, nil, tokens.AccessToken))
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("mcp with token = %d: %s", res.StatusCode, payload)
+	}
+
+	runBody := mustJSON(t, map[string]any{
+		"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "process_run",
+			"arguments": map[string]any{"deviceId": "dev_missing", "argv": []string{"true"}},
+		},
+	})
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/mcp", "application/json", runBody, nil, tokens.AccessToken))
+	if res.StatusCode != http.StatusForbidden ||
+		!strings.Contains(res.Header.Get("WWW-Authenticate"), `error="insufficient_scope"`) ||
+		!strings.Contains(res.Header.Get("WWW-Authenticate"), `scope="mcp:terminal"`) {
+		t.Fatalf("observe process_run = %d: %s", res.StatusCode, payload)
 	}
 
 	// Refresh rotation replaces both tokens and rejects the old refresh token.
@@ -221,7 +171,7 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 	}
 	if rotated.AccessToken == "" || rotated.RefreshToken == "" ||
 		rotated.RefreshToken == tokens.RefreshToken || rotated.AccessToken == tokens.AccessToken ||
-		rotated.ExpiresIn != 900 || rotated.Scope != "mcp" {
+		rotated.ExpiresIn != 900 || rotated.Scope != "mcp:observe" {
 		t.Fatalf("rotated = %+v", rotated)
 	}
 	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
@@ -246,14 +196,17 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("rotated access lookup: %v", err)
 	}
-}
 
-func TestDevelopmentBypassesOAuth(t *testing.T) {
-	_, ts := newDevServer(t)
-	body := mustJSON(t, map[string]any{"jsonrpc": "2.0", "id": 1, "method": "machines_list"})
-	res, payload := oauthDo(t, http.DefaultClient, oauthRequest(t,
-		http.MethodPost, ts.URL+"/mcp", "application/json", body, nil, ""))
+	revokeForm := url.Values{"token": {rotated.AccessToken}}
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/oauth/revoke", "application/x-www-form-urlencoded",
+		[]byte(revokeForm.Encode()), nil, ""))
 	if res.StatusCode != http.StatusOK {
-		t.Fatalf("development mcp = %d: %s", res.StatusCode, payload)
+		t.Fatalf("revoke status = %d: %s", res.StatusCode, payload)
+	}
+	res, payload = oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/mcp", "application/json", mcpBody, nil, rotated.AccessToken))
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("mcp after revocation = %d: %s", res.StatusCode, payload)
 	}
 }

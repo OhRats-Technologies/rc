@@ -13,7 +13,7 @@ Only the newest published release is supported. Security fixes move forward to a
 ## Security model
 
 - Human browser/CLI terminal control uses authenticated key agreement and application-layer AES-GCM over WebRTC DataChannels. There is no hosted terminal fallback.
-- The Node validates control grants, device identity, process permits, and RC Lock locally before execution.
+- The Node validates control grants, device identity, Owner-signed execution grants, and RC Lock locally before execution.
 - Browser accounts use passkeys. Credential creation, revocation, and destructive actions require fresh passkey step-up.
 - CLI and API clients use Ed25519 proof-of-possession signatures bound to method, path/query, timestamp, nonce, and body digest.
 - Node HTTP uses a separate Ed25519 signature domain and replay protection.
@@ -25,7 +25,7 @@ Only the newest published release is supported. Security fixes move forward to a
 - Private HTML, JSON, and SSE responses default to `Cache-Control: no-store`.
 - Request bodies and hosted MCP output are bounded.
 
-SSH and MCP are explicit hosted-relay surfaces. SSH is authenticated by a registered public key bound to a control client. MCP uses OAuth 2.0 authorization code flow with PKCE, explicit account/tool consent (legacy grants retain their device lists), and passkey-backed grants. Treat these paths as different trust boundaries from direct browser/CLI control.
+SSH and MCP are explicit hosted-relay surfaces. SSH is authenticated by a registered public key bound to a control client. MCP uses OAuth 2.0 authorization code flow with PKCE, explicit account/tool consent, passkey-approved consent, and strict Version-2 Owner-signed RC Lock grants. Each request re-evaluates the current workspace role; Terminal operations require current Owner access. Each Node verifies the local lock grant hash, passkey-backed control proof, grant signature, device, scope, Owner role, and expiry before process or image operations. Treat these paths as different trust boundaries from direct browser/CLI control.
 
 ## Secrets and local state
 

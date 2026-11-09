@@ -28,6 +28,7 @@ type OAuthGrant struct {
 	UserID           string
 	Resource         string
 	Scopes           string
+	GrantID          string
 	AccessExpiresAt  time.Time
 	RefreshExpiresAt time.Time
 }

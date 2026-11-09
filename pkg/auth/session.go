@@ -92,8 +92,8 @@ func (s *Store) RevokeSession(token string) error {
 	return err
 }
 
-// PruneExpired removes expired ceremonies, sessions, OAuth codes, and OAuth
-// token families.
+// PruneExpired removes expired ceremonies, sessions, OAuth consent requests,
+// OAuth codes, and OAuth token families.
 func (s *Store) PruneExpired(now time.Time) (int, error) {
 	ctx := context.Background()
 	cutoff := msFromTime(now)
@@ -102,6 +102,7 @@ func (s *Store) PruneExpired(now time.Time) (int, error) {
 		`DELETE FROM ceremonies WHERE expires_ms <= ?;`,
 		`DELETE FROM sessions WHERE expires_ms <= ?;`,
 		`DELETE FROM oauth_codes WHERE expires_ms <= ?;`,
+		`DELETE FROM oauth_requests WHERE expires_ms <= ?;`,
 		`DELETE FROM oauth_tokens WHERE refresh_expires_ms <= ?;`,
 	} {
 		result, err := s.db.ExecContext(ctx, statement, cutoff)

@@ -213,3 +213,15 @@ func requireRow(result sql.Result) error {
 	}
 	return nil
 }
+
+// UpdateDeviceHello refreshes Node-reported version and capabilities.
+func (s *Store) UpdateDeviceHello(id, version string, capabilities []string) error {
+	encoded, _ := json.Marshal(nonNilStrings(capabilities))
+	result, err := s.db.ExecContext(context.Background(),
+		`UPDATE devices SET version = ?, capabilities = ? WHERE id = ?;`,
+		strings.TrimSpace(version), string(encoded), id)
+	if err != nil {
+		return err
+	}
+	return requireRow(result)
+}
