@@ -126,11 +126,15 @@ func Run(ctx context.Context, args []string) error {
 // reorderArgs makes Go's flag package accept flags after positional arguments by
 // moving flags (and their values) ahead of positional arguments.
 func reorderArgs(fs *flag.FlagSet, args []string) []string {
-	var flags, positional []string
+	var flags, positional, escaped []string
+	hasEscaped := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--" {
-			positional = append(positional, args[i+1:]...)
+			// Preserve the terminator so a positional value that begins with
+			// "-" (for example an enrollment token) is never parsed as a flag.
+			hasEscaped = true
+			escaped = append(escaped, args[i+1:]...)
 			break
 		}
 		if len(arg) < 2 || arg[0] != '-' {
@@ -154,7 +158,12 @@ func reorderArgs(fs *flag.FlagSet, args []string) []string {
 			flags = append(flags, args[i])
 		}
 	}
-	return append(flags, positional...)
+	ordered := append(flags, positional...)
+	if hasEscaped {
+		ordered = append(ordered, "--")
+		ordered = append(ordered, escaped...)
+	}
+	return ordered
 }
 
 func runCryptoCheck(compDir string) error {
@@ -249,42 +258,4 @@ func runConfig(args []string) error {
 		return fmt.Errorf("unknown config key: %s", args[1])
 	}
 	return node.SaveConfig(dir, cfg)
-}
-
-func runEnroll(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("enroll", flag.ContinueOnError)
-	server := fs.String("url", "https://rc.ohrats.party", "RC server URL")
-	name := fs.String("name", "", "Device display name")
-	stateDir := fs.String("state-dir", "", "Override state directory")
-	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
-		return err
-	}
-
-	token := fs.Arg(0)
-	if token == "" {
-		return fmt.Errorf("enrollment token required")
-	}
-
-	dir, err := node.ResolveStateDir(*stateDir)
-	if err != nil {
-		return err
-	}
-
-	st, err := node.Enroll(ctx, *server, token, *name, Version)
-	if err != nil {
-		return fmt.Errorf("enrollment failed: %w", err)
-	}
-
-	if err := node.SaveState(dir, st); err != nil {
-		return fmt.Errorf("failed to save state: %w", err)
-	}
-
-	cfg := &node.NodeConfig{
-		Server: *server,
-		Name:   *name,
-	}
-	_ = node.SaveConfig(dir, cfg)
-
-	fmt.Printf("Successfully enrolled device %s (state saved to %s)\n", st.DeviceID, dir)
-	return nil
 }

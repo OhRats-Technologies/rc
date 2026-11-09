@@ -208,7 +208,7 @@ try {
   const enrollment = await browserFetch<{ token: string }>(`/api/v1/workspaces/${workspace.id}/enrollments`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:"{}"
   }`);
-  const enroll = Bun.spawn([binary, "enroll", enrollment.token, "--url", nodeBase, "--name", "Browser E2E Node", "--state-dir", nodeState], {
+  const enroll = Bun.spawn([binary, "enroll", "--url", nodeBase, "--name", "Browser E2E Node", "--state-dir", nodeState, "--", enrollment.token], {
     stdout: "pipe", stderr: "pipe",
   });
   const [code, output, error] = await Promise.all([enroll.exited, readStream(enroll.stdout), readStream(enroll.stderr)]);
@@ -230,11 +230,11 @@ try {
     await waitFor(`(async()=>{const j=await (await fetch('/api/v1/devices')).json();return j.devices.some(d=>d.id===${JSON.stringify(device.id)}&&d.online)})()`, 30_000, "service restarted");
   }
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/workspaces/${workspace.id}/authority`)});if(!r.ok)return false;const j=await r.json();return j.devices>0&&j.synced===j.devices})()`, 30_000, "RC Lock bootstrap");
-  const process = await browserFetch<{ processId: string }>(`/api/v1/devices/${device.id}/processes`, `{
+  const createdProcess = await browserFetch<{ processId: string }>(`/api/v1/devices/${device.id}/processes`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({terminal:true})
   }`);
-  await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${process.processId}`)},JSON.stringify({mode:{kind:"systemLoginShell"},terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${process.processId}`)};return true})()`);
-  await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${process.processId}`)}) && document.readyState === "complete" && document.querySelector('.terminal-host .xterm') !== null`, 20_000, "process terminal mounted");
+  await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${createdProcess.processId}`)},JSON.stringify({mode:{kind:"systemLoginShell"},terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${createdProcess.processId}`)};return true})()`);
+  await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${createdProcess.processId}`)}) && document.readyState === "complete" && document.querySelector('.terminal-host .xterm') !== null`, 20_000, "process terminal mounted");
   const terminalFonts = await evaluate<string[]>(`[getComputedStyle(document.querySelector('.terminal-host')).fontFamily,getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily]`);
   if (terminalFonts.some(font => !font.includes("MesloLGS Nerd Font Mono"))) throw new Error(`terminal font did not use Nerd Font: ${terminalFonts.join(" / ")}`);
   try {
@@ -258,7 +258,7 @@ try {
     }
   }
   await waitFor(`String(window.__rcE2EOutput || '').includes('RC_BROWSER_E2E_OK')`, 35_000, "terminal output");
-  await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${process.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
+  await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${createdProcess.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
   if (!terminalText.includes("RC_BROWSER_E2E_OK")) throw new Error("terminal output did not traverse encrypted WebRTC control");
   const transport = await evaluate<string>(`document.querySelector('#control-transport')?.textContent || ""`);
