@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,5 +206,51 @@ func TestMCPPageRenders(t *testing.T) {
 	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte("/mcp")) ||
 		!bytes.Contains(payload, []byte("data-mcp-revoke")) {
 		t.Fatalf("MCP page = %d: %s", res.StatusCode, payload)
+	}
+}
+
+func TestAuthorityStatusKeepsSameHashAtDifferentGenerations(t *testing.T) {
+	srv, ts, cookie, user := newOAuthTestServerWithUser(t)
+	if err := srv.auth.EnsureWorkspace("ws_multi", "Multi"); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.auth.EnsureWorkspaceMembership("ws_multi", user.ID, "owner"); err != nil {
+		t.Fatal(err)
+	}
+	for _, device := range []*RegisteredDevice{
+		{ID: "dev_old", WorkspaceID: "ws_multi", Name: "Old", Hostname: "old", Platform: "linux", Arch: "amd64",
+			Version: "0.20.6", IdentityPublicKey: "old-identity", TransportPublicKey: "old-transport",
+			LockHash: strings.Repeat("a", 64), LockGeneration: 2},
+		{ID: "dev_new", WorkspaceID: "ws_multi", Name: "New", Hostname: "new", Platform: "linux", Arch: "amd64",
+			Version: "0.20.6", IdentityPublicKey: "new-identity", TransportPublicKey: "new-transport",
+			LockHash: strings.Repeat("a", 64), LockGeneration: 7},
+	} {
+		srv.registry.mu.Lock()
+		srv.registry.devices[device.ID] = device
+		srv.registry.mu.Unlock()
+	}
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/workspaces/ws_multi/authority", nil)
+	req.AddCookie(cookie)
+	res, payload := oauthDo(t, http.DefaultClient, req)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("authority status = %d: %s", res.StatusCode, payload)
+	}
+	var status struct {
+		Parents []struct {
+			Hash       string `json:"hash"`
+			Generation uint64 `json:"generation"`
+		} `json:"parents"`
+	}
+	if err := json.Unmarshal(payload, &status); err != nil {
+		t.Fatal(err)
+	}
+	generations := map[uint64]bool{}
+	for _, parent := range status.Parents {
+		if parent.Hash == strings.Repeat("a", 64) {
+			generations[parent.Generation] = true
+		}
+	}
+	if !generations[2] || !generations[7] || len(status.Parents) != 2 {
+		t.Fatalf("parents = %+v", status.Parents)
 	}
 }

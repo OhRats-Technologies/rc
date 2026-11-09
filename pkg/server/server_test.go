@@ -224,3 +224,33 @@ func TestHealthAndIndex(t *testing.T) {
 	}
 	res.Body.Close()
 }
+
+func TestInstallerRoutesServePublicScripts(t *testing.T) {
+	assets := t.TempDir()
+	if err := os.WriteFile(filepath.Join(assets, "install.sh"), []byte("#!/bin/sh\necho bootstrapped\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(assets, "install.ps1"), []byte("Write-Output bootstrapped\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	srv := New(Config{Addr: ":0", DataDir: t.TempDir(), AssetsDir: assets})
+	ts := httptest.NewServer(srv.httpSrv.Handler)
+	defer ts.Close()
+	for name, want := range map[string]string{
+		"/install.sh":  "bootstrapped",
+		"/install.ps1": "Write-Output bootstrapped",
+	} {
+		res, err := http.Get(ts.URL + name)
+		if err != nil || res.StatusCode != http.StatusOK {
+			t.Fatalf("%s = %v, %v", name, res, err)
+		}
+		body, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		if !bytes.Contains(body, []byte(want)) {
+			t.Fatalf("%s body = %q", name, body)
+		}
+		if res.Header.Get("Cache-Control") != "public, max-age=0, must-revalidate" {
+			t.Fatalf("%s Cache-Control = %q", name, res.Header.Get("Cache-Control"))
+		}
+	}
+}

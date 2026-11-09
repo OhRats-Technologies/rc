@@ -1,4 +1,7 @@
 [hidden] { display: none !important; }
+html { color-scheme: light; }
+html.dark, html[data-theme="dark"] { color-scheme: dark; }
+select option { background-color: var(--or-surface); color: var(--or-text); }
 button, input, select, textarea { font: inherit; }
 button { border-radius: 0; }
 .muted { color: var(--or-text-muted); }

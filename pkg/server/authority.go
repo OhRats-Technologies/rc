@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
@@ -119,6 +120,13 @@ func (s *Server) authoritySnapshot(workspaceID string) (string, error) {
 	return string(raw), nil
 }
 
+// authorityParentKey keeps identical snapshot hashes distinct when Nodes
+// reached that snapshot at different local generations. Collapsing by hash
+// alone would sign only one generation and leave the other Nodes unsynced.
+func authorityParentKey(hash string, generation uint64) string {
+	return hash + "|" + strconv.FormatUint(generation, 10)
+}
+
 func (s *Server) handleAuthorityStatus(w http.ResponseWriter, req *http.Request) {
 	user, _, err := s.currentSession(req)
 	if err != nil {
@@ -153,7 +161,7 @@ func (s *Server) handleAuthorityStatus(w http.ResponseWriter, req *http.Request)
 			"id": device.ID, "synced": device.LockHash == hash, "online": s.nodes.Online(device.ID),
 		})
 		if validAuthorityHash(device.LockHash) && device.LockHash != hash {
-			parents[device.LockHash] = map[string]any{
+			parents[authorityParentKey(device.LockHash, device.LockGeneration)] = map[string]any{
 				"hash": device.LockHash, "generation": device.LockGeneration,
 			}
 		}
@@ -167,7 +175,9 @@ func (s *Server) handleAuthorityStatus(w http.ResponseWriter, req *http.Request)
 		hashValue, _ := parent[0].(string)
 		generation, _ := parent[1].(uint64)
 		if hashValue != "" && hashValue != hash {
-			parents[hashValue] = map[string]any{"hash": hashValue, "generation": generation}
+			parents[authorityParentKey(hashValue, generation)] = map[string]any{
+				"hash": hashValue, "generation": generation,
+			}
 		}
 	}
 	parentList := make([]map[string]any, 0, len(parents))

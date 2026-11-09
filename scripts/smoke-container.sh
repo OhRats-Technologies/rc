@@ -50,6 +50,8 @@ curl -fsS "$BASE/api/v1/health" | grep -q '"ok":true'
 curl -fsS "$BASE/" | grep -q 'RC / REMOTE CONTROL'
 curl -fsS "$BASE/docs" | grep -q '<title>'
 curl -fsS "$BASE/assets/$(docker exec "$NAME" sh -c 'ls /app/assets | head -1')" >/dev/null
+curl -fsS "$BASE/install.sh" | grep -q '#!/bin/sh'
+curl -fsS "$BASE/install.ps1" | grep -q 'Write-Output' || curl -fsS "$BASE/install.ps1" | grep -q 'param'
 
 # First-instance setup is token-gated end to end.
 test "$(curl -sS -o /dev/null -w '%{http_code}' "$BASE/setup/wrong-token")" = "404"
