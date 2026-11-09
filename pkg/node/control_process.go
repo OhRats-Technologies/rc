@@ -13,8 +13,16 @@ func (m *ControlManager) dispatchControlMessage(session *ControlSession, msg *pr
 	case protocol.TypeProcessStart:
 		return nil, m.startControlledProcess(session, msg)
 	case protocol.TypeProcessAttach:
-		if !session.CanExecute || m.processes == nil ||
-			!m.processes.AttachSecure(msg.ID, session.SessionID) {
+		if !session.CanExecute {
+			return nil, errors.New("execution permission required")
+		}
+		if m.processes == nil {
+			return nil, errors.New("execution control plane is unavailable")
+		}
+		if err := m.authorizeProcess(session, msg.ID, false); err != nil {
+			return nil, err
+		}
+		if !m.processes.AttachSecure(msg.ID, session.SessionID) {
 			return nil, errors.New("process not found")
 		}
 		go m.pumpProcess(session.SessionID, msg.ID)
@@ -24,6 +32,9 @@ func (m *ControlManager) dispatchControlMessage(session *ControlSession, msg *pr
 		}
 		if m.processes == nil {
 			return nil, nil
+		}
+		if err := m.authorizeProcess(session, msg.ID, true); err != nil {
+			return nil, err
 		}
 		data, err := base64.RawURLEncoding.DecodeString(msg.Data)
 		if err != nil || len(data) > protocol.ProcessInputChunkLimit {
@@ -39,6 +50,9 @@ func (m *ControlManager) dispatchControlMessage(session *ControlSession, msg *pr
 		if m.processes == nil {
 			return nil, nil
 		}
+		if err := m.authorizeProcess(session, msg.ID, true); err != nil {
+			return nil, err
+		}
 		if err := m.processes.CloseInput(msg.ID); err != nil {
 			return nil, err
 		}
@@ -49,6 +63,9 @@ func (m *ControlManager) dispatchControlMessage(session *ControlSession, msg *pr
 		if m.processes == nil {
 			return nil, nil
 		}
+		if err := m.authorizeProcess(session, msg.ID, true); err != nil {
+			return nil, err
+		}
 		return nil, m.processes.Resize(msg.ID, msg.Cols, msg.Rows)
 	case protocol.TypeProcessSignal:
 		if !session.CanExecute {
@@ -56,6 +73,9 @@ func (m *ControlManager) dispatchControlMessage(session *ControlSession, msg *pr
 		}
 		if m.processes == nil {
 			return nil, nil
+		}
+		if err := m.authorizeProcess(session, msg.ID, true); err != nil {
+			return nil, err
 		}
 		return nil, m.processes.Signal(msg.ID, msg.Signal)
 	case protocol.TypeProcessStdout, protocol.TypeProcessStderr,
@@ -66,6 +86,20 @@ func (m *ControlManager) dispatchControlMessage(session *ControlSession, msg *pr
 		return nil, errors.New("unsupported control message")
 	}
 	return nil, nil
+}
+
+func (m *ControlManager) authorizeProcess(session *ControlSession, processID string, writer bool) error {
+	if m.processes == nil {
+		return nil
+	}
+	userID, attached, ok := m.processes.ProcessOwner(processID)
+	if !ok || userID != session.UserID {
+		return errors.New("process access denied")
+	}
+	if writer && attached != session.SessionID {
+		return errors.New("process attachment was superseded")
+	}
+	return nil
 }
 
 func (m *ControlManager) startControlledProcess(session *ControlSession, msg *protocol.ControlMessage) error {

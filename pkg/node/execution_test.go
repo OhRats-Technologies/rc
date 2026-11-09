@@ -69,7 +69,7 @@ func TestNativeExecutionInputAndSignal(t *testing.T) {
 	defer mgr.Shutdown()
 
 	spec := ProcessSpec{
-		ID: "proc_cat_1",
+		ID: "proc_cat_1", UserID: "alice", SessionID: "sess_one",
 		Mode: protocol.ExecutionMode{
 			Kind:    protocol.ExecutionModeArgv,
 			Program: "cat",
@@ -84,6 +84,17 @@ func TestNativeExecutionInputAndSignal(t *testing.T) {
 	active := mgr.ActiveIDs()
 	if len(active) != 1 || active[0] != "proc_cat_1" {
 		t.Fatalf("expected active proc_cat_1, got %v", active)
+	}
+	owner, session, ok := mgr.ProcessOwner("proc_cat_1")
+	if !ok || owner != "alice" || session != "sess_one" {
+		t.Fatalf("process owner = %q, %q, %v", owner, session, ok)
+	}
+	if !mgr.AttachSecure("proc_cat_1", "sess_two") {
+		t.Fatal("AttachSecure failed")
+	}
+	_, session, _ = mgr.ProcessOwner("proc_cat_1")
+	if session != "sess_two" {
+		t.Fatalf("attached session = %q", session)
 	}
 
 	if err := mgr.Input("proc_cat_1", []byte("stream input\n")); err != nil {

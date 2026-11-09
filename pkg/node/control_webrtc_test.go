@@ -16,14 +16,18 @@ import (
 )
 
 type fakeExecutionManager struct {
-	mu      sync.Mutex
-	started bool
+	mu       sync.Mutex
+	started  bool
+	owner    string
+	attached string
 }
 
 func (f *fakeExecutionManager) ActiveIDs() []string { return nil }
 func (f *fakeExecutionManager) Start(spec ProcessSpec) (bool, error) {
 	f.mu.Lock()
 	f.started = true
+	f.owner = spec.UserID
+	f.attached = spec.SessionID
 	f.mu.Unlock()
 	return true, nil
 }
@@ -38,9 +42,19 @@ func (f *fakeExecutionManager) ExecutionRead(string, uint64, int) (*ExecutionRea
 		Chunks: []JournalChunk{{Stream: StreamStdout, Cursor: 5, Bytes: []byte("hello")}},
 	}, true
 }
-func (f *fakeExecutionManager) AttachSecure(string, string) bool { return true }
-func (f *fakeExecutionManager) DetachSecureSession(string)       {}
-func (f *fakeExecutionManager) Shutdown()                        {}
+func (f *fakeExecutionManager) ProcessOwner(string) (string, string, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.owner, f.attached, f.started
+}
+func (f *fakeExecutionManager) AttachSecure(_ string, sessionID string) bool {
+	f.mu.Lock()
+	f.attached = sessionID
+	f.mu.Unlock()
+	return f.started
+}
+func (f *fakeExecutionManager) DetachSecureSession(string) {}
+func (f *fakeExecutionManager) Shutdown()                  {}
 
 func TestAuthorizedWebRTCControlSessionAndLockInvalidation(t *testing.T) {
 	state, err := GenerateNodeState("dev_control")
@@ -167,4 +181,41 @@ func mustDecode(t *testing.T, value string) []byte {
 		t.Fatal(err)
 	}
 	return decoded
+}
+
+func TestControlProcessOwnershipDeniesCrossUserAndStaleWriter(t *testing.T) {
+	state, err := GenerateNodeState("dev_owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exec := &fakeExecutionManager{started: true, owner: "alice", attached: "sess_alice"}
+	manager := NewControlManager(state, t.TempDir(), exec)
+	alice := &ControlSession{SessionID: "sess_alice", UserID: "alice", CanExecute: true}
+	bob := &ControlSession{SessionID: "sess_bob", UserID: "bob", CanExecute: true}
+	staleAlice := &ControlSession{SessionID: "sess_stale", UserID: "alice", CanExecute: true}
+	messages := []*protocol.ControlMessage{
+		{Type: protocol.TypeProcessAttach, ID: "proc_owner"},
+		{Type: protocol.TypeProcessStdin, ID: "proc_owner", Data: "eA"},
+		{Type: protocol.TypeProcessResize, ID: "proc_owner", Cols: 80, Rows: 24},
+		{Type: protocol.TypeProcessSignal, ID: "proc_owner", Signal: "TERM"},
+	}
+	for _, message := range messages {
+		if _, err := manager.dispatchControlMessage(bob, message); err == nil {
+			t.Fatalf("bob was allowed to %s another user's process", message.Type)
+		}
+	}
+	for _, message := range messages[1:] {
+		if _, err := manager.dispatchControlMessage(staleAlice, message); err == nil {
+			t.Fatalf("stale session was allowed to %s another session's process", message.Type)
+		}
+	}
+	for _, message := range messages[1:] {
+		if _, err := manager.dispatchControlMessage(alice, message); err != nil {
+			t.Fatalf("owner was denied %s: %v", message.Type, err)
+		}
+	}
+	if _, err := manager.dispatchControlMessage(alice,
+		&protocol.ControlMessage{Type: protocol.TypeProcessAttach, ID: "proc_owner"}); err != nil {
+		t.Fatalf("owner attach = %v", err)
+	}
 }

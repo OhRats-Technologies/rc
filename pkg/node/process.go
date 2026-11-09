@@ -77,6 +77,7 @@ type ExecutionManager interface {
 	Resize(id string, cols, rows uint16) error
 	Signal(id string, signal string) error
 	ExecutionRead(id string, cursor uint64, maxBytes int) (*ExecutionRead, bool)
+	ProcessOwner(id string) (userID, sessionID string, ok bool)
 	AttachSecure(id, sessionID string) bool
 	DetachSecureSession(sessionID string)
 	Shutdown()
