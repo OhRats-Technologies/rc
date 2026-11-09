@@ -52,7 +52,11 @@ func runShell(ctx context.Context, args []string) error {
 	}
 	var cmd *exec.Cmd
 	if *command != "" {
-		cmd = exec.CommandContext(ctx, shell, "-c", *command)
+		if runtime.GOOS == "windows" {
+			cmd = exec.CommandContext(ctx, shell, "/c", *command)
+		} else {
+			cmd = exec.CommandContext(ctx, shell, "-c", *command)
+		}
 	} else {
 		cmd = exec.CommandContext(ctx, shell)
 	}

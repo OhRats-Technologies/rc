@@ -102,13 +102,16 @@ func buildBinary(t *testing.T, pkg, name string) string {
 func componentArtifacts(t *testing.T, names ...string) string {
 	t.Helper()
 	root := repoRoot(t)
-	if _, err := exec.LookPath("componentize-go"); err != nil {
-		t.Skip("componentize-go is not installed; skipping component artifact test")
-	}
 	dest := t.TempDir()
 	for _, name := range names {
 		source := filepath.Join(root, "dist", "components", name+".wasm")
 		if _, err := os.Stat(source); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("component %s is not in the Windows release fixture", name)
+			}
+			if _, err := exec.LookPath("componentize-go"); err != nil {
+				t.Skip("componentize-go is not installed; skipping component artifact test")
+			}
 			stdout, stderr, buildErr := runCommand(t, root, nil, "sh", "scripts/build-component.sh", "components/"+name)
 			if buildErr != nil {
 				t.Fatalf("build component %s: %v\n%s%s", name, buildErr, stdout, stderr)

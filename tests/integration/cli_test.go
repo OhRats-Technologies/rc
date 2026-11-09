@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -181,11 +182,15 @@ func TestCLILocalShellRunsCommand(t *testing.T) {
 	if _, stderr, err := runCommand(t, root, env, binary, "enroll", "shell-itest-token", "--url", srv.baseURL); err != nil {
 		t.Fatalf("enroll: %v\n%s", err, stderr)
 	}
-	stdout, stderr, err := runCommand(t, root, env, binary, "shell", "--command", "printf shell-ok")
+	command := "printf shell-ok"
+	if runtime.GOOS == "windows" {
+		command = "echo shell-ok"
+	}
+	stdout, stderr, err := runCommand(t, root, env, binary, "shell", "--command", command)
 	if err != nil {
 		t.Fatalf("shell: %v\n%s%s", err, stdout, stderr)
 	}
-	if stdout != "shell-ok" {
+	if strings.TrimSpace(stdout) != "shell-ok" {
 		t.Fatalf("shell output = %q", stdout)
 	}
 }
