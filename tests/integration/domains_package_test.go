@@ -2,11 +2,15 @@ package integration
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestPackageManagerComponentDomain(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("component descriptor invocation is unavailable on Windows")
+	}
 	root := repoRoot(t)
 	members := profileComponents(t, filepath.Join(root, "profiles", "core.toml"))
 	found := false
