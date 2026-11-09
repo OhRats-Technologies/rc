@@ -178,3 +178,43 @@ func TestScheduleAuthorityBindingsAndExpiry(t *testing.T) {
 		t.Fatalf("operator schedule = %v", err)
 	}
 }
+
+type signalRecorder struct {
+	signals []string
+}
+
+func (s *signalRecorder) ActiveIDs() []string                 { return nil }
+func (s *signalRecorder) Start(ProcessSpec) (bool, error)     { return false, nil }
+func (s *signalRecorder) Input(string, []byte) error          { return nil }
+func (s *signalRecorder) CloseInput(string) error             { return nil }
+func (s *signalRecorder) Resize(string, uint16, uint16) error { return nil }
+func (s *signalRecorder) Signal(id, signal string) error {
+	s.signals = append(s.signals, id+":"+signal)
+	return nil
+}
+func (s *signalRecorder) ExecutionRead(string, uint64, int) (*ExecutionRead, bool) {
+	return nil, false
+}
+func (s *signalRecorder) ProcessOwner(string) (string, string, bool) { return "", "", false }
+func (s *signalRecorder) AttachSecure(string, string) bool           { return false }
+func (s *signalRecorder) DetachSecureSession(string)                 {}
+func (s *signalRecorder) Shutdown()                                  {}
+
+func TestHostedMCPAuthorityChangeTerminatesRevokedGrants(t *testing.T) {
+	recorder := &signalRecorder{}
+	hosted := NewHostedMCP(t.TempDir(), &NodeState{}, recorder)
+	hosted.processes["proc_revoked"] = hostedProcess{grantID: "mcp_revoked"}
+	hosted.processes["proc_kept"] = hostedProcess{grantID: "mcp_kept"}
+	hosted.AuthorityChanged(&protocol.AuthoritySnapshot{
+		McpGrants: []protocol.AuthorityMcpGrant{{ID: "mcp_kept"}},
+	})
+	if len(recorder.signals) != 1 || recorder.signals[0] != "proc_revoked:KILL" {
+		t.Fatalf("signals = %v", recorder.signals)
+	}
+	if _, ok := hosted.processes["proc_revoked"]; ok {
+		t.Fatal("revoked process binding was retained")
+	}
+	if _, ok := hosted.processes["proc_kept"]; !ok {
+		t.Fatal("still-authorized process binding was removed")
+	}
+}

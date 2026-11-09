@@ -60,6 +60,9 @@ func TestAccountDeleteRequiresFreshPasskeyAndRemovesOwnedWorkspace(t *testing.T)
 	}
 	srv.registry.mu.Unlock()
 	ownerCookie := workspaceTestCookie(t, srv, owner.ID)
+	srv.mcp.bindProcess("proc_account_delete", &authstore.OAuthGrant{
+		UserID: owner.ID, ClientID: "client_account_delete", GrantID: "grant_account_delete",
+	}, device.ID)
 
 	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/account/delete", nil)
 	req.AddCookie(ownerCookie)
@@ -96,6 +99,11 @@ func TestAccountDeleteRequiresFreshPasskeyAndRemovesOwnedWorkspace(t *testing.T)
 	}
 	if _, ok := srv.registry.Get(device.ID); ok {
 		t.Fatal("revoked device remained in registry")
+	}
+	if _, ok := srv.mcp.processBinding("proc_account_delete", device.ID, &authstore.OAuthGrant{
+		UserID: owner.ID, ClientID: "client_account_delete", GrantID: "grant_account_delete",
+	}); ok {
+		t.Fatal("deleted account MCP process binding remained")
 	}
 }
 

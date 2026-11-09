@@ -130,13 +130,23 @@ func (m *HostedMCP) start(message protocol.ServerToNode) {
 			delete(m.processes, id)
 		}
 	}
+	expiresAt := time.Time{}
+	if grant.ExpiresAt > 0 {
+		expiresAt = time.UnixMilli(grant.ExpiresAt)
+	}
 	m.processes[message.ProcessID] = hostedProcess{
-		grantID: grant.ID, userID: grant.UserID, clientID: grant.ClientID,
+		grantID: grant.ID, userID: grant.UserID, clientID: grant.ClientID, expiresAt: expiresAt,
 	}
 	m.mu.Unlock()
 	if spec.MaxRuntimeMs != nil && *spec.MaxRuntimeMs > 0 {
 		processID := message.ProcessID
 		time.AfterFunc(time.Duration(*spec.MaxRuntimeMs)*time.Millisecond, func() {
+			_ = m.exec.Signal(processID, "KILL")
+		})
+	}
+	if !expiresAt.IsZero() {
+		processID := message.ProcessID
+		time.AfterFunc(time.Until(expiresAt), func() {
 			_ = m.exec.Signal(processID, "KILL")
 		})
 	}
@@ -205,6 +215,31 @@ func (m *HostedMCP) cancel(message protocol.ServerToNode) {
 		return
 	}
 	m.sendOperation(message.RequestID, message.ProcessID, true)
+}
+
+// AuthorityChanged terminates active MCP executions whose grant is no longer
+// present in the accepted RC Lock snapshot. This makes revocation effective
+// for already-running work, not only for the next request.
+func (m *HostedMCP) AuthorityChanged(snapshot *protocol.AuthoritySnapshot) {
+	allowed := make(map[string]bool, len(snapshot.McpGrants))
+	for _, grant := range snapshot.McpGrants {
+		allowed[grant.ID] = true
+	}
+	var terminate []string
+	m.mu.Lock()
+	for id, process := range m.processes {
+		if process.grantID == "" || !allowed[process.grantID] {
+			terminate = append(terminate, id)
+			delete(m.processes, id)
+		}
+	}
+	m.mu.Unlock()
+	if m.exec == nil {
+		return
+	}
+	for _, id := range terminate {
+		_ = m.exec.Signal(id, "KILL")
+	}
 }
 
 func (m *HostedMCP) owned(processID string, grant *protocol.McpGrantPayload) bool {

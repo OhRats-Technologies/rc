@@ -36,9 +36,12 @@ control plane.
 - **Execution history**: deprecated and removed. Process state is strictly
   ephemeral in memory for live leases and reconnection reconciliation.
 - **E2E coverage**: the browser product E2E passes on Linux CI and Windows CI,
-  and locally on macOS; the Windows suite runs encrypted browser control and
-  process exit on a `windows-latest` runner. `RC_BROWSER_E2E_ENABLED` and
-  `RC_WINDOWS_RUNTIME_ENABLED` are enabled in the repository.
+  and locally on macOS. It now also completes a real Remote MCP connection:
+  dynamic client registration, PKCE authorization, passkey consent, RC Lock
+  sync, `tools/list`, Node `process_run`, and grant revocation. The Windows
+  suite runs encrypted browser control and process exit on a `windows-latest`
+  runner. `RC_BROWSER_E2E_ENABLED` and `RC_WINDOWS_RUNTIME_ENABLED` are enabled
+  in the repository.
 - **Package management scope**: the component host implements
   `component-store.installed` so `rc list` reports managed components.
   `rc add`, `rc install`, package-source resolution, artifact caching, and

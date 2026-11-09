@@ -2,6 +2,8 @@ package server
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -208,5 +210,36 @@ func TestOAuthAuthorizationCodeFlow(t *testing.T) {
 		http.MethodPost, ts.URL+"/mcp", "application/json", mcpBody, nil, rotated.AccessToken))
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("mcp after revocation = %d: %s", res.StatusCode, payload)
+	}
+}
+
+func TestOAuthCodeCannotOutliveRevokedMcpGrant(t *testing.T) {
+	srv, ts, _, user := newOAuthTestServerWithUser(t)
+	control := seedTestControl(t, srv, user.ID, ts.URL)
+	grantID := seedTestMcpGrant(t, srv, control, []string{"mcp:observe"})
+	verifier := strings.Repeat("v", 48)
+	digest := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(digest[:])
+	clientID := registerTestClient(t, ts)
+	code, err := srv.auth.IssueOAuthCode(clientID, user.ID, oauthTestRedirect,
+		challenge, "https://rc.example.test/mcp", "mcp:observe", grantID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := srv.auth.RevokeMcpGrant(user.ID, grantID); err != nil || !ok {
+		t.Fatalf("revoke grant = %v, %v", ok, err)
+	}
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"code":          {code},
+		"redirect_uri":  {oauthTestRedirect},
+		"client_id":     {clientID},
+		"code_verifier": {verifier},
+	}
+	res, payload := oauthDo(t, http.DefaultClient, oauthRequest(t,
+		http.MethodPost, ts.URL+"/oauth/token", "application/x-www-form-urlencoded",
+		[]byte(form.Encode()), nil, ""))
+	if res.StatusCode != http.StatusBadRequest || !bytes.Contains(payload, []byte(`"invalid_grant"`)) {
+		t.Fatalf("revoked grant code exchange = %d: %s", res.StatusCode, payload)
 	}
 }

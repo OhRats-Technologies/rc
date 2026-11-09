@@ -68,6 +68,15 @@ func (s *Store) DeleteAccount(userID string) ([]string, error) {
 				return err
 			}
 		}
+		for _, statement := range []string{
+			`DELETE FROM oauth_codes WHERE user_id = ?;`,
+			`DELETE FROM oauth_requests WHERE user_id = ?;`,
+			`DELETE FROM oauth_tokens WHERE user_id = ?;`,
+		} {
+			if _, err := tx.ExecContext(context.Background(), statement, userID); err != nil {
+				return err
+			}
+		}
 		result, err := tx.ExecContext(context.Background(),
 			`DELETE FROM users WHERE id = ? AND id <> ?;`, userID, DeletedAccountID)
 		if err != nil {

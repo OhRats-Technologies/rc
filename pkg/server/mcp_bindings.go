@@ -5,7 +5,9 @@ import authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 func (h *McpHandler) bindProcess(id string, grant *authstore.OAuthGrant, deviceID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.processes[id] = mcpProcessBinding{DeviceID: deviceID, UserID: grant.UserID, ClientID: grant.ClientID}
+	h.processes[id] = mcpProcessBinding{
+		DeviceID: deviceID, UserID: grant.UserID, ClientID: grant.ClientID, GrantID: grant.GrantID,
+	}
 }
 
 func (h *McpHandler) processBinding(id, deviceID string, grant *authstore.OAuthGrant) (mcpProcessBinding, bool) {
@@ -19,6 +21,35 @@ func (h *McpHandler) processBinding(id, deviceID string, grant *authstore.OAuthG
 		return mcpProcessBinding{}, false
 	}
 	return binding, true
+}
+
+// releaseGrant drops process bindings owned by a revoked MCP grant so a new
+// grant cannot inherit them and hosted bookkeeping does not grow forever.
+func (h *McpHandler) releaseGrant(grantID string) {
+	if grantID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for id, binding := range h.processes {
+		if binding.GrantID == grantID {
+			delete(h.processes, id)
+		}
+	}
+}
+
+// releaseUser drops bindings for an account after deletion or workspace loss.
+func (h *McpHandler) releaseUser(userID string) {
+	if userID == "" {
+		return
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for id, binding := range h.processes {
+		if binding.UserID == userID {
+			delete(h.processes, id)
+		}
+	}
 }
 
 func (h *McpHandler) activeProcesses(deviceID string) int {

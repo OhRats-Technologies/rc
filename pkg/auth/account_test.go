@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -120,5 +121,47 @@ func TestDeleteAccountReturnsToZeroActiveUsers(t *testing.T) {
 	}
 	if _, err := store.DeleteAccount(DeletedAccountID); !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("deleting the tombstone = %v", err)
+	}
+}
+
+func TestDeleteAccountRemovesOAuthCredentials(t *testing.T) {
+	store := openStore(t)
+	user, err := store.CreateUser("OAuth Owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	clientID, err := store.RegisterOAuthClient("OAuth Client", []string{"https://client.example/callback"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.CreateOAuthRequest(clientID, user.ID, "https://client.example/callback",
+		"state", base64.RawURLEncoding.EncodeToString(make([]byte, 32)), "https://rc.example.test/mcp",
+		[]string{"mcp:observe"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.IssueOAuthCode(clientID, user.ID, "https://client.example/callback",
+		base64.RawURLEncoding.EncodeToString(make([]byte, 32)), "https://rc.example.test/mcp",
+		"mcp:observe", "grant_delete"); err != nil {
+		t.Fatal(err)
+	}
+	access, _, _, _, err := store.IssueOAuthTokens(clientID, user.ID,
+		"https://rc.example.test/mcp", "mcp:observe", "grant_delete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DeleteAccount(user.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.LookupOAuthAccess(access, "https://rc.example.test/mcp"); !errors.Is(err, ErrOAuthTokenNotFound) {
+		t.Fatalf("deleted account OAuth access = %v", err)
+	}
+	for _, table := range []string{"oauth_codes", "oauth_requests", "oauth_tokens"} {
+		var count int
+		if err := store.db.QueryRow(`SELECT COUNT(*) FROM `+table+` WHERE user_id = ?;`, user.ID).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%s retained %d rows for a deleted account", table, count)
+		}
 	}
 }

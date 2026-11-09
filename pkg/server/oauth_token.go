@@ -70,6 +70,14 @@ func (s *Server) exchangeAuthorizationCode(w http.ResponseWriter, req *http.Requ
 		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorization code is invalid or expired")
 		return
 	}
+	if grantID == "" {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "authorization code is not bound to an active MCP grant")
+		return
+	}
+	if _, err := s.auth.McpGrant(userID, grantID); err != nil {
+		writeOAuthError(w, http.StatusBadRequest, "invalid_grant", "MCP grant is revoked or expired")
+		return
+	}
 	s.writeOAuthTokens(w, clientID, userID, resource, scopes, grantID)
 }
 

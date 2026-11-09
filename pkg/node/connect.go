@@ -143,9 +143,14 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 			if message.Snapshot != "" {
 				if err := BootstrapLock(stateDir, message.Snapshot, server); err != nil {
 					logf("lock bootstrap: " + err.Error())
-				} else if control != nil {
-					for _, sessionID := range control.CloseAllSessions() {
-						_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
+				} else {
+					if snapshot, err := ValidateSnapshot(message.Snapshot); err == nil {
+						hosted.AuthorityChanged(snapshot)
+					}
+					if control != nil {
+						for _, sessionID := range control.CloseAllSessions() {
+							_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
+						}
 					}
 				}
 				hash, generation := LockMetadata(stateDir)
@@ -159,9 +164,14 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 			if err := SyncLock(stateDir, message.Snapshot, message.PreviousHash,
 				message.PreviousGeneration, proof, message.Signature); err != nil {
 				logf("lock sync: " + err.Error())
-			} else if control != nil {
-				for _, sessionID := range control.CloseAllSessions() {
-					_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
+			} else {
+				if snapshot, err := ValidateSnapshot(message.Snapshot); err == nil {
+					hosted.AuthorityChanged(snapshot)
+				}
+				if control != nil {
+					for _, sessionID := range control.CloseAllSessions() {
+						_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
+					}
 				}
 			}
 			hash, generation := LockMetadata(stateDir)

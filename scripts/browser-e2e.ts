@@ -1,5 +1,6 @@
 import { startWindowsNodeService } from "./browser-e2e-service";
 import { instrumentSource } from "./browser-e2e-instrument";
+import { exerciseMCPConnection } from "./browser-e2e-mcp";
 import { chmod, copyFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -198,6 +199,9 @@ try {
     await waitFor(`(async()=>{const j=await (await fetch('/api/v1/devices')).json();return j.devices.some(d=>d.id===${JSON.stringify(device.id)}&&d.online)})()`, 30_000, "service restarted");
   }
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/workspaces/${workspace.id}/authority`)});if(!r.ok)return false;const j=await r.json();return j.devices>0&&j.synced===j.devices})()`, 30_000, "RC Lock bootstrap");
+  await exerciseMCPConnection({ base, workspaceId: workspace.id, deviceId: device.id, evaluate, waitFor, navigate });
+  console.log("MCP OAuth, tools/list, Node execution, and grant revocation passed");
+  await navigate(`${base}/devices`);
   const createdProcess = await browserFetch<{ processId: string }>(`/api/v1/devices/${device.id}/processes`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({terminal:true})
   }`);

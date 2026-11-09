@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 )
 
 func TestAuthoritySyncDeliversMcpGrantToLockedNode(t *testing.T) {
@@ -124,6 +126,9 @@ func TestMcpGrantRevocationInvalidatesTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	srv.mcp.bindProcess("proc_grant_revoke", &authstore.OAuthGrant{
+		UserID: user.ID, ClientID: "mcp-test-client", GrantID: grantID,
+	}, "dev_grant_revoke")
 	req, _ := http.NewRequest(http.MethodDelete, ts.URL+"/oauth/grants/"+grantID, nil)
 	req.AddCookie(cookie)
 	res, payload := oauthDo(t, http.DefaultClient, req)
@@ -134,6 +139,11 @@ func TestMcpGrantRevocationInvalidatesTokens(t *testing.T) {
 	res, _ = mcpCall(t, ts, toolsBody, map[string]string{"Authorization": "Bearer " + access})
 	if res.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("revoked grant token status = %d", res.StatusCode)
+	}
+	if _, ok := srv.mcp.processBinding("proc_grant_revoke", "dev_grant_revoke", &authstore.OAuthGrant{
+		UserID: user.ID, ClientID: "mcp-test-client", GrantID: grantID,
+	}); ok {
+		t.Fatal("revoked grant MCP process binding remained")
 	}
 }
 

@@ -234,6 +234,7 @@ func (s *Server) handleOAuthRevokeGrant(w http.ResponseWriter, req *http.Request
 		writeError(w, http.StatusNotFound, "MCP grant not found")
 		return
 	}
+	s.mcp.releaseGrant(id)
 	workspaces, _ := s.auth.WorkspacesForOwner(user.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "workspaceIds": workspaces})
 }

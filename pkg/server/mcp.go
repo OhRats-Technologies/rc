@@ -43,6 +43,7 @@ type mcpProcessBinding struct {
 	DeviceID string
 	UserID   string
 	ClientID string
+	GrantID  string
 }
 
 type McpHandler struct {

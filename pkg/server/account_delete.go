@@ -20,6 +20,7 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusInternalServerError, "account could not be deleted")
 		return
 	}
+	s.mcp.releaseUser(user.ID)
 	for _, deviceID := range devices {
 		s.registry.forget(deviceID)
 		s.nodes.Disconnect(deviceID)
