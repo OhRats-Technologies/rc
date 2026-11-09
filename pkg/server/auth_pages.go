@@ -134,9 +134,33 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 		ids = append(ids, device.ID)
 	}
 	sort.Strings(ids)
-	body := `<div class="page narrow-form-page" data-enroll-page="ws_default" data-known-devices="` + escape(strings.Join(ids, ",")) + `">` +
+	workspaces, _ := s.auth.WorkspacesForUser(user.ID)
+	selected := strings.TrimSpace(req.URL.Query().Get("workspace"))
+	var options strings.Builder
+	for _, workspace := range workspaces {
+		if workspace.Role != "owner" {
+			continue
+		}
+		if selected == "" {
+			selected = workspace.ID
+		}
+	}
+	for _, workspace := range workspaces {
+		if workspace.Role != "owner" {
+			continue
+		}
+		attribute := ""
+		if workspace.ID == selected {
+			attribute = " selected"
+		}
+		options.WriteString(`<option value="` + escape(workspace.ID) + `"` + attribute + `>` + escape(workspace.Name) + `</option>`)
+	}
+	if options.Len() == 0 {
+		options.WriteString(`<option value="">No owned workspaces</option>`)
+	}
+	body := `<div class="page narrow-form-page" data-enroll-page="` + escape(selected) + `" data-known-devices="` + escape(strings.Join(ids, ",")) + `">` +
 		`<header class="page-header"><div><p class="eyebrow">DEVICES</p><h1>Enroll device</h1></div></header>` +
-		`<form data-enrollment-form class="simple-form"><label>Workspace<select name="workspaceId"><option value="ws_default" selected>Personal</option></select></label>` +
+		`<form data-enrollment-form class="simple-form"><label>Workspace<select name="workspaceId">` + options.String() + `</select></label>` +
 		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option></select></label>` +
 		`<p class="meta" data-enrollment-platform-help>Run the command in a terminal on the machine you want to enroll.</p>` +
 		`<button class="or-button" type="submit">CREATE ENROLLMENT COMMANDS</button></form>` +

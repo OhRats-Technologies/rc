@@ -121,6 +121,10 @@ func (s *Store) RevokeDevice(id string) error {
 			return err
 		}
 		if _, err := tx.ExecContext(context.Background(),
+			`DELETE FROM authority_deliveries WHERE device_id = ?;`, id); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(context.Background(),
 			`INSERT INTO revoked_devices (id, identity_public_key, revoked_ms) VALUES (?, ?, ?);`,
 			id, identity, nowMs()); err != nil {
 			return err

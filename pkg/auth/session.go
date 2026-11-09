@@ -105,6 +105,7 @@ func (s *Store) PruneExpired(now time.Time) (int, error) {
 		`DELETE FROM oauth_requests WHERE expires_ms <= ?;`,
 		`DELETE FROM oauth_tokens WHERE refresh_expires_ms <= ?;`,
 		`DELETE FROM request_nonces WHERE expires_ms <= ?;`,
+		`DELETE FROM workspace_invites WHERE expires_ms <= ?;`,
 	} {
 		result, err := s.db.ExecContext(ctx, statement, cutoff)
 		if err != nil {

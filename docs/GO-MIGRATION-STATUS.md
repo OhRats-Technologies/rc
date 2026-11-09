@@ -22,18 +22,15 @@ control plane.
 | Authority | Passkey-authorized control clients, Owner-signed MCP grants, API signing keys, schedule permits, canonical workspace snapshots, signed transitions, offline delivery, Node lock bootstrap |
 | Node MCP channel | Authenticated Node WebSocket, RC Lock verification, Node-owned process journals, remote image transfer |
 | Control data plane | Authenticated challenge/open/WebRTC signaling, Node and CLI/browser encrypted DataChannel sessions, current RC Lock invalidation, API-key execution authority |
+| Workspace authority | Owner role management with fresh passkey step-up, invites and join links, access/activity pages, workspace lifecycle, and durable bounded audit events |
 | Upgrade | Release API, digest pinning, size bounds, semver/downgrade rules, `minimumUpgrader`, core-profile validation, atomic replace, journal recovery, Windows side-by-side activation |
 | Diagnostics | Bounded local journal, service log tail/follow, process-tree inspection, `doctor` health checks |
 | Service | Per-user systemd, launchd, and Scheduled Task install/start/stop/uninstall |
 | Release bundles | `rc-<os>-<arch>.tar.gz`, `rc-core-profile.tar.gz`, `rc-core-components.tar.gz`, `rc-upgrade.json`, `install.sh`, `install.ps1` |
 | Installers | Single-`rc` archive, profile and component digest validation, local override preservation, rollback, legacy bundle fallback; POSIX smoke and release install smoke on Linux/macOS/Windows |
 
-## Not implemented yet
+## Deprecated and operational notes
 
-- **Authenticated web surfaces**: `/devices`, `/devices/enroll`,
-  `/devices/{id}`, `/devices/{id}/processes/{process}`, `/account`, `/api`,
-  and `/integrations/mcp` are server-rendered. Workspace access/activity pages
-  and workspace persistence still need their handlers ported.
 - **SSH gateway**: deprecated and removed. All remote terminal and execution
   workflows use direct E2EE WebRTC channels.
 - **Execution history**: deprecated and removed. Process state is strictly

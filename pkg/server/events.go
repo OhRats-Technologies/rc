@@ -22,11 +22,16 @@ func (h *EventHub) Publish(eventType string, data any) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	raw, err := json.Marshal(data)
+	payload, ok := data.(map[string]any)
+	if !ok {
+		payload = map[string]any{"value": data}
+	}
+	payload["kind"] = eventType
+	raw, err := json.Marshal(payload)
 	if err != nil {
 		return
 	}
-	msg := []byte(fmt.Sprintf("event: %s\ndata: %s\n\n", eventType, string(raw)))
+	msg := []byte("data: " + string(raw) + "\n\n")
 
 	for ch := range h.clients {
 		select {

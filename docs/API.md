@@ -77,7 +77,7 @@ Routes enforce the narrowest relevant scope in addition to workspace roles. A ke
 | Events | `GET /api/v1/events` (SSE metadata stream) |
 | Tokens/SSH | Browser-only key management plus signed read/use operations |
 
-Browser-session-only operations, including creating/revoking credentials and destructive account actions, require a fresh passkey step-up and cannot be performed with an API key.
+Browser-session-only operations, including creating/revoking credentials and destructive account actions, require a fresh passkey step-up and cannot be performed with an API key. Workspace member-role and member-removal routes are browser-session-only and consume a fresh passkey step-up. Workspace invite, join, access, activity, and lifecycle routes enforce current workspace role; audit events persist only workspace metadata such as member, role, device, and invite identifiers.
 
 Schedule permit routes store only schedule ID, device, Owner, immutable execution-spec hash,
 maximum runtime, and expiry. Creating or replacing a permit requires a passkey-backed control

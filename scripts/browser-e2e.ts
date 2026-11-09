@@ -168,6 +168,11 @@ try {
   const me = await browserFetch<{ workspaces: Array<{ id: string; role: string }> }>("/api/v1/me");
   const workspace = me.workspaces.find(value => value.role === "owner");
   if (!workspace) throw new Error("setup produced no owned workspace");
+  await navigate(`${base}/workspaces/${workspace.id}/access`);
+  await waitFor(`document.querySelector('[data-authority-workspace]') !== null && document.querySelector('.role-form') !== null`, 15_000, "workspace access page");
+  await navigate(`${base}/workspaces/${workspace.id}/activity`);
+  await waitFor(`document.querySelector('[data-activity-page]') !== null`, 15_000, "workspace activity page");
+  await navigate(`${base}/devices`);
   const enrollment = await browserFetch<{ token: string }>(`/api/v1/workspaces/${workspace.id}/enrollments`, `{
     method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:"{}"
   }`);

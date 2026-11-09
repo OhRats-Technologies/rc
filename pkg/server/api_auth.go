@@ -119,6 +119,9 @@ func apiRequiredScope(req *http.Request) string {
 	case strings.HasPrefix(req.URL.Path, "/api/v1/workspaces/") &&
 		strings.HasSuffix(req.URL.Path, "/enrollments") && req.Method == http.MethodPost:
 		return "manage-devices"
+	case strings.HasPrefix(req.URL.Path, "/api/v1/workspaces/") &&
+		strings.HasSuffix(req.URL.Path, "/activity"):
+		return "read"
 	default:
 		return ""
 	}

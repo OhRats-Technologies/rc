@@ -2,7 +2,7 @@ package auth
 
 // schemaVersion is the user_version written by the current schema. Supported
 // older versions are migrated in place; unknown versions are refused.
-const schemaVersion = 4
+const schemaVersion = 5
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS users (
@@ -140,6 +140,27 @@ var schema = []string{
 		created_ms INTEGER NOT NULL
 	);`,
 	`CREATE INDEX IF NOT EXISTS schedule_grants_workspace ON schedule_grants(workspace_id, schedule_id);`,
+	`CREATE TABLE IF NOT EXISTS workspace_invites (
+		id TEXT PRIMARY KEY,
+		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+		token_hash BLOB NOT NULL UNIQUE,
+		role TEXT NOT NULL CHECK(role IN ('owner', 'operator', 'viewer')),
+		created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		created_ms INTEGER NOT NULL,
+		expires_ms INTEGER NOT NULL,
+		used_ms INTEGER
+	);`,
+	`CREATE INDEX IF NOT EXISTS workspace_invites_workspace ON workspace_invites(workspace_id, expires_ms);`,
+	`CREATE TABLE IF NOT EXISTS audit_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		workspace_id TEXT REFERENCES workspaces(id) ON DELETE CASCADE,
+		user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+		kind TEXT NOT NULL,
+		detail TEXT NOT NULL DEFAULT '{}',
+		device_id TEXT,
+		created_ms INTEGER NOT NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS audit_events_workspace ON audit_events(workspace_id, created_ms DESC);`,
 	`CREATE TABLE IF NOT EXISTS request_nonces (
 		principal TEXT NOT NULL,
 		nonce_hash BLOB NOT NULL,
