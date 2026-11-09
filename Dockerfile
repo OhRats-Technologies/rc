@@ -4,6 +4,7 @@ COPY package.json bun.lock tsconfig.json ./
 RUN bun install --frozen-lockfile
 COPY web ./web
 COPY public ./public
+COPY scripts/copy-installers.ts ./scripts/copy-installers.ts
 RUN bun run build:client
 
 FROM golang:1.27-bookworm AS build
