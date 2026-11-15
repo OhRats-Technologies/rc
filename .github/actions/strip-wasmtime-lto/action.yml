@@ -10,10 +10,6 @@ runs:
     - shell: bash
       run: |
         set -euo pipefail
-        if [ "$RUNNER_OS" = "Windows" ]; then
-          echo "Windows links a different archive; nothing to strip."
-          exit 0
-        fi
         case "$(go env GOARCH)" in
           amd64) w=x86_64 ;;
           arm64) w=aarch64 ;;
@@ -22,6 +18,7 @@ runs:
         case "$RUNNER_OS" in
           macOS) os=macos ;;
           Linux) os=linux ;;
+          Windows) os=windows ;;
           *) echo "unsupported runner OS: $RUNNER_OS" >&2; exit 1 ;;
         esac
         lib="$(go env GOMODCACHE)/github.com/bytecodealliance/wasmtime-go/v50@v50.0.0/build/$os-$w/libwasmtime.a"
@@ -30,14 +27,20 @@ runs:
           echo "run 'go mod download' first" >&2
           exit 1
         fi
-        # GNU objcopy on Linux; the macOS runner image ships LLVM via Homebrew.
+        # GNU objcopy on Linux; the macOS runner image ships LLVM via Homebrew;
+        # Windows runners carry MinGW objcopy from the Strawberry/MSYS toolchain.
         if command -v objcopy >/dev/null 2>&1; then
           objcopy=objcopy
         elif command -v llvm-objcopy >/dev/null 2>&1; then
           objcopy=llvm-objcopy
-        elif brew_prefix=$(brew --prefix llvm@18 2>/dev/null) && [ -x "$brew_prefix/bin/llvm-objcopy" ]; then
+        elif [ "$RUNNER_OS" = "macOS" ] && brew_prefix=$(brew --prefix llvm@18 2>/dev/null) && [ -x "$brew_prefix/bin/llvm-objcopy" ]; then
           objcopy="$brew_prefix/bin/llvm-objcopy"
-        else
+        elif [ "$RUNNER_OS" = "Windows" ]; then
+          for candidate in /c/Strawberry/c/bin/objcopy.exe /c/msys64/mingw64/bin/objcopy.exe /c/mingw64/bin/objcopy.exe; do
+            if [ -x "$candidate" ]; then objcopy="$candidate"; break; fi
+          done
+        fi
+        if [ -z "${objcopy:-}" ]; then
           echo "no objcopy available" >&2
           exit 1
         fi

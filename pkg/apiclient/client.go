@@ -107,6 +107,12 @@ func (c *ApiClient) RenameDevice(ctx context.Context, id, name string) (string, 
 	return resp.Name, nil
 }
 
+// DeleteDevice removes a device. Deletion commits on the server and leaves a
+// revocation tombstone so an offline Node learns of its removal on reconnect.
+func (c *ApiClient) DeleteDevice(ctx context.Context, id string) error {
+	return c.Delete(ctx, fmt.Sprintf("/api/v1/devices/%s", url.PathEscape(id)), nil)
+}
+
 func (c *ApiClient) do(ctx context.Context, method, path string, body any, out any) error {
 	rel, err := url.Parse(path)
 	if err != nil {
