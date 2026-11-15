@@ -87,7 +87,19 @@ verify_asset() {
   test "$actual" = "$expected" ||
     { echo "downloaded asset checksum mismatch: $asset_name" >&2; exit 1; }
 }
-download "$API" "$JSON" $((4 << 20))
+# CI authenticates the release lookup so it does not depend on the shared
+# unauthenticated GitHub API quota. The token is only sent to the API origin.
+fetch_release() {
+  if [ -n "${RC_RELEASE_TOKEN:-}" ]; then
+    curl -fsSL --max-filesize $((4 << 20)) \
+      -H "Authorization: Bearer $RC_RELEASE_TOKEN" "$API" -o "$JSON"
+  else
+    curl -fsSL --max-filesize $((4 << 20)) "$API" -o "$JSON"
+  fi
+  test "$(wc -c < "$JSON")" -le $((4 << 20)) ||
+    { echo "release metadata exceeds installer limit" >&2; exit 1; }
+}
+fetch_release
 validate_single_archive() {
   archive=$1
   member=$2

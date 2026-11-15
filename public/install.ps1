@@ -42,13 +42,14 @@ function Protect-PrivateDirectories([string[]]$Paths) {
     else { [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($path), $acl) }
   }
 }
-function Download-Limited([string]$Url, [string]$Path, [long]$Limit) {
+function Download-Limited([string]$Url, [string]$Path, [long]$Limit, [string]$Bearer) {
   if ($Url -notmatch '^https://') { throw "download URL must use HTTPS: $Url" }
   $handler = [Net.Http.HttpClientHandler]::new()
   $handler.AllowAutoRedirect = $true
   $handler.MaxAutomaticRedirections = 5
   $client = [Net.Http.HttpClient]::new($handler)
   $client.DefaultRequestHeaders.UserAgent.ParseAdd('RC-installer')
+  if ($Bearer) { $client.DefaultRequestHeaders.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $Bearer) }
   $response = $null; $input = $null; $output = $null
   try {
     $response = $client.GetAsync($Url, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).
@@ -172,7 +173,9 @@ try {
   Recover-InterruptedActivation
   if ($Api -notmatch '^https://') { throw 'release API must use HTTPS' }
   $releaseFile = Join-Path $Temp 'release.json'
-  Download-Limited $Api $releaseFile (4MB)
+  # CI authenticates the release lookup so it does not depend on the shared
+  # unauthenticated GitHub API quota. The token is only sent to the API origin.
+  Download-Limited $Api $releaseFile (4MB) $env:RC_RELEASE_TOKEN
   $release = Get-Content -Raw $releaseFile | ConvertFrom-Json
   if ($release.tag_name -notmatch '^v([0-9]+\.[0-9]+\.[0-9]+)$') { throw 'invalid release version' }
   $version = $Matches[1]

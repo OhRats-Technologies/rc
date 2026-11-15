@@ -221,6 +221,10 @@ jobs:
       contents: read
     env:
       RC_RELEASE_API: https://api.github.com/repos/${{ github.repository }}/releases/tags/${{ github.ref_name }}
+      # The release lookup is authenticated so the job does not depend on the
+      # shared unauthenticated GitHub API quota, which is exhausted on some
+      # hosted runners.
+      RC_RELEASE_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
         with:
