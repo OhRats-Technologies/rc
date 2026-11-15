@@ -53,7 +53,7 @@ func (h *Host) RunExecutionRuntimeProbe() (string, error) {
 	execution := C.rc_result_val(&start)
 	var output []byte
 	cursor := uint64(0)
-	for attempt := 0; attempt < 200; attempt++ {
+	for attempt := 0; attempt < 500; attempt++ {
 		read, err := h.callNested("ohrats:rc-process/runtime@0.3.0", "[method]execution.read", []C.wasmtime_component_val_t{
 			*execution, *newU64Value(cursor), *newU32Value(4096),
 		})
