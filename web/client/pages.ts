@@ -17,7 +17,15 @@ document.querySelectorAll<HTMLFormElement>("[data-json-form]").forEach(form => f
   }
 }));
 
-type EnrollmentCommands = { install: string; enroll: string; installWindows: string; enrollWindows: string; expiresAt: number };
+type EnrollmentCommands = { install: string; enroll: string; installWindows: string; enrollWindows: string; installAndroid: string; enrollAndroid: string; expiresAt: number };
+
+type CommandKey = "install" | "enroll" | "installWindows" | "enrollWindows" | "installAndroid" | "enrollAndroid";
+
+const platformHelp: Record<string, string> = {
+  windows: "Run in PowerShell on the Windows PC. The background service runs while this Windows user is logged in.",
+  android: "Run in Termux on the Android device. RC runs as a Linux/arm64 binary inside a Debian proot rootfs; the node starts after unlock.",
+  unix: "Run in a terminal on the Linux or macOS machine you want to enroll.",
+};
 
 document.querySelectorAll<HTMLFormElement>("[data-enrollment-form]").forEach(form => {
   const platform = form.querySelector<HTMLSelectElement>('[name="platform"]');
@@ -27,15 +35,15 @@ document.querySelectorAll<HTMLFormElement>("[data-enrollment-form]").forEach(for
   let result: EnrollmentCommands | null = null;
   if (platform && /Windows/i.test(navigator.userAgent)) platform.value = "windows";
   const render = () => {
-    const windows = platform?.value === "windows";
+    const selected = platform?.value || "unix";
     const help = form.querySelector<HTMLElement>("[data-enrollment-platform-help]");
-    if (help) help.textContent = windows
-      ? "Run in PowerShell on the Windows PC. The background service runs while this Windows user is logged in."
-      : "Run in a terminal on the Linux or macOS machine you want to enroll.";
+    if (help) help.textContent = platformHelp[selected] || platformHelp.unix;
     if (!result) return;
     outputs.forEach(output => {
       const enroll = output.dataset.enrollmentResult === "enroll";
-      output.textContent = windows ? (enroll ? result!.enrollWindows : result!.installWindows) : (enroll ? result!.enroll : result!.install);
+      const suffix = selected === "windows" ? "Windows" : selected === "android" ? "Android" : "";
+      const key = `${enroll ? "enroll" : "install"}${suffix}` as CommandKey;
+      output.textContent = result![key];
     });
     fields.forEach(field => { field.hidden = false; });
   };

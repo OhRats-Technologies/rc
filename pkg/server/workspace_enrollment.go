@@ -51,6 +51,8 @@ func (s *Server) handleCreateEnrollment(w http.ResponseWriter, req *http.Request
 		"enroll":         enrollCommand(server, token),
 		"installWindows": windowsInstallCommand(server, token),
 		"enrollWindows":  windowsEnrollCommand(server, token),
+		"installAndroid": androidInstallCommand(server, token),
+		"enrollAndroid":  androidEnrollCommand(server, token),
 	})
 }
 
@@ -86,3 +88,23 @@ func windowsEnrollCommand(server, token string) string {
 		powershellQuote(token) + " --url " + powershellQuote(server) +
 		"; if ($LASTEXITCODE -eq 0) { & $rc service install }"
 }
+
+// androidInstallCommand enrolls an Android device through Termux and proot.
+// The native kernel links Wasmtime through cgo and RC has no Android service
+// manager, so rc runs as a Linux/arm64 binary inside a Debian rootfs. The
+// script is idempotent: it reuses an existing rootfs and skips a live node.
+func androidInstallCommand(server, token string) string {
+	return "sh -c \"$(curl -fsSL " + shellQuote(server+"/android-enroll.sh") + ")\" -- " +
+		shellQuote(token) + " " + shellQuote(server) + " " + shellQuote(deviceNamePlaceholder)
+}
+
+// androidEnrollCommand enrolls inside an existing proot rootfs. Termux UIDs
+// are VPN-locked on locked-down devices, so enrollment runs as root.
+func androidEnrollCommand(server, token string) string {
+	return "su -c \"" + androidProotPrefix + " /root/rc enroll " + token +
+		" --url " + server + " --name " + deviceNamePlaceholder + "\""
+}
+
+const androidProotPrefix = "export PROOT_LOADER=/data/data/com.termux/files/usr/libexec/proot/loader HOME=/root; " +
+	"/data/data/com.termux/files/usr/bin/proot -r /data/data/com.termux/files/home/debian " +
+	"-b /dev -b /proc -b /sys -b /sdcard -w /root"

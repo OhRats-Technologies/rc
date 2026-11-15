@@ -19,6 +19,13 @@ All notable RC changes are recorded here. Published tags are immutable.
   `localhost` or `ferpc`. Generated enrollment commands now include a
   `device-name` placeholder.
 - Add `rc device rename <device-id> <name>` over `PATCH /api/v1/devices/:id`.
+- Add an Android (Termux) target to the enrollment page. It serves
+  `/android-enroll.sh`, which installs a Debian arm64 rootfs under proot and
+  enrolls `rc` inside it, because the native kernel links Wasmtime through cgo
+  and RC has no Android service manager.
+- Pin the runtime image builder to Go 1.26.5. Go 1.27 rejects the `.llvmbc`
+  LTO section in wasmtime's static archive, which broke image builds from
+  2026-11-09 onward.
 - Stop API key creation from failing when a Node is offline. Credential
   creation now defers offline Nodes the same way MCP does; the key was already
   created server-side while the dialog reported a lock sync timeout.

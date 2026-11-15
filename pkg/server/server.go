@@ -187,6 +187,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /assets/", s.handleAssets)
 	mux.HandleFunc("GET /install.sh", s.handleInstaller("install.sh"))
 	mux.HandleFunc("GET /install.ps1", s.handleInstaller("install.ps1"))
+	mux.HandleFunc("GET /android-enroll.sh", s.handleInstaller("android-enroll.sh"))
 	mux.HandleFunc("GET /{$}", s.handlePublicPage)
 	mux.HandleFunc("GET /docs", s.handlePublicPage)
 	mux.HandleFunc("GET /docs/{topic}", s.handlePublicPage)

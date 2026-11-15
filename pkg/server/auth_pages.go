@@ -161,7 +161,7 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 	body := `<div class="page narrow-form-page" data-enroll-page="` + escape(selected) + `" data-known-devices="` + escape(strings.Join(ids, ",")) + `">` +
 		`<header class="page-header"><div><p class="eyebrow">DEVICES</p><h1>Enroll device</h1></div></header>` +
 		`<form data-enrollment-form class="simple-form"><label>Workspace<select name="workspaceId">` + options.String() + `</select></label>` +
-		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option></select></label>` +
+		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option><option value="android">Android (Termux)</option></select></label>` +
 		`<p class="meta" data-enrollment-platform-help>Run the command in a terminal on the machine you want to enroll.</p>` +
 		`<button class="or-button" type="submit">CREATE ENROLLMENT COMMANDS</button></form>` +
 		`<div class="enrollment-command"><span class="meta">NEW INSTALL · SHOWN ONCE</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
