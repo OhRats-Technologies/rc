@@ -27,7 +27,7 @@ case "${1:-}" in
     exit 0
     ;;
   enroll) printf 'enroll-called\n' > "$RC_INSTALL_FIXTURE/enroll-called" ;;
-  service) printf 'service-called\n' > "$RC_INSTALL_FIXTURE/service-called" ;;
+  service) printf 'service %s\n' "${2:-}" >> "$RC_INSTALL_FIXTURE/service-called" ;;
   *) exit 0 ;;
 esac
 EOF
@@ -126,7 +126,8 @@ test -f "$fixture/home/.local/share/rc/rollback/previous/rc"
 test "$(HOME="$fixture/home" "$fixture/home/.local/share/rc/rollback/previous/rc" version)" = 'RC 0.9.0'
 grep -F 'old:package-manager' \
   "$fixture/home/.local/share/rc/rollback/previous/components/package-manager.wasm" >/dev/null
-test -f "$fixture/service-called"
+grep -Fx 'service install' "$fixture/service-called" >/dev/null
+grep -Fx 'service start' "$fixture/service-called" >/dev/null
 test ! -e "$fixture/enroll-called"
 grep -F 'enrollment: unchanged (this OS user already has a device identity)' \
   "$fixture/reinstall-output" >/dev/null

@@ -45,7 +45,10 @@ WantedBy=default.target
 			return nil
 		}
 		_ = exec.Command("systemctl", "--user", "daemon-reload").Run()
-		return exec.Command("systemctl", "--user", "enable", "--now", linuxServiceUnit).Run()
+		if err := exec.Command("systemctl", "--user", "enable", linuxServiceUnit).Run(); err != nil {
+			return err
+		}
+		return exec.Command("systemctl", "--user", "restart", linuxServiceUnit).Run()
 	case "darwin":
 		path := macOSServicePath()
 		if path == "" {

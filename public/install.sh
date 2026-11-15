@@ -301,7 +301,7 @@ if [ -n "$TOKEN" ]; then
   fi
 fi
 if [ -s "$STATE_DIR/device.json" ]; then
-  if "$BIN_DIR/rc" service install; then
+  if "$BIN_DIR/rc" service install && "$BIN_DIR/rc" service start; then
     echo "node:   running in the background"
   else
     echo "warning: could not start the background service" >&2
