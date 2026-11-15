@@ -9,6 +9,7 @@ import "C"
 
 import (
 	"errors"
+	"time"
 	"unsafe"
 )
 
@@ -51,7 +52,10 @@ func (h *Host) RunProcessProbe() (string, error) {
 	}
 	stdoutRep, stdoutType := resourceRep(h.ctx, stdout)
 	var output []byte
-	for {
+	// read-result is data | would-block | eof. A would-block means the child
+	// has not written yet, not that the stream ended, so keep polling. Under
+	// load the first read routinely lands before the child runs.
+	for attempt := 0; attempt < 500; attempt++ {
 		fresh, err := hostResource(h.ctx, stdoutRep, stdoutType)
 		if err != nil {
 			return "", err
@@ -71,7 +75,7 @@ func (h *Host) RunProcessProbe() (string, error) {
 			output = append(output, valueBytes(C.rc_variant_val(variant))...)
 			continue
 		}
-		break
+		time.Sleep(2 * time.Millisecond)
 	}
 	child := recordField(spawned, "child")
 	childRep, childType := resourceRep(h.ctx, child)

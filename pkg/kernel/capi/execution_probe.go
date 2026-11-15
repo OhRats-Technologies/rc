@@ -54,6 +54,7 @@ func (h *Host) RunExecutionRuntimeProbe() (string, error) {
 	var output []byte
 	cursor := uint64(0)
 	for attempt := 0; attempt < 500; attempt++ {
+		before := cursor
 		read, err := h.callNested("ohrats:rc-process/runtime@0.3.0", "[method]execution.read", []C.wasmtime_component_val_t{
 			*execution, *newU64Value(cursor), *newU32Value(4096),
 		})
@@ -75,8 +76,10 @@ func (h *Host) RunExecutionRuntimeProbe() (string, error) {
 		if next := recordField(result, "next-cursor"); next != nil {
 			cursor = uint64(C.rc_u64(next))
 		}
+		// Exit can be reported on the same read that still carries buffered
+		// output. Drain until a read after exit advances nothing.
 		exit := recordField(result, "exit")
-		if exit != nil && C.rc_option_get(exit) != nil {
+		if exit != nil && C.rc_option_get(exit) != nil && cursor == before {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
