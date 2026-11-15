@@ -7,10 +7,19 @@ COPY public ./public
 COPY scripts/copy-installers.ts ./scripts/copy-installers.ts
 RUN bun run build:client
 
-FROM golang:1.26.5-bookworm AS build
+FROM golang:1.26.11-bookworm AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
+# wasmtime-go ships LLVM LTO bitcode (.llvmbc/.llvmcmd) inside its static
+# archive. Go 1.26.11+ rejects those sections in linker inputs, and a normal
+# non-LTO link never uses them, so strip them before building.
+RUN apt-get update -qq && apt-get install -y -qq binutils >/dev/null \
+ && case "$(go env GOARCH)" in amd64) W=x86_64 ;; arm64) W=aarch64 ;; *) echo "unsupported arch" >&2; exit 1 ;; esac \
+ && LIB=$(go env GOMODCACHE)/github.com/bytecodealliance/wasmtime-go/v50@v50.0.0/build/linux-$W/libwasmtime.a \
+ && cp "$LIB" /tmp/libwasmtime.a && chmod u+w /tmp/libwasmtime.a \
+ && objcopy --remove-section=.llvmbc --remove-section=.llvmcmd /tmp/libwasmtime.a \
+ && chmod u+w "$LIB" && cp /tmp/libwasmtime.a "$LIB"
 COPY pkg ./pkg
 COPY cmd ./cmd
 RUN CGO_ENABLED=1 go build -trimpath -o /out/rc-server ./cmd/rc-server \
