@@ -27,7 +27,9 @@ All notable RC changes are recorded here. Published tags are immutable.
   (`.llvmbc`/`.llvmcmd`) from wasmtime-go's static archive before linking.
   Go 1.26.11+ rejects those sections in linker inputs, which broke image
   builds from 2026-11-09 onward, while 1.26.5 is affected by GO-2026-6859
-  and a `crypto/x509` advisory. CI runs the same version and prep step.
+  and a `crypto/x509` advisory. CI moves to Go 1.27.4, which is patched for
+  both; GitHub runners do not hit the archive check, so only the image build
+  strips.
 - Stop API key creation from failing when a Node is offline. Credential
   creation now defers offline Nodes the same way MCP does; the key was already
   created server-side while the dialog reported a lock sync timeout.

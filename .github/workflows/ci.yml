@@ -69,9 +69,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - name: Install repository linters
         run: |
           if ! command -v shellcheck >/dev/null 2>&1; then
@@ -136,9 +133,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - name: Install componentize-go
         run: |
           go install github.com/bytecodealliance/componentize-go@v0.5.3
@@ -165,9 +159,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - name: Install componentize-go
         run: |
           go install github.com/bytecodealliance/componentize-go@v0.5.3
@@ -193,9 +184,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - run: python3 scripts/validate-profiles.py
       - name: Assemble affected profiles
         env:
@@ -217,9 +205,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - name: Install componentize-go
         run: |
           go install github.com/bytecodealliance/componentize-go@v0.5.3
@@ -239,9 +224,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - run: go vet ./...
       - run: go test -race ./...
       - name: Install componentize-go
@@ -269,9 +251,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - name: Parse Windows installer natively
         shell: pwsh
         run: |
@@ -387,9 +366,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
       - run: bun install --frozen-lockfile
       - run: bun run build:client
       - name: Build Go binaries
@@ -447,9 +423,7 @@ jobs:
           cache: true
       - name: Download modules
         run: go mod download
-      # Verify checksums before the strip step rewrites the wasmtime archive.
       - run: go mod verify
-      - uses: ./.github/actions/strip-wasmtime-lto
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest
       - run: govulncheck ./...
