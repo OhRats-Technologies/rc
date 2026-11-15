@@ -40,7 +40,11 @@ function addKey(id: string, name: string, scopes: string[], expiresAt: number, l
   const main = document.createElement("div"); main.className = "token-row-main";
   const icon = document.createElement("span"); icon.className = "ui-icon icon-key"; icon.setAttribute("aria-hidden", "true");
   const copy = document.createElement("div"), title = document.createElement("strong"), meta = document.createElement("div");
-  title.textContent = name; meta.className = "meta"; meta.textContent = `${scopes.join(" · ").toUpperCase()} · NEVER USED · ${expiresAt === 0 ? "UNTIL REVOKED" : `EXPIRES IN ${lifetimeLabel.toUpperCase()}`}`; copy.append(title, meta); main.append(icon, copy);
+  title.textContent = name; meta.className = "meta meta-row";
+  const scopeItem = document.createElement("span"), usageItem = document.createElement("span"), expiryItem = document.createElement("span");
+  scopeItem.textContent = scopes.join(" ").toUpperCase(); usageItem.textContent = "NEVER USED";
+  expiryItem.textContent = expiresAt === 0 ? "UNTIL REVOKED" : `EXPIRES IN ${lifetimeLabel.toUpperCase()}`;
+  meta.append(scopeItem, usageItem, expiryItem); copy.append(title, meta); main.append(icon, copy);
   const revoke = document.createElement("form"); revoke.method = "post"; revoke.action = `/api/tokens/${id}/delete`;
   const button = document.createElement("button"); button.className = "text-button"; button.type = "submit"; button.textContent = "REVOKE"; revoke.append(button);
   row.append(main, revoke); bindRevoke(revoke); list.prepend(row);

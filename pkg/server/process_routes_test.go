@@ -61,6 +61,12 @@ func TestBrowserProcessCreateListDetailAndPage(t *testing.T) {
 		!strings.Contains(page, `process-terminal`) {
 		t.Fatalf("process page markup = %s", page)
 	}
+	// The terminal entry imports xterm.css, which the bundler emits as a
+	// sibling stylesheet. Without the link xterm renders unstyled and the
+	// helper textarea covers the viewport.
+	if !strings.Contains(page, `/assets/process-terminal.css`) {
+		t.Fatalf("process page does not link the terminal stylesheet: %s", page)
+	}
 	srv.nodes.onProcessState(deviceID, protocol.NodeToServer{
 		Type: protocol.TypeProcessState, ProcessID: created.ProcessID,
 		Status: "exited", ExitCode: 0,

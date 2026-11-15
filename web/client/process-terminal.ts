@@ -53,9 +53,9 @@ function sendInput(data: string) {
 }
 
 function transportText(status: ControlTransportStatus) {
-  if (status.phase === "connecting") return "TUNNEL…";
+  if (status.phase === "connecting") return "CONNECTING";
   if (status.phase === "failed") return "TUNNEL FAILED";
-  return "TUNNEL · E2EE WEBSOCKET";
+  return "E2EE WEBSOCKET";
 }
 
 function showTransport(status: ControlTransportStatus) {

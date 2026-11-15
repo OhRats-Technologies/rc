@@ -140,7 +140,7 @@ func (s *Server) handleProcessPage(w http.ResponseWriter, req *http.Request) {
 	body := processPageBody(device, process, process.UserName, interactive, running, message)
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated(process.ID, sidebar, body,
-		[]string{"process-terminal"}, version.Version), "no-store")
+		[]string{"process-terminal"}, []string{"process-terminal"}, version.Version), "no-store")
 }
 
 func processPageBody(device *RegisteredDevice, process browserProcess, userName string, interactive, running bool, message string) string {
@@ -160,14 +160,13 @@ func processPageBody(device *RegisteredDevice, process browserProcess, userName 
 		`" data-process-live="true" data-process-interactive="` + boolString(interactive) + `">` +
 		`<header class="page-header process-header"><div><p class="eyebrow"><a href="/devices/` +
 		escape(device.ID) + `">` + escape(strings.ToUpper(device.Name)) + `</a> / PROCESS</p>` +
-		`<h1 class="mono process-title">` + escape(process.ID) + `</h1><p class="meta">` +
-		escape(strings.ToUpper(process.Origin)) + ` · STARTED BY ` + escape(userName) + `</p></div>` +
+		`<h1 class="mono process-title">` + escape(process.ID) + `</h1>` +
+		metaRow("p", escape(strings.ToUpper(process.Origin)), "STARTED BY "+escape(userName)) + `</div>` +
 		`<span id="process-state" class="status` + onlineClass(running) + `">` +
 		escape(strings.ToUpper(process.Status)) + `</span></header>` +
-		`<div id="terminal-toolbar" class="terminal-toolbar"><span class="terminal-label">` +
-		boolChoice(process.Terminal, "PTY", "PROCESS") + ` · ` +
-		escape(shortProcess(process.ID)) + `</span>` +
-		boolChoice(interactive, ` · <span id="control-transport">CONNECTING</span>`, "") + `</div>` +
+		`<div id="terminal-toolbar" class="terminal-toolbar">` +
+		metaRow("span", boolChoice(process.Terminal, "PTY", "PROCESS"), escape(shortProcess(process.ID))) +
+		boolChoice(interactive, `<span id="control-transport" class="status">CONNECTING</span>`, "") + `</div>` +
 		actions + terminalBody +
 		`<div id="process-client-alert" class="process-client-alert" hidden>` +
 		`<p id="process-client-error" class="error" role="alert" aria-live="polite"></p>` +

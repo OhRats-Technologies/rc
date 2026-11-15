@@ -31,9 +31,9 @@ func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
 			expiry = "expires " + grant.ExpiresAt.UTC().Format(time.RFC3339)
 		}
 		rows.WriteString(`<div class="data-row"><div><strong>` + escape(grant.Name) +
-			`</strong><div class="meta">` + escape(grant.ClientID) + ` · ` +
-			escape(strings.Join(payload.Scopes, " ")) + ` · ` + escape(expiry) +
-			`</div></div><button class="or-button secondary" type="button" data-mcp-revoke="` +
+			`</strong>` + metaRow("div", escape(grant.ClientID),
+			escape(strings.Join(payload.Scopes, " ")), escape(expiry)) +
+			`</div><button class="or-button secondary" type="button" data-mcp-revoke="` +
 			escape(grant.ID) + `">Revoke</button></div>`)
 	}
 	if rows.Len() == 0 {
@@ -48,5 +48,5 @@ func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
 		`<p class="error" data-mcp-page-error role="alert"></p></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/integrations/mcp")
 	s.writePage(w, http.StatusOK, pages.Authenticated("MCP", sidebar, body,
-		[]string{"mcp-page"}, version.Version), "no-store")
+		[]string{"mcp-page"}, nil, version.Version), "no-store")
 }

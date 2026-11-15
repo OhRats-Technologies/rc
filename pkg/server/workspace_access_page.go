@@ -71,7 +71,7 @@ func (s *Server) handleWorkspaceAccessPage(w http.ResponseWriter, req *http.Requ
 		`<section class="content-section"><h2>Pending invitations</h2><div class="settings-list">` + inviteRows + `</div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated("Manage access", sidebar, body,
-		[]string{"pages", "authority"}, version.Version), "no-store")
+		[]string{"pages", "authority"}, nil, version.Version), "no-store")
 }
 
 func workspaceAccessRow(workspaceID, currentUser string, member authstore.WorkspaceMemberDetail) string {

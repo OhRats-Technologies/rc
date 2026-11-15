@@ -94,7 +94,7 @@ document.querySelectorAll<HTMLFormElement>('form[action$="/invites"]').forEach(f
     const host = document.querySelector<HTMLElement>("[data-invite-result]");
     if (host) {
       host.replaceChildren();
-      const label = document.createElement("span"); label.className = "meta"; label.textContent = `${role.toUpperCase()} INVITE · SHOWN ONCE`;
+      const label = document.createElement("span"); label.className = "meta"; label.textContent = `${role.toUpperCase()} INVITE (SHOWN ONCE)`;
       const field = document.createElement("div"); field.className = "or-copy-field invite-link";
       const code = document.createElement("code"); code.textContent = result.url;
       const copy = document.createElement("button"); copy.type = "button"; copy.className = "or-copy-button"; copy.setAttribute("aria-label", "Copy invite link");

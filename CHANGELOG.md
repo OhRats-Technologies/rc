@@ -2,6 +2,18 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.8] - 2026-11-15
+
+- Link the terminal stylesheet on the process page. The client entry imports
+  `xterm.css`, which the bundler emits as `process-terminal.css`, but the page
+  never referenced it. xterm then rendered unstyled: the helper textarea
+  covered the viewport and the screen had no size, so a live PTY showed an
+  empty box instead of output.
+- Replace decorative `·` separators in metadata with spacing. Metadata rows
+  now lay out as separate items, and qualifiers read as parentheses.
+- Give the control transport indicator the shared status treatment instead of
+  inheriting body typography, and report `E2EE WEBSOCKET` when connected.
+
 ## [0.20.7] - 2026-11-15
 
 - Replace the WebRTC DataChannel control transport with an authenticated

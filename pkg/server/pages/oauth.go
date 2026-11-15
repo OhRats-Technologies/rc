@@ -38,7 +38,7 @@ func MCPConsent(options MCPConsentOptions) string {
 		`</strong></span><button class="text-button" type="button" data-mcp-switch-account>NOT YOU?</button></div>` +
 		`<p class="page-copy">Choose what this AI agent may do with your account. Access includes current ` +
 		`and future machines you can access. Terminal requires Owner access.</p>` +
-		`<p class="meta">OAUTH CALLBACK · <code>` + html.EscapeString(options.Callback) + `</code></p>` +
+		`<p class="meta">OAUTH CALLBACK</p><p class="meta"><code>` + html.EscapeString(options.Callback) + `</code></p>` +
 		`<noscript><p class="error">Passkey authorization requires JavaScript.</p></noscript>` +
 		`<form class="auth-form" method="post" action="/oauth/authorize/approve" data-mcp-form>` +
 		`<input type="hidden" name="request_id" value="` + html.EscapeString(options.RequestID) + `">` +

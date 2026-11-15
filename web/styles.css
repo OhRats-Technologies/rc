@@ -8,6 +8,8 @@ button { border-radius: 0; }
 .mono, .eyebrow, .meta, .status, .text-button, .text-action, code, .activity-row { font-family: var(--or-font-mono); }
 .eyebrow { color: var(--or-text-muted); font-size: .625rem; letter-spacing: .08em; }
 .meta { color: var(--or-text-muted); font-size: .68rem; }
+.meta-row { display:flex; flex-wrap:wrap; align-items:baseline; gap:.5rem; }
+.meta-row > span { min-width:0; }
 .status { color: var(--or-text-muted); font-size: .65rem; white-space: nowrap; }
 .status.online { color: var(--or-text); }
 .error { min-height: 1.35rem; color: var(--or-text); font-family: var(--or-font-mono); font-size: .72rem; }
@@ -254,7 +256,8 @@ html[data-sidebar="closed"] .profile-link { width:36px; grid-template-columns:1f
 .process-header { flex:none; }
 .process-title { font-size:clamp(1.1rem,3vw,1.8rem) !important; }
 .terminal-toolbar { flex:none; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:9px 0; border-bottom:1px solid var(--or-border); }
-.terminal-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--or-text-muted); font-family:var(--or-font-mono); font-size:.62rem; transition:color var(--or-theme-transition); }
+.terminal-toolbar .meta { font-size:.62rem; letter-spacing:.06em; }
+.terminal-toolbar #control-transport { font-size:.62rem; letter-spacing:.06em; }
 .terminal-actions { display:flex; flex-wrap:wrap; gap:.9rem; }
 .terminal-transcript { flex:1; min-width:0; min-height:0; padding:10px 0; overflow:auto; white-space:pre-wrap; font-family:var(--or-font-mono); font-size:.78rem; }
 .terminal-host { flex:1; min-width:0; min-height:0; height:auto; padding:10px 0; overflow:hidden; font-family:var(--or-font-mono); }

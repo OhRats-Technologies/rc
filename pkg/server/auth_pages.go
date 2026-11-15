@@ -13,6 +13,18 @@ import (
 
 func escape(value string) string { return html.EscapeString(value) }
 
+// metaRow renders metadata as separate items so spacing, not a separator
+// glyph, carries the grouping. Items must already be escaped.
+func metaRow(tag string, items ...string) string {
+	var out strings.Builder
+	out.WriteString(`<` + tag + ` class="meta meta-row">`)
+	for _, item := range items {
+		out.WriteString(`<span>` + item + `</span>`)
+	}
+	out.WriteString(`</` + tag + `>`)
+	return out.String()
+}
+
 func (s *Server) renderAuthenticated(w http.ResponseWriter, req *http.Request, title, path, body string, scripts []string) {
 	user, _, err := s.currentSession(req)
 	if err != nil {
@@ -20,7 +32,7 @@ func (s *Server) renderAuthenticated(w http.ResponseWriter, req *http.Request, t
 		return
 	}
 	sidebar := s.renderSidebar(user.ID, user.Name, path)
-	document := pages.Authenticated(title, sidebar, body, scripts, version.Version)
+	document := pages.Authenticated(title, sidebar, body, scripts, nil, version.Version)
 	s.writePage(w, http.StatusOK, document, "no-store")
 }
 
@@ -43,7 +55,7 @@ func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
 		`<a class="header-icon-button" href="/devices/enroll" aria-label="Enroll device" title="Enroll device"><span class="ui-icon icon-plus"></span></a></header>` +
 		`<div class="data-list" id="device-list">` + rows.String() + `</div></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/devices")
-	s.writePage(w, http.StatusOK, pages.Authenticated("Devices", sidebar, body, []string{"live"}, version.Version), "no-store")
+	s.writePage(w, http.StatusOK, pages.Authenticated("Devices", sidebar, body, []string{"live"}, nil, version.Version), "no-store")
 }
 
 func deviceListRow(device *RegisteredDevice) string {
@@ -53,7 +65,7 @@ func deviceListRow(device *RegisteredDevice) string {
 	}
 	return `<a class="data-row" href="/devices/` + escape(device.ID) + `" data-device-row="` + escape(device.ID) + `">` +
 		`<div class="device-row-main"><span class="ui-icon device-platform-icon ` + platformIcon(device.Platform) + `"></span><div><strong>` + escape(device.Name) + `</strong>` +
-		`<div class="meta">Personal · ` + escape(strings.ToUpper(device.Platform)) + `/` + escape(device.Arch) + `</div></div></div>` +
+		metaRow("div", "Personal", escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div></div>` +
 		`<span class="status` + onlineClass(device.Online) + `" data-device-status="` + escape(device.ID) + `">` + status + `</span></a>`
 }
 
@@ -110,7 +122,7 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		`<h1 data-device-title-view>` + escape(device.Name) + `</h1>` +
 		`<form method="post" action="/devices/` + escape(device.ID) + `/rename" hidden data-device-title-form><input class="device-title-input" name="name" value="` + escape(device.Name) + `" aria-label="Device name" required maxlength="120"><input type="hidden" name="next" value="/devices/` + escape(device.ID) + `"></form>` +
 		`<button class="header-icon-button" type="button" data-device-title-rename aria-label="Rename device" title="Rename device"><span class="ui-icon icon-pencil"></span></button></div>` +
-		`<p class="error device-title-error" data-device-title-error></p><p class="meta">Personal · ` + escape(strings.ToUpper(device.Platform)) + `/` + escape(device.Arch) + `</p></div>` +
+		`<p class="error device-title-error" data-device-title-error></p>` + metaRow("p", "Personal", escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div>` +
 		`<div class="device-header-actions"><span id="device-status" class="status` + onlineClass(device.Online) + `">` + status + `</span>` +
 		`<button id="open-terminal" class="device-terminal-button" type="button" aria-label="Open terminal" title="Terminal control is not available in this build" ` + terminalDisabled + `><span class="ui-icon icon-terminal"></span></button>` +
 		`<button class="header-icon-button danger-icon-button" type="button" aria-label="Delete ` + escape(device.Name) + `" title="Delete device" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-description="Deletes from RC immediately. If the Node is offline, it clears its old enrollment the next time it connects." data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span></button></div></header>` +
@@ -119,7 +131,7 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		`<section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Processes</span><div class="badge-line"></div></div><h2>Active</h2></div></div>` +
 		`<div class="data-list" id="process-list"><p class="empty-state">No active processes.</p></div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
-	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device"}, version.Version), "no-store")
+	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device"}, nil, version.Version), "no-store")
 }
 
 func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
@@ -164,12 +176,12 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option><option value="android">Android (Termux)</option></select></label>` +
 		`<p class="meta" data-enrollment-platform-help>Run the command in a terminal on the machine you want to enroll.</p>` +
 		`<button class="or-button" type="submit">CREATE ENROLLMENT COMMANDS</button></form>` +
-		`<div class="enrollment-command"><span class="meta">NEW INSTALL · SHOWN ONCE</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
-		`<span class="meta">ALREADY INSTALLED · SHOWN ONCE</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
+		`<div class="enrollment-command"><span class="meta">NEW INSTALL (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
+		`<span class="meta">ALREADY INSTALLED (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
 		`<p class="meta">One default background enrollment is supported per OS user. RC refuses to overwrite an existing device identity.</p>` +
 		`<p class="error" role="alert" data-enrollment-error></p><p id="enrollment-state" class="meta"></p></div></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/devices/enroll")
-	s.writePage(w, http.StatusOK, pages.Authenticated("Enroll device", sidebar, body, []string{"pages", "live"}, version.Version), "no-store")
+	s.writePage(w, http.StatusOK, pages.Authenticated("Enroll device", sidebar, body, []string{"pages", "live"}, nil, version.Version), "no-store")
 }
 
 func (s *Server) handleAccountPage(w http.ResponseWriter, req *http.Request) {
@@ -198,7 +210,7 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, req *http.Request) {
 		`<button class="text-button danger-text" type="button" data-delete-kind="account" data-delete-name="` + escape(user.Name) +
 		`" data-delete-endpoint="/account/delete" data-delete-method="POST" data-delete-redirect="/" data-delete-description="This cannot be undone.">DELETE ACCOUNT</button></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/account")
-	s.writePage(w, http.StatusOK, pages.Authenticated("Account", sidebar, body, []string{"account"}, version.Version), "no-store")
+	s.writePage(w, http.StatusOK, pages.Authenticated("Account", sidebar, body, []string{"account"}, nil, version.Version), "no-store")
 }
 
 func (s *Server) handleAccountName(w http.ResponseWriter, req *http.Request) {

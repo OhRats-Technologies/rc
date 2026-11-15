@@ -8,7 +8,7 @@ async function showStatus(id: string) {
   const output = document.querySelector<HTMLElement>(`[data-authority-status="${CSS.escape(id)}"]`); if (!output) return;
   try {
     const state = await api<{ devices: number; synced: number }>(`/api/v1/workspaces/${encodeURIComponent(id)}/authority`);
-    output.textContent = !state.devices ? "NO NODES" : state.synced === state.devices ? `SYNCED ${state.synced}/${state.devices} NODES` : `PENDING RC LOCK SYNC · ${state.synced}/${state.devices} NODES`;
+    output.textContent = !state.devices ? "NO NODES" : state.synced === state.devices ? `SYNCED ${state.synced}/${state.devices} NODES` : `PENDING RC LOCK SYNC (${state.synced}/${state.devices} NODES)`;
   } catch {}
 }
 

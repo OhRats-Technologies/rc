@@ -79,7 +79,7 @@ func (s *Server) handleWorkspaceActivityPage(w http.ResponseWriter, req *http.Re
 		`<section class="content-section"><div id="activity-list" class="activity-list">` + rows.String() + `</div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated("Activity", sidebar, body,
-		[]string{"live"}, version.Version), "no-store")
+		[]string{"live"}, nil, version.Version), "no-store")
 }
 
 func activityRow(event authstore.AuditEvent) string {

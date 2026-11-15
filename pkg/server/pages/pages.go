@@ -116,10 +116,12 @@ func renderPublic(document string, options Options) string {
 }
 
 // Authenticated wraps a body and sidebar in the shared authenticated shell.
-func Authenticated(title, sidebar, body string, scripts []string, version string) string {
+// styles names client entries whose bundler-emitted stylesheet must be linked;
+// an entry that imports CSS produces a sibling <entry>.css asset.
+func Authenticated(title, sidebar, body string, scripts, styles []string, version string) string {
 	content := `<div class="site-shell">` + sidebar + `<main class="site-content">` + body + `</main></div>`
 	scripts = append([]string{"sidebar"}, scripts...)
-	document := document(title, content, scripts, nil, "", false, version)
+	document := document(title, content, scripts, styles, "", false, version)
 	return strings.Replace(document, "<body>", `<body class="authenticated">`, 1)
 }
 

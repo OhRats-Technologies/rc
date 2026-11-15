@@ -1,6 +1,7 @@
 import { startWindowsNodeService } from "./browser-e2e-service";
 import { instrumentSource } from "./browser-e2e-instrument";
 import { exerciseMCPConnection } from "./browser-e2e-mcp";
+import { verifyTerminalRendering } from "./browser-e2e-terminal";
 import { chmod, copyFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -207,10 +208,9 @@ try {
   }`);
   await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${createdProcess.processId}`)},JSON.stringify({mode:{kind:"systemLoginShell"},terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${createdProcess.processId}`)};return true})()`);
   await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${createdProcess.processId}`)}) && document.readyState === "complete" && document.querySelector('.terminal-host .xterm') !== null`, 20_000, "process terminal mounted");
-  const terminalFonts = await evaluate<string[]>(`[getComputedStyle(document.querySelector('.terminal-host')).fontFamily,getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily]`);
-  if (terminalFonts.some(font => !font.includes("MesloLGS Nerd Font Mono"))) throw new Error(`terminal font did not use Nerd Font: ${terminalFonts.join(" / ")}`);
+  await verifyTerminalRendering(evaluate);
   try {
-    await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('TUNNEL') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "encrypted control tunnel");
+    await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('E2EE') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "encrypted control tunnel");
   } catch (failure) {
     const diagnostics = await evaluate(`({ transport: document.querySelector('#control-transport')?.textContent,
       title: document.querySelector('#control-transport')?.title, message: document.querySelector('#process-message')?.textContent,
@@ -244,7 +244,7 @@ try {
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
   if (typeInput && !terminalText.includes("RC_BROWSER_E2E_INPUT_OK")) throw new Error("terminal input output did not traverse encrypted control tunnel");
   const transport = await evaluate<string>(`document.querySelector('#control-transport')?.textContent || ""`);
-  if (!transport.includes("TUNNEL")) throw new Error(`unexpected control transport ${transport}`);
+  if (!transport.includes("E2EE")) throw new Error(`unexpected control transport ${transport}`);
   console.log(`browser command passed over ${transport}`);
 
   await evaluate(`(()=>{document.querySelector('form[action="/account/logout"]').requestSubmit();return true})()`);

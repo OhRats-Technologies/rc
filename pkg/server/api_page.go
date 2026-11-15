@@ -34,9 +34,9 @@ func (s *Server) handleAPIPage(w http.ResponseWriter, req *http.Request) {
 		}
 		rows.WriteString(`<div class="setting-row token-row"><div class="token-row-main">` +
 			`<span class="ui-icon icon-key" aria-hidden="true"></span><div><strong>` +
-			escape(key.Name) + `</strong><div class="meta">` +
-			escape(strings.ToUpper(strings.Join(key.Scopes, " · "))) + ` · ` +
-			escape(lastUsed) + ` · ` + escape(expires) + `</div></div></div>` +
+			escape(key.Name) + `</strong>` +
+			metaRow("div", escape(strings.ToUpper(strings.Join(key.Scopes, " "))),
+				escape(lastUsed), escape(expires)) + `</div></div></div>` +
 			`<form method="post" action="/api/tokens/` + escape(key.ID) + `/delete">` +
 			`<button class="text-button" type="submit">REVOKE</button></form></div>`)
 	}
@@ -48,7 +48,7 @@ func (s *Server) handleAPIPage(w http.ResponseWriter, req *http.Request) {
 		apiKeyDialog() + `</div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/api")
 	s.writePage(w, http.StatusOK, pages.Authenticated("API access", sidebar, body,
-		[]string{"api-page"}, version.Version), "no-store")
+		[]string{"api-page"}, nil, version.Version), "no-store")
 }
 
 func apiKeyDialog() string {
