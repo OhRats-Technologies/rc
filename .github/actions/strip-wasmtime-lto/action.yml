@@ -44,6 +44,19 @@ runs:
         tmp="$RUNNER_TEMP/libwasmtime.a"
         cp "$lib" "$tmp"
         chmod u+w "$tmp"
-        "$objcopy" --remove-section=.llvmbc --remove-section=.llvmcmd "$tmp"
+        if [ "$os" = "macos" ]; then
+          # Mach-O names sections __SEGMENT,__section.
+          "$objcopy" --remove-section=__LLVM,__bitcode --remove-section=__LLVM,__cmdline "$tmp"
+        else
+          "$objcopy" --remove-section=.llvmbc --remove-section=.llvmcmd "$tmp"
+        fi
         chmod u+w "$lib"
         cp "$tmp" "$lib"
+        # Fail loudly if the sections survived; a silent no-op would surface
+        # later as a confusing linker error.
+        if command -v llvm-objdump >/dev/null 2>&1 || llvm-objdump=$(command -v "$(dirname "$objcopy")/llvm-objdump" 2>/dev/null); then
+          if llvm-objdump -h "$lib" 2>/dev/null | grep -qiE "llvmbc|__LLVM,__bitcode"; then
+            echo "LTO sections still present in $lib" >&2
+            exit 1
+          fi
+        fi
