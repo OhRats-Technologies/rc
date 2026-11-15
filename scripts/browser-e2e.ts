@@ -68,7 +68,7 @@ if (!windows) {
 }
 for (const name of [
   "diagnostics-store", "diagnostics-cli", "process-policy",
-  "execution-runtime", "scheduler", "transport-webrtc",
+  "execution-runtime", "scheduler",
 ]) {
   const source = join(root, "dist/components", `${name}.wasm`);
   if (!await Bun.file(source).exists()) throw new Error(`build ${name} before running browser E2E`);
@@ -210,12 +210,12 @@ try {
   const terminalFonts = await evaluate<string[]>(`[getComputedStyle(document.querySelector('.terminal-host')).fontFamily,getComputedStyle(document.querySelector('.terminal-host .xterm')).fontFamily]`);
   if (terminalFonts.some(font => !font.includes("MesloLGS Nerd Font Mono"))) throw new Error(`terminal font did not use Nerd Font: ${terminalFonts.join(" / ")}`);
   try {
-    await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('WEBRTC') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "WebRTC control transport");
+    await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('TUNNEL') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "encrypted control tunnel");
   } catch (failure) {
     const diagnostics = await evaluate(`({ transport: document.querySelector('#control-transport')?.textContent,
       title: document.querySelector('#control-transport')?.title, message: document.querySelector('#process-message')?.textContent,
       clientError: document.querySelector('#process-client-error')?.textContent,
-      rtc: window.__rcE2ERtc, scripts: Array.from(document.scripts).map(script => script.src),
+      scripts: Array.from(document.scripts).map(script => script.src),
       resources: performance.getEntriesByType('resource').filter(entry => entry.name.includes('/api/v1/control/') || entry.name.includes('/assets/process-terminal'))
         .map(entry => ({ name: entry.name, duration: entry.duration, size: entry.transferSize })) })`).catch(() => null);
     throw new Error(`${String(failure)} diagnostics=${JSON.stringify(diagnostics)}`);
@@ -242,9 +242,9 @@ try {
   }
   await waitFor(`(async()=>{const r=await fetch(${JSON.stringify(`/api/v1/processes/${createdProcess.processId}`)});if(!r.ok)return false;const j=await r.json();return j.process?.status==='exited'})()`, 35_000, "process exit");
   const terminalText = await evaluate<string>(`window.__rcE2EOutput || ""`);
-  if (typeInput && !terminalText.includes("RC_BROWSER_E2E_INPUT_OK")) throw new Error("terminal input output did not traverse encrypted WebRTC control");
+  if (typeInput && !terminalText.includes("RC_BROWSER_E2E_INPUT_OK")) throw new Error("terminal input output did not traverse encrypted control tunnel");
   const transport = await evaluate<string>(`document.querySelector('#control-transport')?.textContent || ""`);
-  if (transport.includes("TURN")) throw new Error(`direct browser route unexpectedly used ${transport}`);
+  if (!transport.includes("TUNNEL")) throw new Error(`unexpected control transport ${transport}`);
   console.log(`browser command passed over ${transport}`);
 
   await evaluate(`(()=>{document.querySelector('form[action="/account/logout"]').requestSubmit();return true})()`);

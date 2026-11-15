@@ -192,12 +192,13 @@ The Go packages replace the Rust implementation at the library level. These prod
 - [x] Link the plugin HTTP client host and verify `http-source.resolve` against a live HTTP server.
 - [x] Link keys host-custody resources (ed25519/x25519 secret keys, shared secrets, HKDF session keys, AES-GCM) and verify sign/agree/derive/encrypt round-trips.
 - [x] Link `ohrats:rc-net/byte-stream-host` with exact endpoint allowlisting, connection resources, read/write/close, and a TCP echo probe.
-- [x] Add a pion WebRTC DataChannel transport package with a local offer/answer and bidirectional message round-trip test.
-- [x] Add authenticated WebRTC signaling endpoints and wire the Node, CLI, and browser control handshake.
+- [x] Add an authenticated control WebSocket pipe with a bidirectional encrypted-frame round-trip test.
+- [x] Add authenticated control challenge/open/pipe endpoints and wire the Node, CLI, and browser control handshake.
+- [x] Remove ICE/STUN/TURN negotiation and the pion WebRTC transport from the browser, CLI, Node, server, and core profile.
 - [x] Add passkey setup/login/register/step-up sessions, durable workspace enrollment-token storage, and session-authenticated SSE `/api/v1/events` to `pkg/server`; signed Node presence is implemented.
 - [x] Add MCP OAuth discovery, authorization, token exchange, and grant-scoped `/mcp` access to `pkg/server`.
 - [x] Implement `rc run`, `rc shell`, background service installation, `rc repair`, `rc doctor`, `rc update`, `rc upgrade`, `rc logs`, `rc ps`, `rc login`, `rc logout`, and signed `rc devices`.
 - [x] Port `public/install.sh` and `public/install.ps1` to the single Go `rc` archive, publish them as release assets, and run installation smoke on Linux, macOS, and Windows.
-- [x] Run the browser product E2E against the authenticated WebRTC control path.
-- [x] Enable and pass the Windows product E2E on a Windows runner, including encrypted browser control and process exit over WebRTC.
+- [x] Run the browser product E2E against the authenticated WebSocket control path.
+- [x] Enable and pass the Windows product E2E on a Windows runner, including encrypted browser control and process exit over the control pipe.
 - [x] Extend `tests/integration/` to cover API credentials, authority, device/workspace stores, events, identity/passkeys, keys, mesh policy, packages (catalog/list), sessions, storage, updater, and shell, including kernel-host invocation of each control-authority fixture domain.

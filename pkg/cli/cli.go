@@ -61,6 +61,9 @@ func Run(ctx context.Context, args []string) error {
 	case "devices":
 		return runDevices(ctx, cleanArgs[1:])
 
+	case "device":
+		return runDevice(ctx, cleanArgs[1:])
+
 	case "login":
 		return runLogin(cleanArgs[1:])
 

@@ -122,7 +122,7 @@ host. Package-manager installation flows (`rc add`, `rc install`, artifact
 caching, and managed state) and the native component host on Windows are
 explicitly out of scope for the control-authority model; unsupported package
 operations fail with a clear message instead of reaching an empty host stub.
-The hosted passkey session, authenticated WebRTC control plane, and Remote MCP
+The hosted passkey session, authenticated WebSocket control plane, and Remote MCP
 OAuth connection path are implemented. The browser E2E completes an MCP
 connection through passkey consent and Node execution, and the Windows product
 E2E suite passes against the Go binaries.

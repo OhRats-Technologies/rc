@@ -72,7 +72,7 @@ Routes enforce the narrowest relevant scope in addition to workspace roles. A ke
 | --- | --- |
 | Identity/workspaces | `GET /api/v1/me`, `GET/POST /api/v1/workspaces`, workspace detail/access/activity routes, and `POST /account/delete` / `DELETE /api/v1/account` |
 | Devices/processes | `GET /api/v1/devices`, device detail, process allocation/detail/signal routes |
-| Control | challenge, authorization, open, WebRTC offer/ICE, and close routes under `/api/v1/control` |
+| Control | challenge, authorization, open, control pipe, and close routes under `/api/v1/control` |
 | Schedule authority | Owner-only permit metadata under `/api/v1/workspaces/:id/schedule-grants/:scheduleId` |
 | Events | `GET /api/v1/events` (SSE metadata stream) |
 | Tokens/SSH | Browser-only key management plus signed read/use operations |

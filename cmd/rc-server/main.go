@@ -57,8 +57,6 @@ func main() {
 		TurnstileSiteKey:       strings.TrimSpace(os.Getenv("RC_TURNSTILE_SITE_KEY")),
 		TurnstileSecretKey:     strings.TrimSpace(os.Getenv("RC_TURNSTILE_SECRET_KEY")),
 		TrustProxy:             os.Getenv("RC_TRUST_PROXY") == "1",
-		TurnTokenID:            strings.TrimSpace(os.Getenv("RC_CF_TURN_TOKEN_ID")),
-		TurnAPIToken:           strings.TrimSpace(os.Getenv("RC_CF_TURN_API_TOKEN")),
 		MCPAccessTTLMinutes:    positiveUint("RC_MCP_ACCESS_TTL_MINUTES", 15),
 	}
 	if cfg.Development {

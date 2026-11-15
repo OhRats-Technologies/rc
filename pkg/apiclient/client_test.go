@@ -63,3 +63,36 @@ func TestApiClientPoPRequestVerification(t *testing.T) {
 		t.Fatalf("unexpected devices: %+v", devices)
 	}
 }
+
+func TestRenameDeviceSendsPatch(t *testing.T) {
+	var gotMethod, gotPath, gotBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		gotMethod, gotPath, gotBody = r.Method, r.URL.Path, string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"taimen"}`))
+	}))
+	defer server.Close()
+
+	cred, err := CredentialFromSigningSeed("key_123", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := New(server.URL, cred)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, err := client.RenameDevice(context.Background(), "dev_a383743523d9ee7c", "taimen")
+	if err != nil {
+		t.Fatalf("RenameDevice failed: %v", err)
+	}
+	if name != "taimen" {
+		t.Fatalf("unexpected name %q", name)
+	}
+	if gotMethod != http.MethodPatch || gotPath != "/api/v1/devices/dev_a383743523d9ee7c" {
+		t.Fatalf("unexpected request %s %s", gotMethod, gotPath)
+	}
+	if gotBody != `{"name":"taimen"}` {
+		t.Fatalf("unexpected body %s", gotBody)
+	}
+}

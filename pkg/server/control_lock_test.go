@@ -2,13 +2,14 @@ package server
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
-	"github.com/OhRats-Technologies/rc/pkg/transport"
+	"golang.org/x/net/websocket"
 )
 
 func TestLockTransitionInvalidatesLiveControlTransport(t *testing.T) {
@@ -45,31 +46,7 @@ func TestLockTransitionInvalidatesLiveControlTransport(t *testing.T) {
 	}
 	var ready controlReadyTest
 	_ = json.Unmarshal(raw, &ready)
-	peer, err := transport.NewPeer(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer.Close()
-	offer, _ := peer.Offer()
-	webrtcBody, _ := json.Marshal(map[string]any{"deviceId": deviceID, "sdp": offer, "mode": "host"})
-	req, _ = http.NewRequest(http.MethodPost,
-		ts.URL+"/api/v1/control/"+ready.SessionID+"/webrtc", strings.NewReader(string(webrtcBody)))
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(cookie)
-	res, raw = oauthDo(t, http.DefaultClient, req)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("control webrtc = %d: %s", res.StatusCode, raw)
-	}
-	var answer struct {
-		SDP string `json:"sdp"`
-	}
-	_ = json.Unmarshal(raw, &answer)
-	if err := peer.AcceptAnswer(answer.SDP); err != nil {
-		t.Fatal(err)
-	}
-	if err := peer.WaitOpen(10 * time.Second); err != nil {
-		t.Fatal(err)
-	}
+	conn := dialControlPipe(t, ts, cookie, ready.SessionID)
 
 	keyRecord, _ := testAPIKeyMaterial(t, "lock_transition_key", []string{"read"}, time.Time{})
 	keyRecord.UserID = user.ID
@@ -109,18 +86,16 @@ func TestLockTransitionInvalidatesLiveControlTransport(t *testing.T) {
 		t.Fatalf("authority sync = %d: %s", res.StatusCode, raw)
 	}
 
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		checkBody, _ := json.Marshal(map[string]any{"deviceId": deviceID, "sdp": "v=0", "mode": "host"})
-		req, _ = http.NewRequest(http.MethodPost,
-			ts.URL+"/api/v1/control/"+ready.SessionID+"/webrtc", strings.NewReader(string(checkBody)))
-		req.Header.Set("Content-Type", "application/json")
-		req.AddCookie(cookie)
-		res, _ = oauthDo(t, http.DefaultClient, req)
-		if res.StatusCode == http.StatusNotFound {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var payload []byte
+	err = websocket.Message.Receive(conn, &payload)
+	if err == nil {
+		t.Fatal("lock transition left the live control pipe open")
 	}
-	t.Fatal("lock transition did not invalidate the live control transport")
+	if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+		t.Fatal("lock transition did not close the live control pipe")
+	}
+	if _, ok := srv.control.get(ready.SessionID); ok {
+		t.Fatal("lock transition left the control session registered")
+	}
 }

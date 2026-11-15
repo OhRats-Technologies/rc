@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -14,7 +15,7 @@ import (
 
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
-	"github.com/OhRats-Technologies/rc/pkg/transport"
+	"golang.org/x/net/websocket"
 )
 
 func TestControlHelperProcess(t *testing.T) {
@@ -25,12 +26,10 @@ func TestControlHelperProcess(t *testing.T) {
 }
 
 type controlReadyTest struct {
-	SessionID          string                       `json:"sessionId"`
-	TransportPublicKey string                       `json:"transportPublicKey"`
-	EphemeralPublicKey string                       `json:"ephemeralPublicKey"`
-	Signature          string                       `json:"signature"`
-	IceServers         []protocol.IceServer         `json:"iceServers"`
-	Attempts           []protocol.ControlIceAttempt `json:"attempts"`
+	SessionID          string `json:"sessionId"`
+	TransportPublicKey string `json:"transportPublicKey"`
+	EphemeralPublicKey string `json:"ephemeralPublicKey"`
+	Signature          string `json:"signature"`
 }
 
 func TestAuthenticatedControlSignalingAndEncryptedProcess(t *testing.T) {
@@ -75,36 +74,7 @@ func TestAuthenticatedControlSignalingAndEncryptedProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	peer, err := transport.NewPeer(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer.Close()
-	offer, err := peer.Offer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	webrtcBody, _ := json.Marshal(map[string]any{"deviceId": deviceID, "sdp": offer, "mode": "host"})
-	req, _ = http.NewRequest(http.MethodPost,
-		ts.URL+"/api/v1/control/"+ready.SessionID+"/webrtc", strings.NewReader(string(webrtcBody)))
-	req.Header.Set("Content-Type", "application/json")
-	req.AddCookie(cookie)
-	res, raw = oauthDo(t, http.DefaultClient, req)
-	if res.StatusCode != http.StatusOK {
-		t.Fatalf("control webrtc = %d: %s", res.StatusCode, raw)
-	}
-	var answer struct {
-		SDP string `json:"sdp"`
-	}
-	if err := json.Unmarshal(raw, &answer); err != nil || answer.SDP == "" {
-		t.Fatalf("webrtc answer = %s", raw)
-	}
-	if err := peer.AcceptAnswer(answer.SDP); err != nil {
-		t.Fatal(err)
-	}
-	if err := peer.WaitOpen(10 * time.Second); err != nil {
-		t.Fatal(err)
-	}
+	conn := dialControlPipe(t, ts, cookie, ready.SessionID)
 
 	helperEnabled := "1"
 	start, _ := json.Marshal(protocol.ControlMessage{
@@ -126,16 +96,17 @@ func TestAuthenticatedControlSignalingAndEncryptedProcess(t *testing.T) {
 		Type: protocol.TypeControlFrame, SessionID: ready.SessionID,
 		Sequence: 1, Ciphertext: ciphertext,
 	})
-	if err := peer.Send(frame); err != nil {
+	if err := websocket.Message.Send(conn, string(frame)); err != nil {
 		t.Fatal(err)
 	}
 	foundOutput := false
 	receivedExit := false
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) && !receivedExit {
-		message, err := peer.Receive(time.Second)
-		if err != nil {
-			continue
+		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		var message []byte
+		if err := websocket.Message.Receive(conn, &message); err != nil {
+			t.Fatalf("control frame: %v", err)
 		}
 		var frame protocol.ControlTransportMessage
 		if json.Unmarshal(message, &frame) != nil || frame.Type != protocol.TypeControlFrame {
@@ -186,6 +157,29 @@ func randomTestKey(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return base64.RawURLEncoding.EncodeToString(value)
+}
+
+func dialControlPipe(t *testing.T, ts *httptest.Server, cookie *http.Cookie, sessionID string) *websocket.Conn {
+	t.Helper()
+	origin, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	location := "ws" + strings.TrimPrefix(ts.URL, "http") +
+		"/api/v1/control/pipe/" + url.PathEscape(sessionID)
+	config, err := websocket.NewConfig(location, origin.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cookie != nil {
+		config.Header.Set("Cookie", cookie.String())
+	}
+	conn, err := websocket.DialConfig(config)
+	if err != nil {
+		t.Fatalf("control pipe: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	return conn
 }
 
 func TestAPIKeyControlOpenUsesRCLockAuthority(t *testing.T) {

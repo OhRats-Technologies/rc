@@ -148,20 +148,6 @@ func (s *Server) handleNodeConnect(w http.ResponseWriter, req *http.Request) {
 	s.nodes.Serve(device.ID, w, req)
 }
 
-// handleNodeICE issues short-lived TURN credentials to an authenticated Node.
-func (s *Server) handleNodeICE(w http.ResponseWriter, req *http.Request) {
-	if _, err := s.registry.verifyNode(req, nil); err != nil {
-		writeError(w, nodeAuthStatus(err), err.Error())
-		return
-	}
-	servers, err := s.turn.iceServers(req.Context())
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "TURN unavailable")
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"iceServers": servers})
-}
-
 // markOffline records that a Node disconnected without an authenticated
 // removal. It is used by the server when a transport closes.
 func (s *Server) markOffline(deviceID string) {

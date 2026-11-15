@@ -2,22 +2,27 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
+	"golang.org/x/net/websocket"
 )
 
 const maxControlIDLength = 128
 
+// maxControlCiphertext bounds one encrypted frame: a 1 MiB plaintext plus the
+// AES-GCM tag and base64 expansion.
+const maxControlCiphertext = 2 << 20
+
 type controlReadyResponse struct {
-	SessionID          string                       `json:"sessionId"`
-	TransportPublicKey string                       `json:"transportPublicKey"`
-	EphemeralPublicKey string                       `json:"ephemeralPublicKey"`
-	Signature          string                       `json:"signature"`
-	IceServers         []protocol.IceServer         `json:"iceServers"`
-	Attempts           []protocol.ControlIceAttempt `json:"attempts"`
+	SessionID          string `json:"sessionId"`
+	TransportPublicKey string `json:"transportPublicKey"`
+	EphemeralPublicKey string `json:"ephemeralPublicKey"`
+	Signature          string `json:"signature"`
 }
 
 func (s *Server) handleControlChallenge(w http.ResponseWriter, req *http.Request) {
@@ -95,12 +100,6 @@ func (s *Server) handleControlOpen(w http.ResponseWriter, req *http.Request) {
 		message.CredentialID = proof.CredentialID
 		message.ControlAssertion = proof.Assertion
 	}
-	iceServers, err := s.turn.iceServers(req.Context())
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "TURN unavailable")
-		return
-	}
-	message.IceServers = iceServers
 	ctx, cancel := contextWithTimeout(req, 20*time.Second)
 	defer cancel()
 	response, err := s.nodes.Request(ctx, input.DeviceID, message, 20*time.Second)
@@ -116,16 +115,16 @@ func (s *Server) handleControlOpen(w http.ResponseWriter, req *http.Request) {
 	}
 	s.control.insert(response.SessionID, controlSession{
 		UserID: userID, ClientID: input.ClientID, DeviceID: input.DeviceID,
-		IceServers: iceServers,
 	})
 	writeJSON(w, http.StatusOK, controlReadyResponse{
 		SessionID: response.SessionID, TransportPublicKey: response.TransportPublicKey,
 		EphemeralPublicKey: response.EphemeralPublicKey, Signature: response.Signature,
-		IceServers: iceServers, Attempts: response.Attempts,
 	})
 }
 
-func (s *Server) handleControlWebRTC(w http.ResponseWriter, req *http.Request) {
+// handleControlPipe upgrades an authenticated control session into the
+// WebSocket that relays encrypted frames to and from its Node.
+func (s *Server) handleControlPipe(w http.ResponseWriter, req *http.Request) {
 	userID, apiKeyID, ok := controlIdentity(req)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "authentication required")
@@ -136,33 +135,55 @@ func (s *Server) handleControlWebRTC(w http.ResponseWriter, req *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid control session")
 		return
 	}
-	var input struct {
-		DeviceID string                  `json:"deviceId"`
-		SDP      string                  `json:"sdp"`
-		Mode     protocol.ControlIceMode `json:"mode"`
-	}
-	if err := decodeJSON(req, &input); err != nil || !validControlID(input.DeviceID) ||
-		input.SDP == "" || len(input.SDP) > 131072 {
-		writeError(w, http.StatusBadRequest, "invalid WebRTC offer")
-		return
-	}
 	session, ok := s.control.get(sessionID)
-	if !ok || session.UserID != userID || session.DeviceID != input.DeviceID ||
+	if !ok || session.UserID != userID ||
 		(apiKeyID != "" && session.ClientID != apiKeyID) {
 		writeError(w, http.StatusNotFound, "control session unavailable")
 		return
 	}
-	ctx, cancel := contextWithTimeout(req, 25*time.Second)
-	defer cancel()
-	response, err := s.nodes.Request(ctx, input.DeviceID, protocol.ServerToNode{
-		Type: protocol.TypeControlWebRTC, SessionID: sessionID, SDP: input.SDP,
-		Mode: input.Mode, IceServers: session.IceServers,
-	}, 25*time.Second)
-	if err != nil || response.Error != "" || response.SDP == "" {
-		writeError(w, http.StatusBadGateway, "WebRTC negotiation failed")
+	if apiKeyID == "" && !sameOrigin(req) {
+		writeError(w, http.StatusForbidden, "control session origin mismatch")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"sdp": response.SDP})
+	server := websocket.Server{
+		Handshake: func(*websocket.Config, *http.Request) error { return nil },
+		Handler: func(conn *websocket.Conn) {
+			s.serveControlPipe(conn, sessionID, session.DeviceID)
+		},
+	}
+	server.ServeHTTP(w, req)
+}
+
+func (s *Server) serveControlPipe(conn *websocket.Conn, sessionID, deviceID string) {
+	pipe := newControlPipe(conn)
+	if !s.control.attach(sessionID, pipe) {
+		pipe.close()
+		return
+	}
+	go pipe.run()
+	for {
+		var payload []byte
+		if err := websocket.Message.Receive(conn, &payload); err != nil {
+			break
+		}
+		var frame protocol.ControlTransportMessage
+		if json.Unmarshal(payload, &frame) != nil ||
+			frame.Type != protocol.TypeControlFrame || frame.SessionID != sessionID ||
+			frame.Sequence == 0 || frame.Ciphertext == "" ||
+			len(frame.Ciphertext) > maxControlCiphertext {
+			break
+		}
+		if err := s.nodes.Send(deviceID, protocol.ServerToNode{
+			Type: protocol.TypeControlFrame, SessionID: sessionID,
+			Sequence: frame.Sequence, Ciphertext: frame.Ciphertext,
+		}); err != nil {
+			break
+		}
+	}
+	s.control.detach(sessionID, pipe)
+	_ = s.nodes.Send(deviceID, protocol.ServerToNode{
+		Type: protocol.TypeControlClose, SessionID: sessionID,
+	})
 }
 
 func (s *Server) handleControlClose(w http.ResponseWriter, req *http.Request) {
@@ -212,6 +233,21 @@ func controlIdentity(req *http.Request) (string, string, bool) {
 		return user.ID, "", true
 	}
 	return "", "", false
+}
+
+// sameOrigin rejects cookie-authenticated WebSocket upgrades from another
+// site. Non-browser clients that authenticate with a signed API key do not
+// send Origin and are handled by the caller.
+func sameOrigin(req *http.Request) bool {
+	origin := strings.TrimSpace(req.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Host, req.Host)
 }
 
 func validControlID(value string) bool {

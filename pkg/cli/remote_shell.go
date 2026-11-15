@@ -8,15 +8,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/apiclient"
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
-	"github.com/OhRats-Technologies/rc/pkg/transport"
-	"github.com/pion/webrtc/v4"
+	"golang.org/x/net/websocket"
 )
 
 func runRemoteShell(ctx context.Context, dir, server, deviceID, command string) error {
@@ -35,8 +33,8 @@ func runRemoteShell(ctx context.Context, dir, server, deviceID, command string) 
 	if err != nil {
 		return err
 	}
-	if !device.Supports("webrtc") {
-		return fmt.Errorf("target Node does not support WebRTC control; run rc upgrade")
+	if !device.Supports("control-ws") {
+		return fmt.Errorf("target Node does not support WebSocket control; run rc upgrade")
 	}
 	challenge, err := client.ControlChallenge(ctx, deviceID)
 	if err != nil {
@@ -57,8 +55,7 @@ func runRemoteShell(ctx context.Context, dir, server, deviceID, command string) 
 		return err
 	}
 	readyPayload := crypto.ReadyPayload(challenge, deviceID, credential.Pop.ID, clientPublic,
-		ready.TransportPublicKey, ready.EphemeralPublicKey, ready.SessionID,
-		protocol.ControlAttemptsPayload(ready.Attempts))
+		ready.TransportPublicKey, ready.EphemeralPublicKey, ready.SessionID)
 	if err := crypto.VerifyEd25519(device.IdentityPublicKey, []byte(readyPayload), ready.Signature); err != nil {
 		return fmt.Errorf("RC Node handshake signature failed")
 	}
@@ -67,36 +64,32 @@ func runRemoteShell(ctx context.Context, dir, server, deviceID, command string) 
 	if err != nil {
 		return err
 	}
-	peer, err := transport.NewPeer(iceServers(ready.IceServers))
+	conn, err := client.ControlPipe(ctx, ready.SessionID)
 	if err != nil {
 		return err
 	}
-	defer peer.Close()
+	defer conn.Close()
 	defer func() {
 		closeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = client.CloseControl(closeCtx, ready.SessionID)
 	}()
-	offer, err := peer.Offer()
-	if err != nil {
-		return err
-	}
-	answer, err := client.ControlWebRTC(ctx, ready.SessionID, deviceID, offer, protocol.ControlIceModeHost)
-	if err != nil {
-		return err
-	}
-	if err := peer.AcceptAnswer(answer); err != nil {
-		return err
-	}
-	if err := peer.WaitOpen(15 * time.Second); err != nil {
-		return err
-	}
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = conn.Close()
+		case <-done:
+		}
+	}()
+
 	processID := fmt.Sprintf("cli_%d", time.Now().UnixNano())
 	mode := protocol.ExecutionMode{Kind: protocol.ExecutionModeSystemLoginShell}
 	if command != "" {
 		mode = protocol.ExecutionMode{Kind: protocol.ExecutionModeSystemShell, Command: command}
 	}
-	if err := sendControlFrame(peer, &key, ready.SessionID, 1, protocol.ControlMessage{
+	if err := sendControlFrame(conn, &key, ready.SessionID, 1, protocol.ControlMessage{
 		Type: protocol.TypeProcessStart, ID: processID, Mode: &mode,
 		Environment: &protocol.EnvironmentSpec{Base: protocol.EnvironmentBaseInherit},
 		Terminal:    &protocol.TerminalSpec{Cols: 80, Rows: 24, Term: "xterm-256color"},
@@ -104,12 +97,12 @@ func runRemoteShell(ctx context.Context, dir, server, deviceID, command string) 
 		return err
 	}
 	if command == "" {
-		go streamLocalInput(ctx, peer, &key, ready.SessionID, processID)
+		go streamLocalInput(ctx, conn, &key, ready.SessionID, processID)
 	}
-	return readControlOutput(ctx, peer, &key, ready.SessionID)
+	return readControlOutput(ctx, conn, &key, ready.SessionID)
 }
 
-func streamLocalInput(ctx context.Context, peer *transport.Peer, key *[32]byte, sessionID, processID string) {
+func streamLocalInput(ctx context.Context, conn *websocket.Conn, key *[32]byte, sessionID, processID string) {
 	buf := make([]byte, 4096)
 	sequence := uint64(1)
 	var mu sync.Mutex
@@ -118,7 +111,7 @@ func streamLocalInput(ctx context.Context, peer *transport.Peer, key *[32]byte, 
 		if n > 0 {
 			mu.Lock()
 			sequence++
-			_ = sendControlFrame(peer, key, sessionID, sequence, protocol.ControlMessage{
+			_ = sendControlFrame(conn, key, sessionID, sequence, protocol.ControlMessage{
 				Type: protocol.TypeProcessStdin, ID: processID,
 				Data: base64.RawURLEncoding.EncodeToString(buf[:n]),
 			})
@@ -127,7 +120,7 @@ func streamLocalInput(ctx context.Context, peer *transport.Peer, key *[32]byte, 
 		if err != nil {
 			mu.Lock()
 			sequence++
-			_ = sendControlFrame(peer, key, sessionID, sequence, protocol.ControlMessage{
+			_ = sendControlFrame(conn, key, sessionID, sequence, protocol.ControlMessage{
 				Type: protocol.TypeProcessStdinClose, ID: processID,
 			})
 			mu.Unlock()
@@ -141,57 +134,70 @@ func streamLocalInput(ctx context.Context, peer *transport.Peer, key *[32]byte, 
 	}
 }
 
-func readControlOutput(ctx context.Context, peer *transport.Peer, key *[32]byte, sessionID string) error {
+func readControlOutput(ctx context.Context, conn *websocket.Conn, key *[32]byte, sessionID string) error {
+	frames := make(chan protocol.ControlTransportMessage, 32)
+	readErr := make(chan error, 1)
+	go func() {
+		for {
+			var payload []byte
+			if err := websocket.Message.Receive(conn, &payload); err != nil {
+				readErr <- err
+				return
+			}
+			var frame protocol.ControlTransportMessage
+			if json.Unmarshal(payload, &frame) != nil || frame.Type != protocol.TypeControlFrame ||
+				frame.SessionID != sessionID {
+				readErr <- fmt.Errorf("invalid control frame")
+				return
+			}
+			select {
+			case frames <- frame:
+			default:
+				readErr <- fmt.Errorf("control frame backlog")
+				return
+			}
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
-		}
-		message, err := peer.Receive(time.Second)
-		if err != nil {
-			if strings.Contains(err.Error(), "closed") {
-				return err
-			}
-			continue
-		}
-		var frame protocol.ControlTransportMessage
-		if json.Unmarshal(message, &frame) != nil || frame.Type != protocol.TypeControlFrame ||
-			frame.SessionID != sessionID {
-			return fmt.Errorf("invalid control frame")
-		}
-		plain, err := crypto.DecryptFrame(key, 2, frame.Sequence, sessionID, "n2c", frame.Ciphertext)
-		if err != nil {
+		case err := <-readErr:
 			return err
-		}
-		var control protocol.ControlMessage
-		if json.Unmarshal(plain, &control) != nil {
-			return fmt.Errorf("invalid control message")
-		}
-		switch control.Type {
-		case protocol.TypeProcessStdout:
-			data, err := base64.RawURLEncoding.DecodeString(control.Data)
+		case frame := <-frames:
+			plain, err := crypto.DecryptFrame(key, 2, frame.Sequence, sessionID, "n2c", frame.Ciphertext)
 			if err != nil {
 				return err
 			}
-			_, _ = os.Stdout.Write(data)
-		case protocol.TypeProcessStderr:
-			data, err := base64.RawURLEncoding.DecodeString(control.Data)
-			if err != nil {
-				return err
+			var control protocol.ControlMessage
+			if json.Unmarshal(plain, &control) != nil {
+				return fmt.Errorf("invalid control message")
 			}
-			_, _ = os.Stderr.Write(data)
-		case protocol.TypeProcessExit:
-			if control.ExitCode != nil && *control.ExitCode != 0 {
-				return fmt.Errorf("remote shell exited with status %d", *control.ExitCode)
+			switch control.Type {
+			case protocol.TypeProcessStdout:
+				data, err := base64.RawURLEncoding.DecodeString(control.Data)
+				if err != nil {
+					return err
+				}
+				_, _ = os.Stdout.Write(data)
+			case protocol.TypeProcessStderr:
+				data, err := base64.RawURLEncoding.DecodeString(control.Data)
+				if err != nil {
+					return err
+				}
+				_, _ = os.Stderr.Write(data)
+			case protocol.TypeProcessExit:
+				if control.ExitCode != nil && *control.ExitCode != 0 {
+					return fmt.Errorf("remote shell exited with status %d", *control.ExitCode)
+				}
+				return nil
+			case protocol.TypeProcessStarted:
 			}
-			return nil
-		case protocol.TypeProcessStarted:
 		}
 	}
 }
 
-func sendControlFrame(peer *transport.Peer, key *[32]byte, sessionID string, sequence uint64,
+func sendControlFrame(conn *websocket.Conn, key *[32]byte, sessionID string, sequence uint64,
 	message protocol.ControlMessage,
 ) error {
 	plain, err := json.Marshal(message)
@@ -209,21 +215,11 @@ func sendControlFrame(peer *transport.Peer, key *[32]byte, sessionID string, seq
 	if err != nil {
 		return err
 	}
-	return peer.Send(frame)
+	return websocket.Message.Send(conn, frame)
 }
 
 func randomURLBytes(size int) string {
 	value := make([]byte, size)
 	_, _ = rand.Read(value)
 	return base64.RawURLEncoding.EncodeToString(value)
-}
-
-func iceServers(values []protocol.IceServer) []webrtc.ICEServer {
-	servers := make([]webrtc.ICEServer, 0, len(values))
-	for _, value := range values {
-		servers = append(servers, webrtc.ICEServer{
-			URLs: value.URLs, Username: value.Username, Credential: value.Credential,
-		})
-	}
-	return servers
 }

@@ -5,7 +5,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { api, qs } from "./http";
 import { onEvent } from "./events";
 import { openControlSession, type ControlSession } from "./control-session";
-import type { ControlTransportStatus } from "./control-webrtc";
+import type { ControlTransportStatus } from "./control-ws";
 import { b64urlToBytes, bytesToB64url } from "./control-client";
 import type { RemoteProcess } from "../types";
 
@@ -53,19 +53,17 @@ function sendInput(data: string) {
 }
 
 function transportText(status: ControlTransportStatus) {
-  if (status.phase === "connecting") return "WEBRTC…";
-  if (status.phase === "failed") return "WEBRTC FAILED";
-  const pair = status.selected, turn = pair?.localType === "relay" || pair?.remoteType === "relay";
-  const route = turn ? "TURN" : pair?.localType && pair?.remoteType ? `${pair.localType}↔${pair.remoteType}` : "DIRECT";
-  return `WEBRTC · ${route}${pair?.protocol ? `/${pair.protocol}` : ""}`.toUpperCase();
+  if (status.phase === "connecting") return "TUNNEL…";
+  if (status.phase === "failed") return "TUNNEL FAILED";
+  return "TUNNEL · E2EE WEBSOCKET";
 }
 
 function showTransport(status: ControlTransportStatus) {
   const element = document.querySelector<HTMLElement>("#control-transport"); if (!element) return;
   element.textContent = transportText(status);
-  element.title = status.reason || "WebRTC DataChannel";
+  element.title = status.reason || "Encrypted control WebSocket";
   if (status.phase === "failed" && status.reason) {
-    transportMessage = `WebRTC unavailable: ${status.reason}`;
+    transportMessage = `Control tunnel unavailable: ${status.reason}`;
     reportClientError(transportMessage);
     clearTimeout(reconnectTimer); reconnectTimer = window.setTimeout(() => { control?.close(); control = null; void connectControl(); }, 1000);
   } else if (status.phase === "connected") { clearTimeout(reconnectTimer); transportMessage = ""; }

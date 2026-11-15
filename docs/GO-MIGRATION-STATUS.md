@@ -16,12 +16,11 @@ control plane.
 | CLI | `version`, `status`, `devices`, `config`, `enroll`, `run`, `service`, `login`, `logout`, `logs`, `ps`, `shell`, `doctor`, `update`, `upgrade`, `repair`, `crypto-check`, `policy-check` |
 | Presence | Signed `GET /api/v1/node/self` and `POST /api/v1/node/heartbeat`, replay window, nonce cache, online/offline events |
 | Public web | Server-rendered landing/docs pages and token-gated setup/login/signup pages; Turnstile Siteverify for public signup |
-| ICE | `GET /api/v1/node/ice` returns cached short-lived Cloudflare TURN credentials or the public STUN fallback |
 | Accounts | SQLite users/passkeys/ceremonies/sessions; passkey setup, login, register, step-up; fresh-passkey account deletion with `Deleted account` attribution; durable workspace enrollment tokens; API signing keys with scopes/expiry; `/api/v1/me`; authenticated `/api/v1/events` and device reads |
 | Remote MCP | OAuth metadata, dynamic client registration, authorization code + S256 PKCE with explicit consent, rotating refresh tokens, resource-bound Bearer tokens, scoped standard JSON-RPC `/mcp` tools |
 | Authority | Passkey-authorized control clients, Owner-signed MCP grants, API signing keys, schedule permits, canonical workspace snapshots, signed transitions, offline delivery, Node lock bootstrap |
 | Node MCP channel | Authenticated Node WebSocket, RC Lock verification, Node-owned process journals, remote image transfer |
-| Control data plane | Authenticated challenge/open/WebRTC signaling, Node and CLI/browser encrypted DataChannel sessions, current RC Lock invalidation, API-key execution authority |
+| Control data plane | Authenticated challenge/open/pipe signaling, Node and CLI/browser encrypted WebSocket sessions, current RC Lock invalidation, API-key execution authority |
 | Workspace authority | Owner role management with fresh passkey step-up, invites and join links, access/activity pages, workspace lifecycle, and durable bounded audit events |
 | Upgrade | Release API, digest pinning, size bounds, semver/downgrade rules, `minimumUpgrader`, core-profile validation, atomic replace, journal recovery, Windows side-by-side activation |
 | Diagnostics | Bounded local journal, service log tail/follow, process-tree inspection, `doctor` health checks |
@@ -32,7 +31,7 @@ control plane.
 ## Deprecated and operational notes
 
 - **SSH gateway**: deprecated and removed. All remote terminal and execution
-  workflows use direct E2EE WebRTC channels.
+  workflows use the authenticated end-to-end encrypted control WebSocket.
 - **Execution history**: deprecated and removed. Process state is strictly
   ephemeral in memory for live leases and reconnection reconciliation.
 - **E2E coverage**: the browser product E2E passes on Linux CI and Windows CI,

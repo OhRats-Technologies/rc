@@ -12,7 +12,6 @@ import (
 
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
-	"github.com/OhRats-Technologies/rc/pkg/transport"
 )
 
 type fakeExecutionManager struct {
@@ -56,7 +55,7 @@ func (f *fakeExecutionManager) AttachSecure(_ string, sessionID string) bool {
 func (f *fakeExecutionManager) DetachSecureSession(string) {}
 func (f *fakeExecutionManager) Shutdown()                  {}
 
-func TestAuthorizedWebRTCControlSessionAndLockInvalidation(t *testing.T) {
+func TestAuthorizedControlSessionAndLockInvalidation(t *testing.T) {
 	state, err := GenerateNodeState("dev_control")
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +79,12 @@ func TestAuthorizedWebRTCControlSessionAndLockInvalidation(t *testing.T) {
 	}
 	signature := base64.RawURLEncoding.EncodeToString(ed25519.Sign(signingPrivate,
 		[]byte(crypto.SessionPayload(challenge, state.DeviceID, "client_control", clientPublic))))
-	ready, err := manager.OpenAuthorizedSession(challenge, "client_control", clientPublic, signature, authority, nil)
+	emitted := make(chan protocol.NodeToServer, 16)
+	ready, err := manager.OpenAuthorizedSession(challenge, "client_control", clientPublic, signature,
+		authority, func(message protocol.NodeToServer) error {
+			emitted <- message
+			return nil
+		})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,34 +93,13 @@ func TestAuthorizedWebRTCControlSessionAndLockInvalidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	readyPayload := crypto.ReadyPayload(challenge, state.DeviceID, "client_control", clientPublic,
-		ready.TransportPublicKey, ready.EphemeralPublicKey, ready.SessionID,
-		protocol.ControlAttemptsPayload(ready.Attempts))
+		ready.TransportPublicKey, ready.EphemeralPublicKey, ready.SessionID)
 	if err := crypto.VerifyEd25519(identityPublic, []byte(readyPayload), ready.Signature); err != nil {
 		t.Fatalf("node handshake signature = %v", err)
 	}
 	clientKey, err := crypto.DeriveClientKey(clientPrivate, ready.TransportPublicKey,
 		ready.EphemeralPublicKey, challenge, state.DeviceID, "client_control")
 	if err != nil {
-		t.Fatal(err)
-	}
-
-	peer, err := transport.NewPeer(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer peer.Close()
-	offer, err := peer.Offer()
-	if err != nil {
-		t.Fatal(err)
-	}
-	answer, err := manager.AnswerWebRTC(ready.SessionID, offer, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := peer.AcceptAnswer(answer); err != nil {
-		t.Fatal(err)
-	}
-	if err := peer.WaitOpen(10 * time.Second); err != nil {
 		t.Fatal(err)
 	}
 
@@ -129,37 +112,32 @@ func TestAuthorizedWebRTCControlSessionAndLockInvalidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	frame, _ := json.Marshal(protocol.ControlTransportMessage{
-		Type: protocol.TypeControlFrame, SessionID: ready.SessionID,
-		Sequence: 1, Ciphertext: ciphertext,
-	})
-	if err := peer.Send(frame); err != nil {
+	if _, err := manager.HandleDirectFrame(ready.SessionID, 1, ciphertext); err != nil {
 		t.Fatal(err)
 	}
 
 	gotTypes := map[string]bool{}
 	deadline := time.Now().Add(5 * time.Second)
 	for len(gotTypes) < 3 && time.Now().Before(deadline) {
-		message, err := peer.Receive(time.Second)
-		if err != nil {
-			continue
-		}
-		var frame protocol.ControlTransportMessage
-		if json.Unmarshal(message, &frame) != nil || frame.Type != protocol.TypeControlFrame {
-			t.Fatalf("unexpected frame = %s", message)
-		}
-		plain, err := crypto.DecryptFrame(&clientKey, 2, frame.Sequence, ready.SessionID, "n2c", frame.Ciphertext)
-		if err != nil {
-			t.Fatal(err)
-		}
-		var control protocol.ControlMessage
-		if json.Unmarshal(plain, &control) != nil {
-			t.Fatal("invalid control message")
-		}
-		gotTypes[control.Type] = true
-		if control.Type == protocol.TypeProcessStdout &&
-			!strings.Contains(string(mustDecode(t, control.Data)), "hello") {
-			t.Fatalf("stdout = %q", control.Data)
+		select {
+		case message := <-emitted:
+			if message.Type != protocol.TypeControlFrame || message.SessionID != ready.SessionID {
+				t.Fatalf("unexpected message = %+v", message)
+			}
+			plain, err := crypto.DecryptFrame(&clientKey, 2, message.Sequence, ready.SessionID, "n2c", message.Ciphertext)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var control protocol.ControlMessage
+			if json.Unmarshal(plain, &control) != nil {
+				t.Fatal("invalid control message")
+			}
+			gotTypes[control.Type] = true
+			if control.Type == protocol.TypeProcessStdout &&
+				!strings.Contains(string(mustDecode(t, control.Data)), "hello") {
+				t.Fatalf("stdout = %q", control.Data)
+			}
+		case <-time.After(50 * time.Millisecond):
 		}
 	}
 	for _, kind := range []string{protocol.TypeProcessStarted, protocol.TypeProcessStdout, protocol.TypeProcessExit} {

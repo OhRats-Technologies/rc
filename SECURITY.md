@@ -4,7 +4,7 @@
 
 Do not publish exploit details, credentials, private keys, terminal output, or customer data in a public issue. Use GitHub private vulnerability reporting when available, or contact the repository owners through an established private channel. Include the affected version, surface, prerequisites, impact, and a minimal reproduction that uses disposable credentials and machines.
 
-Preserve relevant logs and artifacts, but redact setup tokens, enrollment tokens, browser cookies, API secrets, CLI/Node state, OAuth codes, TURN credentials, command content, and process output.
+Preserve relevant logs and artifacts, but redact setup tokens, enrollment tokens, browser cookies, API secrets, CLI/Node state, OAuth codes, command content, and process output.
 
 ## Supported versions
 
@@ -12,7 +12,7 @@ Only the newest published release is supported. Security fixes move forward to a
 
 ## Security model
 
-- Human browser/CLI terminal control uses authenticated key agreement and application-layer AES-GCM over WebRTC DataChannels. There is no hosted terminal fallback.
+- Human browser/CLI terminal control uses authenticated key agreement and application-layer AES-GCM inside the authenticated control WebSocket pipe. The server relays ciphertext only. There is no hosted terminal fallback.
 - The Node validates control grants, device identity, Owner-signed execution grants, and RC Lock locally before execution.
 - Browser accounts use passkeys. Credential creation, revocation, and destructive actions require fresh passkey step-up.
 - CLI and API clients use Ed25519 proof-of-possession signatures bound to method, path/query, timestamp, nonce, and body digest.
@@ -38,7 +38,7 @@ API secrets are shown once. The `rcsk_...` value contains a private key; rotate 
 - Use HTTPS for every non-localhost deployment and keep `PUBLIC_URL` stable.
 - Generate a high-entropy `RC_SETUP_TOKEN`; open the exact setup link and avoid retaining it in shell history.
 - Set `RC_TRUST_PROXY=1` only when the proxy removes untrusted forwarding headers.
-- Restrict access to the SQLite volume, TURN API token, and container environment.
+- Restrict access to the SQLite volume and container environment.
 - Keep host time synchronized because signed requests have a 60-second acceptance window.
 - Keep tested backups and verify restores in isolation.
 - Monitor failed authentication, replay conflicts, rate limits, Node churn, and unexpected service restarts.

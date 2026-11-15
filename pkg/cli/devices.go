@@ -12,24 +12,18 @@ import (
 	"github.com/OhRats-Technologies/rc/pkg/node"
 )
 
-func runDevices(ctx context.Context, args []string) error {
-	fs := flag.NewFlagSet("devices", flag.ContinueOnError)
-	server := fs.String("url", "", "RC server URL")
-	token := fs.String("token", "", "RC API key (or RC_API_TOKEN)")
-	stateDir := fs.String("state-dir", "", "Override state directory")
-	asJSON := fs.Bool("json", false, "Print JSON")
-	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
-		return err
-	}
-	dir, err := node.ResolveStateDir(*stateDir)
+// deviceAPIClient resolves server, credential, and state for device commands
+// so every device subcommand accepts identical flags.
+func deviceAPIClient(server, token, stateDir string) (*apiclient.ApiClient, error) {
+	dir, err := node.ResolveStateDir(stateDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	credential, err := deviceCredential(dir, *token)
+	credential, err := deviceCredential(dir, token)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	base := *server
+	base := server
 	if base == "" {
 		config, _ := node.LoadConfig(dir)
 		base = config.Server
@@ -40,7 +34,19 @@ func runDevices(ctx context.Context, args []string) error {
 	if base == "" {
 		base = "https://rc.ohrats.party"
 	}
-	client, err := apiclient.New(base, credential)
+	return apiclient.New(base, credential)
+}
+
+func runDevices(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("devices", flag.ContinueOnError)
+	server := fs.String("url", "", "RC server URL")
+	token := fs.String("token", "", "RC API key (or RC_API_TOKEN)")
+	stateDir := fs.String("state-dir", "", "Override state directory")
+	asJSON := fs.Bool("json", false, "Print JSON")
+	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
+		return err
+	}
+	client, err := deviceAPIClient(*server, *token, *stateDir)
 	if err != nil {
 		return err
 	}

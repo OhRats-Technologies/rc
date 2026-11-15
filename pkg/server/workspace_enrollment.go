@@ -58,17 +58,22 @@ func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
+// deviceNamePlaceholder is the literal the operator replaces before running
+// the command. Enrollment otherwise falls back to the OS hostname, which is
+// rarely the name the device should carry in the sidebar.
+const deviceNamePlaceholder = "device-name"
+
 func powershellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func installCommand(server, token string) string {
 	script := server + "/install.sh"
-	return "curl -fsSL " + shellQuote(script) + " | sh -s -- " + shellQuote(token) + " " + shellQuote(server)
+	return "curl -fsSL " + shellQuote(script) + " | sh -s -- " + shellQuote(token) + " " + shellQuote(server) + " " + shellQuote(deviceNamePlaceholder)
 }
 
 func enrollCommand(server, token string) string {
-	return "rc enroll " + shellQuote(token) + " --url " + shellQuote(server) + " && rc service install"
+	return "rc enroll " + shellQuote(token) + " --url " + shellQuote(server) + " --name " + shellQuote(deviceNamePlaceholder) + " && rc service install"
 }
 
 func windowsInstallCommand(server, token string) string {

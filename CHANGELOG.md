@@ -2,6 +2,27 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.7] - 2026-11-15
+
+- Replace the WebRTC DataChannel control transport with an authenticated
+  WebSocket pipe carrying the existing end-to-end encrypted control frames.
+  The server relays ciphertext only and never holds session keys.
+- Remove ICE/STUN/TURN negotiation, the `transport-webrtc` component from the
+  core profile, and the pion WebRTC dependency. The `transport-webrtc`
+  component sources remain for the immutable v0.19.2 legacy bundle only.
+- Browser control uses `GET /api/v1/control/pipe/{session}`; the CLI dials the
+  same pipe with its signed API key. Node sessions emit `control.frame` over
+  the authenticated Node WebSocket.
+- Accept a device display name as the third `install.sh` argument (or
+  `RC_DEVICE_NAME`) and pass it to `rc enroll --name`. Enrollment previously
+  fell back to the OS hostname, so machines enrolled under names such as
+  `localhost` or `ferpc`. Generated enrollment commands now include a
+  `device-name` placeholder.
+- Add `rc device rename <device-id> <name>` over `PATCH /api/v1/devices/:id`.
+- Stop API key creation from failing when a Node is offline. Credential
+  creation now defers offline Nodes the same way MCP does; the key was already
+  created server-side while the dialog reported a lock sync timeout.
+
 ## [0.20.6] - 2026-11-09
 
 - Add a standard MCP Streamable HTTP JSON-RPC surface with `initialize`,

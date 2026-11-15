@@ -3,10 +3,12 @@ package apiclient
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
 
-	"github.com/OhRats-Technologies/rc/pkg/protocol"
+	"golang.org/x/net/websocket"
 )
 
 // ControlChallenge asks the selected Node for a single-use control challenge.
@@ -34,21 +36,43 @@ func (c *ApiClient) ControlOpen(ctx context.Context, input ControlOpen) (*Contro
 	return &response, nil
 }
 
-// ControlWebRTC exchanges one browser/CLI offer for the Node answer.
-func (c *ApiClient) ControlWebRTC(
-	ctx context.Context, sessionID, deviceID, sdp string, mode protocol.ControlIceMode,
-) (string, error) {
-	var response WebRtcAnswer
-	path := "/api/v1/control/" + url.PathEscape(sessionID) + "/webrtc"
-	if err := c.Post(ctx, path, map[string]any{
-		"deviceId": deviceID, "sdp": sdp, "mode": mode,
-	}, &response); err != nil {
-		return "", err
+// ControlPipe dials the authenticated WebSocket that relays encrypted control
+// frames for one session. The caller owns the returned connection.
+func (c *ApiClient) ControlPipe(ctx context.Context, sessionID string) (*websocket.Conn, error) {
+	path := "/api/v1/control/pipe/" + url.PathEscape(sessionID)
+	target := *c.base
+	switch target.Scheme {
+	case "https":
+		target.Scheme = "wss"
+	case "http":
+		target.Scheme = "ws"
+	default:
+		return nil, &ApiError{Message: "invalid RC server URL"}
 	}
-	if response.SDP == "" {
-		return "", &ApiError{Message: "Node returned an empty WebRTC answer"}
+	target.Path = path
+	target.RawQuery = ""
+
+	headers := http.Header{}
+	if c.credential.Kind == CredentialPop && c.credential.Pop != nil {
+		for key, value := range c.credential.Pop.Headers(http.MethodGet, path, nil) {
+			headers.Set(key, value)
+		}
 	}
-	return response.SDP, nil
+	origin := &url.URL{Scheme: "http", Host: target.Host}
+	if target.Scheme == "wss" {
+		origin.Scheme = "https"
+	}
+	conn, err := websocket.DialConfig(&websocket.Config{
+		Location: &target,
+		Origin:   origin,
+		Version:  websocket.ProtocolVersionHybi13,
+		Header:   headers,
+		Dialer:   &net.Dialer{Timeout: 15 * time.Second},
+	})
+	if err != nil {
+		return nil, &ApiError{Message: "control pipe unavailable", Err: err}
+	}
+	return conn, nil
 }
 
 // CloseControl releases one authenticated control session.

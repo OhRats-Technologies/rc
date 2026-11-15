@@ -1,7 +1,5 @@
 package apiclient
 
-import "github.com/OhRats-Technologies/rc/pkg/protocol"
-
 type Device struct {
 	ID                 string   `json:"id"`
 	WorkspaceID        string   `json:"workspace_id,omitempty"`
@@ -24,20 +22,14 @@ func (d *Device) Supports(capability string) bool {
 }
 
 type ControlReady struct {
-	SessionID          string                       `json:"sessionId"`
-	TransportPublicKey string                       `json:"transportPublicKey"`
-	EphemeralPublicKey string                       `json:"ephemeralPublicKey"`
-	Signature          string                       `json:"signature"`
-	IceServers         []protocol.IceServer         `json:"iceServers,omitempty"`
-	Attempts           []protocol.ControlIceAttempt `json:"attempts"`
+	SessionID          string `json:"sessionId"`
+	TransportPublicKey string `json:"transportPublicKey"`
+	EphemeralPublicKey string `json:"ephemeralPublicKey"`
+	Signature          string `json:"signature"`
 }
 
 type ControlChallenge struct {
 	Challenge string `json:"challenge"`
-}
-
-type WebRtcAnswer struct {
-	SDP string `json:"sdp"`
 }
 
 type ControlOpen struct {

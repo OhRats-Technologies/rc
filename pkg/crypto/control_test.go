@@ -110,7 +110,7 @@ func TestMatchesControlCryptoFixture(t *testing.T) {
 		t.Fatalf("session payload mismatch")
 	}
 
-	rp := ReadyPayload(v.Challenge, v.DeviceID, v.ClientID, v.ClientPublic, v.NodeStaticPublic, v.NodeEphemeralPublic, v.SessionID, "")
+	rp := ReadyPayload(v.Challenge, v.DeviceID, v.ClientID, v.ClientPublic, v.NodeStaticPublic, v.NodeEphemeralPublic, v.SessionID)
 	if rp != v.ReadyPayload {
 		t.Fatalf("ready payload mismatch")
 	}

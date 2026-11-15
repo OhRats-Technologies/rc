@@ -4,6 +4,7 @@ umask 077
 # The release bundle is the POSIX bootstrap boundary.
 TOKEN="${1:-${RC_ENROLL_TOKEN:-}}"
 SERVER="${2:-${RC_URL:-}}"
+NAME="${3:-${RC_DEVICE_NAME:-}}"
 HOME_DIR="${HOME:-}"
 API="${RC_RELEASE_API:-https://api.github.com/repos/OhRats-Technologies/rc/releases/latest}"
 BIN_DIR="${RC_INSTALL_BIN_DIR:-$HOME_DIR/.local/bin}"
@@ -293,8 +294,12 @@ if [ -n "$TOKEN" ]; then
     echo "enrollment: unchanged (this OS user already has a device identity)"
     echo "token:      not consumed; use the separate 'rc enroll' command on an unenrolled machine"
   else
-    if [ -n "$SERVER" ]; then
+    if [ -n "$SERVER" ] && [ -n "$NAME" ]; then
+      "$BIN_DIR/rc" enroll "$TOKEN" --url "$SERVER" --name "$NAME"
+    elif [ -n "$SERVER" ]; then
       "$BIN_DIR/rc" enroll "$TOKEN" --url "$SERVER"
+    elif [ -n "$NAME" ]; then
+      "$BIN_DIR/rc" enroll "$TOKEN" --name "$NAME"
     else
       "$BIN_DIR/rc" enroll "$TOKEN"
     fi

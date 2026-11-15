@@ -5,24 +5,8 @@ export function controlChallenge(deviceId: string) {
 }
 
 export function controlOpen(input: { deviceId: string; challenge: string; clientId: string; publicKey: string; signature: string }) {
-  return api<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string;
-    iceServers: RTCIceServer[]; attempts: ControlIceAttempt[] }>(
+  return api<{ sessionId: string; transportPublicKey: string; ephemeralPublicKey: string; signature: string }>(
     "/api/v1/control/open", { method: "POST", body: JSON.stringify(input) });
-}
-
-export type ControlIceAttempt = { mode: "host" | "stun" | "relay"; gatherTimeoutMs: number;
-  route: "direct-host" | "direct-stun" | "turn-relay" | "unknown";
-  connectTimeoutMs: number; retryDelayMs: number };
-
-export function controlWebRTC(
-  sessionId: string,
-  deviceId: string,
-  sdp: string,
-  mode: "host" | "stun" | "relay" = "stun",
-) {
-  return api<{ sdp: string }>(`/api/v1/control/${encodeURIComponent(sessionId)}/webrtc`, {
-    method: "POST", body: JSON.stringify({ deviceId, sdp, mode }),
-  });
 }
 
 export function closeControlSession(sessionId: string) {

@@ -8,15 +8,15 @@ execution.
 
 ```text
 Browser / rc CLI
-       │ HTTPS: pages, API, signaling, SSE
+       │ HTTPS: pages, API, control setup, SSE
        ▼
   rc-server + locked component graph
        │
-       │ signed Node HTTP + signaling
+       │ signed Node HTTP + WebSocket
        ▼
   rc + locked Node component graph
 
-Browser / rc CLI ══ encrypted WebRTC DataChannel ══ Node
+Browser / rc CLI ══ authenticated control WebSocket (E2EE frames) ══ Node
 MCP ── OAuth + JSON-RPC/HTTP ── hosted execution adapter ── Node registry
 ```
 
@@ -30,14 +30,15 @@ path. [`ROADMAP.md`](../ROADMAP.md) is the authoritative checklist.
 | Browser pages/API | HTTPS | Passkey-backed cookie | Server HTML/JSON |
 | Presence/events | SSE | Cookie or signed client | Metadata only |
 | Browser/CLI signaling | HTTPS | Browser/CLI grant | Signaling only |
-| Browser/CLI process traffic | WebRTC DataChannel | Node-verified authority | End-to-end encrypted |
+| Browser/CLI process traffic | Control WebSocket | Node-verified authority | End-to-end encrypted relay |
 | Node bootstrap/status | HTTPS | Ed25519 Node proof | Control metadata |
 | MCP | OAuth + JSON-RPC/HTTP | Scoped grant | Hosted transit; Node-owned state/journal |
 
-The server is trusted for identity and authorization. It does not need normal
-browser/CLI terminal plaintext after WebRTC connects. MCP is an explicit
-hosted-transit adapter; MCP request correlation is bounded and ephemeral;
-the Node owns execution state and output journals.
+The server is trusted for identity and authorization. It relays encrypted
+browser/CLI control frames without holding the session key and does not need
+terminal plaintext. MCP is an explicit hosted-transit adapter; MCP request
+correlation is bounded and ephemeral; the Node owns execution state and output
+journals.
 
 The Node owns its long-term identity, transport secret, process runtime, and RC
 Lock. It validates local authority and Owner-signed execution grants before
@@ -47,9 +48,9 @@ starting a process.
 
 1. The controller authenticates and requests a process.
 2. The server validates role, grant, scope, freshness, and device selection.
-3. Controller and Node exchange signaling through HTTPS.
+3. Controller and Node exchange the control challenge and signed handshake through HTTPS.
 4. Both sides derive an authenticated control key.
-5. Process frames use sequence-bound AES-GCM over WebRTC.
+5. Process frames use sequence-bound AES-GCM inside the authenticated control WebSocket pipe.
 6. The Node validates RC Lock and the Owner-signed grant before execution.
 7. Active lifecycle metadata is published to server state and SSE.
 

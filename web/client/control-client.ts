@@ -112,7 +112,10 @@ export async function syncWorkspaceAuthority(workspaceId: string, selected?: str
 
 export async function syncOwnedAuthorities() {
   const me = await api<Me>("/api/v1/me");
-  for (const workspace of me.workspaces.filter(item => item.role === "owner")) await syncWorkspaceAuthority(workspace.id);
+  // Credential creation must not depend on every Node being awake. Offline
+  // Nodes pick up the new lock on reconnect; blocking here would surface a
+  // failure for a key that already exists server-side.
+  for (const workspace of me.workspaces.filter(item => item.role === "owner")) await syncWorkspaceAuthority(workspace.id, undefined, true);
 }
 
 export async function pinDevice(deviceId: string, identityKey: string, transportKey: string) {

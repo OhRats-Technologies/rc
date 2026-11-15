@@ -12,6 +12,7 @@ Commands:
   version               Print the installed RC version
   status                Show local enrollment and remote Node status
   devices               List devices available to the signed-in account
+  device                Rename a device (rc device rename <id> <name>)
   config                Read or change local Node configuration
   enroll                Enroll this machine as an RC Node
   run                   Run the foreground Node presence loop
@@ -31,6 +32,6 @@ Commands:
 Unknown commands are dispatched to an installed component that declares them.
 
 "rc shell" opens a local shell on the enrolled device. "rc shell DEVICE" uses
-the authenticated WebRTC control session and saved API key authorization.
+the authenticated encrypted control tunnel and saved API key authorization.
 `, Version)
 }

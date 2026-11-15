@@ -39,6 +39,7 @@ type NodeHub struct {
 	onPresence      func(string, bool)
 	onHello         func(string, *protocol.NodeHello)
 	onLock          func(string, string, uint64)
+	onControlFrame  func(string, protocol.NodeToServer)
 	onControlClosed func(string, string)
 	onProcessState  func(string, protocol.NodeToServer)
 }

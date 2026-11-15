@@ -61,6 +61,10 @@ func (c *ApiClient) Put(ctx context.Context, path string, body any, out any) err
 	return c.do(ctx, http.MethodPut, path, body, out)
 }
 
+func (c *ApiClient) Patch(ctx context.Context, path string, body any, out any) error {
+	return c.do(ctx, http.MethodPatch, path, body, out)
+}
+
 func (c *ApiClient) Delete(ctx context.Context, path string, out any) error {
 	return c.do(ctx, http.MethodDelete, path, nil, out)
 }
@@ -88,6 +92,19 @@ func (c *ApiClient) Device(ctx context.Context, id string) (*Device, error) {
 		return nil, err
 	}
 	return &resp.Device, nil
+}
+
+// RenameDevice changes a device display name. The server requires the
+// manage-devices scope in addition to the caller's workspace role.
+func (c *ApiClient) RenameDevice(ctx context.Context, id, name string) (string, error) {
+	var resp struct {
+		Name string `json:"name"`
+	}
+	path := fmt.Sprintf("/api/v1/devices/%s", url.PathEscape(id))
+	if err := c.Patch(ctx, path, map[string]string{"name": name}, &resp); err != nil {
+		return "", err
+	}
+	return resp.Name, nil
 }
 
 func (c *ApiClient) do(ctx context.Context, method, path string, body any, out any) error {

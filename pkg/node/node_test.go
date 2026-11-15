@@ -138,13 +138,9 @@ func TestControlSessionEstablishmentAndEncryption(t *testing.T) {
 		t.Fatalf("DecryptFrame failed: decrypted=%s, err=%v", string(decrypted), err)
 	}
 
-	// Test binary framing over HandleRawFrame
-	binFrame, err := protocol.EncodeBinaryFrame(1, 1, []byte(ciphertext))
-	if err != nil {
-		t.Fatalf("EncodeBinaryFrame failed: %v", err)
-	}
-	if _, err := mgr.HandleRawFrame("sess_xyz", binFrame); err != nil {
-		t.Fatalf("HandleRawFrame failed with binary frame: %v", err)
+	// The dispatcher accepts the same encrypted frame directly.
+	if _, err := mgr.HandleDirectFrame("sess_xyz", 1, ciphertext); err != nil {
+		t.Fatalf("HandleDirectFrame failed: %v", err)
 	}
 }
 

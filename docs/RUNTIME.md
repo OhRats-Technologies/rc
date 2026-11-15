@@ -54,7 +54,7 @@ shell families fail instead of receiving Unix `-l` or `-lc` arguments.
 
 Environment base is inherit or clean; ordinary execution defaults to inherit.
 Ordered changes set or unset names. Values MUST NOT be logged, traced,
-diagnosed, or hosted-persisted. Browser/CLI values remain DataChannel plaintext;
+diagnosed, or hosted-persisted. Browser/CLI values remain control-frame plaintext;
 MCP values MAY transit bounded hosted memory. Windows compares names
 case-insensitively and rejects conflicting spellings such as PATH and Path.
 Discovery honors PATHEXT and normal Unix PATH.
@@ -151,8 +151,9 @@ remain non-replayable regardless of the number of executions.
 ## Browser, CLI, and MCP
 
 HTTP carries allocation metadata and signaling; SSE carries lifecycle metadata;
-only encrypted WebRTC DataChannels carry browser/CLI mode, argv or script, cwd,
-environment, streams, resize, signal, and attach. No hosted fallback exists.
+only the authenticated control WebSocket pipe carries encrypted browser/CLI
+frames for mode, argv or script, cwd, environment, streams, resize, signal, and
+attach. No hosted plaintext fallback exists.
 Session storage MAY hold only a non-sensitive one-time intent. Browser terminal
 and rc shell send system-login-shell, never Unix shell source.
 
@@ -258,9 +259,9 @@ gaps are negotiated honestly and do not block browser, CLI, or MCP parity.
 Node control messages retain the serialized 1 MiB capacity boundary. Messages above
 48 KiB use ordered JSON text fragments (`rcFragment`, `last`) of at most 8 KiB of
 source text per fragment; receivers bound reassembly to the message capacity.
-Fragments of separate messages cannot interleave. A new DataChannel starts with
-an empty reassembly buffer. This accommodates the native DataChannel's 64 KiB
-message limit without truncating process output or replaying process starts.
+Fragments of separate messages cannot interleave. A new control session starts
+with an empty reassembly buffer. This accommodates transport frame limits
+without truncating process output or replaying process starts.
 A failed observation preserves its execution ID; clients query status rather
 than repeat a possibly delivered command. Native execution groups close at
 completion while their bounded output journals remain available for reads.

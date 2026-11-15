@@ -148,9 +148,7 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 						hosted.AuthorityChanged(snapshot)
 					}
 					if control != nil {
-						for _, sessionID := range control.CloseAllSessions() {
-							_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
-						}
+						control.CloseAllSessions()
 					}
 				}
 				hash, generation := LockMetadata(stateDir)
@@ -169,9 +167,7 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 					hosted.AuthorityChanged(snapshot)
 				}
 				if control != nil {
-					for _, sessionID := range control.CloseAllSessions() {
-						_ = send(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
-					}
+					control.CloseAllSessions()
 				}
 			}
 			hash, generation := LockMetadata(stateDir)
@@ -197,7 +193,7 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 			}
 			ready, err := control.OpenAuthorizedSession(
 				message.Challenge, message.ClientID, message.PublicKey,
-				message.Signature, authority, message.IceServers,
+				message.Signature, authority, send,
 			)
 			if err != nil {
 				sendControlError(send, message.RequestID, err.Error())
@@ -207,21 +203,14 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 				Type: protocol.TypeControlOpen, RequestID: message.RequestID,
 				SessionID: ready.SessionID, TransportPublicKey: ready.TransportPublicKey,
 				EphemeralPublicKey: ready.EphemeralPublicKey, Signature: ready.Signature,
-				Attempts: ready.Attempts,
 			})
-		case protocol.TypeControlWebRTC:
+		case protocol.TypeControlFrame:
 			if control == nil {
-				sendControlError(send, message.RequestID, "control manager unavailable")
 				continue
 			}
-			answer, err := control.AnswerWebRTC(message.SessionID, message.SDP, message.IceServers)
-			if err != nil {
-				sendControlError(send, message.RequestID, err.Error())
-				continue
+			if _, err := control.HandleDirectFrame(message.SessionID, message.Sequence, message.Ciphertext); err != nil {
+				logf("control frame: " + err.Error())
 			}
-			send(protocol.NodeToServer{
-				Type: protocol.TypeControlWebRTC, RequestID: message.RequestID, SDP: answer,
-			})
 		case protocol.TypeControlClose:
 			if control != nil {
 				control.CloseSession(message.SessionID)

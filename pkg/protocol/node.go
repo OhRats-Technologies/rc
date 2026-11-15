@@ -12,11 +12,11 @@ type NodeToServer struct {
 	RequestID             string              `json:"request_id,omitempty"`
 	Challenge             string              `json:"challenge,omitempty"`
 	SessionID             string              `json:"session_id,omitempty"`
+	Sequence              uint64              `json:"sequence,omitempty"`
+	Ciphertext            string              `json:"ciphertext,omitempty"`
 	TransportPublicKey    string              `json:"transport_public_key,omitempty"`
 	EphemeralPublicKey    string              `json:"ephemeral_public_key,omitempty"`
 	Signature             string              `json:"signature,omitempty"`
-	Attempts              []ControlIceAttempt `json:"attempts,omitempty"`
-	SDP                   string              `json:"sdp,omitempty"`
 	Hash                  string              `json:"hash,omitempty"`
 	Generation            uint64              `json:"generation,omitempty"`
 	Data                  string              `json:"data,omitempty"`
@@ -48,10 +48,9 @@ type ServerToNode struct {
 	Challenge          string          `json:"challenge,omitempty"`
 	ClientID           string          `json:"client_id,omitempty"`
 	PublicKey          string          `json:"public_key,omitempty"`
-	IceServers         []IceServer     `json:"ice_servers,omitempty"`
 	SessionID          string          `json:"session_id,omitempty"`
-	SDP                string          `json:"sdp,omitempty"`
-	Mode               ControlIceMode  `json:"mode,omitempty"`
+	Sequence           uint64          `json:"sequence,omitempty"`
+	Ciphertext         string          `json:"ciphertext,omitempty"`
 	ExecMode           *ExecutionMode  `json:"mode_exec,omitempty"`
 	ProcessID          string          `json:"process_id,omitempty"`
 	Command            string          `json:"command,omitempty"`

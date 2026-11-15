@@ -10,7 +10,6 @@ import (
 
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
-	"github.com/OhRats-Technologies/rc/pkg/transport"
 )
 
 type challengeEntry struct {
@@ -28,9 +27,9 @@ type ControlSession struct {
 	CanExecute  bool
 	CanManage   bool
 
-	seqMu       sync.Mutex
-	transportMu sync.Mutex
-	peer        *transport.Peer
+	seqMu  sync.Mutex
+	emitMu sync.Mutex
+	emit   func(protocol.NodeToServer) error
 }
 
 func (s *ControlSession) DecryptFrame(sequence uint64, ciphertext string) ([]byte, error) {
@@ -56,16 +55,16 @@ func (s *ControlSession) acceptSequence(sequence uint64) bool {
 	return true
 }
 
-func (s *ControlSession) setPeer(peer *transport.Peer) {
-	s.transportMu.Lock()
-	s.peer = peer
-	s.transportMu.Unlock()
+func (s *ControlSession) setEmitter(emit func(protocol.NodeToServer) error) {
+	s.emitMu.Lock()
+	s.emit = emit
+	s.emitMu.Unlock()
 }
 
-func (s *ControlSession) currentPeer() *transport.Peer {
-	s.transportMu.Lock()
-	defer s.transportMu.Unlock()
-	return s.peer
+func (s *ControlSession) currentEmitter() func(protocol.NodeToServer) error {
+	s.emitMu.Lock()
+	defer s.emitMu.Unlock()
+	return s.emit
 }
 
 type ControlManager struct {
@@ -170,8 +169,8 @@ func (m *ControlManager) CloseSession(sessionID string) {
 	if !ok {
 		return
 	}
-	if peer := session.currentPeer(); peer != nil {
-		peer.Close()
+	if emit := session.currentEmitter(); emit != nil {
+		_ = emit(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
 	}
 	if m.processes != nil {
 		m.processes.DetachSecureSession(sessionID)
@@ -188,32 +187,14 @@ func (m *ControlManager) CloseAllSessions() []string {
 	closed := make([]string, 0, len(sessions))
 	for sessionID, session := range sessions {
 		closed = append(closed, sessionID)
-		if peer := session.currentPeer(); peer != nil {
-			peer.Close()
+		if emit := session.currentEmitter(); emit != nil {
+			_ = emit(protocol.NodeToServer{Type: protocol.TypeControlClosed, SessionID: sessionID})
 		}
 		if m.processes != nil {
 			m.processes.DetachSecureSession(sessionID)
 		}
 	}
 	return closed
-}
-
-func (m *ControlManager) HandleRawFrame(sessionID string, frameBytes []byte) ([]byte, error) {
-	if protocol.IsBinaryFrame(frameBytes) {
-		frame, err := protocol.DecodeBinaryFrame(frameBytes)
-		if err != nil {
-			return nil, err
-		}
-		return m.HandleDirectFrame(sessionID, frame.Sequence, string(frame.Payload))
-	}
-	var frame struct {
-		Sequence   uint64 `json:"seq"`
-		Ciphertext string `json:"ct"`
-	}
-	if err := json.Unmarshal(frameBytes, &frame); err != nil {
-		return nil, err
-	}
-	return m.HandleDirectFrame(sessionID, frame.Sequence, frame.Ciphertext)
 }
 
 func (m *ControlManager) HandleDirectFrame(sessionID string, sequence uint64, ciphertext string) ([]byte, error) {
@@ -255,18 +236,14 @@ func (m *ControlManager) sendFrame(sessionID string, message protocol.ControlMes
 	if err != nil {
 		return false
 	}
-	peer := session.currentPeer()
-	if peer == nil {
+	emit := session.currentEmitter()
+	if emit == nil {
 		return false
 	}
-	frame, err := json.Marshal(protocol.ControlTransportMessage{
+	return emit(protocol.NodeToServer{
 		Type: protocol.TypeControlFrame, SessionID: sessionID,
 		Sequence: sequence, Ciphertext: ciphertext,
-	})
-	if err != nil {
-		return false
-	}
-	return peer.Send(frame) == nil
+	}) == nil
 }
 
 func randomControlValue(size int) string {

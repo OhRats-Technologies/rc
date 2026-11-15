@@ -18,13 +18,9 @@ func SessionPayload(challenge, deviceID, clientID, publicKey string) string {
 	return fmt.Sprintf("rc-session-v1\n%s\n%s\n%s\n%s", challenge, deviceID, clientID, publicKey)
 }
 
-func ReadyPayload(challenge, deviceID, clientID, publicKey, transportKey, ephemeralKey, sessionID, attemptPlan string) string {
-	if attemptPlan == "" {
-		return fmt.Sprintf("rc-ready-v2\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
-			challenge, deviceID, clientID, publicKey, transportKey, ephemeralKey, sessionID)
-	}
-	return fmt.Sprintf("rc-ready-v3\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
-		challenge, deviceID, clientID, publicKey, transportKey, ephemeralKey, sessionID, attemptPlan)
+func ReadyPayload(challenge, deviceID, clientID, publicKey, transportKey, ephemeralKey, sessionID string) string {
+	return fmt.Sprintf("rc-ready-v4\n%s\n%s\n%s\n%s\n%s\n%s\n%s",
+		challenge, deviceID, clientID, publicKey, transportKey, ephemeralKey, sessionID)
 }
 
 func FrameNonce(direction byte, sequence uint64) [12]byte {

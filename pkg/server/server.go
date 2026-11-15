@@ -36,8 +36,6 @@ type Config struct {
 	TurnstileSiteKey       string
 	TurnstileSecretKey     string
 	TrustProxy             bool
-	TurnTokenID            string
-	TurnAPIToken           string
 	MCPAccessTTLMinutes    uint64
 }
 
@@ -48,7 +46,6 @@ type Server struct {
 	events    *EventHub
 	mcp       *McpHandler
 	auth      *authstore.Store
-	turn      *turnProvider
 	nodes     *NodeHub
 	control   *controlHub
 	processes *processHub
@@ -79,13 +76,13 @@ func New(cfg Config) *Server {
 		events:   events,
 		mcp:      mcp,
 		nodes:    nodes,
-		turn:     newTurnProvider(cfg.TurnTokenID, cfg.TurnAPIToken),
 	}
-	s.control = newControlHub(nodes, s.turn)
+	s.control = newControlHub()
 	s.processes = newProcessHub()
 	mcp.challenge = s.writeOAuthChallenge
 	nodes.onHello = s.handleNodeHello
 	nodes.onLock = s.handleNodeLockState
+	s.control.wire(nodes)
 	nodes.onControlClosed = func(deviceID, sessionID string) {
 		session, ok := s.control.get(sessionID)
 		if ok && session.DeviceID == deviceID {
@@ -133,7 +130,6 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/v1/node/enroll", reg.HandleEnroll)
 	mux.HandleFunc("GET /api/v1/node/self", s.handleNodeSelf)
 	mux.HandleFunc("POST /api/v1/node/heartbeat", s.handleNodeHeartbeat)
-	mux.HandleFunc("GET /api/v1/node/ice", s.handleNodeICE)
 	mux.HandleFunc("GET /api/v1/node/connect", s.handleNodeConnect)
 	mux.HandleFunc("GET /setup/{token}", s.handleSetupLink)
 	mux.HandleFunc("POST /api/v1/auth/setup/options", s.handleSetupOptions)
@@ -151,7 +147,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("POST /api/v1/control/authorize/verify", s.handleControlAuthorizeVerify)
 	mux.Handle("POST /api/v1/control/challenge", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlChallenge)))
 	mux.Handle("POST /api/v1/control/open", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlOpen)))
-	mux.Handle("POST /api/v1/control/{session}/webrtc", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlWebRTC)))
+	mux.Handle("GET /api/v1/control/pipe/{session}", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlPipe)))
 	mux.Handle("DELETE /api/v1/control/{session}", s.allowSessionOrAPI(http.HandlerFunc(s.handleControlClose)))
 	mux.HandleFunc("POST /account/logout", s.handleLogout)
 	mux.HandleFunc("POST /account/delete", s.handleAccountDelete)
