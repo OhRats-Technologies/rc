@@ -215,7 +215,7 @@ func sendControlFrame(conn *websocket.Conn, key *[32]byte, sessionID string, seq
 	if err != nil {
 		return err
 	}
-	return websocket.Message.Send(conn, frame)
+	return websocket.Message.Send(conn, string(frame))
 }
 
 func randomURLBytes(size int) string {

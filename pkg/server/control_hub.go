@@ -50,7 +50,9 @@ func (p *controlPipe) run() {
 				return
 			}
 			_ = p.conn.SetWriteDeadline(time.Now().Add(20 * time.Second))
-			if err := websocket.Message.Send(p.conn, encoded); err != nil {
+			// Text frames: the browser client requires string event.data, and
+			// a []byte payload would be delivered as a binary Blob.
+			if err := websocket.Message.Send(p.conn, string(encoded)); err != nil {
 				p.close()
 				return
 			}

@@ -10,6 +10,9 @@ All notable RC changes are recorded here. Published tags are immutable.
 - Remove ICE/STUN/TURN negotiation, the `transport-webrtc` component from the
   core profile, and the pion WebRTC dependency. The `transport-webrtc`
   component sources remain for the immutable v0.19.2 legacy bundle only.
+- Send control pipe frames as WebSocket text frames. The server relayed them
+  as binary, which the browser receives as a Blob and rejects as an invalid
+  control frame; the CLI now sends text as well.
 - Browser control uses `GET /api/v1/control/pipe/{session}`; the CLI dials the
   same pipe with its signed API key. Node sessions emit `control.frame` over
   the authenticated Node WebSocket.

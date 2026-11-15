@@ -104,12 +104,14 @@ func TestAuthenticatedControlSignalingAndEncryptedProcess(t *testing.T) {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) && !receivedExit {
 		_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-		var message []byte
+		// Read as a string so a binary frame fails here: the browser client
+		// requires text frames and would reject a Blob as invalid.
+		var message string
 		if err := websocket.Message.Receive(conn, &message); err != nil {
 			t.Fatalf("control frame: %v", err)
 		}
 		var frame protocol.ControlTransportMessage
-		if json.Unmarshal(message, &frame) != nil || frame.Type != protocol.TypeControlFrame {
+		if json.Unmarshal([]byte(message), &frame) != nil || frame.Type != protocol.TypeControlFrame {
 			t.Fatalf("unexpected control frame = %s", message)
 		}
 		plain, err := crypto.DecryptFrame(&key, 2, frame.Sequence, ready.SessionID, "n2c", frame.Ciphertext)
