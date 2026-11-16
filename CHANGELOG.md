@@ -2,6 +2,13 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.10] - 2026-11-15
+
+- Authenticate the CLI release lookup when `RC_RELEASE_TOKEN` or
+  `GITHUB_TOKEN` is set. `rc repair` and `rc upgrade` resolved the release
+  document anonymously, so a rate-limited IP failed the command. The token is
+  sent only to the release API request, never to asset downloads.
+
 ## [0.20.9] - 2026-11-15
 
 - Run interactive sessions on a real PTY. The Node spawned every process with
