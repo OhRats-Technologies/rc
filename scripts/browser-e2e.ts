@@ -1,7 +1,7 @@
 import { startWindowsNodeService } from "./browser-e2e-service";
 import { instrumentSource } from "./browser-e2e-instrument";
 import { exerciseMCPConnection } from "./browser-e2e-mcp";
-import { verifyTerminalRendering } from "./browser-e2e-terminal";
+import { verifyTerminalRendering, verifyTerminalTTY } from "./browser-e2e-terminal";
 import { chmod, copyFile, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -61,9 +61,12 @@ await mkdir(data); await mkdir(nodeState); await mkdir(components);
 const typeInput = windows || process.env.RC_E2E_TYPE_INPUT === "1";
 const loginShell = windows ? (process.env.ComSpec || "C:\\Windows\\System32\\cmd.exe") : join(directory, "login-shell");
 if (!windows) {
+  // Report whether stdin is a terminal: the browser terminal must reach the
+  // shell through a PTY, not a pipe.
+  const ttyProbe = "if [ -t 0 ]; then printf 'RC_BROWSER_E2E_TTY=1\\n'; else printf 'RC_BROWSER_E2E_TTY=0\\n'; fi\n";
   const script = typeInput
-    ? "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\nprintf 'RC_BROWSER_E2E_PROMPT> '\nwhile IFS= read -r line; do\n  [ \"$line\" = \"exit 0\" ] && exit 0\n  printf '%s\\n' \"$line\"\n  printf 'RC_BROWSER_E2E_PROMPT> '\ndone\n"
-    : "#!/bin/sh\nprintf 'RC_BROWSER_E2E_OK\\n'\n";
+    ? "#!/bin/sh\n" + ttyProbe + "printf 'RC_BROWSER_E2E_OK\\n'\nprintf 'RC_BROWSER_E2E_PROMPT> '\nwhile IFS= read -r line; do\n  [ \"$line\" = \"exit 0\" ] && exit 0\n  printf '%s\\n' \"$line\"\n  printf 'RC_BROWSER_E2E_PROMPT> '\ndone\n"
+    : "#!/bin/sh\n" + ttyProbe + "printf 'RC_BROWSER_E2E_OK\\n'\n";
   await writeFile(loginShell, script, { mode: 0o700 });
   await chmod(loginShell, 0o700);
 }
@@ -209,6 +212,7 @@ try {
   await evaluate(`(()=>{sessionStorage.setItem(${JSON.stringify(`rc_process_start_${createdProcess.processId}`)},JSON.stringify({mode:{kind:"systemLoginShell"},terminal:{cols:80,rows:24,term:"xterm-256color"}}));location.href=${JSON.stringify(`/devices/${device.id}/processes/${createdProcess.processId}`)};return true})()`);
   await waitFor(`location.pathname.endsWith(${JSON.stringify(`/processes/${createdProcess.processId}`)}) && document.readyState === "complete" && document.querySelector('.terminal-host .xterm') !== null`, 20_000, "process terminal mounted");
   await verifyTerminalRendering(evaluate);
+  await verifyTerminalTTY(evaluate, waitFor);
   try {
     await waitFor(`document.querySelector('#control-transport')?.textContent?.includes('E2EE') && !document.querySelector('#control-transport')?.textContent?.includes('FAILED')`, 35_000, "encrypted control tunnel");
   } catch (failure) {

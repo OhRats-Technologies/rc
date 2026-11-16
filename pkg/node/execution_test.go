@@ -117,3 +117,48 @@ func TestNativeExecutionInputAndSignal(t *testing.T) {
 		t.Fatalf("expected completed after KILL, got: %s", read.Status)
 	}
 }
+
+// A browser terminal requests a PTY. Without one the shell runs
+// non-interactively: no prompt, no echo, no line editing.
+func TestNativeExecutionLoginShellUsesPTY(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("no PTY backend on Windows")
+	}
+	t.Setenv("RC_SHELL", "/bin/sh")
+	mgr := NewNativeExecutionManager()
+	defer mgr.Shutdown()
+
+	started, err := mgr.Start(ProcessSpec{
+		ID: "pty-login", Mode: protocol.ExecutionMode{Kind: protocol.ExecutionModeSystemLoginShell},
+		Environment: protocol.EnvironmentSpec{Base: protocol.EnvironmentBaseInherit},
+		Terminal:    &protocol.TerminalSpec{Cols: 80, Rows: 24, Term: "xterm-256color"},
+	})
+	if err != nil || !started {
+		t.Fatalf("start login shell = %v, %v", started, err)
+	}
+	if err := mgr.Resize("pty-login", 100, 30); err != nil {
+		t.Fatalf("resize: %v", err)
+	}
+	if err := mgr.Input("pty-login", []byte("echo RC_PTY_OK\n")); err != nil {
+		t.Fatalf("input: %v", err)
+	}
+
+	var output strings.Builder
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) && !strings.Contains(output.String(), "RC_PTY_OK") {
+		read, ok := mgr.ExecutionRead("pty-login", 0, 1<<20)
+		if !ok {
+			t.Fatal("execution read failed")
+		}
+		for _, chunk := range read.Chunks {
+			output.Write(chunk.Bytes)
+		}
+		if read.Status != "running" {
+			break
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	if !strings.Contains(output.String(), "RC_PTY_OK") {
+		t.Fatalf("login shell produced no command output over the PTY: %q", output.String())
+	}
+}

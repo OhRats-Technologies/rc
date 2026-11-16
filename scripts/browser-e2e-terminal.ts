@@ -33,3 +33,18 @@ export async function verifyTerminalRendering(evaluate: Evaluate) {
     throw new Error(`terminal did not lay out: ${JSON.stringify(layout)}`);
   }
 }
+
+type WaitFor = (expression: string, timeoutMs: number, label: string) => Promise<unknown>;
+
+// The shell reports whether stdin is a terminal. A pipe-backed shell would
+// report 0 and render no prompt, echo, or line editing.
+export async function verifyTerminalTTY(evaluate: Evaluate, waitFor: WaitFor) {
+  try {
+    await waitFor(`String(window.__rcE2EOutput || '').includes('RC_BROWSER_E2E_TTY=')`, 20_000, "terminal TTY probe");
+  } catch (failure) {
+    const tail = await evaluate<string>(`String(window.__rcE2EOutput || "").slice(-500)`);
+    throw new Error(`${String(failure)} output=${tail}`);
+  }
+  const tty = await evaluate<string>(`String(window.__rcE2EOutput || "").includes('RC_BROWSER_E2E_TTY=1') ? "1" : "0"`);
+  if (tty !== "1") throw new Error("browser terminal is not attached to a PTY");
+}

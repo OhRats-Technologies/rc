@@ -4,6 +4,7 @@ go 1.26.5
 
 require (
 	github.com/bytecodealliance/wasmtime-go/v50 v50.0.0
+	github.com/creack/pty v1.1.24
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.61.1

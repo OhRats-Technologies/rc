@@ -2,6 +2,21 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.9] - 2026-11-15
+
+- Run interactive sessions on a real PTY. The Node spawned every process with
+  pipes and ignored the requested terminal, so a login shell ran
+  non-interactively: no prompt, no echo, no line editing, and an apparently
+  empty browser terminal. Interactive requests now allocate a pseudo-terminal,
+  forward window resizes to it, and pass input through without rewriting it.
+  Windows keeps the pipe path, which has no PTY backend here.
+- Resolve the login shell by checking that the configured shell exists. A Node
+  can inherit `SHELL` from its parent environment pointing at a path that is
+  not present in its guest, which failed the whole start with "process could
+  not be started".
+- Assert in the browser E2E that the shell sees a terminal on stdin, so a
+  pipe-backed regression cannot pass again.
+
 ## [0.20.8] - 2026-11-15
 
 - Link the terminal stylesheet on the process page. The client entry imports
