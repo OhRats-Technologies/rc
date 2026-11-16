@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"strings"
 	"time"
@@ -75,6 +76,11 @@ func FetchRelease(ctx context.Context, api string) (*Release, error) {
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "rc-upgrade")
+	// CI and other automated callers can authenticate the lookup so they do
+	// not depend on the shared unauthenticated GitHub API quota.
+	if token := releaseToken(); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	res, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch release metadata: %w", err)
@@ -205,4 +211,15 @@ func EnforceUpgradeManifest(manifest *Manifest, current string) error {
 		return fmt.Errorf("this release requires upgrader %s or newer; install the release once with public/install.sh or public/install.ps1", manifest.MinimumUpgrader)
 	}
 	return nil
+}
+
+// releaseToken returns an optional GitHub token for the release lookup. Only
+// the API request carries it; asset downloads go to the CDN.
+func releaseToken() string {
+	for _, name := range []string{"RC_RELEASE_TOKEN", "GITHUB_TOKEN"} {
+		if value := strings.TrimSpace(os.Getenv(name)); value != "" {
+			return value
+		}
+	}
+	return ""
 }
