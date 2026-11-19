@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"sync"
@@ -26,12 +27,13 @@ func RunControl(ctx context.Context, server, stateDir string, state *NodeState, 
 	}
 	backoff := time.Second
 	for {
+		started := time.Now()
 		err := runControlOnce(ctx, server, stateDir, state, exec, hosted, sessions, logf)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil {
-			logf("control channel: " + err.Error())
+			logf(fmt.Sprintf("control channel closed after %s: %v", time.Since(started).Round(time.Second), err))
 		}
 		select {
 		case <-ctx.Done():
@@ -124,6 +126,21 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 	})
 	_ = send(protocol.NodeToServer{Type: "process_sync", IDs: exec.ActiveIDs()})
 	logf("control channel connected")
+	// Idle WebSockets are closed by proxies; keepalives keep the channel open between commands.
+	go func() {
+		ticker := time.NewTicker(protocol.KeepaliveInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				if send(protocol.NodeToServer{Type: protocol.TypeKeepalive}) != nil {
+					return
+				}
+			}
+		}
+	}()
 	decoder := &protocol.Decoder{}
 	for {
 		var payload []byte

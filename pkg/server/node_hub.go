@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -27,6 +28,8 @@ type nodePeer struct {
 	deviceID string
 	conn     *websocket.Conn
 	sendMu   sync.Mutex
+	// idleEnforced is set when the Node announces keepalive support. Only the read loop touches it.
+	idleEnforced bool
 }
 
 // NodeHub owns authenticated Node command channels. It carries MCP execution
@@ -42,6 +45,21 @@ type NodeHub struct {
 	onControlFrame  func(string, protocol.NodeToServer)
 	onControlClosed func(string, string)
 	onProcessState  func(string, protocol.NodeToServer)
+	// keepaliveInterval and idleTimeout default to the protocol values; tests shorten them.
+	keepaliveInterval time.Duration
+	idleTimeout       time.Duration
+}
+
+// timing returns the keepalive interval and idle timeout, falling back to the protocol values.
+func (h *NodeHub) timing() (time.Duration, time.Duration) {
+	interval, idle := h.keepaliveInterval, h.idleTimeout
+	if interval <= 0 {
+		interval = protocol.KeepaliveInterval
+	}
+	if idle <= 0 {
+		idle = protocol.IdleTimeout
+	}
+	return interval, idle
 }
 
 func newNodeHub() *NodeHub {
@@ -64,6 +82,7 @@ func (h *NodeHub) Serve(deviceID string, w http.ResponseWriter, req *http.Reques
 
 func (h *NodeHub) servePeer(deviceID string, conn *websocket.Conn) {
 	peer := &nodePeer{hub: h, deviceID: deviceID, conn: conn}
+	_, idleTimeout := h.timing()
 	h.mu.Lock()
 	old := h.peers[deviceID]
 	h.peers[deviceID] = peer
@@ -71,13 +90,22 @@ func (h *NodeHub) servePeer(deviceID string, conn *websocket.Conn) {
 	if old != nil {
 		_ = old.conn.Close()
 	}
+	started := time.Now()
+	log.Printf("node %s control channel connected", deviceID)
+	stop := make(chan struct{})
+	go peer.keepalive(stop)
 	if h.onPresence != nil {
 		h.onPresence(deviceID, true)
 	}
 	decoder := &protocol.Decoder{}
+	var closeErr error
 	for {
+		if peer.idleEnforced {
+			_ = conn.SetReadDeadline(time.Now().Add(idleTimeout))
+		}
 		var payload []byte
 		if err := websocket.Message.Receive(conn, &payload); err != nil {
+			closeErr = err
 			break
 		}
 		plain, done, err := decoder.Accept(payload)
@@ -88,9 +116,31 @@ func (h *NodeHub) servePeer(deviceID string, conn *websocket.Conn) {
 		if json.Unmarshal(plain, &message) != nil {
 			continue
 		}
+		if message.Type == "hello" && message.Hello != nil && hasCapability(message.Hello.Capabilities, protocol.CapabilityKeepalive) {
+			peer.idleEnforced = true
+		}
 		h.dispatch(deviceID, message)
 	}
+	close(stop)
+	log.Printf("node %s control channel closed after %s: %v", deviceID, time.Since(started).Round(time.Second), closeErr)
 	h.removeIf(deviceID, peer)
+}
+
+// keepalive keeps an idle control channel open through proxies until the read loop stops.
+func (p *nodePeer) keepalive(stop <-chan struct{}) {
+	interval, _ := p.hub.timing()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			if err := p.send(protocol.ServerToNode{Type: protocol.TypeKeepalive}); err != nil {
+				return
+			}
+		}
+	}
 }
 
 func (h *NodeHub) removeIf(deviceID string, peer *nodePeer) {

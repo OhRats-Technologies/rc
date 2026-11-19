@@ -16,9 +16,10 @@ import (
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/apiclient"
+	"github.com/OhRats-Technologies/rc/pkg/protocol"
 )
 
-var NodeCapabilities = []string{"shell", "files", "pty", "control-ws", "execution-v2", "mcp-account-v2"}
+var NodeCapabilities = []string{"shell", "files", "pty", "control-ws", "execution-v2", "mcp-account-v2", protocol.CapabilityKeepalive}
 
 type RemoteNodeStatus struct {
 	Name    string `json:"name"`

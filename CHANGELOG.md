@@ -18,6 +18,12 @@ All notable RC changes are recorded here. Published tags are immutable.
   `MCP grant is not synchronized with this Node`.
 - `rc status` prints an `RC Lock` line. `rc doctor` checks the lock with RC and
   fails when the Node is out of sync. The Node logs successful lock applies.
+- Keep idle control channels open. Proxies closed idle WebSockets after about two
+  minutes, so Nodes reconnected roughly every 125 seconds. The server and Node now
+  send keepalive messages every 25 seconds. The server closes a Node that
+  announces keepalive support and then sends nothing for 90 seconds.
+- Log control-channel connects and closes on the server, with duration and
+  close reason. The Node logs the duration of each closed channel.
 
 ## [0.20.10] - 2026-11-15
 
