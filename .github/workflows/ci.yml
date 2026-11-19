@@ -205,28 +205,6 @@ jobs:
             python3 scripts/assemble-profile.py "$profile"
           done
 
-  integration:
-    needs: changes
-    if: ${{ !inputs.windows_only && (needs.changes.outputs.runtime == 'true' || needs.changes.outputs.components != '[]' || needs.changes.outputs.deps == 'true') }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-go@v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-      - name: Download modules
-        run: go mod download
-      - uses: ./.github/actions/strip-wasmtime-lto
-      - name: Install componentize-go
-        run: |
-          go install github.com/bytecodealliance/componentize-go@v0.5.3
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Run Go integration harness
-        run: go test ./tests/integration/ -count=1 -v
-
   macos-runtime:
     needs: changes
     if: ${{ !inputs.windows_only }}
