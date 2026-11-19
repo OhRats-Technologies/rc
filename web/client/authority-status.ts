@@ -2,8 +2,15 @@ export type AuthorityStatus = {
   hash: string;
   devices: number;
   synced: number;
-  deviceStates: Array<{ id: string; online: boolean; synced: boolean }>;
+  deviceStates: Array<{ id: string; name: string; online: boolean; synced: boolean }>;
 };
+
+// AuthoritySyncError carries the server's state so the page can show which Nodes are still pending.
+export class AuthoritySyncError extends Error {
+  constructor(message: string, readonly state: AuthorityStatus) {
+    super(message);
+  }
+}
 
 export function authorityProgress(state: AuthorityStatus, selected?: string[]) {
   if (!selected) return { devices: state.devices, synced: state.synced };

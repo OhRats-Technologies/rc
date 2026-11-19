@@ -1,5 +1,6 @@
 import { api } from "./http";
 import { syncWorkspaceAuthority } from "./control-client";
+import { AuthoritySyncError } from "./authority-status";
 import { freshPasskey, stepHeader } from "./step-up";
 
 const workspaceId = document.querySelector<HTMLElement>("[data-authority-workspace]")?.dataset.authorityWorkspace || "";
@@ -12,6 +13,11 @@ document.querySelectorAll<HTMLButtonElement>("[data-authority-sync]").forEach(bu
     // The alert and status lines are rendered by the server, so reload to show the settled state.
     location.reload();
   } catch (error) {
+    // A partial sync leaves the alert stale; refresh its pending list from the server's state.
+    if (error instanceof AuthoritySyncError) {
+      const pending = document.querySelector<HTMLElement>("[data-authority-pending]");
+      if (pending) pending.textContent = error.state.deviceStates.filter(device => !device.synced).map(device => device.name).join(", ");
+    }
     if (output) output.textContent = error instanceof Error ? error.message : String(error);
     button.disabled = false;
   }

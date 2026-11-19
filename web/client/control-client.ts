@@ -1,7 +1,7 @@
 import { api } from "./http";
 import { passkeyAssertion } from "./webauthn";
 import type { Me } from "../types";
-import { authorityProgress, onlineNodesPending, syncSettled, type AuthorityStatus } from "./authority-status";
+import { AuthoritySyncError, authorityProgress, syncSettled, type AuthorityStatus } from "./authority-status";
 
 type ControlIdentity = { id: string; publicKey: string; privateKey: CryptoKey };
 type DevicePin = { identityKey: string; transportKey: string };
@@ -98,19 +98,15 @@ export async function syncWorkspaceAuthority(workspaceId: string, selected?: str
     if (deferOffline) return state;
     throw new Error("RC Lock state is unavailable for synchronization.");
   }
-  await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
-  if (deferOffline) return state;
-  for (let attempt = 0; attempt < 50; attempt++) {
-    await new Promise(resolve => window.setTimeout(resolve, 200));
-    const next = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
-    if (syncSettled(next, selected)) return next;
-  }
-  const final = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
+  // The server waits for online Nodes to acknowledge the lock and returns the settled state, so the browser does not poll.
+  const settled = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
+  if (deferOffline || syncSettled(settled, selected)) return settled;
   if (selected) {
-    const progress = authorityProgress(final, selected);
-    throw new Error(`RC Lock sync was rejected or timed out (${progress.synced}/${progress.devices} selected Nodes accepted it).`);
+    const progress = authorityProgress(settled, selected);
+    throw new AuthoritySyncError(`RC Lock sync was rejected or timed out (${progress.synced}/${progress.devices} selected Nodes accepted it).`, settled);
   }
-  throw new Error(`${onlineNodesPending(final)} online Node(s) did not accept the RC Lock within 10 seconds. Check that they are connected, then run Sync device access again.`);
+  const pending = settled.deviceStates.filter(device => device.online && !device.synced).map(device => device.name || device.id);
+  throw new AuthoritySyncError(`${pending.join(", ")} did not accept the RC Lock within 10 seconds. Check that the Node is connected, then run Sync device access again.`, settled);
 }
 
 export async function syncOwnedAuthorities() {

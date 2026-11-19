@@ -1,8 +1,11 @@
 package server
 
 import (
+	"log"
+	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/node"
 )
@@ -63,7 +66,100 @@ func authorityAlert(status authorityStatus, role string, withAction bool) string
 	}
 	return `<div class="authority-alert" role="alert" data-authority-alert="` + escape(status.WorkspaceID) + `">` +
 		`<div class="authority-alert-body"><p class="alert-title">RC Lock out of sync</p>` +
-		`<p>` + escape(pendingNodeSummary(status.Pending)) + ` has not accepted the current workspace access. ` +
-		`Remote commands and MCP are refused on these Nodes until they accept it. Offline Nodes accept it when they reconnect.</p>` +
+		`<p>Not yet accepted by <span data-authority-pending>` + escape(pendingNodeSummary(status.Pending)) + `</span>. ` +
+		`Remote commands and MCP are refused on these Nodes until they accept the current workspace access. Offline Nodes accept it when they reconnect.</p>` +
 		`<p class="meta" data-authority-status="` + escape(status.WorkspaceID) + `"></p></div>` + action + `</div>`
+}
+
+// writeAuthorityState reports how far each Node in the workspace has accepted its current RC Lock.
+// The browser uses it to decide whether a sync has settled; it never carries authority.
+func (s *Server) writeAuthorityState(w http.ResponseWriter, workspaceID string) {
+	snapshot, err := s.authoritySnapshot(workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "authority snapshot failed")
+		return
+	}
+	hash := node.SnapshotHash(snapshot)
+	devices := make([]*RegisteredDevice, 0)
+	for _, device := range s.registry.List() {
+		if device.WorkspaceID == workspaceID {
+			devices = append(devices, device)
+		}
+	}
+	synced := 0
+	states := make([]map[string]any, 0, len(devices))
+	parents := make(map[string]map[string]any)
+	for _, device := range devices {
+		if device.LockHash == hash {
+			synced++
+		}
+		states = append(states, map[string]any{
+			"id": device.ID, "name": device.Name, "synced": device.LockHash == hash, "online": s.nodes.Online(device.ID),
+		})
+		if validAuthorityHash(device.LockHash) && device.LockHash != hash {
+			parents[authorityParentKey(device.LockHash, device.LockGeneration)] = map[string]any{
+				"hash": device.LockHash, "generation": device.LockGeneration,
+			}
+		}
+	}
+	pending, err := s.auth.AuthorityDeliveryParents(workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "authority state failed")
+		return
+	}
+	for _, parent := range pending {
+		hashValue, _ := parent[0].(string)
+		generation, _ := parent[1].(uint64)
+		if hashValue != "" && hashValue != hash {
+			parents[authorityParentKey(hashValue, generation)] = map[string]any{
+				"hash": hashValue, "generation": generation,
+			}
+		}
+	}
+	parentList := make([]map[string]any, 0, len(parents))
+	for _, parent := range parents {
+		parentList = append(parentList, parent)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"hash": hash, "devices": len(devices), "synced": synced,
+		"deviceStates": states, "parents": parentList,
+	})
+}
+
+// authorityAcceptTimeout bounds how long a sync request waits for online Nodes to acknowledge the new lock.
+// Offline Nodes are not waited for; they apply the stored transition when they reconnect.
+const authorityAcceptTimeout = 10 * time.Second
+
+// awaitAuthority waits until every online Node in the workspace reports digest, then logs which Nodes are
+// still pending so a failed sync leaves a server-side record.
+func (s *Server) awaitAuthority(workspaceID, digest string, timeout time.Duration) {
+	deadline := time.Now().Add(timeout)
+	for s.onlineAuthorityPending(workspaceID, digest) > 0 && time.Now().Before(deadline) {
+		time.Sleep(100 * time.Millisecond)
+	}
+	var pending []string
+	offline := 0
+	for _, device := range s.registry.List() {
+		if device.WorkspaceID != workspaceID || device.LockHash == digest {
+			continue
+		}
+		if s.nodes.Online(device.ID) {
+			pending = append(pending, device.Name)
+		} else {
+			offline++
+		}
+	}
+	log.Printf("authority sync workspace=%s hash=%s online_pending=%v offline_pending=%d",
+		workspaceID, digest[:12], pending, offline)
+}
+
+// onlineAuthorityPending counts online Nodes in the workspace that have not reported digest.
+func (s *Server) onlineAuthorityPending(workspaceID, digest string) int {
+	count := 0
+	for _, device := range s.registry.List() {
+		if device.WorkspaceID == workspaceID && device.LockHash != digest && s.nodes.Online(device.ID) {
+			count++
+		}
+	}
+	return count
 }

@@ -24,6 +24,11 @@ All notable RC changes are recorded here. Published tags are immutable.
   announces keepalive support and then sends nothing for 90 seconds.
 - Log control-channel connects and closes on the server, with duration and
   close reason. The Node logs the duration of each closed channel.
+- Sync waits on the server, not in the browser. `POST .../authority/sync`
+  returns after online Nodes acknowledge the new lock, or after 10 seconds, and
+  reports the settled state. The browser no longer polls the authority endpoint.
+- A sync that a Node does not accept names that Node, and the alert updates
+  without a reload. The server logs each sync with the Nodes still pending.
 
 ## [0.20.10] - 2026-11-15
 

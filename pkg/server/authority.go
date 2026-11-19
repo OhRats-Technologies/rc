@@ -138,56 +138,7 @@ func (s *Server) handleAuthorityStatus(w http.ResponseWriter, req *http.Request)
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	snapshot, err := s.authoritySnapshot(workspaceID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "authority snapshot failed")
-		return
-	}
-	hash := node.SnapshotHash(snapshot)
-	devices := make([]*RegisteredDevice, 0)
-	for _, device := range s.registry.List() {
-		if device.WorkspaceID == workspaceID {
-			devices = append(devices, device)
-		}
-	}
-	synced := 0
-	states := make([]map[string]any, 0, len(devices))
-	parents := make(map[string]map[string]any)
-	for _, device := range devices {
-		if device.LockHash == hash {
-			synced++
-		}
-		states = append(states, map[string]any{
-			"id": device.ID, "synced": device.LockHash == hash, "online": s.nodes.Online(device.ID),
-		})
-		if validAuthorityHash(device.LockHash) && device.LockHash != hash {
-			parents[authorityParentKey(device.LockHash, device.LockGeneration)] = map[string]any{
-				"hash": device.LockHash, "generation": device.LockGeneration,
-			}
-		}
-	}
-	pending, err := s.auth.AuthorityDeliveryParents(workspaceID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "authority state failed")
-		return
-	}
-	for _, parent := range pending {
-		hashValue, _ := parent[0].(string)
-		generation, _ := parent[1].(uint64)
-		if hashValue != "" && hashValue != hash {
-			parents[authorityParentKey(hashValue, generation)] = map[string]any{
-				"hash": hashValue, "generation": generation,
-			}
-		}
-	}
-	parentList := make([]map[string]any, 0, len(parents))
-	for _, parent := range parents {
-		parentList = append(parentList, parent)
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"hash": hash, "devices": len(devices), "synced": synced,
-		"deviceStates": states, "parents": parentList,
-	})
+	s.writeAuthorityState(w, workspaceID)
 }
 
 func (s *Server) handleAuthoritySync(w http.ResponseWriter, req *http.Request) {
@@ -282,8 +233,6 @@ func (s *Server) handleAuthoritySync(w http.ResponseWriter, req *http.Request) {
 			online++
 		}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true, "devices": len(devices), "online": online,
-		"lockHash": digest, "at": time.Now().UnixMilli(),
-	})
+	s.awaitAuthority(workspaceID, digest, authorityAcceptTimeout)
+	s.writeAuthorityState(w, workspaceID)
 }
