@@ -2,6 +2,23 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.11] - 2026-11-19
+
+- Show RC Lock access state wherever an Owner acts on it. A Node that has not
+  accepted the current workspace access now produces a warning on its device
+  page and on the workspace access page, plus a dot on the workspace in the
+  sidebar. The access page carries the `SYNC DEVICE ACCESS` action in its
+  header instead of a small text link inside the members section.
+- Sync no longer waits for offline Nodes. Offline Nodes apply the stored
+  transition when they reconnect; only online Nodes must accept it before the
+  sync reports success.
+- Deleting a device from the browser now syncs the surviving Nodes from the
+  same session, because removing a Node changes the workspace RC Lock.
+- MCP refusals name the Node and the fix, instead of
+  `MCP grant is not synchronized with this Node`.
+- `rc status` prints an `RC Lock` line. `rc doctor` checks the lock with RC and
+  fails when the Node is out of sync. The Node logs successful lock applies.
+
 ## [0.20.10] - 2026-11-15
 
 - Authenticate the CLI release lookup when `RC_RELEASE_TOKEN` or

@@ -144,6 +144,7 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 				if err := BootstrapLock(stateDir, message.Snapshot, server); err != nil {
 					logf("lock bootstrap: " + err.Error())
 				} else {
+					logf("RC Lock bootstrapped")
 					if snapshot, err := ValidateSnapshot(message.Snapshot); err == nil {
 						hosted.AuthorityChanged(snapshot)
 					}
@@ -163,6 +164,7 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 				message.PreviousGeneration, proof, message.Signature); err != nil {
 				logf("lock sync: " + err.Error())
 			} else {
+				logf("RC Lock sync applied")
 				if snapshot, err := ValidateSnapshot(message.Snapshot); err == nil {
 					hosted.AuthorityChanged(snapshot)
 				}

@@ -98,8 +98,14 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
-	if _, err := s.auth.WorkspaceRole(user.ID, device.WorkspaceID); err != nil {
+	role, err := s.auth.WorkspaceRole(user.ID, device.WorkspaceID)
+	if err != nil {
 		http.NotFound(w, req)
+		return
+	}
+	access, err := s.workspaceAuthority(device.WorkspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "device could not be loaded")
 		return
 	}
 	status := "OFFLINE"
@@ -125,13 +131,14 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		`<p class="error device-title-error" data-device-title-error></p>` + metaRow("p", "Personal", escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div>` +
 		`<div class="device-header-actions"><span id="device-status" class="status` + onlineClass(device.Online) + `">` + status + `</span>` +
 		`<button id="open-terminal" class="device-terminal-button" type="button" aria-label="Open terminal" title="Terminal control is not available in this build" ` + terminalDisabled + `><span class="ui-icon icon-terminal"></span></button>` +
-		`<button class="header-icon-button danger-icon-button" type="button" aria-label="Delete ` + escape(device.Name) + `" title="Delete device" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-description="Deletes from RC immediately. If the Node is offline, it clears its old enrollment the next time it connects." data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span></button></div></header>` +
+		`<button class="header-icon-button danger-icon-button" type="button" aria-label="Delete ` + escape(device.Name) + `" title="Delete device" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-description="Deletes from RC immediately. If the Node is offline, it clears its old enrollment the next time it connects." data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-access-workspace="` + escape(device.WorkspaceID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span></button></div></header>` +
 		`<dl class="facts"><div><dt>HOST</dt><dd>` + escape(device.Hostname) + `</dd></div><div><dt>NODE VERSION</dt><dd id="node-version">` + escape(device.Version) + `</dd></div></dl>` +
 		`<p id="process-error" class="error"></p></section>` +
+		authorityAlert(access, role, true) +
 		`<section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Processes</span><div class="badge-line"></div></div><h2>Active</h2></div></div>` +
 		`<div class="data-list" id="process-list"><p class="empty-state">No active processes.</p></div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
-	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device"}, nil, version.Version), "no-store")
+	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device", "authority"}, nil, version.Version), "no-store")
 }
 
 func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {

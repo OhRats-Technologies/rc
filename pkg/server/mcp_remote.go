@@ -40,7 +40,7 @@ func (h *McpHandler) nodeReady(deviceID string) error {
 		return err
 	}
 	if device.LockHash != hash {
-		return fmt.Errorf("MCP grant is not synchronized with this Node; open RC and run Sync device access for workspace %s", device.WorkspaceID)
+		return fmt.Errorf("%s has not accepted the current workspace access (RC Lock generation %d). Open RC, go to Manage access for this workspace, and run Sync device access", device.Name, device.LockGeneration)
 	}
 	return nil
 }

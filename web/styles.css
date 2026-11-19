@@ -1,3 +1,4 @@
+@import "./authority.css";
 [hidden] { display: none !important; }
 html { color-scheme: light; }
 html.dark, html[data-theme="dark"] { color-scheme: dark; }

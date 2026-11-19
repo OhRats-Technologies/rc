@@ -14,3 +14,17 @@ export function authorityProgress(state: AuthorityStatus, selected?: string[]) {
   }
   return { devices: devices.length, synced: devices.filter(device => device.synced).length };
 }
+
+// Offline Nodes cannot accept an RC Lock now; they apply the stored transition when they reconnect.
+export function onlineNodesPending(state: AuthorityStatus) {
+  return state.deviceStates.filter(device => device.online && !device.synced).length;
+}
+
+// A sync settles when every selected Node accepts it, or when every online Node does without a selection.
+export function syncSettled(state: AuthorityStatus, selected?: string[]) {
+  if (selected) {
+    const progress = authorityProgress(state, selected);
+    return !progress.devices || progress.synced === progress.devices;
+  }
+  return onlineNodesPending(state) === 0;
+}

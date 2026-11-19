@@ -24,6 +24,24 @@ type RemoteNodeStatus struct {
 	Name    string `json:"name"`
 	Online  bool   `json:"online"`
 	Version string `json:"version"`
+	// RCLock is nil when the server does not report lock state.
+	RCLock *RemoteRCLock `json:"rcLock,omitempty"`
+}
+
+// RemoteRCLock is the server's view of this Node's RC Lock for its workspace.
+type RemoteRCLock struct {
+	WorkspaceID string `json:"workspaceId"`
+	Generation  uint64 `json:"generation"`
+	Synced      bool   `json:"synced"`
+}
+
+// LockProblem describes why this Node cannot run remote work, or returns "" when access is current.
+func (s *RemoteNodeStatus) LockProblem() string {
+	if s.RCLock == nil || s.RCLock.Synced {
+		return ""
+	}
+	return fmt.Sprintf("workspace access changed after RC Lock generation %d; remote commands are refused until the Node accepts it. "+
+		"Open RC, go to Manage access for this workspace, and run Sync device access", s.RCLock.Generation)
 }
 
 type EnrollRequest struct {

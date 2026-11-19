@@ -1,0 +1,12 @@
+/* RC Lock access state: the warning surfaces Nodes that have not accepted the current workspace access. */
+.authority-alert { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; padding:.85rem 0; border-top:1px solid var(--or-negative); border-bottom:1px solid var(--or-border); }
+.authority-alert-body { display:flex; flex-direction:column; gap:.4rem; min-width:0; }
+.authority-alert p { margin:0; overflow-wrap:anywhere; }
+.authority-alert .alert-title { font-family:var(--or-font-mono); font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--or-negative); }
+.authority-alert .or-button { flex:none; }
+.authority-alert .error { margin:0; }
+.authority-summary { display:flex; flex-direction:column; gap:.5rem; }
+.workspace-sync-warning { flex:none; align-self:center; width:7px; height:7px; border-radius:50%; background:var(--or-negative); box-shadow:0 0 0 2px var(--or-surface); }
+@media (max-width: 720px) {
+  .authority-alert { flex-direction:column; }
+}

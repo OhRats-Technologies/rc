@@ -1,6 +1,7 @@
 import { onEvent } from "./events";
 import { api } from "./http";
 import { openControlSession } from "./control-session";
+import { syncWorkspaceAuthority } from "./control-client";
 import { freshPasskey, stepHeader } from "./step-up";
 
 const root = document.documentElement;
@@ -137,13 +138,13 @@ const deleteName = deleteDialog?.querySelector<HTMLElement>("[data-delete-name]"
 const deleteDescription = deleteDialog?.querySelector<HTMLElement>("[data-delete-description]");
 const deleteError = deleteDialog?.querySelector<HTMLElement>("[data-delete-error]");
 const deleteConfirm = deleteDialog?.querySelector<HTMLButtonElement>("[data-delete-confirm]");
-let deleteEndpoint = "", deleteRedirect = "/devices", deleteMethod = "DELETE", deleteTrigger: HTMLElement | null = null;
+let deleteEndpoint = "", deleteRedirect = "/devices", deleteMethod = "DELETE", deleteTrigger: HTMLElement | null = null, deleteAccessWorkspace = "";
 
 document.querySelectorAll<HTMLElement>("[data-delete-endpoint]").forEach(button => button.addEventListener("click", event => {
   event.preventDefault();
   if (!deleteDialog || !deleteTitle || !deleteName || !deleteConfirm) return;
   const menu = button.closest<HTMLDetailsElement>("details");
-  deleteEndpoint = button.dataset.deleteEndpoint || ""; deleteRedirect = button.dataset.deleteRedirect || "/devices"; deleteMethod = button.dataset.deleteMethod || "DELETE"; deleteTrigger = menu?.querySelector<HTMLElement>("summary") || button;
+  deleteEndpoint = button.dataset.deleteEndpoint || ""; deleteAccessWorkspace = button.dataset.accessWorkspace || ""; deleteRedirect = button.dataset.deleteRedirect || "/devices"; deleteMethod = button.dataset.deleteMethod || "DELETE"; deleteTrigger = menu?.querySelector<HTMLElement>("summary") || button;
   const kind = button.dataset.deleteKind || "item", name = button.dataset.deleteName || "this item";
   deleteTitle.textContent = `Delete ${kind}?`; deleteName.textContent = name;
   if (deleteDescription) { deleteDescription.textContent = button.dataset.deleteDescription || ""; deleteDescription.hidden = !deleteDescription.textContent; }
@@ -154,14 +155,17 @@ document.querySelectorAll<HTMLElement>("[data-delete-endpoint]").forEach(button 
 
 deleteDialog?.querySelector<HTMLButtonElement>("[data-delete-cancel]")?.addEventListener("click", () => deleteDialog.close());
 deleteDialog?.addEventListener("click", event => { if (event.target === deleteDialog) deleteDialog.close(); });
-deleteDialog?.addEventListener("close", () => { deleteEndpoint = ""; deleteRedirect = "/devices"; deleteMethod = "DELETE"; deleteTrigger?.focus(); deleteTrigger = null; });
+deleteDialog?.addEventListener("close", () => { deleteEndpoint = ""; deleteAccessWorkspace = ""; deleteRedirect = "/devices"; deleteMethod = "DELETE"; deleteTrigger?.focus(); deleteTrigger = null; });
 deleteConfirm?.addEventListener("click", async () => {
   if (!deleteEndpoint || !deleteConfirm) return;
   deleteConfirm.disabled = true; deleteConfirm.textContent = "Deleting…";
   try {
     const headers: Record<string, string> = { accept: "application/json" };
     if (deleteEndpoint === "/account/delete") Object.assign(headers, stepHeader(await freshPasskey()));
-    await api(deleteEndpoint, { method: deleteMethod, headers }); location.href = deleteRedirect;
+    await api(deleteEndpoint, { method: deleteMethod, headers });
+    // Removing a Node changes the workspace RC Lock; push the new access to the surviving Nodes from this session.
+    if (deleteAccessWorkspace) await syncWorkspaceAuthority(deleteAccessWorkspace, undefined, true).catch(() => undefined);
+    location.href = deleteRedirect;
   }
   catch (error) {
     if (deleteError) deleteError.textContent = error instanceof Error ? error.message : String(error);

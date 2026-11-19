@@ -46,7 +46,7 @@ func TestAuthoritySyncDeliversMcpGrantToLockedNode(t *testing.T) {
 		},
 	}
 	res, payload := mcpCall(t, ts, runBeforeSync, map[string]string{"Authorization": "Bearer " + access})
-	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte("not synchronized")) {
+	if res.StatusCode != http.StatusOK || !bytes.Contains(payload, []byte("has not accepted the current workspace access")) {
 		t.Fatalf("unsynchronized MCP grant = %d: %s", res.StatusCode, payload)
 	}
 

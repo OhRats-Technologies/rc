@@ -1,7 +1,7 @@
 import { api } from "./http";
 import { passkeyAssertion } from "./webauthn";
 import type { Me } from "../types";
-import { authorityProgress, type AuthorityStatus } from "./authority-status";
+import { authorityProgress, onlineNodesPending, syncSettled, type AuthorityStatus } from "./authority-status";
 
 type ControlIdentity = { id: string; publicKey: string; privateKey: CryptoKey };
 type DevicePin = { identityKey: string; transportKey: string };
@@ -100,14 +100,17 @@ export async function syncWorkspaceAuthority(workspaceId: string, selected?: str
   }
   await api(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
   if (deferOffline) return state;
-  for (let attempt = 0; attempt < 15; attempt++) {
+  for (let attempt = 0; attempt < 50; attempt++) {
     await new Promise(resolve => window.setTimeout(resolve, 200));
     const next = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
-    const progress = authorityProgress(next, selected);
-    if (!progress.devices || progress.synced === progress.devices) return next;
+    if (syncSettled(next, selected)) return next;
   }
-  const final = authorityProgress(await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`), selected);
-  throw new Error(`RC Lock sync was rejected or timed out (${final.synced}/${final.devices} Nodes accepted it).`);
+  const final = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
+  if (selected) {
+    const progress = authorityProgress(final, selected);
+    throw new Error(`RC Lock sync was rejected or timed out (${progress.synced}/${progress.devices} selected Nodes accepted it).`);
+  }
+  throw new Error(`${onlineNodesPending(final)} online Node(s) did not accept the RC Lock within 10 seconds. Check that they are connected, then run Sync device access again.`);
 }
 
 export async function syncOwnedAuthorities() {

@@ -4,26 +4,20 @@ import { freshPasskey, stepHeader } from "./step-up";
 
 const workspaceId = document.querySelector<HTMLElement>("[data-authority-workspace]")?.dataset.authorityWorkspace || "";
 
-async function showStatus(id: string) {
-  const output = document.querySelector<HTMLElement>(`[data-authority-status="${CSS.escape(id)}"]`); if (!output) return;
-  try {
-    const state = await api<{ devices: number; synced: number }>(`/api/v1/workspaces/${encodeURIComponent(id)}/authority`);
-    output.textContent = !state.devices ? "NO NODES" : state.synced === state.devices ? `SYNCED ${state.synced}/${state.devices} NODES` : `PENDING RC LOCK SYNC (${state.synced}/${state.devices} NODES)`;
-  } catch {}
-}
-
 document.querySelectorAll<HTMLButtonElement>("[data-authority-sync]").forEach(button => button.addEventListener("click", async () => {
-  const workspaceId = button.dataset.authoritySync || "", output = document.querySelector<HTMLElement>(`[data-authority-status="${CSS.escape(workspaceId)}"]`);
+  const id = button.dataset.authoritySync || "", output = document.querySelector<HTMLElement>(`[data-authority-status="${CSS.escape(id)}"]`);
   button.disabled = true; if (output) output.textContent = "SYNCING…";
   try {
-    const result = await syncWorkspaceAuthority(workspaceId);
-    if (output) output.textContent = result.devices ? `SYNCED ${result.synced}/${result.devices} NODES` : "NO NODES";
-  } catch (error) { if (output) output.textContent = error instanceof Error ? error.message : String(error); }
-  finally { button.disabled = false; }
+    await syncWorkspaceAuthority(id);
+    // The alert and status lines are rendered by the server, so reload to show the settled state.
+    location.reload();
+  } catch (error) {
+    if (output) output.textContent = error instanceof Error ? error.message : String(error);
+    button.disabled = false;
+  }
 }));
 
 if (workspaceId) {
-  void showStatus(workspaceId);
   document.querySelectorAll<HTMLFormElement>(`.role-form, form[action*="/workspaces/${CSS.escape(workspaceId)}/members/"][action$="/remove"]`).forEach(form => form.addEventListener("submit", async event => {
     event.preventDefault();
     try {

@@ -107,15 +107,23 @@ func (s *Server) handleNodeSelf(w http.ResponseWriter, req *http.Request) {
 	}
 	s.registry.markOnline(device.ID, true)
 	s.events.Publish("device.online", map[string]any{"deviceId": device.ID, "name": device.Name})
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	payload := map[string]any{
 		"name":     device.Name,
 		"online":   true,
 		"version":  device.Version,
 		"platform": device.Platform,
 		"arch":     device.Arch,
-	})
+	}
+	if access, err := s.workspaceAuthority(device.WorkspaceID); err == nil {
+		payload["rcLock"] = map[string]any{
+			"workspaceId": device.WorkspaceID,
+			"generation":  device.LockGeneration,
+			"synced":      device.LockHash == access.Hash,
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, req *http.Request) {

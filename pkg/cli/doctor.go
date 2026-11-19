@@ -48,6 +48,7 @@ func runDoctor(_ context.Context, args []string) error {
 	} else {
 		validateStateDir(report, dir)
 		checkEnrollment(report, dir)
+		checkRCLock(report, dir)
 	}
 	checkComponents(report, *componentDir)
 	checkService(report)
@@ -108,6 +109,34 @@ func checkEnrollment(report *doctorReport, dir string) {
 	if config.Name != "" {
 		report.ok("name", config.Name)
 	}
+}
+
+// checkRCLock asks RC whether this Node has accepted the current workspace access.
+func checkRCLock(report *doctorReport, dir string) {
+	state, err := node.LoadState(dir)
+	if err != nil {
+		return
+	}
+	config, err := node.LoadConfig(dir)
+	if err != nil || config.Server == "" {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	status, err := node.FetchStatus(ctx, config.Server, state)
+	if err != nil {
+		report.fail("rc lock", fmt.Errorf("could not check access with RC: %v", err))
+		return
+	}
+	if problem := status.LockProblem(); problem != "" {
+		report.fail("rc lock", errors.New(problem))
+		return
+	}
+	if status.RCLock == nil {
+		report.ok("rc lock", "not reported by RC")
+		return
+	}
+	report.ok("rc lock", fmt.Sprintf("synced with workspace access (generation %d)", status.RCLock.Generation))
 }
 
 func checkComponents(report *doctorReport, explicit string) {

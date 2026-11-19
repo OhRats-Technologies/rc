@@ -47,6 +47,11 @@ func (s *Server) handleWorkspaceAccessPage(w http.ResponseWriter, req *http.Requ
 	if len(members) == 0 {
 		rows.WriteString(`<p class="empty-state">No workspace members.</p>`)
 	}
+	status, err := s.workspaceAuthority(workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "workspace access could not be loaded")
+		return
+	}
 	inviteRows := ""
 	for _, invite := range invites {
 		inviteRows += `<div class="setting-row invite-row"><div><strong>` + strings.ToUpper(escape(invite.Role)) +
@@ -58,15 +63,15 @@ func (s *Server) handleWorkspaceAccessPage(w http.ResponseWriter, req *http.Requ
 		inviteRows = `<p class="empty-state">No pending invitations.</p>`
 	}
 	body := `<div class="page" data-authority-workspace="` + escape(workspaceID) + `">` +
-		`<header class="page-header"><div><p class="eyebrow">` + escape(strings.ToUpper(workspace.Name)) + ` / ACCESS</p><h1>Manage access</h1></div></header>` +
+		`<header class="page-header"><div><p class="eyebrow">` + escape(strings.ToUpper(workspace.Name)) + ` / ACCESS</p><h1>Manage access</h1></div>` +
+		`<div class="page-header-actions"><button class="or-button" type="button" data-authority-sync="` + escape(workspaceID) + `">SYNC DEVICE ACCESS</button></div></header>` +
+		accessSummary(status, workspaceID) +
 		`<section class="content-section"><div class="section-heading"><div><h2>Invite an operator or viewer</h2></div></div>` +
 		`<form method="post" action="/workspaces/` + escape(workspaceID) + `/invites" class="inline-form compact-inline-form">` +
 		`<label>Role<select name="role"><option value="operator">Operator</option><option value="viewer">Viewer</option></select></label>` +
 		`<button class="or-button" type="submit">CREATE INVITE</button></form><div data-invite-result></div></section>` +
 		`<section class="content-section"><div class="section-heading"><div><h2>` + itoa(len(members)) + ` ` +
-		plural(len(members), "MEMBER", "MEMBERS") + `</h2></div><button class="text-button" type="button" data-authority-sync="` +
-		escape(workspaceID) + `">SYNC DEVICE ACCESS</button></div>` +
-		`<p class="meta" data-authority-status="` + escape(workspaceID) + `">RC Lock changes are accepted by Nodes only after Owner authorization.</p>` +
+		plural(len(members), "MEMBER", "MEMBERS") + `</h2><p class="meta">Changes take effect on Nodes only after an Owner signs them.</p></div></div>` +
 		`<div class="settings-list">` + rows.String() + `</div></section>` +
 		`<section class="content-section"><h2>Pending invitations</h2><div class="settings-list">` + inviteRows + `</div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
@@ -106,4 +111,16 @@ func plural(count int, singular, multiple string) string {
 		return singular
 	}
 	return multiple
+}
+
+// accessSummary states whether every Node accepts the workspace access, or shows the warning when one does not.
+func accessSummary(status authorityStatus, workspaceID string) string {
+	if len(status.Pending) > 0 {
+		return authorityAlert(status, "owner", false)
+	}
+	text := "No Nodes in this workspace."
+	if count := len(status.Nodes); count > 0 {
+		text = "All " + itoa(count) + " " + plural(count, "Node accepts", "Nodes accept") + " the current workspace access."
+	}
+	return `<p class="meta" data-authority-status="` + escape(workspaceID) + `">` + text + `</p>`
 }

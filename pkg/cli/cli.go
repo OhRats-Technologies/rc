@@ -232,6 +232,11 @@ func runStatus(ctx context.Context, args []string) error {
 		fmt.Printf("Remote:    offline or unreachable (%v)\n", err)
 	} else {
 		fmt.Printf("Remote:    online=%v, version=%s\n", remoteStatus.Online, remoteStatus.Version)
+		if problem := remoteStatus.LockProblem(); problem != "" {
+			fmt.Printf("RC Lock:   OUT OF SYNC: %s\n", problem)
+		} else if remoteStatus.RCLock != nil {
+			fmt.Printf("RC Lock:   synced (generation %d)\n", remoteStatus.RCLock.Generation)
+		}
 	}
 	return nil
 }

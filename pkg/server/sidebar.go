@@ -7,6 +7,8 @@ type sidebarWorkspace struct {
 	Name    string
 	Role    string
 	Devices []*RegisteredDevice
+	// SyncPending is true when at least one Node lacks the workspace's current RC Lock.
+	SyncPending bool
 }
 
 func (s *Server) renderSidebar(userID, userName, path string) string {
@@ -25,6 +27,11 @@ func (s *Server) renderSidebar(userID, userName, path string) string {
 					ID: workspace.ID, Name: workspace.Name, Role: workspace.Role,
 				})
 			}
+		}
+	}
+	for position := range workspaces {
+		if status, err := s.workspaceAuthority(workspaces[position].ID); err == nil {
+			workspaces[position].SyncPending = len(status.Pending) > 0
 		}
 	}
 	currentWorkspace := ""
@@ -89,9 +96,14 @@ func (s *Server) sidebarWorkspaceFolder(workspace sidebarWorkspace, currentDevic
 			escape(workspace.Name) + `" required maxlength="120"><input type="hidden" name="next" value="` + escape(path) + `"></form>`
 	}
 	actions := `<a href="/workspaces/` + escape(workspace.ID) + `/activity"><span class="ui-icon icon-audit"></span>Activity</a>`
+	syncWarning, accessLabel := "", "Manage access"
+	if workspace.SyncPending {
+		syncWarning = `<span class="workspace-sync-warning" role="img" aria-label="Device access needs sync" title="Device access needs sync"></span>`
+		accessLabel = "Sync device access"
+	}
 	if owner {
 		actions = `<a href="/devices/enroll?workspace=` + escape(workspace.ID) + `"><span class="ui-icon icon-enroll"></span>Enroll device</a>` +
-			`<a href="/workspaces/` + escape(workspace.ID) + `/access"><span class="ui-icon icon-access"></span>Manage access</a>` + actions +
+			`<a href="/workspaces/` + escape(workspace.ID) + `/access"><span class="ui-icon icon-access"></span>` + accessLabel + `</a>` + actions +
 			`<button type="button" data-workspace-rename><span class="ui-icon icon-pencil"></span>Rename workspace</button>` +
 			`<button class="danger-text" type="button" data-delete-kind="workspace" data-delete-name="` + escape(workspace.Name) +
 			`" data-delete-endpoint="/api/v1/workspaces/` + escape(workspace.ID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span>Delete workspace</button>`
@@ -120,7 +132,7 @@ func (s *Server) sidebarWorkspaceFolder(workspace sidebarWorkspace, currentDevic
 		`" data-default-open="` + boolString(open) + `"><div class="workspace-folder-head has-menu">` +
 		`<button class="workspace-toggle" type="button" aria-expanded="` + boolString(open) + `" data-workspace-toggle="` +
 		escape(workspace.ID) + `" data-workspace-name-view><span class="ui-icon icon-folder"></span><span class="workspace-name">` +
-		escape(workspace.Name) + `</span></button>` + renameForm + `<details class="workspace-menu"><summary class="workspace-menu-trigger" aria-label="Actions for ` +
+		escape(workspace.Name) + `</span></button>` + renameForm + syncWarning + `<details class="workspace-menu"><summary class="workspace-menu-trigger" aria-label="Actions for ` +
 		escape(workspace.Name) + `"><span class="ui-icon icon-ellipsis"></span></summary><div class="workspace-menu-popover"><div class="workspace-menu-actions">` +
 		actions + `</div></div></details></div><div class="workspace-children" data-workspace-children="` + escape(workspace.ID) +
 		`" data-open="` + boolString(open) + `" ` + hidden + `>` + children.String() + `</div></div>`
@@ -149,7 +161,7 @@ func (s *Server) sidebarDeviceRow(device *RegisteredDevice, current string, over
 		`<input class="device-rename-input" name="name" value="` + escape(device.Name) + `" aria-label="Rename ` + escape(device.Name) + `" required maxlength="120">` +
 		`<input type="hidden" name="next" value="/devices/` + escape(device.ID) + `"></form>` +
 		`<button type="button" data-device-rename><span class="ui-icon icon-pencil"></span>Rename device</button>` +
-		`<button class="danger-text" type="button" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `"><span class="ui-icon icon-trash"></span>Delete device</button>` +
+		`<button class="danger-text" type="button" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-access-workspace="` + escape(device.WorkspaceID) + `"><span class="ui-icon icon-trash"></span>Delete device</button>` +
 		`</div></div></details></div></div>`
 }
 
