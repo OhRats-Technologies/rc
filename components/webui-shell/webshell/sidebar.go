@@ -24,7 +24,7 @@ func renderSidebar(value ohrats_rc_webui_types.AuthenticatedDocument, additions 
 	}
 	var builder strings.Builder
 	builder.WriteString(`<aside id="site-sidebar" class="site-sidebar"><div class="sidebar-scroll"><a class="site-brand" href="/devices"><img src="` +
-		sharedVisualAssets + `/logo.092a1cece4d0.svg" alt=""><strong>RC</strong></a><nav aria-label="RC navigation"><section class="sidebar-section"><h2>Navigation</h2>`)
+		iconPath + `" alt="RC"><strong>RC</strong></a><nav aria-label="RC navigation"><section class="sidebar-section"><h2>Navigation</h2>`)
 	builder.WriteString(navigation.String())
 	builder.WriteString(additions)
 	builder.WriteString(`</section><section class="sidebar-section workspace-section"><div class="sidebar-section-title"><h2>Workspaces</h2><button class="workspace-add" type="button" aria-label="New workspace" title="New workspace" data-workspace-create-trigger><span class="ui-icon icon-plus" aria-hidden="true"></span></button></div><form class="workspace-create-form workspace-folder-head" method="post" action="/workspaces" hidden data-workspace-create-form><span class="ui-icon icon-folder" aria-hidden="true"></span><input class="workspace-create-input" name="name" aria-label="Workspace name" required maxlength="120"><input type="hidden" name="next" value="`)

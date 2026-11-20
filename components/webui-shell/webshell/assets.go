@@ -16,6 +16,7 @@ var (
 	copyScriptPath    = assetPath(assets.CopyScriptJS, "js")
 	sidebarScriptPath = assetPath(assets.SidebarScriptJS, "js")
 	socialCardPath    = assetPath(assets.SocialCardPNG, "png")
+	iconPath          = assetPath(assets.IconSVG, "svg")
 )
 
 // assetPath mirrors the Rust build script: content digest prefix plus extension.
@@ -36,6 +37,8 @@ func assetFor(path string) (string, []byte, bool) {
 		return "text/javascript; charset=utf-8", assets.SidebarScriptJS, true
 	case socialCardPath:
 		return "image/png", assets.SocialCardPNG, true
+	case iconPath:
+		return "image/svg+xml; charset=utf-8", assets.IconSVG, true
 	default:
 		return "", nil, false
 	}

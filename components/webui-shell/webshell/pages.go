@@ -72,6 +72,8 @@ func renderTemplate(page publicPage, publicSignup bool, publicURL string) string
 	rendered = strings.ReplaceAll(rendered, "/assets/public.css", publicStylesPath)
 	rendered = strings.ReplaceAll(rendered, "/assets/copy.js", copyScriptPath)
 	rendered = strings.ReplaceAll(rendered, "/assets/social-card.png", socialCardPath)
+	rendered = strings.ReplaceAll(rendered, `<link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>`, `<link rel="icon" type="image/svg+xml" href="`+iconPath+`"/>`)
+	rendered = strings.ReplaceAll(rendered, `<img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt="OhRats" class="logo-image"/>`, `<img src="`+iconPath+`" alt="RC" class="logo-image"/>`)
 	return currentize(page, rendered)
 }
 

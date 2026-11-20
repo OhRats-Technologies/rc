@@ -202,7 +202,7 @@ func document(title, body string, scripts, styles []string, extraHead string, in
 		`<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="` + robots + `">` +
 		`<meta name="color-scheme" content="light dark"><title>` + html.EscapeString(title) + ` | RC</title>` +
 		`<meta name="description" content="Persistent terminals and private device access without exposing SSH.">` +
-		`<link rel="icon" type="image/svg+xml" href="` + base + `/logo.092a1cece4d0.svg">` +
+		`<link rel="icon" type="image/svg+xml" href="/assets/icon.svg?v=` + html.EscapeString(version) + `">` +
 		`<link rel="stylesheet" href="` + base + `/ohrats.abf84a1e6ae1.css">` +
 		`<link rel="stylesheet" href="` + base + `/states.8d99d4b0e704.css">` +
 		`<link rel="stylesheet" href="` + base + `/copy.e4c6bbb26b56.css">` +

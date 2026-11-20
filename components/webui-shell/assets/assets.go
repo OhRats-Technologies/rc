@@ -19,6 +19,9 @@ var SidebarScriptJS []byte
 //go:embed social-card.png
 var SocialCardPNG []byte
 
+//go:embed icon.svg
+var IconSVG []byte
+
 //go:embed public_snapshots/landing-open.html
 var LandingOpen string
 

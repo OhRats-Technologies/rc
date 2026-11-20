@@ -1,4 +1,8 @@
-# [RC](https://rc.ohrats.party)
+<p align="center">
+  <a href="https://rc.ohrats.party">
+    <img src="assets/header.svg" alt="RC" width="100%" />
+  </a>
+</p>
 
 [![release](https://img.shields.io/github/v/release/OhRats-Technologies/rc?sort=semver&logo=github)](https://github.com/OhRats-Technologies/rc/releases/latest)
 [![CI](https://img.shields.io/github/actions/workflow/status/OhRats-Technologies/rc/ci.yml?branch=main&label=CI&logo=github)](https://github.com/OhRats-Technologies/rc/actions/workflows/ci.yml)
