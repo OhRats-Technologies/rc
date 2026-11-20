@@ -197,17 +197,18 @@ func document(title, body string, scripts, styles []string, extraHead string, in
 	if indexable {
 		robots = "index,follow"
 	}
-	const base = "https://assets.ohrats.party/assets"
+	const base = "https://assets.ohrats.party/v1"
 	return `<!doctype html><html lang="en" data-sidebar="open"><head><meta charset="utf-8">` +
 		`<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="` + robots + `">` +
 		`<meta name="color-scheme" content="light dark"><title>` + html.EscapeString(title) + ` | RC</title>` +
 		`<meta name="description" content="Persistent terminals and private device access without exposing SSH.">` +
 		`<link rel="icon" type="image/svg+xml" href="/assets/icon.svg?v=` + html.EscapeString(version) + `">` +
-		`<link rel="stylesheet" href="` + base + `/ohrats.abf84a1e6ae1.css">` +
-		`<link rel="stylesheet" href="` + base + `/states.8d99d4b0e704.css">` +
-		`<link rel="stylesheet" href="` + base + `/copy.e4c6bbb26b56.css">` +
+		`<link rel="stylesheet" href="` + base + `/ohrats.css">` +
+		`<link rel="stylesheet" href="` + base + `/shell.css">` +
+		`<link rel="stylesheet" href="` + base + `/states.css">` +
+		`<link rel="stylesheet" href="` + base + `/copy.css">` +
 		`<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>` +
 		`<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap">` +
 		`<link rel="stylesheet" href="/assets/styles.css?v=` + html.EscapeString(version) + `">` + extraHead + styleTags.String() +
-		`<script src="` + base + `/theme.b6e0fe408633.js"></script></head><body>` + body + scriptTags.String() + `</body></html>`
+		`<script src="` + base + `/theme.js"></script></head><body>` + body + scriptTags.String() + `</body></html>`
 }

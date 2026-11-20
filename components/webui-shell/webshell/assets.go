@@ -7,8 +7,8 @@ import (
 	"wit_component/assets"
 )
 
-// SharedVisualAssets is the immutable content-fingerprinted asset origin.
-const sharedVisualAssets = "https://assets.ohrats.party/assets"
+// sharedVisualAssets is the rolling v1 OhRats visual language channel.
+const sharedVisualAssets = "https://assets.ohrats.party/v1"
 
 var (
 	stylesPath        = assetPath(assets.StylesCSS, "css")

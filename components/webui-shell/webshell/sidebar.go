@@ -35,7 +35,7 @@ func renderSidebar(value ohrats_rc_webui_types.AuthenticatedDocument, additions 
 	builder.WriteString(escape(profileInitial(value.Principal.DisplayName)))
 	builder.WriteString(`</span><span class="profile-name">`)
 	builder.WriteString(escape(value.Principal.DisplayName))
-	builder.WriteString(`</span></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme"></button><form method="post" action="/account/logout"><button class="icon-button" type="submit" aria-label="Sign out" title="Sign out"><span class="ui-icon icon-sign-out"></span></button></form></div></div></aside><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar" data-sidebar-toggle><span class="ui-icon icon-sidebar"></span></button>`)
+	builder.WriteString(`</span></a><button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme"></button><form method="post" action="/account/logout"><button class="icon-button" type="submit" aria-label="Sign out" title="Sign out"><span class="ui-icon icon-sign-out"></span></button></form></div></div></aside><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar" data-sidebar-toggle><span class="or-icon-sidebar" aria-hidden="true"></span></button>`)
 	return builder.String()
 }
 

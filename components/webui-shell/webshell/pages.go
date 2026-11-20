@@ -74,6 +74,13 @@ func renderTemplate(page publicPage, publicSignup bool, publicURL string) string
 	rendered = strings.ReplaceAll(rendered, "/assets/social-card.png", socialCardPath)
 	rendered = strings.ReplaceAll(rendered, `<link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>`, `<link rel="icon" type="image/svg+xml" href="`+iconPath+`"/>`)
 	rendered = strings.ReplaceAll(rendered, `<img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt="OhRats" class="logo-image"/>`, `<img src="`+iconPath+`" alt="RC" class="logo-image"/>`)
+	rendered = strings.ReplaceAll(rendered, "https://assets.ohrats.party/assets/ohrats.abf84a1e6ae1.css", "https://assets.ohrats.party/v1/ohrats.css")
+	rendered = strings.ReplaceAll(rendered, "https://assets.ohrats.party/assets/states.8d99d4b0e704.css", "https://assets.ohrats.party/v1/states.css")
+	rendered = strings.ReplaceAll(rendered, "https://assets.ohrats.party/assets/copy.e4c6bbb26b56.css", "https://assets.ohrats.party/v1/copy.css")
+	rendered = strings.ReplaceAll(rendered, "https://assets.ohrats.party/assets/theme.b6e0fe408633.js", "https://assets.ohrats.party/v1/theme.js")
+	rendered = strings.ReplaceAll(rendered, "https://assets.ohrats.party/assets/menu.a8b9a29f9ccc.js", "https://assets.ohrats.party/v1/menu.js")
+	rendered = strings.ReplaceAll(rendered, "https://assets.ohrats.party/assets/logo.092a1cece4d0.svg", "https://assets.ohrats.party/v1/logo.svg")
+	rendered = strings.ReplaceAll(rendered, `<a href="https://wakebar.ohrats.party/" class="footer-link">WakeBar</a><a href="https://rc.ohrats.party/" class="footer-link">RC</a>`, `<a href="https://wakebar.ohrats.party/" class="footer-link">WakeBar</a><a href="https://keyboard-killer.ohrats.party/" class="footer-link">Keyboard-Killer</a><a href="https://rc.ohrats.party/" class="footer-link">RC</a><a href="https://github.com/OhRats-Technologies/steward" class="footer-link">Steward</a><a href="https://learn.ohrats.party/" class="footer-link">Learn</a>`)
 	return currentize(page, rendered)
 }
 
