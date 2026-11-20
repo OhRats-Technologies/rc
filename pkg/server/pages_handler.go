@@ -27,7 +27,7 @@ func (s *Server) publicSignupConfigured() bool {
 func (s *Server) pageOptions() pages.Options {
 	return pages.Options{
 		PublicURL:    s.cfg.PublicURL,
-		Version:      version.Version,
+		Version:      s.assetsVersion(),
 		PublicSignup: s.publicSignupConfigured(),
 		SiteKey:      s.cfg.TurnstileSiteKey,
 	}

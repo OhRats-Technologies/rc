@@ -6,7 +6,6 @@ import (
 
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 	"github.com/OhRats-Technologies/rc/pkg/server/pages"
-	"github.com/OhRats-Technologies/rc/pkg/version"
 )
 
 func (s *Server) handleWorkspaceAccessPage(w http.ResponseWriter, req *http.Request) {
@@ -76,7 +75,7 @@ func (s *Server) handleWorkspaceAccessPage(w http.ResponseWriter, req *http.Requ
 		`<section class="content-section"><h2>Pending invitations</h2><div class="settings-list">` + inviteRows + `</div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated("Manage access", sidebar, body,
-		[]string{"pages", "authority"}, nil, version.Version), "no-store")
+		[]string{"pages", "authority"}, nil, s.assetsVersion()), "no-store")
 }
 
 func workspaceAccessRow(workspaceID, currentUser string, member authstore.WorkspaceMemberDetail) string {

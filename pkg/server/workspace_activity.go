@@ -7,7 +7,6 @@ import (
 
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 	"github.com/OhRats-Technologies/rc/pkg/server/pages"
-	"github.com/OhRats-Technologies/rc/pkg/version"
 )
 
 func (s *Server) handleWorkspaceActivityAPI(w http.ResponseWriter, req *http.Request) {
@@ -79,7 +78,7 @@ func (s *Server) handleWorkspaceActivityPage(w http.ResponseWriter, req *http.Re
 		`<section class="content-section"><div id="activity-list" class="activity-list">` + rows.String() + `</div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated("Activity", sidebar, body,
-		[]string{"live"}, nil, version.Version), "no-store")
+		[]string{"live"}, nil, s.assetsVersion()), "no-store")
 }
 
 func activityRow(event authstore.AuditEvent) string {

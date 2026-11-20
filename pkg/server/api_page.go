@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/OhRats-Technologies/rc/pkg/server/pages"
-	"github.com/OhRats-Technologies/rc/pkg/version"
 )
 
 func (s *Server) handleAPIPage(w http.ResponseWriter, req *http.Request) {
@@ -47,7 +46,7 @@ func (s *Server) handleAPIPage(w http.ResponseWriter, req *http.Request) {
 		apiKeyDialog() + `</div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/api")
 	s.writePage(w, http.StatusOK, pages.Authenticated("API access", sidebar, body,
-		[]string{"api-page"}, nil, version.Version), "no-store")
+		[]string{"api-page"}, nil, s.assetsVersion()), "no-store")
 }
 
 func apiKeyDialog() string {

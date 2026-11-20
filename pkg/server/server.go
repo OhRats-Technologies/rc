@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +16,7 @@ import (
 	authstore "github.com/OhRats-Technologies/rc/pkg/auth"
 	"github.com/OhRats-Technologies/rc/pkg/node"
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
+	"github.com/OhRats-Technologies/rc/pkg/version"
 )
 
 // Config describes one rc-server process.
@@ -49,9 +52,26 @@ type Server struct {
 	nodes     *NodeHub
 	control   *controlHub
 	processes *processHub
+	assetVer  string
 
 	mu         sync.RWMutex
 	listenAddr string
+}
+
+func computeAssetVersion(assetsDir string) string {
+	data, err := os.ReadFile(filepath.Join(assetsDir, "styles.css"))
+	if err != nil || len(data) == 0 {
+		return version.Version
+	}
+	sum := sha256.Sum256(data)
+	return version.Version + "-" + hex.EncodeToString(sum[:6])
+}
+
+func (s *Server) assetsVersion() string {
+	if s.assetVer != "" {
+		return s.assetVer
+	}
+	return version.Version
 }
 
 func New(cfg Config) *Server {
@@ -76,6 +96,7 @@ func New(cfg Config) *Server {
 		events:   events,
 		mcp:      mcp,
 		nodes:    nodes,
+		assetVer: computeAssetVersion(cfg.AssetsDir),
 	}
 	s.control = newControlHub()
 	s.processes = newProcessHub()

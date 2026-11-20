@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/server/pages"
-	"github.com/OhRats-Technologies/rc/pkg/version"
 )
 
 func (s *Server) registerProcessAPIRoutes(mux *http.ServeMux) {
@@ -140,7 +139,7 @@ func (s *Server) handleProcessPage(w http.ResponseWriter, req *http.Request) {
 	body := processPageBody(device, process, process.UserName, interactive, running, message)
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated(process.ID, sidebar, body,
-		[]string{"process-terminal"}, []string{"process-terminal"}, version.Version), "no-store")
+		[]string{"process-terminal"}, []string{"process-terminal"}, s.assetsVersion()), "no-store")
 }
 
 func processPageBody(device *RegisteredDevice, process browserProcess, userName string, interactive, running bool, message string) string {

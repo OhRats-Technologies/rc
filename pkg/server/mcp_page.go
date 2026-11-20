@@ -8,7 +8,6 @@ import (
 
 	"github.com/OhRats-Technologies/rc/pkg/protocol"
 	"github.com/OhRats-Technologies/rc/pkg/server/pages"
-	"github.com/OhRats-Technologies/rc/pkg/version"
 )
 
 func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
@@ -48,5 +47,5 @@ func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
 		`<p class="error" data-mcp-page-error role="alert"></p></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/integrations/mcp")
 	s.writePage(w, http.StatusOK, pages.Authenticated("MCP", sidebar, body,
-		[]string{"mcp-page"}, nil, version.Version), "no-store")
+		[]string{"mcp-page"}, nil, s.assetsVersion()), "no-store")
 }
