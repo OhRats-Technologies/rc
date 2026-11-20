@@ -68,7 +68,7 @@ func (s *Server) renderSidebar(userID, userName, path string) string {
 		initial = strings.ToUpper(string([]rune(trimmed)[0]))
 	}
 	return `<aside id="site-sidebar" class="site-sidebar"><div class="sidebar-scroll">` +
-		`<a class="site-brand" href="/devices"><img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt=""><strong>RC</strong></a>` +
+		`<a class="site-brand" href="/devices"><img src="/assets/icon.svg" alt=""><strong>RC</strong></a>` +
 		`<nav aria-label="RC navigation"><section class="sidebar-section"><h2>Navigation</h2>` +
 		`<a class="nav-link` + activeClass(path, "/devices") + `" href="/devices"><span class="ui-icon icon-devices"></span><span>Devices</span></a>` +
 		`<a class="nav-link` + activeClass(path, "/api") + `" href="/api"><span class="ui-icon icon-key"></span><span>API</span></a>` +
@@ -82,7 +82,7 @@ func (s *Server) renderSidebar(userID, userName, path string) string {
 		`<a class="profile-link" href="/account"><span class="profile-initial">` + escape(initial) + `</span><span class="profile-name">` + escape(userName) + `</span></a>` +
 		`<button class="theme-toggle" type="button" data-theme-toggle aria-label="Toggle theme"></button>` +
 		`<form method="post" action="/account/logout"><button class="icon-button" type="submit" aria-label="Sign out" title="Sign out"><span class="ui-icon icon-sign-out"></span></button></form>` +
-		`</div></div></aside><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar"><span class="ui-icon icon-sidebar"></span></button>` +
+		`</div></div></aside><button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-label="Toggle sidebar"><span class="or-icon-sidebar" aria-hidden="true"></span></button>` +
 		deleteDialog()
 }
 

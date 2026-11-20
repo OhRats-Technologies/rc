@@ -37,14 +37,14 @@ func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
 			escape(grant.ID) + `">Revoke</button></div>`)
 	}
 	if rows.Len() == 0 {
-		rows.WriteString(`<p class="empty-state">No MCP clients are connected.</p>`)
+		rows.WriteString(`<div class="empty-card"><h2>No MCP clients connected</h2><p class="page-copy">Point Codex, Claude Code, Cursor, VS Code, or agy at the endpoint above to authorize an OAuth grant.</p></div>`)
 	}
-	body := `<div class="page"><header class="page-header"><div><h1>MCP</h1></div></header>` +
-		`<section class="content-section"><p class="page-copy">Connect agents to <code>` +
-		escape(strings.TrimRight(s.cfg.PublicURL, "/")) + `/mcp</code>. Each connection uses OAuth with ` +
-		`an Owner-signed RC Lock grant. Revoking a connection invalidates its tokens and synchronizes ` +
-		`the lock change to affected Nodes.</p></section>` +
-		`<div class="data-list">` + rows.String() + `</div>` +
+	endpoint := escape(strings.TrimRight(s.cfg.PublicURL, "/")) + `/mcp`
+	body := `<div class="page"><header class="page-header"><div><p class="eyebrow">INTEGRATIONS</p><h1>MCP</h1></div>` +
+		`<div class="page-header-actions"><a class="or-button secondary" href="/docs/mcp">MCP docs</a></div></header>` +
+		`<section class="content-section"><p class="page-copy">Connect agents via OAuth with an Owner-signed RC Lock grant. Revoking a connection invalidates its tokens and syncs the lock change to affected Nodes.</p>` +
+		`<div class="or-copy-field mcp-endpoint-field"><code>` + endpoint + `</code></div></section>` +
+		`<section class="content-section"><div class="section-heading"><div><h2>Connected clients</h2></div></div><div class="data-list">` + rows.String() + `</div></section>` +
 		`<p class="error" data-mcp-page-error role="alert"></p></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/integrations/mcp")
 	s.writePage(w, http.StatusOK, pages.Authenticated("MCP", sidebar, body,

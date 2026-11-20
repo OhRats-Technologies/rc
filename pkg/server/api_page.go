@@ -21,7 +21,7 @@ func (s *Server) handleAPIPage(w http.ResponseWriter, req *http.Request) {
 	}
 	var rows strings.Builder
 	if len(keys) == 0 {
-		rows.WriteString(`<p class="empty-state">No API keys yet.</p>`)
+		rows.WriteString(`<div class="empty-card"><h2>No API keys yet</h2><p class="page-copy">Create a signing key for CLI automation or scripts. RC stores only the public key.</p></div>`)
 	}
 	for _, key := range keys {
 		lastUsed := "NEVER USED"
@@ -36,14 +36,13 @@ func (s *Server) handleAPIPage(w http.ResponseWriter, req *http.Request) {
 			`<span class="ui-icon icon-key" aria-hidden="true"></span><div><strong>` +
 			escape(key.Name) + `</strong>` +
 			metaRow("div", escape(strings.ToUpper(strings.Join(key.Scopes, " "))),
-				escape(lastUsed), escape(expires)) + `</div></div></div>` +
+				escape(lastUsed), escape(expires)) + `</div></div>` +
 			`<form method="post" action="/api/tokens/` + escape(key.ID) + `/delete">` +
-			`<button class="text-button" type="submit">REVOKE</button></form></div>`)
+			`<button class="text-button danger-text" type="submit">REVOKE</button></form></div>`)
 	}
-	body := `<div class="page"><header class="page-header"><div><h1>API</h1></div>` +
-		`<div class="page-header-actions"><a class="or-button secondary" href="/docs/api">API DOCS</a>` +
-		`<button class="header-icon-button" type="button" aria-label="New API key" title="New key" data-api-key-new>` +
-		`<span class="ui-icon icon-plus"></span></button></div></header>` +
+	body := `<div class="page"><header class="page-header"><div><p class="eyebrow">ACCESS</p><h1>API keys</h1></div>` +
+		`<div class="page-header-actions"><a class="or-button secondary" href="/docs/api">API docs</a>` +
+		`<button class="or-button" type="button" data-api-key-new>New API key</button></div></header>` +
 		`<div class="settings-list" id="token-list">` + rows.String() + `</div>` +
 		apiKeyDialog() + `</div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/api")

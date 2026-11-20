@@ -109,9 +109,19 @@ func Lookup(path string) (PublicPage, bool) {
 func renderPublic(document string, options Options) string {
 	publicURL := strings.TrimRight(options.PublicURL, "/")
 	install := "& ([scriptblock]::Create((Invoke-RestMethod -Uri '" + publicURL + "/install.ps1')))"
+	iconURL := "/assets/icon.svg?v=" + html.EscapeString(options.Version)
 	document = strings.ReplaceAll(document, "__WINDOWS_INSTALL_COMMAND__", html.EscapeString(install))
 	document = strings.ReplaceAll(document, "__PUBLIC_URL__", html.EscapeString(publicURL))
 	document = strings.ReplaceAll(document, "__ASSET_VERSION__", html.EscapeString(options.Version))
+	document = strings.ReplaceAll(document, `<link rel="icon" type="image/svg+xml" href="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg"/>`, `<link rel="icon" type="image/svg+xml" href="`+iconURL+`"/>`)
+	document = strings.ReplaceAll(document, `<img src="https://assets.ohrats.party/assets/logo.092a1cece4d0.svg" alt="OhRats" class="logo-image"/>`, `<img src="`+iconURL+`" alt="RC" class="logo-image"/>`)
+	document = strings.ReplaceAll(document, "https://assets.ohrats.party/assets/ohrats.abf84a1e6ae1.css", "https://assets.ohrats.party/v1/ohrats.css")
+	document = strings.ReplaceAll(document, "https://assets.ohrats.party/assets/states.8d99d4b0e704.css", "https://assets.ohrats.party/v1/states.css")
+	document = strings.ReplaceAll(document, "https://assets.ohrats.party/assets/copy.e4c6bbb26b56.css", "https://assets.ohrats.party/v1/copy.css")
+	document = strings.ReplaceAll(document, "https://assets.ohrats.party/assets/theme.b6e0fe408633.js", "https://assets.ohrats.party/v1/theme.js")
+	document = strings.ReplaceAll(document, "https://assets.ohrats.party/assets/menu.a8b9a29f9ccc.js", "https://assets.ohrats.party/v1/menu.js")
+	document = strings.ReplaceAll(document, "https://assets.ohrats.party/assets/logo.092a1cece4d0.svg", "https://assets.ohrats.party/v1/logo.svg")
+	document = strings.ReplaceAll(document, `<a href="https://wakebar.ohrats.party/" class="footer-link">WakeBar</a><a href="https://rc.ohrats.party/" class="footer-link">RC</a>`, `<a href="https://wakebar.ohrats.party/" class="footer-link">WakeBar</a><a href="https://keyboard-killer.ohrats.party/" class="footer-link">Keyboard-Killer</a><a href="https://rc.ohrats.party/" class="footer-link">RC</a><a href="https://github.com/OhRats-Technologies/steward" class="footer-link">Steward</a><a href="https://learn.ohrats.party/" class="footer-link">Learn</a>`)
 	return document
 }
 

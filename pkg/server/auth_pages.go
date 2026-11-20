@@ -43,29 +43,48 @@ func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	devices := s.visibleDevices(user.ID)
-	var rows strings.Builder
-	if len(devices) == 0 {
-		rows.WriteString(`<p class="empty-state">No devices yet. Enroll one from a workspace.</p>`)
-	} else {
-		for _, device := range devices {
-			rows.WriteString(deviceListRow(device))
+	workspaceNames := make(map[string]string)
+	if workspaces, err := s.auth.WorkspacesForUser(user.ID); err == nil {
+		for _, ws := range workspaces {
+			workspaceNames[ws.ID] = ws.Name
 		}
 	}
-	body := `<div class="page" data-live-page="devices"><header class="page-header"><div><h1>Devices</h1></div>` +
-		`<a class="header-icon-button" href="/devices/enroll" aria-label="Enroll device" title="Enroll device"><span class="ui-icon icon-plus"></span></a></header>` +
+	onlineCount := 0
+	var rows strings.Builder
+	if len(devices) == 0 {
+		rows.WriteString(`<div class="empty-card"><h2>No devices enrolled yet</h2>` +
+			`<p class="page-copy">Install the RC Node on a machine to get persistent terminals, process monitoring, and private access without exposing SSH.</p>` +
+			`<div class="empty-card-actions"><a class="or-button" href="/devices/enroll">Enroll your first device</a>` +
+			`<a class="or-button secondary" href="/docs">Read quickstart</a></div></div>`)
+	} else {
+		for _, device := range devices {
+			if device.Online {
+				onlineCount++
+			}
+			wsName := workspaceNames[device.WorkspaceID]
+			if wsName == "" {
+				wsName = "Workspace"
+			}
+			rows.WriteString(deviceListRow(device, wsName))
+		}
+	}
+	summary := fmt.Sprintf("%d %s · %d online", len(devices), plural(len(devices), "device", "devices"), onlineCount)
+	body := `<div class="page" data-live-page="devices"><header class="page-header"><div><p class="eyebrow">FLEET</p><h1>Devices</h1>` +
+		`<p class="meta">` + escape(summary) + `</p></div>` +
+		`<div class="page-header-actions"><a class="or-button" href="/devices/enroll">Enroll device</a></div></header>` +
 		`<div class="data-list" id="device-list">` + rows.String() + `</div></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/devices")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Devices", sidebar, body, []string{"live"}, nil, version.Version), "no-store")
 }
 
-func deviceListRow(device *RegisteredDevice) string {
+func deviceListRow(device *RegisteredDevice, workspaceName string) string {
 	status := "OFFLINE"
 	if device.Online {
 		status = "ONLINE"
 	}
 	return `<a class="data-row" href="/devices/` + escape(device.ID) + `" data-device-row="` + escape(device.ID) + `">` +
 		`<div class="device-row-main"><span class="ui-icon device-platform-icon ` + platformIcon(device.Platform) + `"></span><div><strong>` + escape(device.Name) + `</strong>` +
-		metaRow("div", "Personal", escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div></div>` +
+		metaRow("div", escape(workspaceName), escape(device.Hostname), escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div></div>` +
 		`<span class="status` + onlineClass(device.Online) + `" data-device-status="` + escape(device.ID) + `">` + status + `</span></a>`
 }
 
@@ -119,24 +138,32 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	terminalDisabled := "disabled"
+	terminalTitle := "Device is offline"
 	if device.Online && supportsProcess {
 		terminalDisabled = ""
+		terminalTitle = "Open interactive terminal"
+	} else if device.Online && !supportsProcess {
+		terminalTitle = "This node does not expose terminal control"
+	}
+	workspaceName := "Workspace"
+	if ws, err := s.auth.WorkspaceByID(device.WorkspaceID); err == nil && ws != nil && strings.TrimSpace(ws.Name) != "" {
+		workspaceName = ws.Name
 	}
 	body := `<div class="page" data-device-page="` + escape(device.ID) + `" data-supports-process="` + fmt.Sprint(supportsProcess) + `" data-retains-process-history="false">` +
-		`<section class="device-overview"><header class="page-header device-header"><div><p class="eyebrow">DEVICE</p>` +
+		`<section class="device-overview"><a class="back-link" href="/devices">← Devices</a><header class="page-header device-header"><div><p class="eyebrow">` + escape(strings.ToUpper(workspaceName)) + ` / DEVICE</p>` +
 		`<div class="page-title-row device-title-row"><span class="ui-icon device-platform-icon device-title-platform ` + platformIcon(device.Platform) + `"></span>` +
 		`<h1 data-device-title-view>` + escape(device.Name) + `</h1>` +
 		`<form method="post" action="/devices/` + escape(device.ID) + `/rename" hidden data-device-title-form><input class="device-title-input" name="name" value="` + escape(device.Name) + `" aria-label="Device name" required maxlength="120"><input type="hidden" name="next" value="/devices/` + escape(device.ID) + `"></form>` +
 		`<button class="header-icon-button" type="button" data-device-title-rename aria-label="Rename device" title="Rename device"><span class="ui-icon icon-pencil"></span></button></div>` +
-		`<p class="error device-title-error" data-device-title-error></p>` + metaRow("p", "Personal", escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div>` +
+		`<p class="error device-title-error" data-device-title-error></p></div>` +
 		`<div class="device-header-actions"><span id="device-status" class="status` + onlineClass(device.Online) + `">` + status + `</span>` +
-		`<button id="open-terminal" class="device-terminal-button" type="button" aria-label="Open terminal" title="Terminal control is not available in this build" ` + terminalDisabled + `><span class="ui-icon icon-terminal"></span></button>` +
+		`<button id="open-terminal" class="or-button device-terminal-button" type="button" title="` + escape(terminalTitle) + `" ` + terminalDisabled + `><span class="ui-icon icon-terminal" aria-hidden="true"></span><span>Open terminal</span></button>` +
 		`<button class="header-icon-button danger-icon-button" type="button" aria-label="Delete ` + escape(device.Name) + `" title="Delete device" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-description="Deletes from RC immediately. If the Node is offline, it clears its old enrollment the next time it connects." data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-access-workspace="` + escape(device.WorkspaceID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span></button></div></header>` +
-		`<dl class="facts"><div><dt>HOST</dt><dd>` + escape(device.Hostname) + `</dd></div><div><dt>NODE VERSION</dt><dd id="node-version">` + escape(device.Version) + `</dd></div></dl>` +
+		`<dl class="facts"><div><dt>HOST</dt><dd>` + escape(device.Hostname) + `</dd></div><div><dt>PLATFORM</dt><dd>` + escape(strings.ToUpper(device.Platform)) + `/` + escape(device.Arch) + `</dd></div><div><dt>NODE VERSION</dt><dd id="node-version">` + escape(device.Version) + `</dd></div></dl>` +
 		`<p id="process-error" class="error"></p></section>` +
 		authorityAlert(access, role, true) +
 		`<section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Processes</span><div class="badge-line"></div></div><h2>Active</h2></div></div>` +
-		`<div class="data-list" id="process-list"><p class="empty-state">No active processes.</p></div></section></div>`
+		`<div class="data-list" id="process-list"><p class="empty-state">No active processes. Open a terminal to start one.</p></div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device", "authority"}, nil, version.Version), "no-store")
 }
@@ -178,13 +205,16 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 		options.WriteString(`<option value="">No owned workspaces</option>`)
 	}
 	body := `<div class="page narrow-form-page" data-enroll-page="` + escape(selected) + `" data-known-devices="` + escape(strings.Join(ids, ",")) + `">` +
-		`<header class="page-header"><div><p class="eyebrow">DEVICES</p><h1>Enroll device</h1></div></header>` +
+		`<a class="back-link" href="/devices">← Devices</a>` +
+		`<header class="page-header"><div><p class="eyebrow">DEVICES</p><h1>Enroll device</h1>` +
+		`<p class="page-copy">Generate a one-time command to connect a machine to your workspace.</p></div></header>` +
 		`<form data-enrollment-form class="simple-form"><label>Workspace<select name="workspaceId">` + options.String() + `</select></label>` +
 		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option><option value="android">Android (Termux)</option></select></label>` +
 		`<p class="meta" data-enrollment-platform-help>Run the command in a terminal on the machine you want to enroll.</p>` +
-		`<button class="or-button" type="submit">CREATE ENROLLMENT COMMANDS</button></form>` +
-		`<div class="enrollment-command"><span class="meta">NEW INSTALL (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
-		`<span class="meta">ALREADY INSTALLED (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div>` +
+		`<button class="or-button" type="submit">Create enrollment commands</button></form>` +
+		`<div class="enrollment-command">` +
+		`<div class="enrollment-block"><span class="meta enrollment-label">NEW INSTALL (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div></div>` +
+		`<div class="enrollment-block"><span class="meta enrollment-label">ALREADY INSTALLED (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div></div>` +
 		`<p class="meta">One default background enrollment is supported per OS user. RC refuses to overwrite an existing device identity.</p>` +
 		`<p class="error" role="alert" data-enrollment-error></p><p id="enrollment-state" class="meta"></p></div></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/devices/enroll")
