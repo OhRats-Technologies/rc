@@ -78,7 +78,7 @@ func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
 		`</section>`
 	listHeader := ""
 	if len(devices) > 0 {
-		listHeader = `<div class="fleet-deck-head"><span>NODE</span><span>STATUS</span></div>`
+		listHeader = `<div class="fleet-deck-head"><span>NODE</span><span class="fleet-col-host">HOST</span><span class="fleet-col-platform">PLATFORM</span><span class="fleet-col-status">STATUS</span></div>`
 	}
 	body := `<div class="page" data-live-page="devices"><header class="page-header"><div><p class="eyebrow">CONTROL PLANE</p><h1>Devices</h1></div>` +
 		`<div class="page-header-actions"><a class="or-button secondary" href="/docs/cli">CLI docs</a><a class="or-button" href="/devices/enroll">Enroll device</a></div></header>` +
@@ -88,15 +88,33 @@ func (s *Server) handleDevicesPage(w http.ResponseWriter, req *http.Request) {
 	s.writePage(w, http.StatusOK, pages.Authenticated("Devices", sidebar, body, []string{"live"}, nil, s.assetsVersion()), "no-store")
 }
 
+func formatPlatform(platform, arch string) string {
+	osName := strings.TrimSpace(platform)
+	switch strings.ToLower(osName) {
+	case "darwin", "macos":
+		osName = "macOS"
+	case "linux":
+		osName = "Linux"
+	case "windows":
+		osName = "Windows"
+	}
+	if arch == "" {
+		return osName
+	}
+	return osName + " · " + arch
+}
+
 func deviceListRow(device *RegisteredDevice, workspaceName string) string {
 	status := "OFFLINE"
 	if device.Online {
 		status = "ONLINE"
 	}
 	return `<a class="data-row fleet-row" href="/devices/` + escape(device.ID) + `" data-device-row="` + escape(device.ID) + `">` +
-		`<div class="device-row-main"><span class="device-row-badge"><span class="ui-icon device-platform-icon ` + platformIcon(device.Platform) + `"></span></span><div><strong>` + escape(device.Name) + `</strong>` +
-		metaRow("div", escape(workspaceName), escape(device.Hostname), escape(strings.ToUpper(device.Platform))+`/`+escape(device.Arch)) + `</div></div>` +
-		`<span class="status` + onlineClass(device.Online) + `" data-device-status="` + escape(device.ID) + `">` + status + `</span></a>`
+		`<div class="device-row-main"><span class="device-row-badge"><span class="ui-icon device-platform-icon ` + platformIcon(device.Platform) + `"></span></span>` +
+		`<div class="device-row-text"><strong>` + escape(device.Name) + `</strong><span class="device-row-ws">` + escape(workspaceName) + `</span></div></div>` +
+		`<span class="fleet-col-host fleet-host">` + escape(device.Hostname) + `</span>` +
+		`<span class="fleet-col-platform"><span class="cap-chip"><span>` + escape(formatPlatform(device.Platform, device.Arch)) + `</span></span></span>` +
+		`<span class="fleet-col-status fleet-status-wrap"><span class="status` + onlineClass(device.Online) + `" data-device-status="` + escape(device.ID) + `">` + status + `</span><span class="fleet-arrow" aria-hidden="true">→</span></span></a>`
 }
 
 func platformIcon(platform string) string {
