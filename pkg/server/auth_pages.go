@@ -178,12 +178,12 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		`<section class="panel-card"><div class="panel-head"><span class="eyebrow">01 · SESSIONS</span><h2>Active processes</h2></div>` +
 		`<div class="data-list" id="process-list"><div class="console-empty"><div class="console-preview"><span class="console-prompt">$</span> <span>rc ssh ` + escape(device.Name) + `</span></div><p class="page-copy">No active processes running on this node. Launch an interactive terminal above or run a command from the CLI.</p></div></div></section>` +
 		`<aside class="panel-card quick-cli-card"><div class="panel-head"><span class="eyebrow">02 · CLI ACCESS</span><h2>Quick commands</h2></div>` +
-		`<div class="quick-cli-list"><div class="quick-cli-item"><span class="meta">INTERACTIVE SHELL</span><code class="quick-cli-code">rc ssh ` + escape(device.Name) + `</code></div>` +
-		`<div class="quick-cli-item"><span class="meta">RUN ONE-OFF COMMAND</span><code class="quick-cli-code">rc run ` + escape(device.Name) + ` -- uname -a</code></div>` +
+		`<div class="quick-cli-list"><div class="quick-cli-item"><span class="meta">INTERACTIVE SHELL</span><div class="or-copy-field" data-copy-value="rc ssh ` + escape(device.Name) + `"><code>rc ssh ` + escape(device.Name) + `</code><button class="or-copy-button copy-value" type="button" aria-label="Copy shell command"><span class="or-copy-icon" aria-hidden="true"></span></button></div></div>` +
+		`<div class="quick-cli-item"><span class="meta">RUN ONE-OFF COMMAND</span><div class="or-copy-field" data-copy-value="rc run ` + escape(device.Name) + ` -- uname -a"><code>rc run ` + escape(device.Name) + ` -- uname -a</code><button class="or-copy-button copy-value" type="button" aria-label="Copy run command"><span class="or-copy-icon" aria-hidden="true"></span></button></div></div>` +
 		`<div class="quick-cli-item"><span class="meta">MCP &amp; API</span><p class="meta">Use <a class="inline-link" href="/integrations/mcp">MCP</a> or <a class="inline-link" href="/api">API keys</a> to give agents scoped access to this node.</p></div></div></aside>` +
 		`</div></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
-	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device", "authority"}, nil, s.assetsVersion()), "no-store")
+	s.writePage(w, http.StatusOK, pages.Authenticated(device.Name, sidebar, body, []string{"live", "device", "authority", "copy"}, nil, s.assetsVersion()), "no-store")
 }
 
 func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {

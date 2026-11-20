@@ -42,10 +42,10 @@ func (s *Server) handleMCPPage(w http.ResponseWriter, req *http.Request) {
 	body := `<div class="page"><header class="page-header"><div><p class="eyebrow">INTEGRATIONS</p><h1>MCP</h1></div>` +
 		`<div class="page-header-actions"><a class="or-button secondary" href="/docs/mcp">MCP docs</a></div></header>` +
 		`<section class="content-section"><p class="page-copy">Connect agents via OAuth with an Owner-signed RC Lock grant. Revoking a connection invalidates its tokens and syncs the lock change to affected Nodes.</p>` +
-		`<div class="or-copy-field mcp-endpoint-field"><code>` + endpoint + `</code></div></section>` +
+		`<div class="or-copy-field mcp-endpoint-field" data-copy-value="` + endpoint + `"><code>` + endpoint + `</code><button class="or-copy-button copy-value" type="button" aria-label="Copy MCP endpoint"><span class="or-copy-icon" aria-hidden="true"></span></button></div></section>` +
 		`<section class="content-section"><div class="section-heading"><div><h2>Connected clients</h2></div></div><div class="data-list">` + rows.String() + `</div></section>` +
 		`<p class="error" data-mcp-page-error role="alert"></p></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/integrations/mcp")
 	s.writePage(w, http.StatusOK, pages.Authenticated("MCP", sidebar, body,
-		[]string{"mcp-page"}, nil, s.assetsVersion()), "no-store")
+		[]string{"mcp-page", "copy"}, nil, s.assetsVersion()), "no-store")
 }

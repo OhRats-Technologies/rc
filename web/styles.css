@@ -23,6 +23,8 @@ button { border-radius: 0; }
 .auth-shell { position: relative; min-height: 100vh; display: grid; place-items: center; padding: var(--or-space-md); overflow: hidden; }
 .auth-grid { --or-grid-fade-start: 35%; --or-grid-fade-end: 95%; --or-grid-opacity: .45; }
 .auth-content { position: relative; width: min(100%,430px); display:flex; flex-direction:column; gap:.75rem; }
+.auth-brand { display:inline-flex; align-items:center; gap:.75rem; align-self:flex-start; margin-bottom:.25rem; }
+.auth-brand img { width:32px; height:32px; display:block; }
 .auth-content h1 { margin:0; font-size: clamp(2rem,7vw,3.2rem); }
 .auth-content p { margin:0; }
 .auth-form { display: grid; gap: .75rem; }

@@ -140,7 +140,8 @@ func Auth(page AuthPage, options Options) string {
 	title, content, extraHead := authContent(page, options)
 	body := `<main class="auth-shell"><div class="ohrats-grid auth-grid" aria-hidden="true"></div>` +
 		`<div class="auth-content" data-auth-next="` + html.EscapeString(options.Next) + `">` +
-		`<p class="eyebrow">RC / REMOTE CONTROL</p><h1>` + html.EscapeString(title) + `</h1>` +
+		`<a class="auth-brand" href="/"><img src="/assets/icon.svg?v=` + html.EscapeString(options.Version) + `" alt="RC" width="32" height="32"><span class="eyebrow">RC / REMOTE CONTROL</span></a>` +
+		`<h1>` + html.EscapeString(title) + `</h1>` +
 		content + `<p id="auth-error" class="error" role="alert"></p></div></main>`
 	scripts := []string{"auth"}
 	if page == Join || page == InvalidInvite {
