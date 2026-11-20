@@ -150,26 +150,26 @@ func processPageBody(device *RegisteredDevice, process browserProcess, userName 
 			`<div id="terminal-host" class="terminal-host" hidden></div>` +
 			`<div class="mobile-terminal-keys" aria-label="Terminal keys">` + mobileTerminalKeys() + `</div>`
 		actions = `<div id="terminal-actions" class="terminal-actions">` +
-			`<button class="text-button" data-signal="INT" type="button">CTRL-C</button>` +
-			`<button class="text-button" data-signal="TERM" type="button">TERM</button>` +
-			`<button class="text-button" data-signal="KILL" type="button">KILL</button></div>`
+			`<button class="signal-btn" data-signal="INT" type="button">CTRL-C</button>` +
+			`<button class="signal-btn" data-signal="TERM" type="button">TERM</button>` +
+			`<button class="signal-btn is-kill" data-signal="KILL" type="button">KILL</button></div>`
 	}
 	return `<div class="page process-page" data-process-page="` + escape(process.ID) +
 		`" data-device-id="` + escape(device.ID) + `" data-process-status="` + escape(process.Status) +
 		`" data-process-live="true" data-process-interactive="` + boolString(interactive) + `">` +
-		`<header class="page-header process-header"><div><p class="eyebrow"><a href="/devices/` +
-		escape(device.ID) + `">` + escape(strings.ToUpper(device.Name)) + `</a> / PROCESS</p>` +
+		`<header class="page-header process-header"><div><p class="eyebrow"><a class="inline-link" href="/devices/` +
+		escape(device.ID) + `">` + escape(strings.ToUpper(device.Name)) + `</a> · SESSION</p>` +
 		`<h1 class="mono process-title">` + escape(process.ID) + `</h1>` +
-		metaRow("p", escape(strings.ToUpper(process.Origin)), "STARTED BY "+escape(userName)) + `</div>` +
+		`<p class="device-subtitle"><span>` + escape(strings.Title(process.Origin)) + `</span><span class="dot-sep" aria-hidden="true">·</span><span>Started by ` + escape(userName) + `</span></p></div>` +
 		`<span id="process-state" class="status` + onlineClass(running) + `">` +
 		escape(strings.ToUpper(process.Status)) + `</span></header>` +
-		`<div id="terminal-toolbar" class="terminal-toolbar">` +
-		metaRow("span", boolChoice(process.Terminal, "PTY", "PROCESS"), escape(shortProcess(process.ID))) +
-		boolChoice(interactive, `<span id="control-transport" class="status">CONNECTING</span>`, "") + `</div>` +
-		actions + terminalBody +
+		`<div class="terminal-deck"><div id="terminal-toolbar" class="terminal-toolbar">` +
+		`<div class="terminal-toolbar-left"><span class="cap-chip"><span>` + boolChoice(process.Terminal, "PTY", "PROCESS") + `</span></span><span class="mono meta">` + escape(shortProcess(process.ID)) + `</span>` +
+		boolChoice(interactive, `<span id="control-transport" class="status">CONNECTING</span>`, "") + `</div>` + actions + `</div>` +
+		terminalBody + `</div>` +
 		`<div id="process-client-alert" class="process-client-alert" hidden>` +
 		`<p id="process-client-error" class="error" role="alert" aria-live="polite"></p>` +
-		`<button class="text-button" type="button" data-process-error-dismiss>DISMISS</button></div>` +
+		`<button class="or-button secondary" type="button" data-process-error-dismiss>Dismiss</button></div>` +
 		`<p id="process-message" class="meta process-message">` + escape(message) + `</p></div>`
 }
 
