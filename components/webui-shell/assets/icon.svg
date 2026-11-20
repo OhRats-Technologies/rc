@@ -1,36 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="RC">
-  <defs>
-    <linearGradient id="tileBg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#242220"/>
-      <stop offset="100%" stop-color="#171614"/>
-    </linearGradient>
-    <clipPath id="sqClip">
-      <rect width="512" height="512" rx="96" ry="96"/>
-    </clipPath>
-  </defs>
-  <g clip-path="url(#sqClip)">
-    <!-- Matte charcoal hardware square -->
-    <rect width="512" height="512" fill="url(#tileBg)"/>
-    <!-- Subtle warm espresso edge so it stays crisp on dark browser tabs too -->
-    <rect x="4" y="4" width="504" height="504" rx="92" fill="none" stroke="#624A3A" stroke-opacity="0.45" stroke-width="6"/>
-
-    <!-- Top 4 channel status bars (signature C2 core detail) -->
-    <rect x="74" y="76" width="66" height="18" rx="9" fill="#E27A3B"/>
-    <rect x="156" y="76" width="66" height="18" rx="9" fill="#E27A3B"/>
-    <rect x="238" y="76" width="66" height="18" rx="9" fill="#7A5438"/>
-    <rect x="320" y="76" width="66" height="18" rx="9" fill="#463A32"/>
-
-    <!-- Tactile horizontal split-flap seam -->
-    <line x1="0" y1="274" x2="512" y2="274" stroke="#0A0908" stroke-width="5"/>
-    <line x1="0" y1="278" x2="512" y2="278" stroke="#34312D" stroke-width="2"/>
-
-    <!-- Crisp warm-ivory monospace 'rc' -->
-    <text x="256" y="366"
-          text-anchor="middle"
-          font-family="'JetBrains Mono', 'SF Mono', 'DejaVu Sans Mono', ui-monospace, monospace"
-          font-size="278"
-          font-weight="700"
-          letter-spacing="4"
-          fill="#F4F3DF">rc</text>
-  </g>
+  <rect width="512" height="512" fill="#634936"/>
+  <!-- Bold charcoal-ink top channel bars (2 lit ivory, 2 dark charcoal) -->
+  <rect x="64" y="68" width="84" height="24" fill="#F4F3DF" stroke="#1D1D1B" stroke-width="10"/>
+  <rect x="166" y="68" width="84" height="24" fill="#F4F3DF" stroke="#1D1D1B" stroke-width="10"/>
+  <rect x="268" y="68" width="84" height="24" fill="#1D1D1B"/>
+  <rect x="370" y="68" width="78" height="24" fill="#1D1D1B" opacity="0.45"/>
+  <!-- Crisp warm-ivory 'rc' with bold charcoal outline -->
+  <text x="256" y="382"
+        text-anchor="middle"
+        font-family="'JetBrains Mono', 'SF Mono', 'DejaVu Sans Mono', ui-monospace, monospace"
+        font-size="292"
+        font-weight="700"
+        letter-spacing="-6"
+        fill="#F4F3DF"
+        stroke="#1D1D1B"
+        stroke-width="22"
+        paint-order="stroke fill"
+        stroke-linejoin="round">rc</text>
 </svg>
