@@ -42,7 +42,7 @@ func TestAuthorityWarningUntilEveryNodeAcceptsAccess(t *testing.T) {
 	res, payload := workspaceRequest(t, ts.URL, http.MethodGet, "/workspaces/ws_sync/access", "", cookie)
 	page := string(payload)
 	if res.StatusCode != http.StatusOK || !strings.Contains(page, `data-authority-alert="ws_sync"`) ||
-		!strings.Contains(page, "Sync Node (offline)") || !strings.Contains(page, "SYNC DEVICE ACCESS") {
+		!strings.Contains(page, "Sync Node (offline)") || !strings.Contains(page, "Sync device access") {
 		t.Fatalf("pending access page = %d: %s", res.StatusCode, page)
 	}
 	res, payload = workspaceRequest(t, ts.URL, http.MethodGet, "/devices/dev_sync", "", cookie)

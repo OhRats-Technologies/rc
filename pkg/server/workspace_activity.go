@@ -71,11 +71,12 @@ func (s *Server) handleWorkspaceActivityPage(w http.ResponseWriter, req *http.Re
 		rows.WriteString(activityRow(event))
 	}
 	if rows.Len() == 0 {
-		rows.WriteString(`<p class="empty-state">No activity yet.</p>`)
+		rows.WriteString(`<div class="empty-card"><p class="page-copy">No workspace activity recorded yet.</p></div>`)
 	}
 	body := `<div class="page" data-activity-page="` + escape(workspaceID) + `">` +
-		`<header class="page-header"><div><p class="eyebrow">` + escape(strings.ToUpper(workspace.Name)) + ` / ACTIVITY</p><h1>Activity</h1></div></header>` +
-		`<section class="content-section"><div id="activity-list" class="activity-list">` + rows.String() + `</div></section></div>`
+		`<header class="page-header"><div><p class="eyebrow">` + escape(strings.ToUpper(workspace.Name)) + `</p><h1>Activity</h1>` +
+		`<p class="page-copy">Audit log of device enrollments, access changes, and sessions.</p></div></header>` +
+		`<section class="panel-card"><div class="panel-head"><span class="eyebrow">AUDIT LOG</span><h2>Recent events</h2></div><div id="activity-list" class="activity-list">` + rows.String() + `</div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, req.URL.Path)
 	s.writePage(w, http.StatusOK, pages.Authenticated("Activity", sidebar, body,
 		[]string{"live"}, nil, s.assetsVersion()), "no-store")
@@ -91,6 +92,6 @@ func activityRow(event authstore.AuditEvent) string {
 			break
 		}
 	}
-	return `<div class="activity-row"><span>` + escape(strings.ToUpper(event.Kind)) + `</span><span>` +
-		escape(value) + `</span><time>` + escape(event.CreatedAt.UTC().Format("2006-01-02 15:04")) + `</time></div>`
+	return `<div class="activity-row"><span class="cap-chip"><span>` + escape(strings.ReplaceAll(event.Kind, ".", " · ")) + `</span></span><span class="activity-target">` +
+		escape(value) + `</span><time>` + escape(event.CreatedAt.UTC().Format("Jan 2, 2006 · 15:04")) + `</time></div>`
 }

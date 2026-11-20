@@ -161,17 +161,18 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		workspaceName = ws.Name
 	}
 	body := `<div class="page" data-device-page="` + escape(device.ID) + `" data-supports-process="` + fmt.Sprint(supportsProcess) + `" data-retains-process-history="false">` +
-		`<section class="device-overview"><div class="breadcrumb-bar"><a class="back-link" href="/devices">← Devices</a><span class="breadcrumb-sep">/</span><span class="eyebrow">` + escape(strings.ToUpper(workspaceName)) + `</span></div>` +
+		`<section class="device-overview">` +
 		`<header class="page-header device-header"><div class="device-identity"><span class="device-badge"><span class="ui-icon device-platform-icon device-title-platform ` + platformIcon(device.Platform) + `"></span></span><div class="device-identity-copy">` +
 		`<div class="page-title-row device-title-row"><h1 data-device-title-view>` + escape(device.Name) + `</h1>` +
 		`<form method="post" action="/devices/` + escape(device.ID) + `/rename" hidden data-device-title-form><input class="device-title-input" name="name" value="` + escape(device.Name) + `" aria-label="Device name" required maxlength="120"><input type="hidden" name="next" value="/devices/` + escape(device.ID) + `"></form>` +
 		`<button class="header-icon-button" type="button" data-device-title-rename aria-label="Rename device" title="Rename device"><span class="ui-icon icon-pencil"></span></button></div>` +
+		`<p class="device-subtitle"><span>` + escape(workspaceName) + `</span><span class="dot-sep" aria-hidden="true">·</span><span>` + escape(device.Hostname) + `</span></p>` +
 		`<p class="error device-title-error" data-device-title-error></p></div></div>` +
 		`<div class="device-header-actions"><span id="device-status" class="status` + onlineClass(device.Online) + `">` + status + `</span>` +
 		`<button id="open-terminal" class="or-button device-terminal-button" type="button" title="` + escape(terminalTitle) + `" ` + terminalDisabled + `><span class="ui-icon icon-terminal" aria-hidden="true"></span><span>Open terminal</span></button>` +
 		`<span class="action-divider" aria-hidden="true"></span>` +
 		`<button class="header-icon-button danger-icon-button" type="button" aria-label="Delete ` + escape(device.Name) + `" title="Delete device" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-description="Deletes from RC immediately. If the Node is offline, it clears its old enrollment the next time it connects." data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-access-workspace="` + escape(device.WorkspaceID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span></button></div></header>` +
-		`<dl class="facts"><div><dt>HOSTNAME</dt><dd>` + escape(device.Hostname) + `</dd></div><div><dt>PLATFORM</dt><dd>` + escape(strings.ToUpper(device.Platform)) + `/` + escape(device.Arch) + `</dd></div><div><dt>NODE VERSION</dt><dd id="node-version">` + escape(device.Version) + `</dd></div><div><dt>TRANSPORT</dt><dd>E2E · RC Lock</dd></div></dl>` +
+		`<dl class="facts"><div><dt>HOSTNAME</dt><dd>` + escape(device.Hostname) + `</dd></div><div><dt>PLATFORM</dt><dd>` + escape(strings.ToUpper(device.Platform)) + ` / ` + escape(device.Arch) + `</dd></div><div><dt>NODE VERSION</dt><dd id="node-version">` + escape(device.Version) + `</dd></div><div><dt>TRANSPORT</dt><dd>End-to-end · RC Lock</dd></div></dl>` +
 		`<p id="process-error" class="error"></p></section>` +
 		authorityAlert(access, role, true) +
 		`<div class="device-workspace">` +
@@ -223,17 +224,17 @@ func (s *Server) handleEnrollPage(w http.ResponseWriter, req *http.Request) {
 		options.WriteString(`<option value="">No owned workspaces</option>`)
 	}
 	body := `<div class="page narrow-form-page" data-enroll-page="` + escape(selected) + `" data-known-devices="` + escape(strings.Join(ids, ",")) + `">` +
-		`<a class="back-link" href="/devices">← Devices</a>` +
-		`<header class="page-header"><div><p class="eyebrow">DEVICES</p><h1>Enroll device</h1>` +
-		`<p class="page-copy">Generate a one-time command to connect a machine to your workspace.</p></div></header>` +
-		`<form data-enrollment-form class="simple-form"><label>Workspace<select name="workspaceId">` + options.String() + `</select></label>` +
-		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option><option value="android">Android (Termux)</option></select></label>` +
-		`<p class="meta" data-enrollment-platform-help>Run the command in a terminal on the machine you want to enroll.</p>` +
-		`<button class="or-button" type="submit">Create enrollment commands</button></form>` +
+		`<header class="page-header"><div><p class="eyebrow">DEVICES</p><h1>Enroll a device</h1>` +
+		`<p class="page-copy">Generate a one-time install command to connect a new machine to your workspace.</p></div></header>` +
+		`<section class="panel-card"><div class="panel-head"><span class="eyebrow">STEP 01</span><h2>Choose workspace &amp; platform</h2></div>` +
+		`<div class="panel-body"><form data-enrollment-form class="simple-form"><div class="form-grid-2"><label>Workspace<select name="workspaceId">` + options.String() + `</select></label>` +
+		`<label>Target platform<select name="platform"><option value="unix">Linux / macOS</option><option value="windows">Windows (PowerShell)</option><option value="android">Android (Termux)</option></select></label></div>` +
+		`<p class="page-copy" data-enrollment-platform-help>Run the generated command in a terminal on the machine you want to enroll.</p>` +
+		`<button class="or-button" type="submit">Generate enrollment command</button></form></div></section>` +
 		`<div class="enrollment-command">` +
-		`<div class="enrollment-block"><span class="meta enrollment-label">NEW INSTALL (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div></div>` +
-		`<div class="enrollment-block"><span class="meta enrollment-label">ALREADY INSTALLED (SHOWN ONCE)</span><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div></div>` +
-		`<p class="meta">One default background enrollment is supported per OS user. RC refuses to overwrite an existing device identity.</p>` +
+		`<div class="panel-card enrollment-block"><div class="panel-head"><span class="eyebrow">NEW MACHINE · SHOWN ONCE</span><h2>Install &amp; enroll</h2></div><div class="panel-body"><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="install"></code><button class="or-copy-button" type="button" aria-label="Copy install command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div></div></div>` +
+		`<div class="panel-card enrollment-block"><div class="panel-head"><span class="eyebrow">ALREADY INSTALLED · SHOWN ONCE</span><h2>Enroll existing RC Node</h2></div><div class="panel-body"><div class="or-copy-field enrollment-install" data-enrollment-copy-field hidden><code data-enrollment-result="enroll"></code><button class="or-copy-button" type="button" aria-label="Copy enroll command" data-enrollment-copy><span class="or-copy-icon" aria-hidden="true"></span></button></div></div></div>` +
+		`<p class="page-copy">One default background enrollment is supported per OS user. RC refuses to overwrite an existing device identity.</p>` +
 		`<p class="error" role="alert" data-enrollment-error></p><p id="enrollment-state" class="meta"></p></div></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/devices/enroll")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Enroll device", sidebar, body, []string{"pages", "live"}, nil, s.assetsVersion()), "no-store")
@@ -246,24 +247,36 @@ func (s *Server) handleAccountPage(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	passkeys, _ := s.auth.PasskeysForUser(user.ID)
+	initial := "?"
+	if trimmed := strings.TrimSpace(user.Name); trimmed != "" {
+		initial = strings.ToUpper(string([]rune(trimmed)[0]))
+	}
 	var rows strings.Builder
 	if len(passkeys) == 0 {
-		rows.WriteString(`<p class="empty-state">No passkeys registered.</p>`)
+		rows.WriteString(`<div class="empty-card"><h2>No passkeys registered</h2><p class="page-copy">Add a hardware-backed passkey to sign in securely without passwords.</p></div>`)
 	} else {
 		for index, passkey := range passkeys {
-			rows.WriteString(`<div class="setting-row"><div><strong>Passkey ` + fmt.Sprint(index+1) + `</strong><div class="meta">` + escape(passkey.Name) + `</div></div>` +
-				`<span class="meta">` + strings.ToUpper(passkey.CreatedAt.Format("2006-01-02")) + `</span></div>`)
+			label := strings.TrimSpace(passkey.Name)
+			if label == "" {
+				label = "WebAuthn passkey"
+			}
+			rows.WriteString(`<div class="key-row"><div class="key-row-icon"><span class="ui-icon icon-key" aria-hidden="true"></span></div>` +
+				`<div class="key-row-body"><div class="key-row-title"><strong>Passkey ` + fmt.Sprint(index+1) + `</strong>` +
+				`<div class="key-row-dates"><span>` + escape(label) + `</span><span class="dot-sep" aria-hidden="true">·</span><span>Added ` + escape(passkey.CreatedAt.UTC().Format("Jan 2, 2006")) + `</span></div></div></div>` +
+				`<span class="cap-chip"><span>WebAuthn</span></span></div>`)
 		}
 	}
-	body := `<div class="page"><header class="page-header account-header"><div><div class="page-title-row"><h1 data-account-name-view>` + escape(user.Name) + `</h1>` +
+	body := `<div class="page"><header class="page-header account-header"><div class="device-identity"><span class="account-avatar">` + escape(initial) + `</span><div class="device-identity-copy">` +
+		`<p class="eyebrow">ACCOUNT</p><div class="page-title-row"><h1 data-account-name-view>` + escape(user.Name) + `</h1>` +
 		`<form method="post" action="/account/name" hidden data-account-name-form><input class="account-title-input" name="name" value="` + escape(user.Name) + `" aria-label="Account name" required maxlength="120"></form>` +
 		`<button class="header-icon-button" type="button" data-account-rename aria-label="Rename account" title="Rename account"><span class="ui-icon icon-pencil"></span></button></div>` +
-		`<p class="error account-title-error"></p></div></header><section class="content-section"><div class="section-heading"><div><div class="badge-container"><span class="badge-text">01 Passkeys</span><div class="badge-line"></div></div><h2>Sign-in credentials</h2></div></div>` +
-		`<div class="settings-list">` + rows.String() + `</div><p id="passkey-error" class="error"></p></section>` +
-		`<section class="content-section"><div class="section-heading"><div><h2>Delete account</h2></div></div>` +
-		`<p class="meta">Deletes this account, every workspace you own, and your memberships. Workspaces you do not own remain.</p>` +
-		`<button class="text-button danger-text" type="button" data-delete-kind="account" data-delete-name="` + escape(user.Name) +
-		`" data-delete-endpoint="/account/delete" data-delete-method="POST" data-delete-redirect="/" data-delete-description="This cannot be undone.">DELETE ACCOUNT</button></section></div>`
+		`<p class="error account-title-error"></p></div></div></header>` +
+		`<section class="panel-card"><div class="panel-head"><span class="eyebrow">01 · CREDENTIALS</span><h2>Passkeys (` + itoa(len(passkeys)) + `)</h2></div>` +
+		`<div class="key-list">` + rows.String() + `</div><p id="passkey-error" class="error"></p></section>` +
+		`<section class="panel-card danger-card"><div class="panel-head"><span class="eyebrow danger-eyebrow">02 · DANGER ZONE</span><h2>Delete account</h2></div>` +
+		`<div class="panel-body danger-body"><p class="page-copy">Permanently deletes this account, every workspace you own, and all workspace memberships. Workspaces owned by others remain intact.</p>` +
+		`<button class="btn-danger-solid" type="button" data-delete-kind="account" data-delete-name="` + escape(user.Name) +
+		`" data-delete-endpoint="/account/delete" data-delete-method="POST" data-delete-redirect="/" data-delete-description="This cannot be undone.">Delete account</button></div></section></div>`
 	sidebar := s.renderSidebar(user.ID, user.Name, "/account")
 	s.writePage(w, http.StatusOK, pages.Authenticated("Account", sidebar, body, []string{"account"}, nil, s.assetsVersion()), "no-store")
 }

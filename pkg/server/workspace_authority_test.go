@@ -145,7 +145,7 @@ func TestWorkspaceAccessAndActivityPages(t *testing.T) {
 	req.AddCookie(memberCookie)
 	res, payload = oauthDo(t, http.DefaultClient, req)
 	if res.StatusCode != http.StatusOK || !strings.Contains(string(payload), `data-activity-page="ws_access"`) ||
-		!strings.Contains(string(payload), "WORKSPACE.MEMBER.ROLE") {
+		!strings.Contains(string(payload), "workspace · member · role") {
 		t.Fatalf("activity page = %d: %s", res.StatusCode, payload)
 	}
 	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/api/v1/workspaces/ws_access/activity", nil)
