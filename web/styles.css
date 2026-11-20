@@ -5,6 +5,8 @@ html.dark, html[data-theme="dark"] { color-scheme: dark; }
 select option { background-color: var(--or-surface); color: var(--or-text); }
 button, input, select, textarea { font: inherit; }
 button { border-radius: 0; }
+.or-button.secondary { background: transparent; color: var(--or-text); border: 1px solid var(--or-border); }
+.or-button.secondary:hover { background: var(--or-surface-hover); border-color: var(--or-text); opacity: 1; }
 .muted { color: var(--or-text-muted); }
 .mono, .eyebrow, .meta, .status, .text-button, .text-action, code, .activity-row { font-family: var(--or-font-mono); }
 .eyebrow { color: var(--or-text-muted); font-size: .7rem; letter-spacing: .09em; }
