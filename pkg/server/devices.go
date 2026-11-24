@@ -25,6 +25,8 @@ type DeviceRegistry struct {
 	nonces  map[string]time.Time
 	// Consume resolves a durable enrollment token to its workspace.
 	Consume func(string) (string, error)
+	// isConnected reports whether a device currently holds a live control WebSocket.
+	isConnected func(string) bool
 	// store persists devices; nil keeps the registry in memory only.
 	store *authstore.Store
 }
@@ -129,7 +131,7 @@ func (r *DeviceRegistry) HandleEnroll(w http.ResponseWriter, req *http.Request) 
 		Capabilities:       enrollReq.Capabilities,
 		IdentityPublicKey:  enrollReq.IdentityPublicKey,
 		TransportPublicKey: enrollReq.TransportPublicKey,
-		Online:             true,
+		Online:             false,
 		LastSeen:           time.Now(),
 	}
 	if err := r.persistEnrollment(dev); err != nil {
@@ -167,6 +169,7 @@ func (r *DeviceRegistry) List() []*RegisteredDevice {
 	list := make([]*RegisteredDevice, 0, len(r.devices))
 	for _, device := range r.devices {
 		copied := *device
+		copied.Online = r.effectiveOnlineLocked(&copied)
 		list = append(list, &copied)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -187,6 +190,7 @@ func (r *DeviceRegistry) Get(id string) (*RegisteredDevice, bool) {
 		return nil, false
 	}
 	copied := *device
+	copied.Online = r.effectiveOnlineLocked(&copied)
 	return &copied, true
 }
 

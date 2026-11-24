@@ -88,18 +88,21 @@ export async function syncWorkspaceAuthority(workspaceId: string, selected?: str
   const state = await api<AuthorityStatus & { parents: Array<{ hash: string; generation: number }> }>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority`);
   const initial = authorityProgress(state, deferOffline ? undefined : selected);
   if (!initial.devices || (initial.synced === initial.devices && !state.parents.length)) return state;
-  const identity = await ensureControlAuthorized();
-  const transitions = await Promise.all(state.parents.map(async parent => ({
-    fromHash: parent.hash, generation: parent.generation,
-    signature: bytesToB64url(await crypto.subtle.sign("Ed25519", identity.privateKey,
-      new TextEncoder().encode(`rc-authority-v3\n${parent.generation}\n${parent.hash}\n${state.hash}`))),
-  })));
-  if (!transitions.length) {
-    if (deferOffline) return state;
-    throw new Error("RC Lock state is unavailable for synchronization.");
+  let clientId = "";
+  let transitions: Array<{ fromHash: string; generation: number; signature: string }> = [];
+  if (state.parents.length) {
+    const identity = await ensureControlAuthorized();
+    clientId = identity.id;
+    transitions = await Promise.all(state.parents.map(async parent => ({
+      fromHash: parent.hash, generation: parent.generation,
+      signature: bytesToB64url(await crypto.subtle.sign("Ed25519", identity.privateKey,
+        new TextEncoder().encode(`rc-authority-v3\n${parent.generation}\n${parent.hash}\n${state.hash}`))),
+    })));
+  } else if (syncSettled(state, deferOffline ? undefined : selected)) {
+    return state;
   }
   // The server waits for online Nodes to acknowledge the lock and returns the settled state, so the browser does not poll.
-  const settled = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId: identity.id, transitions }) });
+  const settled = await api<AuthorityStatus>(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/authority/sync`, { method: "POST", body: JSON.stringify({ clientId, transitions }) });
   if (deferOffline || syncSettled(settled, selected)) return settled;
   if (selected) {
     const progress = authorityProgress(settled, selected);

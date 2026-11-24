@@ -2,6 +2,28 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.12] - 2026-11-24
+
+- Drive Node online/offline presence solely from the live control WebSocket.
+  HTTP heartbeats, `/api/v1/node/self`, and enrollment no longer mark a
+  disconnected Node permanently online without an active control channel.
+- Add write deadlines to server and Node control-channel sends and close the
+  socket when keepalive delivery fails. Enforce a Node-side read deadline once
+  server keepalives are observed so half-open connections drop cleanly on both
+  ends.
+- Clear the HTTP server write deadline on `/api/v1/events` SSE streams and send
+  periodic keepalive pings so live presence updates do not drop after 90s.
+- Show the `RC Lock out of sync` alert on a device page only when that specific
+  Node is out of sync, instead of warning on already-synced peers in the same
+  workspace.
+- Allow `SYNC DEVICE ACCESS` to trigger `lock_bootstrap` for unbootstrapped
+  Nodes and settle cleanly when only offline unbootstrapped Nodes remain,
+  eliminating the `RC Lock state is unavailable for synchronization.` error.
+- Fix device page CLI quick commands to use `rc shell <device>` and
+  `rc shell <device> --command "uname -a"` instead of nonexistent `rc ssh` /
+  `rc run` syntax, and allow `rc shell` to accept a positional device name or ID
+  without requiring local Node enrollment.
+
 ## [0.20.11] - 2026-11-19
 
 - Show RC Lock access state wherever an Owner acts on it. A Node that has not

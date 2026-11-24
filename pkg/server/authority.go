@@ -161,7 +161,7 @@ func (s *Server) handleAuthoritySync(w http.ResponseWriter, req *http.Request) {
 			Signature  string `json:"signature"`
 		} `json:"transitions"`
 	}
-	if err := decodeJSON(req, &input); err != nil || len(input.Transitions) == 0 || len(input.Transitions) > 100 {
+	if err := decodeJSON(req, &input); err != nil || len(input.Transitions) > 100 {
 		writeError(w, http.StatusBadRequest, "invalid authority transition")
 		return
 	}
@@ -172,29 +172,32 @@ func (s *Server) handleAuthoritySync(w http.ResponseWriter, req *http.Request) {
 	}
 	digest := node.SnapshotHash(snapshot)
 	signatures := make(map[string]string)
-	for _, transition := range input.Transitions {
-		from := transition.FromHash
-		if !validAuthorityHash(from) {
-			writeError(w, http.StatusBadRequest, "invalid authority transition")
+	var proof *protocol.ControlProof
+	var expires time.Time
+	if len(input.Transitions) > 0 {
+		for _, transition := range input.Transitions {
+			from := transition.FromHash
+			if !validAuthorityHash(from) {
+				writeError(w, http.StatusBadRequest, "invalid authority transition")
+				return
+			}
+			payload := "rc-authority-v3\n" + itoa(int(transition.Generation)) + "\n" + from + "\n" + digest
+			if !s.verifyControlSignature(user.ID, input.ClientID, payload, transition.Signature) {
+				writeError(w, http.StatusForbidden, "invalid authority transition signature")
+				return
+			}
+			signatures[from+"\x00"+itoa(int(transition.Generation))] = transition.Signature
+		}
+		proof, err = s.controlProof(user.ID, input.ClientID)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "control client authorization expired")
 			return
 		}
-		payload := "rc-authority-v3\n" + itoa(int(transition.Generation)) + "\n" + from + "\n" + digest
-		if !s.verifyControlSignature(user.ID, input.ClientID, payload, transition.Signature) {
-			writeError(w, http.StatusForbidden, "invalid authority transition signature")
-			return
+		var grant protocol.ControlGrant
+		_ = json.Unmarshal([]byte(proof.Grant), &grant)
+		if grant.ExpiresAt != 0 {
+			expires = time.UnixMilli(grant.ExpiresAt).UTC()
 		}
-		signatures[from+"\x00"+itoa(int(transition.Generation))] = transition.Signature
-	}
-	proof, err := s.controlProof(user.ID, input.ClientID)
-	if err != nil {
-		writeError(w, http.StatusUnauthorized, "control client authorization expired")
-		return
-	}
-	var grant protocol.ControlGrant
-	_ = json.Unmarshal([]byte(proof.Grant), &grant)
-	expires := time.Time{}
-	if grant.ExpiresAt != 0 {
-		expires = time.UnixMilli(grant.ExpiresAt).UTC()
 	}
 	devices := s.registry.List()
 	online := 0
@@ -202,32 +205,34 @@ func (s *Server) handleAuthoritySync(w http.ResponseWriter, req *http.Request) {
 		if device.WorkspaceID != workspaceID {
 			continue
 		}
-		parents := make([][2]any, 0)
-		if device.LockHash != "" {
-			parents = append(parents, [2]any{device.LockHash, device.LockGeneration})
-		}
-		pending, _ := s.auth.AuthorityDeliveryParentsForDevice(device.ID)
-		for _, parent := range pending {
-			parents = append(parents, parent)
-		}
-		for _, parent := range parents {
-			from, _ := parent[0].(string)
-			generation, _ := parent[1].(uint64)
-			signature, ok := signatures[from+"\x00"+itoa(int(generation))]
-			if !ok {
-				continue
+		if proof != nil {
+			parents := make([][2]any, 0)
+			if device.LockHash != "" {
+				parents = append(parents, [2]any{device.LockHash, device.LockGeneration})
 			}
-			message := protocol.ServerToNode{
-				Type: "lock_sync", Snapshot: snapshot,
-				PreviousHash: from, PreviousGeneration: generation,
-				Grant: proof.Grant, CredentialID: proof.CredentialID,
-				Assertion: proof.Assertion, Signature: signature,
+			pending, _ := s.auth.AuthorityDeliveryParentsForDevice(device.ID)
+			for _, parent := range pending {
+				parents = append(parents, parent)
 			}
-			encoded, _ := json.Marshal(message)
-			_ = s.auth.PutAuthorityDelivery(authstore.AuthorityDelivery{
-				DeviceID: device.ID, PreviousHash: from, Generation: generation,
-				NextHash: digest, Message: string(encoded), ExpiresAt: expires,
-			})
+			for _, parent := range parents {
+				from, _ := parent[0].(string)
+				generation, _ := parent[1].(uint64)
+				signature, ok := signatures[from+"\x00"+itoa(int(generation))]
+				if !ok {
+					continue
+				}
+				message := protocol.ServerToNode{
+					Type: "lock_sync", Snapshot: snapshot,
+					PreviousHash: from, PreviousGeneration: generation,
+					Grant: proof.Grant, CredentialID: proof.CredentialID,
+					Assertion: proof.Assertion, Signature: signature,
+				}
+				encoded, _ := json.Marshal(message)
+				_ = s.auth.PutAuthorityDelivery(authstore.AuthorityDelivery{
+					DeviceID: device.ID, PreviousHash: from, Generation: generation,
+					NextHash: digest, Message: string(encoded), ExpiresAt: expires,
+				})
+			}
 		}
 		if s.deliverAuthority(device.ID) {
 			online++

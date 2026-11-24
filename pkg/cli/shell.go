@@ -14,21 +14,22 @@ import (
 
 func runShell(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("shell", flag.ContinueOnError)
-	device := fs.String("device", "", "Target device ID (local device when omitted)")
+	device := fs.String("device", "", "Target device ID or name (local device when omitted)")
 	stateDir := fs.String("state-dir", "", "Override state directory")
 	command := fs.String("command", "", "Run one command instead of an interactive shell")
 	if err := fs.Parse(reorderArgs(fs, args)); err != nil {
 		return err
 	}
+	target := *device
+	if target == "" && fs.NArg() > 0 {
+		target = fs.Arg(0)
+	}
 	dir, err := node.ResolveStateDir(*stateDir)
 	if err != nil {
 		return err
 	}
-	state, err := node.LoadState(dir)
-	if err != nil {
-		return node.ErrNotEnrolled
-	}
-	if *device != "" && *device != state.DeviceID {
+	state, stateErr := node.LoadState(dir)
+	if target != "" && (stateErr != nil || target != state.DeviceID) {
 		config, _ := node.LoadConfig(dir)
 		server := config.Server
 		if server == "" {
@@ -37,7 +38,10 @@ func runShell(ctx context.Context, args []string) error {
 		if server == "" {
 			server = "https://rc.ohrats.party"
 		}
-		return runRemoteShell(ctx, dir, server, *device, *command)
+		return runRemoteShell(ctx, dir, server, target, *command)
+	}
+	if stateErr != nil {
+		return node.ErrNotEnrolled
 	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {

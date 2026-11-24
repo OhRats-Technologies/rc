@@ -124,3 +124,40 @@ func TestNodeWithoutKeepaliveCapabilityIsNotIdleDisconnected(t *testing.T) {
 	case <-time.After(4 * hub.idleTimeout):
 	}
 }
+
+func TestHeartbeatAndSelfDoNotMarkDisconnectedNodeOnline(t *testing.T) {
+	srv := New(Config{DataDir: t.TempDir(), PublicURL: "https://rc.example.test"})
+	defer srv.Close()
+	device := &RegisteredDevice{
+		ID: "dev_offline_hb", WorkspaceID: defaultWorkspaceID, Name: "Offline Box",
+		Hostname: "offline", Platform: "linux", Arch: "amd64", Version: "0.20.11",
+		IdentityPublicKey: base64URL(32, 9), TransportPublicKey: base64URL(32, 10),
+	}
+	srv.registry.mu.Lock()
+	srv.registry.devices[device.ID] = device
+	srv.registry.mu.Unlock()
+
+	srv.registry.touch(device.ID)
+	got, ok := srv.registry.Get(device.ID)
+	if !ok || got.Online {
+		t.Fatalf("touch marked disconnected device online: %+v", got)
+	}
+	if got.LastSeen.IsZero() {
+		t.Fatal("touch did not record LastSeen")
+	}
+
+	// A heartbeat-marked device without a live WebSocket must expire offline after nodeHeartbeatTTL.
+	srv.registry.markOnline(device.ID, true)
+	if got, _ := srv.registry.Get(device.ID); !got.Online {
+		t.Fatal("fresh heartbeat should be online")
+	}
+	srv.registry.mu.Lock()
+	srv.registry.devices[device.ID].LastSeen = time.Now().Add(-nodeHeartbeatTTL - time.Second)
+	srv.registry.mu.Unlock()
+	if got, _ := srv.registry.Get(device.ID); got.Online {
+		t.Fatal("stale heartbeat without WebSocket must report offline")
+	}
+	if expired := srv.registry.reapStaleOnline(); len(expired) != 1 || expired[0].ID != device.ID {
+		t.Fatalf("reapStaleOnline = %+v, want [%s]", expired, device.ID)
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,10 +30,11 @@ func runRemoteShell(ctx context.Context, dir, server, deviceID, command string) 
 	if err != nil {
 		return err
 	}
-	device, err := client.Device(ctx, deviceID)
+	device, err := resolveShellDevice(ctx, client, deviceID)
 	if err != nil {
 		return err
 	}
+	deviceID = device.ID
 	if !device.Supports("control-ws") {
 		return fmt.Errorf("target Node does not support WebSocket control; run rc upgrade")
 	}
@@ -216,6 +218,29 @@ func sendControlFrame(conn *websocket.Conn, key *[32]byte, sessionID string, seq
 		return err
 	}
 	return websocket.Message.Send(conn, string(frame))
+}
+
+func resolveShellDevice(ctx context.Context, client *apiclient.ApiClient, target string) (*apiclient.Device, error) {
+	if device, err := client.Device(ctx, target); err == nil && device != nil {
+		return device, nil
+	}
+	devices, err := client.Devices(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var matches []apiclient.Device
+	for _, device := range devices {
+		if strings.EqualFold(device.Name, target) {
+			matches = append(matches, device)
+		}
+	}
+	if len(matches) == 1 {
+		return client.Device(ctx, matches[0].ID)
+	}
+	if len(matches) > 1 {
+		return nil, fmt.Errorf("multiple devices named %q; pass the device ID instead", target)
+	}
+	return nil, fmt.Errorf("device %q not found", target)
 }
 
 func randomURLBytes(size int) string {

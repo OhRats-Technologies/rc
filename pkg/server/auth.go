@@ -47,6 +47,9 @@ func (s *Server) initAuth() {
 }
 
 func (s *Server) Close() error {
+	if s.stopReaper != nil {
+		s.reapOnce.Do(func() { close(s.stopReaper) })
+	}
 	if s.nodes != nil {
 		s.nodes.Close()
 	}

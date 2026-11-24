@@ -11,7 +11,10 @@ import (
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
 )
 
-const nodeAuthWindow = 60 * time.Second
+const (
+	nodeAuthWindow   = 60 * time.Second
+	nodeHeartbeatTTL = 90 * time.Second
+)
 
 func (r *DeviceRegistry) verifyNode(req *http.Request, body []byte) (*RegisteredDevice, error) {
 	deviceID := req.Header.Get("x-rc-device")
@@ -95,6 +98,16 @@ func (r *DeviceRegistry) markOnline(deviceID string, online bool) {
 	device.LastSeen = time.Now().UTC()
 }
 
+func (r *DeviceRegistry) touch(deviceID string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	device, ok := r.devices[deviceID]
+	if !ok {
+		return
+	}
+	device.LastSeen = time.Now().UTC()
+}
+
 func (s *Server) handleNodeSelf(w http.ResponseWriter, req *http.Request) {
 	if req.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -105,11 +118,10 @@ func (s *Server) handleNodeSelf(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), nodeAuthStatus(err))
 		return
 	}
-	s.registry.markOnline(device.ID, true)
-	s.events.Publish("device.online", map[string]any{"deviceId": device.ID, "name": device.Name})
+	s.registry.touch(device.ID)
 	payload := map[string]any{
 		"name":     device.Name,
-		"online":   true,
+		"online":   s.nodes.Online(device.ID),
 		"version":  device.Version,
 		"platform": device.Platform,
 		"arch":     device.Arch,
@@ -124,6 +136,33 @@ func (s *Server) handleNodeSelf(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func (r *DeviceRegistry) effectiveOnlineLocked(device *RegisteredDevice) bool {
+	if r.isConnected != nil && r.isConnected(device.ID) {
+		return true
+	}
+	return device.Online && !device.LastSeen.IsZero() && time.Since(device.LastSeen) <= nodeHeartbeatTTL
+}
+
+func (r *DeviceRegistry) reapStaleOnline() []*RegisteredDevice {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var expired []*RegisteredDevice
+	for _, device := range r.devices {
+		if !device.Online {
+			continue
+		}
+		if r.isConnected != nil && r.isConnected(device.ID) {
+			continue
+		}
+		if device.LastSeen.IsZero() || time.Since(device.LastSeen) > nodeHeartbeatTTL {
+			device.Online = false
+			copied := *device
+			expired = append(expired, &copied)
+		}
+	}
+	return expired
 }
 
 func (s *Server) handleNodeHeartbeat(w http.ResponseWriter, req *http.Request) {
@@ -154,6 +193,21 @@ func (s *Server) handleNodeConnect(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	s.nodes.Serve(device.ID, w, req)
+}
+
+func (s *Server) runPresenceReaper() {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.stopReaper:
+			return
+		case <-ticker.C:
+			for _, device := range s.registry.reapStaleOnline() {
+				s.events.Publish("device.offline", map[string]any{"deviceId": device.ID, "name": device.Name})
+			}
+		}
+	}
 }
 
 // markOffline records that a Node disconnected without an authenticated

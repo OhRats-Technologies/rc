@@ -137,6 +137,7 @@ func (p *nodePeer) keepalive(stop <-chan struct{}) {
 			return
 		case <-ticker.C:
 			if err := p.send(protocol.ServerToNode{Type: protocol.TypeKeepalive}); err != nil {
+				_ = p.conn.Close()
 				return
 			}
 		}
@@ -224,6 +225,7 @@ func (p *nodePeer) send(message protocol.ServerToNode) error {
 	}
 	p.sendMu.Lock()
 	defer p.sendMu.Unlock()
+	_ = p.conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
 	for _, frame := range frames {
 		if err := websocket.Message.Send(p.conn, frame); err != nil {
 			return err

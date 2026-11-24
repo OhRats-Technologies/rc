@@ -28,6 +28,7 @@ func (s *Server) workspaceAuthority(workspaceID string) (authorityStatus, error)
 		if device.WorkspaceID != workspaceID {
 			continue
 		}
+		device.Online = s.nodes.Online(device.ID)
 		status.Nodes = append(status.Nodes, device)
 		if device.LockHash != status.Hash {
 			status.Pending = append(status.Pending, device)
@@ -49,6 +50,15 @@ func pendingNodeSummary(pending []*RegisteredDevice) string {
 		parts = append(parts, device.Name+" ("+presence+")")
 	}
 	return strings.Join(parts, ", ")
+}
+
+// deviceAuthorityAlert renders the out-of-sync warning on a device's page only when
+// that specific Node has not yet accepted the current workspace access.
+func deviceAuthorityAlert(status authorityStatus, device *RegisteredDevice, role string) string {
+	if device == nil || device.LockHash == status.Hash {
+		return ""
+	}
+	return authorityAlert(status, role, true)
 }
 
 // authorityAlert renders the out-of-sync warning. Owners get the sync action when withAction is set;

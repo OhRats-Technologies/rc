@@ -98,6 +98,7 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 		}
 		sendMu.Lock()
 		defer sendMu.Unlock()
+		_ = conn.SetWriteDeadline(time.Now().Add(15 * time.Second))
 		for _, frame := range frames {
 			if err := websocket.Message.Send(conn, frame); err != nil {
 				return err
@@ -136,13 +137,18 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 				return
 			case <-ticker.C:
 				if send(protocol.NodeToServer{Type: protocol.TypeKeepalive}) != nil {
+					_ = conn.Close()
 					return
 				}
 			}
 		}
 	}()
 	decoder := &protocol.Decoder{}
+	serverKeepalive := false
 	for {
+		if serverKeepalive {
+			_ = conn.SetReadDeadline(time.Now().Add(protocol.IdleTimeout))
+		}
 		var payload []byte
 		if err := websocket.Message.Receive(conn, &payload); err != nil {
 			return err
@@ -156,6 +162,8 @@ func runControlOnce(ctx context.Context, server, stateDir string, state *NodeSta
 			continue
 		}
 		switch message.Type {
+		case protocol.TypeKeepalive:
+			serverKeepalive = true
 		case "lock_bootstrap":
 			if message.Snapshot != "" {
 				if err := BootstrapLock(stateDir, message.Snapshot, server); err != nil {

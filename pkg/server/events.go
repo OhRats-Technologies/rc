@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
+
+	"github.com/OhRats-Technologies/rc/pkg/protocol"
 )
 
 type EventHub struct {
@@ -65,19 +68,34 @@ func (h *EventHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		close(ch)
 	}()
 
+	// Clear the server WriteTimeout for long-lived SSE streams.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
+
 	// Send initial ping
-	fmt.Fprintf(w, ": ping\n\n")
+	if _, err := fmt.Fprintf(w, ": ping\n\n"); err != nil {
+		return
+	}
 	flusher.Flush()
+
+	ping := time.NewTicker(protocol.KeepaliveInterval)
+	defer ping.Stop()
 
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-ping.C:
+			if _, err := fmt.Fprintf(w, ": ping\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
 		case msg, ok := <-ch:
 			if !ok {
 				return
 			}
-			_, _ = w.Write(msg)
+			if _, err := w.Write(msg); err != nil {
+				return
+			}
 			flusher.Flush()
 		}
 	}
