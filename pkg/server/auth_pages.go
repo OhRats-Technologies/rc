@@ -151,7 +151,7 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		http.NotFound(w, req)
 		return
 	}
-	access, err := s.workspaceAuthority(device.WorkspaceID)
+	access, err := s.deviceAuthority(device)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "device could not be loaded")
 		return
@@ -192,7 +192,7 @@ func (s *Server) handleDevicePage(w http.ResponseWriter, req *http.Request) {
 		`<button class="header-icon-button danger-icon-button" type="button" aria-label="Delete ` + escape(device.Name) + `" title="Delete device" data-delete-kind="device" data-delete-name="` + escape(device.Name) + `" data-delete-description="Deletes from RC immediately. If the Node is offline, it clears its old enrollment the next time it connects." data-delete-endpoint="/api/v1/devices/` + escape(device.ID) + `" data-access-workspace="` + escape(device.WorkspaceID) + `" data-delete-redirect="/devices"><span class="ui-icon icon-trash"></span></button></div></header>` +
 		`<dl class="facts"><div><dt>HOSTNAME</dt><dd>` + escape(device.Hostname) + `</dd></div><div><dt>PLATFORM</dt><dd>` + escape(strings.ToUpper(device.Platform)) + ` / ` + escape(device.Arch) + `</dd></div><div><dt>NODE VERSION</dt><dd id="node-version">` + escape(device.Version) + `</dd></div><div><dt>TRANSPORT</dt><dd>End-to-end · RC Lock</dd></div></dl>` +
 		`<p id="process-error" class="error"></p></section>` +
-		deviceAuthorityAlert(access, device, role) +
+		deviceAuthorityAlert(access, role) +
 		`<div class="device-workspace">` +
 		`<section class="panel-card"><div class="panel-head"><span class="eyebrow">01 · SESSIONS</span><h2>Active processes</h2></div>` +
 		`<div class="data-list" id="process-list"><div class="console-empty"><div class="console-preview"><span class="console-prompt">$</span> <span>rc shell ` + escape(device.Name) + `</span></div><p class="page-copy">No active processes running on this node. Launch an interactive terminal above or run a command from the CLI.</p></div></div></section>` +

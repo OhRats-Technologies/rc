@@ -1,9 +1,7 @@
 package server
 
 import (
-	"crypto/ed25519"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -32,20 +30,22 @@ type DeviceRegistry struct {
 }
 
 type RegisteredDevice struct {
-	ID                 string    `json:"id"`
-	WorkspaceID        string    `json:"workspace_id"`
-	Name               string    `json:"name"`
-	Hostname           string    `json:"hostname"`
-	Platform           string    `json:"platform"`
-	Arch               string    `json:"arch"`
-	Version            string    `json:"version"`
-	Capabilities       []string  `json:"capabilities"`
-	IdentityPublicKey  string    `json:"identity_public_key"`
-	TransportPublicKey string    `json:"transport_public_key"`
-	LockHash           string    `json:"lock_hash,omitempty"`
-	LockGeneration     uint64    `json:"lock_generation,omitempty"`
-	Online             bool      `json:"online"`
-	LastSeen           time.Time `json:"last_seen"`
+	ID                 string         `json:"id"`
+	WorkspaceID        string         `json:"workspace_id"`
+	Name               string         `json:"name"`
+	Hostname           string         `json:"hostname"`
+	Platform           string         `json:"platform"`
+	Arch               string         `json:"arch"`
+	Version            string         `json:"version"`
+	Capabilities       []string       `json:"capabilities"`
+	IdentityPublicKey  string         `json:"identity_public_key"`
+	TransportPublicKey string         `json:"transport_public_key"`
+	LockHash           string         `json:"lock_hash,omitempty"`
+	LockGeneration     uint64         `json:"lock_generation,omitempty"`
+	Online             bool           `json:"online"`
+	Presence           DevicePresence `json:"presence,omitempty"`
+	LastSeen           time.Time      `json:"last_seen"`
+	heartbeatUntil     time.Time
 }
 
 func NewDeviceRegistry() *DeviceRegistry {
@@ -169,7 +169,8 @@ func (r *DeviceRegistry) List() []*RegisteredDevice {
 	list := make([]*RegisteredDevice, 0, len(r.devices))
 	for _, device := range r.devices {
 		copied := *device
-		copied.Online = r.effectiveOnlineLocked(&copied)
+		copied.Presence = r.presenceLocked(&copied)
+		copied.Online = copied.Presence != PresenceOffline
 		list = append(list, &copied)
 	}
 	sort.Slice(list, func(i, j int) bool {
@@ -190,7 +191,8 @@ func (r *DeviceRegistry) Get(id string) (*RegisteredDevice, bool) {
 		return nil, false
 	}
 	copied := *device
-	copied.Online = r.effectiveOnlineLocked(&copied)
+	copied.Presence = r.presenceLocked(&copied)
+	copied.Online = copied.Presence != PresenceOffline
 	return &copied, true
 }
 
@@ -274,22 +276,4 @@ func (r *DeviceRegistry) HandleDeviceRoutes(w http.ResponseWriter, req *http.Req
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
-}
-
-func validateEnrollRequest(req *node.EnrollRequest) error {
-	if strings.TrimSpace(req.Token) == "" {
-		return errors.New("enrollment token required")
-	}
-	if len(req.Name) > 128 {
-		return errors.New("device name exceeds 128 bytes")
-	}
-	identity, err := base64.RawURLEncoding.DecodeString(req.IdentityPublicKey)
-	if err != nil || len(identity) != ed25519.PublicKeySize {
-		return errors.New("identityPublicKey must be a base64url Ed25519 public key")
-	}
-	transport, err := base64.RawURLEncoding.DecodeString(req.TransportPublicKey)
-	if err != nil || len(transport) != 32 {
-		return errors.New("transportPublicKey must be a base64url X25519 public key")
-	}
-	return nil
 }

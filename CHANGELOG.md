@@ -2,6 +2,22 @@
 
 All notable RC changes are recorded here. Published tags are immutable.
 
+## [0.20.13] - 2026-11-24
+
+- Replace mutable device online booleans with derived `DevicePresence`
+  (`connected`, `heartbeat`, `offline`) backed by live `NodeHub` connections or
+  a bounded heartbeat expiry.
+- Introduce explicit 3-state RC Lock classification (`synced`, `unbootstrapped`,
+  `stale`) and separate `deviceAuthorityStatus` from workspace authority so
+  synced device pages never display peer warnings and API/UI/agent clients never
+  guess lock state from empty hashes.
+- Enforce monotonic `ProcessStatus` transitions (`starting -> running -> exited
+  | lost`), wire `process_sync` reconciliation on Node reconnect so ghost
+  processes transition to `lost` over SSE, and guard browser terminal events
+  against reverting terminal states.
+- Add contract tests verifying device-page CLI snippets only reference supported
+  `rc` subcommands.
+
 ## [0.20.12] - 2026-11-24
 
 - Drive Node online/offline presence solely from the live control WebSocket.

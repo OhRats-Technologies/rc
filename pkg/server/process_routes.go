@@ -76,7 +76,7 @@ func (s *Server) handleDeviceProcesses(w http.ResponseWriter, req *http.Request)
 	id := "proc_" + randomID(18)
 	s.processes.add(browserProcess{
 		ID: id, DeviceID: deviceID, UserID: userID, UserName: name,
-		Origin: origin, Terminal: input.Terminal, Status: "starting",
+		Origin: origin, Terminal: input.Terminal, Status: ProcessStarting,
 		CreatedAt: time.Now().UTC(),
 	})
 	s.events.Publish("process.created", map[string]any{
@@ -130,7 +130,7 @@ func (s *Server) handleProcessPage(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	controllable := role == "owner" || (role == "operator" && process.UserID == user.ID)
-	running := process.Status == "starting" || process.Status == "running"
+	running := process.Status == ProcessStarting || process.Status == ProcessRunning
 	interactive := process.Terminal && running && controllable
 	message := process.Error
 	if message == "" && running && !controllable {
@@ -155,14 +155,14 @@ func processPageBody(device *RegisteredDevice, process browserProcess, userName 
 			`<button class="signal-btn is-kill" data-signal="KILL" type="button">KILL</button></div>`
 	}
 	return `<div class="page process-page" data-process-page="` + escape(process.ID) +
-		`" data-device-id="` + escape(device.ID) + `" data-process-status="` + escape(process.Status) +
+		`" data-device-id="` + escape(device.ID) + `" data-process-status="` + escape(string(process.Status)) +
 		`" data-process-live="true" data-process-interactive="` + boolString(interactive) + `">` +
 		`<header class="page-header process-header"><div><p class="eyebrow"><a class="inline-link" href="/devices/` +
 		escape(device.ID) + `">` + escape(strings.ToUpper(device.Name)) + `</a> · SESSION</p>` +
 		`<h1 class="mono process-title">` + escape(process.ID) + `</h1>` +
 		`<p class="device-subtitle"><span>` + escape(strings.Title(process.Origin)) + `</span><span class="dot-sep" aria-hidden="true">·</span><span>Started by ` + escape(userName) + `</span></p></div>` +
 		`<span id="process-state" class="status` + onlineClass(running) + `">` +
-		escape(strings.ToUpper(process.Status)) + `</span></header>` +
+		escape(strings.ToUpper(string(process.Status))) + `</span></header>` +
 		`<div class="terminal-deck"><div id="terminal-toolbar" class="terminal-toolbar">` +
 		`<div class="terminal-toolbar-left"><span class="cap-chip"><span>` + boolChoice(process.Terminal, "PTY", "PROCESS") + `</span></span><span class="mono meta">` + escape(shortProcess(process.ID)) + `</span>` +
 		boolChoice(interactive, `<span id="control-transport" class="status">CONNECTING</span>`, "") + `</div>` + actions + `</div>` +

@@ -75,6 +75,10 @@ func (h *NodeHub) dispatch(deviceID string, message protocol.NodeToServer) {
 		if h.onProcessState != nil {
 			h.onProcessState(deviceID, message)
 		}
+	case "process_sync":
+		if h.onProcessSync != nil {
+			h.onProcessSync(deviceID, message.IDs)
+		}
 	}
 	if message.Type == "mcp_image_chunk" || message.Type == "mcp_image_result" {
 		h.dispatchImage(deviceID, message)

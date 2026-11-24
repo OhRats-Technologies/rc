@@ -152,7 +152,7 @@ func TestHeartbeatAndSelfDoNotMarkDisconnectedNodeOnline(t *testing.T) {
 		t.Fatal("fresh heartbeat should be online")
 	}
 	srv.registry.mu.Lock()
-	srv.registry.devices[device.ID].LastSeen = time.Now().Add(-nodeHeartbeatTTL - time.Second)
+	srv.registry.devices[device.ID].heartbeatUntil = time.Now().UTC().Add(-time.Second)
 	srv.registry.mu.Unlock()
 	if got, _ := srv.registry.Get(device.ID); got.Online {
 		t.Fatal("stale heartbeat without WebSocket must report offline")

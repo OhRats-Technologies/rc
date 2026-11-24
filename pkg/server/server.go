@@ -94,15 +94,27 @@ func New(cfg Config) *Server {
 	}
 	nodes.onProcessState = func(deviceID string, message protocol.NodeToServer) {
 		exit := message.ExitCode
-		s.processes.update(message.ProcessID, message.Status, &exit, message.Signal, message.Error)
+		next := ProcessStatus(message.Status)
+		if !s.processes.update(message.ProcessID, next, &exit, message.Signal, message.Error) {
+			return
+		}
 		kind := "process.started"
-		if message.Status != "running" {
+		if next == ProcessLost {
+			kind = "process.lost"
+		} else if next != ProcessRunning {
 			kind = "process.exited"
 		}
 		s.events.Publish(kind, map[string]any{
 			"deviceId": deviceID, "processId": message.ProcessID,
 			"exitCode": message.ExitCode, "signal": message.Signal, "error": message.Error,
 		})
+	}
+	nodes.onProcessSync = func(deviceID string, activeIDs []string) {
+		for _, lost := range s.processes.reconcile(deviceID, activeIDs) {
+			s.events.Publish("process.lost", map[string]any{
+				"deviceId": deviceID, "processId": lost.ID, "error": lost.Error,
+			})
+		}
 	}
 	nodes.onPresence = func(deviceID string, online bool) {
 		if online {

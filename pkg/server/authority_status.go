@@ -52,13 +52,53 @@ func pendingNodeSummary(pending []*RegisteredDevice) string {
 	return strings.Join(parts, ", ")
 }
 
+// LockSyncState classifies one Node's RC Lock relative to the workspace snapshot.
+type LockSyncState string
+
+const (
+	LockSynced         LockSyncState = "synced"
+	LockUnbootstrapped LockSyncState = "unbootstrapped"
+	LockStale          LockSyncState = "stale"
+)
+
+func classifyLockState(lockHash, currentHash string) LockSyncState {
+	switch {
+	case lockHash == currentHash && currentHash != "":
+		return LockSynced
+	case !validAuthorityHash(lockHash):
+		return LockUnbootstrapped
+	default:
+		return LockStale
+	}
+}
+
+// deviceAuthorityStatus scopes RC Lock state to one specific Node so a synced
+// device page can never display another Node's out-of-sync warning.
+type deviceAuthorityStatus struct {
+	Workspace authorityStatus
+	Device    *RegisteredDevice
+	State     LockSyncState
+}
+
+func (s *Server) deviceAuthority(device *RegisteredDevice) (deviceAuthorityStatus, error) {
+	access, err := s.workspaceAuthority(device.WorkspaceID)
+	if err != nil {
+		return deviceAuthorityStatus{}, err
+	}
+	return deviceAuthorityStatus{
+		Workspace: access,
+		Device:    device,
+		State:     classifyLockState(device.LockHash, access.Hash),
+	}, nil
+}
+
 // deviceAuthorityAlert renders the out-of-sync warning on a device's page only when
 // that specific Node has not yet accepted the current workspace access.
-func deviceAuthorityAlert(status authorityStatus, device *RegisteredDevice, role string) string {
-	if device == nil || device.LockHash == status.Hash {
+func deviceAuthorityAlert(status deviceAuthorityStatus, role string) string {
+	if status.Device == nil || status.State == LockSynced {
 		return ""
 	}
-	return authorityAlert(status, role, true)
+	return authorityAlert(status.Workspace, role, true)
 }
 
 // authorityAlert renders the out-of-sync warning. Owners get the sync action when withAction is set;
@@ -100,13 +140,15 @@ func (s *Server) writeAuthorityState(w http.ResponseWriter, workspaceID string) 
 	states := make([]map[string]any, 0, len(devices))
 	parents := make(map[string]map[string]any)
 	for _, device := range devices {
-		if device.LockHash == hash {
+		state := classifyLockState(device.LockHash, hash)
+		if state == LockSynced {
 			synced++
 		}
 		states = append(states, map[string]any{
-			"id": device.ID, "name": device.Name, "synced": device.LockHash == hash, "online": s.nodes.Online(device.ID),
+			"id": device.ID, "name": device.Name, "synced": state == LockSynced,
+			"lockState": state, "online": s.nodes.Online(device.ID),
 		})
-		if validAuthorityHash(device.LockHash) && device.LockHash != hash {
+		if state == LockStale {
 			parents[authorityParentKey(device.LockHash, device.LockGeneration)] = map[string]any{
 				"hash": device.LockHash, "generation": device.LockGeneration,
 			}

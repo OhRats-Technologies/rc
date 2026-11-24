@@ -6,6 +6,35 @@ import (
 	"time"
 )
 
+// ProcessStatus is the monotonic lifecycle state of a hosted remote process.
+type ProcessStatus string
+
+const (
+	ProcessStarting ProcessStatus = "starting"
+	ProcessRunning  ProcessStatus = "running"
+	ProcessExited   ProcessStatus = "exited"
+	ProcessLost     ProcessStatus = "lost"
+)
+
+func (s ProcessStatus) isTerminal() bool {
+	return s == ProcessExited || s == ProcessLost
+}
+
+func canTransitionProcess(from, to ProcessStatus) bool {
+	if from == to {
+		return true
+	}
+	if from.isTerminal() {
+		return false
+	}
+	switch to {
+	case ProcessRunning, ProcessExited, ProcessLost:
+		return true
+	default:
+		return false
+	}
+}
+
 type browserProcess struct {
 	ID        string
 	DeviceID  string
@@ -13,7 +42,7 @@ type browserProcess struct {
 	UserName  string
 	Origin    string
 	Terminal  bool
-	Status    string
+	Status    ProcessStatus
 	ExitCode  *int32
 	Signal    string
 	Error     string
@@ -30,22 +59,52 @@ func newProcessHub() *processHub {
 }
 
 func (h *processHub) add(process browserProcess) {
+	if process.Status == "" {
+		process.Status = ProcessStarting
+	}
 	h.mu.Lock()
 	h.process[process.ID] = process
 	h.mu.Unlock()
 }
 
-func (h *processHub) update(id, status string, exitCode *int32, signal, message string) {
+func (h *processHub) update(id string, status ProcessStatus, exitCode *int32, signal, message string) bool {
 	h.mu.Lock()
+	defer h.mu.Unlock()
 	process, ok := h.process[id]
-	if ok {
-		process.Status = status
-		process.ExitCode = exitCode
-		process.Signal = signal
-		process.Error = message
-		h.process[id] = process
+	if !ok || !canTransitionProcess(process.Status, status) {
+		return false
 	}
-	h.mu.Unlock()
+	process.Status = status
+	process.ExitCode = exitCode
+	process.Signal = signal
+	process.Error = message
+	h.process[id] = process
+	return true
+}
+
+// reconcile marks any active hosted process for deviceID that is absent from
+// activeIDs as lost. Called on every Node process_sync so reconnects never
+// leave ghost running processes behind.
+func (h *processHub) reconcile(deviceID string, activeIDs []string) []browserProcess {
+	active := make(map[string]bool, len(activeIDs))
+	for _, id := range activeIDs {
+		active[id] = true
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var lost []browserProcess
+	for id, process := range h.process {
+		if process.DeviceID != deviceID || process.Status.isTerminal() || active[id] {
+			continue
+		}
+		process.Status = ProcessLost
+		if process.Error == "" {
+			process.Error = "Node reconnected without this process"
+		}
+		h.process[id] = process
+		lost = append(lost, process)
+	}
+	return lost
 }
 
 func (h *processHub) get(id string) (browserProcess, bool) {

@@ -1,14 +1,27 @@
 package server
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/OhRats-Technologies/rc/pkg/crypto"
+	"github.com/OhRats-Technologies/rc/pkg/node"
+)
+
+// DevicePresence is the single derived connectivity state of a Node.
+type DevicePresence string
+
+const (
+	PresenceOffline   DevicePresence = "offline"
+	PresenceHeartbeat DevicePresence = "heartbeat"
+	PresenceConnected DevicePresence = "connected"
 )
 
 const (
@@ -94,8 +107,13 @@ func (r *DeviceRegistry) markOnline(deviceID string, online bool) {
 	if !ok {
 		return
 	}
-	device.Online = online
-	device.LastSeen = time.Now().UTC()
+	now := time.Now().UTC()
+	device.LastSeen = now
+	if online {
+		device.heartbeatUntil = now.Add(nodeHeartbeatTTL)
+	} else {
+		device.heartbeatUntil = time.Time{}
+	}
 }
 
 func (r *DeviceRegistry) touch(deviceID string) {
@@ -138,27 +156,33 @@ func (s *Server) handleNodeSelf(w http.ResponseWriter, req *http.Request) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
-func (r *DeviceRegistry) effectiveOnlineLocked(device *RegisteredDevice) bool {
+func (r *DeviceRegistry) presenceLocked(device *RegisteredDevice) DevicePresence {
 	if r.isConnected != nil && r.isConnected(device.ID) {
-		return true
+		return PresenceConnected
 	}
-	return device.Online && !device.LastSeen.IsZero() && time.Since(device.LastSeen) <= nodeHeartbeatTTL
+	if !device.heartbeatUntil.IsZero() && time.Now().UTC().Before(device.heartbeatUntil) {
+		return PresenceHeartbeat
+	}
+	return PresenceOffline
 }
 
 func (r *DeviceRegistry) reapStaleOnline() []*RegisteredDevice {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	now := time.Now().UTC()
 	var expired []*RegisteredDevice
 	for _, device := range r.devices {
-		if !device.Online {
+		if device.heartbeatUntil.IsZero() {
 			continue
 		}
 		if r.isConnected != nil && r.isConnected(device.ID) {
 			continue
 		}
-		if device.LastSeen.IsZero() || time.Since(device.LastSeen) > nodeHeartbeatTTL {
-			device.Online = false
+		if !now.Before(device.heartbeatUntil) {
+			device.heartbeatUntil = time.Time{}
 			copied := *device
+			copied.Presence = PresenceOffline
+			copied.Online = false
 			expired = append(expired, &copied)
 		}
 	}
@@ -221,4 +245,22 @@ func (s *Server) markOffline(deviceID string) {
 	}
 	s.registry.markOnline(device.ID, false)
 	s.events.Publish("device.offline", map[string]any{"deviceId": device.ID, "name": device.Name})
+}
+
+func validateEnrollRequest(req *node.EnrollRequest) error {
+	if strings.TrimSpace(req.Token) == "" {
+		return errors.New("enrollment token required")
+	}
+	if len(req.Name) > 128 {
+		return errors.New("device name exceeds 128 bytes")
+	}
+	identity, err := base64.RawURLEncoding.DecodeString(req.IdentityPublicKey)
+	if err != nil || len(identity) != ed25519.PublicKeySize {
+		return errors.New("identityPublicKey must be a base64url Ed25519 public key")
+	}
+	transport, err := base64.RawURLEncoding.DecodeString(req.TransportPublicKey)
+	if err != nil || len(transport) != 32 {
+		return errors.New("transportPublicKey must be a base64url X25519 public key")
+	}
+	return nil
 }

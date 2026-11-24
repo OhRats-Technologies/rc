@@ -45,6 +45,7 @@ type NodeHub struct {
 	onControlFrame  func(string, protocol.NodeToServer)
 	onControlClosed func(string, string)
 	onProcessState  func(string, protocol.NodeToServer)
+	onProcessSync   func(string, []string)
 	// keepaliveInterval and idleTimeout default to the protocol values; tests shorten them.
 	keepaliveInterval time.Duration
 	idleTimeout       time.Duration

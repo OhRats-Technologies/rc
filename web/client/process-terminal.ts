@@ -117,6 +117,7 @@ async function resync() {
 function applyProcessEvent(event: { kind: string; detail?: Record<string, unknown> }) {
   const state = qs<HTMLElement>("#process-state"), actions = document.querySelector<HTMLElement>("#terminal-actions");
   if (event.kind === "process.started") {
+    if (status === "exited" || status === "lost") return;
     status = "running"; state.textContent = "RUNNING"; state.classList.add("online");
     terminal.options.cursorBlink = interactive; if (actions) actions.hidden = false; return;
   }
